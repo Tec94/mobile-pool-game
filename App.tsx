@@ -91,7 +91,7 @@ function Root() {
   };
   // The Daily Table. shortcut: today is read at launch, so the app must reopen to see a new day after 04:00.
   const [today] = useState(() => dayKey(new Date())), [day, setDay] = useState(today);
-  const [daily, setDaily] = useState(() => { const d = loadDaily(today), g = grantChalk(d, today); if (g !== d) saveDaily(g); return g; });
+  const [daily, setDaily] = useState(() => { const { daily: d, damaged } = loadDaily(today), g = grantChalk(d, today); if (g !== d && !damaged) saveDaily(g); return g; });
   const playDay = (k: string) => { setDay(k); go('daily'); };
   const dayScen = SCENARIOS[dailyPick(day, SCENARIOS)];
   const dayCleared = (tries: number, guideOff: boolean): Clear => { // like cleared: pay only what was saved

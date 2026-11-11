@@ -166,6 +166,9 @@ await p.close();
 p = await b.newPage({ viewport: { width: 390, height: 844 } });
 await p.clock.setFixedTime(new Date('2026-12-22T03:30:00')); await p.goto(url); await p.getByText('Pool').first().waitFor();
 check(/Mon 21 Dec/.test(await text(p)), '03:30 on 22 Dec is still Mon 21 Dec');
+// A daily.json that cannot be read is not written over at launch.
+await store(p, { 'daily.json': '{oops' }); await reload(p);
+check(await p.evaluate(() => localStorage.getItem('qa-fs:daily.json')) === '"{oops"', 'an unreadable daily.json is left alone at launch');
 await p.close();
 
 // No timer, countdown or "at risk" wording anywhere the run went.

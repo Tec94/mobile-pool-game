@@ -108,3 +108,25 @@ import { addDays, addMonths, armChalk, chalkResult, dailyClear, dailyPick, dayKe
   assert(monthGrid('2028-02').includes('2028-02-29') && !monthGrid('2027-02').includes('2027-02-29'), 'only a leap February has the 29th');
   console.log('daily calendar: all checks passed');
 }
+{ // the file: a save moves a new file into place and keeps the last good one; a damaged file is never written over at launch
+  const disk = new Map(); globalThis.__DEV__ = false; globalThis.__disk = disk;
+  const fake = `export const Paths = { document: '' }; const d = globalThis.__disk;
+    export class File { constructor(_, n) { this.n = n } get exists() { return d.has(this.n) } textSync() { if (!d.has(this.n)) throw Error('none'); return d.get(this.n) }
+      writeSync(t) { d.set(this.n, t) } moveSync(to) { d.set(to.n, this.textSync()); d.delete(this.n) } }`;
+  const { registerHooks } = await import('node:module');
+  registerHooks({ resolve: (s, c, next) => (s === 'expo-file-system' ? { url: `data:text/javascript,${encodeURIComponent(fake)}`, shortCircuit: true } : next(s, c)) });
+  const { loadDaily, saveDaily } = await import('./save.ts'), today = '2026-11-11', fresh = readDaily(null, today);
+  assert.deepStrictEqual(loadDaily(today), { daily: fresh, damaged: false }, 'no file: a fresh state, safe to save');
+  disk.set('daily.json', '{"firstDay":"2026-1');
+  assert.deepStrictEqual(loadDaily(today), { daily: fresh, damaged: true }, 'only a damaged file: damaged, do not save over it');
+  disk.clear();
+  const a = grantChalk(fresh, today), b = { ...a, stars: { [today]: 1 } };
+  assert(saveDaily(a) && saveDaily(b), 'saved');
+  assert.deepStrictEqual([...disk.keys()].sort(), ['daily.bak.json', 'daily.json'], 'the main file and the last good one');
+  assert.deepStrictEqual(loadDaily(today).daily, b, 'loads the last save');
+  disk.set('daily.json', '{oops');
+  assert.deepStrictEqual(loadDaily(today), { daily: a, damaged: false }, 'a damaged main file falls back to the backup');
+  disk.set('daily.new.json', JSON.stringify(b));
+  assert.deepStrictEqual(loadDaily(today).daily, b, 'a new file left by a crash before its move is the newest save');
+  console.log('daily file: all checks passed');
+}

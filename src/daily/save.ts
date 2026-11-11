@@ -1,12 +1,11 @@
-// The daily state on the phone: one small JSON file in the app's documents, like the lessons.
-import { File, Paths } from 'expo-file-system';
+// The daily state on the phone: saved like the profile, a new file moved into place and the last good one kept.
+import { loadJson, saveJson } from '../progress/save.ts';
 import { readDaily, type Daily } from './daily.ts';
 
-const file = () => new File(Paths.document, 'daily.json');
-export function loadDaily(today: string): Daily {
-  try { const f = file(); return readDaily(f.exists ? f.textSync() : null, today); } catch { return readDaily(null, today); }
+// damaged = there are files but none can be read: start fresh but do not save over them at launch.
+export function loadDaily(today: string) {
+  const t = loadJson('daily');
+  return { daily: readDaily(t ?? null, today), damaged: t === undefined };
 }
 // false = not saved: the caller must not pay, or the day would pay again after the next launch.
-export function saveDaily(d: Daily) {
-  try { file().writeSync(JSON.stringify(d)); return true; } catch (e) { if (__DEV__) console.warn('daily not saved', e); return false; }
-}
+export const saveDaily = (d: Daily) => saveJson('daily', d);
