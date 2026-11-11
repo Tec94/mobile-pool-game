@@ -1,6 +1,6 @@
 // The cues: their stats (1 to 10), perk and how to get them, and the engine cue they make (progression design).
 import { CUE, P, type Cue } from '../physics/engine.ts';
-import { GUIDE, guideFor } from '../shot/aim.ts';
+import { guideLen } from '../shot/aim.ts';
 
 export interface CueInfo {
   name: string; power: number; spin: number; aim: number;
@@ -45,7 +45,7 @@ export function stick(id: CueId, matched = false, stats?: Pick<CueInfo, 'power' 
 // sit from the centre in mm, and how much of the path past the first contact the aim guide shows, in cm.
 export function specs(id: CueId, stats: Pick<CueInfo, 'power' | 'spin' | 'aim'> = CUES[id]) {
   const s = stick(id, false, stats);
-  return { shot: s.maxSpeed, brk: s.breakSpeed, tipMm: s.tipLimit * P.R * 1000, guideCm: GUIDE[guideFor(stats.aim)] * 100 };
+  return { shot: s.maxSpeed, brk: s.breakSpeed, tipMm: s.tipLimit * P.R * 1000, guideCm: Math.round(guideLen(stats.aim) * 100) };
 }
 export const specLine = ({ shot, brk, tipMm, guideCm }: ReturnType<typeof specs>) =>
   `Power: ${shot.toFixed(2)} m/s top shot, ${brk.toFixed(1)} m/s break\nSpin: tip up to ${tipMm.toFixed(1)} mm off centre\nAim: guide ${guideCm} cm past contact`;

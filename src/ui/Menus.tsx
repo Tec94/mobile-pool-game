@@ -1,18 +1,19 @@
 // The screens around a match: home, the pass and play and quick match setups, settings, cues, learn, scenarios and the
 // Daily Table (screens spec, s-home, s-passplay, s-prefs, s-learn, the quick match sheet).
-// shortcut: only what works today is on them. The Rival, practice, career and the other settings of
+// shortcut: only what works today is on them. Practice, career and the other settings of
 // the spec come with the work that makes them play.
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LESSON_PAY, LESSONS, SOLO_RUN } from '../learn/lessons';
-import { keep, profile } from '../progress';
+import { keep, profile, rivalReset } from '../progress';
+import { between, MOODS, shown } from '../progress/rival';
 import { addMonths, type Daily, monthGrid, streak, weekday } from '../daily/daily';
 import { isOpen, par, SCENARIOS, starCount, type Stars, totalStars } from '../scenarios/scenarios';
 import { CUE_IDS, CUES, type CueId, type CueInfo, specLine, specs } from '../progress/cues';
 import { masteryLevel, masteryOf, STATS, statsOf, tunable, tuneDown, tuneUp, upCost, used, points } from '../progress/mastery';
 import { buy, FEATS, featCount, type FeatId, levelOf, PACKS, select, type Profile } from '../progress/profile';
-import { NAME_MAX, RACES, Settings } from '../settings/settings';
+import { NAME_MAX, RACES, RIVAL, Settings } from '../settings/settings';
 import { TIERS } from '../ai/shot-ai';
 import { C, CLOTHS } from '../theme';
 import { Btn } from './Btn';
@@ -22,7 +23,7 @@ export type Screen = 'home' | 'pass' | 'quick' | 'settings' | 'cues' | 'learn' |
 interface Props { set: Settings; change: (s: Partial<Settings>) => void; go: (to: Screen | 'match' | 'ai') => void }
 interface LearnProps { done: string[]; learn: (lesson: number) => void }
 interface ScenarioProps { stars: Stars; play: (scenario: number) => void }
-interface DailyProps { daily: Daily; today: string; day: string; playDay: (day: string) => void }
+interface DailyProps { daily: Daily; today: string; day: string; playDay: (day: string) => void; arm: (on: boolean) => void }
 
 // A setting: its name, an optional line on what it does, and one button for each value.
 function Row<T>({ label, note, value, pick, options }: { label: string; note?: string; value: T; pick: (v: T) => void; options: [string, T][] }) {
@@ -52,9 +53,9 @@ function Page({ title, back, children }: { title: string; back?: () => void; chi
   );
 }
 
-export function Menus({ screen, set, change, go, done, learn, stars, play, daily, today, day, playDay }: Props & LearnProps & ScenarioProps & DailyProps & { screen: Screen }) {
+export function Menus({ screen, set, change, go, done, learn, stars, play, daily, today, day, playDay, arm }: Props & LearnProps & ScenarioProps & DailyProps & { screen: Screen }) {
   if (screen === 'pass') return <PassPlay set={set} change={change} go={go} />;
-  if (screen === 'quick') return <QuickMatch set={set} change={change} go={go} />;
+  if (screen === 'quick') return <QuickMatch set={set} change={change} go={go} daily={daily} arm={arm} />;
   if (screen === 'settings') return <SettingsPage set={set} change={change} go={go} />;
   if (screen === 'cues') return <Cues go={go} />;
   if (screen === 'learn') return <Learn go={go} done={done} learn={learn} />;
@@ -66,7 +67,7 @@ export function Menus({ screen, set, change, go, done, learn, stars, play, daily
       <Btn label={'Quick match\n8-ball or 9-ball against the AI'} name="Quick match" onPress={() => go('quick')} />
       <Btn label={`Daily Table\n${dateOf(today)} · ${THEMES[weekday(today)]} · ${'★'.repeat(k)}${'☆'.repeat(3 - k)}${run ? ` · run ${run}` : ''}`}
         name={`Daily Table, ${dateOf(today)}, ${THEMES[weekday(today)]}, ${k} of 3 stars${run ? `, run of ${run} days` : ''}`} onPress={() => go('calendar')} />
-      <Text maxFontSizeMultiplier={1.3} style={styles.note}>{`Fresh Chalk: ${daily.chalk.charges} · will double a win against the computer`}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={styles.note}>{`Fresh Chalk: ${daily.chalk.charges}${daily.chalk.armed ? ', one armed' : ''} · doubles the match pay of a quick match win`}</Text>
       <Btn label={'Pass and play\nTwo players, one phone'} name="Pass and play" onPress={() => go('pass')} />
       <Btn label={`Learn\n${next ? `Next: ${next.title}` : 'Every lesson passed'}`} name="Learn" onPress={() => go('learn')} />
       <Btn label={`Scenarios\n${totalStars(stars)} of ${3 * SCENARIOS.length} stars`} name="Scenarios" onPress={() => go('scenarios')} />
@@ -95,13 +96,22 @@ function PassPlay({ set, change, go }: Props) {
   );
 }
 
-// The opponent is an AI tier; the setup is kept for next time, as pass and play keeps its own.
-function QuickMatch({ set, change, go }: Props) {
+// The opponent is the Rival, who adapts between matches, or a fixed AI tier; the setup is kept for next time, as pass
+// and play keeps its own. The Rival's rating is always shown: hidden adaptation would make the player doubt every win.
+function QuickMatch({ set, change: save, go, daily, arm }: Props & Pick<DailyProps, 'daily' | 'arm'>) {
+  const { charges, armed } = daily.chalk;
+  const [sure, setSure] = useState(false), s = profile().rival[set.aiGame].rating, names = TIERS.map(t => t.name);
+  const change = (p: Partial<Settings>) => { setSure(false); save(p); }; // any change disarms a reset, so one tap never resets another game
+  // A reset throws the rating away, so it takes a second tap (no Alert: it does nothing on web).
+  const reset = () => { if (sure) rivalReset(set.aiGame); setSure(!sure); };
   return (
     <Page title="Quick match" back={() => go('home')}>
       <Row<Settings['aiGame']> label="Game" note="9-ball: hit the lowest ball first. Potting the 9 wins" value={set.aiGame} pick={aiGame => change({ aiGame })} options={[['8-ball', 8], ['9-ball', 9]]} />
-      <Row label="Opponent" value={set.tier} pick={tier => change({ tier })} options={TIERS.map((t, i) => [t.name, i])} />
+      <Row label="Opponent" note={set.tier === RIVAL ? `Rival ${shown(s)}, ${between(s, names)}. Adapts after each match` : undefined} value={set.tier} pick={tier => change({ tier })} options={[['Rival', RIVAL], ...TIERS.map((t, i): [string, number] => [t.name, i])]} />
+      {set.tier === RIVAL && <Row label="Rival mood" note="How often you should win once the rating settles" value={set.mood} pick={mood => change({ mood })} options={MOODS.map(m => [m[0].toUpperCase() + m.slice(1), m])} />}
+      {set.tier === RIVAL && <Btn label={sure ? `Tap again: ${set.aiGame}-ball Rival back to ${shown(1)}` : 'Reset Rival rating'} onPress={reset} />}
       <Row label="Race to" note="Frames to win. The break alternates" value={set.aiRace} pick={aiRace => change({ aiRace })} options={RACES.map(r => [String(r), r])} />
+      {charges > 0 && <Row label="Fresh Chalk" note={`${charges} left. Doubles the match pay of your next win, and stays on through a loss`} value={armed} pick={arm} options={[['Off', false], ['On', true]]} />}
       <Btn label="Rack them up" onPress={() => go('ai')} />
     </Page>
   );
@@ -150,7 +160,7 @@ const dateOf = (k: string) => `${DAYS[weekday(k)].slice(0, 3)} ${+k.slice(8, 10)
 
 // A month of daily tables. Every day from the first one opened to today plays at full pay; the grid is Monday first.
 // It opens on the month of day, the day last played, so coming back from a table keeps its month.
-function Calendar({ go, daily, today, day, playDay }: Pick<Props, 'go'> & DailyProps) {
+function Calendar({ go, daily, today, day, playDay }: Pick<Props, 'go'> & Omit<DailyProps, 'arm'>) {
   const [month, setMonth] = useState(day.slice(0, 7)), { current, best } = streak(daily.stars, today);
   const cells = monthGrid(month), weeks = Array.from({ length: cells.length / 7 }, (_, w) => cells.slice(7 * w, 7 * w + 7));
   return (
