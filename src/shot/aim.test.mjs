@@ -1,6 +1,8 @@
 // Run: npm test   (checks the shot controls: what a touch does to the aim and the power, and what the guide shows)
 import assert from 'node:assert';
 import { P } from '../physics/engine.ts';
+import { shotLayout } from '../render/cue.ts';
+import { RAIL } from '../render/table.ts';
 import { aimGuide, dialTurn, guideFor, nearest, nudge, powerTick, previewPower, pullPower, railLabel, release, SENS, swing, tapAim } from './aim.ts';
 const mk = (x, y, on = true) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on });
 const near = (a, b, tol, msg) => assert(Math.abs(a - b) < tol, `${msg}: ${a} vs ${b}`);
@@ -55,4 +57,18 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
   assert(aimGuide(B, shot, 0).ob.length < 2, 'Off: no object ball path');
   const jump = aimGuide([mk(0.3, mid)], { ang: Math.PI, speed: 4.5, a: 0, b: 0, elev: 42 * DEG }, 2); assert(jump.lost && !jump.ghost, 'a jump off the table is lost');
   ok('the guide shows the object ball path, and the cue ball path after contact only at Long');
+}
+{ // The layout: on an iPhone and a small Android window, both ways up, every control is a 44 pt target inside the safe
+  // area, and no control touches another or the table.
+  for (const [w, h, pad] of [[393, 852, { top: 59, right: 0, bottom: 34, left: 0 }], [852, 393, { top: 0, right: 59, bottom: 21, left: 59 }], [360, 640, { top: 24, right: 0, bottom: 0, left: 0 }], [640, 360, { top: 0, right: 0, bottom: 0, left: 24 }]]) {
+    const { view: v, ...ui } = shotLayout(w, h, pad), land = w > h, tw = (land ? P.L : P.W) + 2 * RAIL, th = (land ? P.W : P.L) + 2 * RAIL;
+    const boxes = [...Object.entries(ui), ['table', { left: v.ox - RAIL * v.s, top: v.oy - RAIL * v.s, width: tw * v.s, height: th * v.s }]];
+    for (const [name, b] of boxes) {
+      assert(b.width >= 44 && b.height >= 44, `${name} is a 44 pt target at ${w}x${h}`);
+      assert(b.left >= pad.left && b.top >= pad.top && b.left + b.width <= w - pad.right + 1e-9 && b.top + b.height <= h - pad.bottom + 1e-9, `${name} is inside the safe area at ${w}x${h}`);
+      for (const [other, o] of boxes) assert(name === other || b.left + b.width <= o.left + 1e-9 || o.left + o.width <= b.left + 1e-9 || b.top + b.height <= o.top + 1e-9 || o.top + o.height <= b.top + 1e-9, `${name} and ${other} overlap at ${w}x${h}`);
+    }
+    assert(v.land === land && ui.rail.left > v.ox + (tw - RAIL) * v.s, 'the rail is right of the table');
+  }
+  ok('the controls and the table fit the window without overlap');
 }
