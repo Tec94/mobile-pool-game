@@ -176,7 +176,7 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
     while (land === null) { ev.length = 0; step(B, ev); apex = Math.max(apex, B[0].z); const l = ev.find(q => q.t === 'land'); if (l) land = l.x - 0.3; }
     assert(Math.abs(apex - vz * vz / 2 / P.g) < 0.002, `apex ${apex} vs ${vz * vz / 2 / P.g}`);
     assert(Math.abs(land - 2 * vz * vh / P.g) < 0.01, `landing ${land} vs ${2 * vz * vh / P.g}`);
-    assert(B[0].z === 0 && B[0].vz >= 0, 'ball is back on the slate');
+    assert(B[0].z >= 0 && B[0].z < 0.002 && B[0].vz >= 0, 'ball is back on the slate (or just off it again, in the rest of the step)');
   }
   const B = cueAt(0.3, 0.55); strike(B[0], { ang: 0, speed: 8, a: 0.3, b: 0.2 }); assert(B[0].vz === 0 && B[0].z === 0, 'a level cue never lifts the ball (no scoop jumps)');
   console.log('jump arc ok (apex and landing match the ballistic formulas)'); }
@@ -328,4 +328,14 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
     dia.push(Math.abs(c.x - 0.3 * P.L) / (P.L / 8)); assert(Math.abs(dia[k - 1] - k) < 0.25, `${k}/3 side spin should move the kick ${k} diamonds, moved ${dia[k - 1]}`); }
   EngineAll.setTable(L, W);
   console.log(`9 ft table ok (1 to 5 lengths: ${len.map(x => x.toFixed(2)).join(', ')}; side spin kick: ${dia.map(x => x.toFixed(2)).join(', ')} diamonds)`); }
+
+// 28. A landing does not depend on where the steps fall. A ball that moves at 3 m/s is dropped from 400 heights that are
+// 0.02 mm apart; where it lands the second time must change smoothly with the height (a landing that waits for the end
+// of its step moves the second landing in jumps of several millimetres).
+{ const second = z0 => { const b = { ...mk(0.3, 0.55), vx: 3, z: z0, vz: 0 }, ev = []; let n = 0;
+    for (let i = 0; i < 3000; i++) { ev.length = 0; step([b], ev); if (ev.some(e => e.t === 'land') && ++n === 2) return ev.find(e => e.t === 'land').x; } };
+  let worst = 0, prev = second(0.05), pd = null;
+  for (let k = 1; k <= 400; k++) { const x = second(0.05 + k * 2e-5), d = x - prev; if (pd !== null) worst = Math.max(worst, Math.abs(d - pd)); pd = d; prev = x; }
+  assert(worst < 5e-5, `second landing jumps by ${worst * 1e3} mm between drop heights 0.02 mm apart`);
+  console.log(`landing ok (second landing moves smoothly with the drop height, largest jump ${(worst * 1e3).toFixed(3)} mm)`); }
 console.log('all checks passed');

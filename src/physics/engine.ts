@@ -181,7 +181,12 @@ export function step(B:Ball[],ev?:Ev[]):boolean{
     if(!b.on||!(b.vx||b.vy||b.wx||b.wy||b.wz||b.vz))continue;
     if((b.z??0)>0||(b.vz??0)>0){ // in the air: gravity only, spin is kept until the ball lands
       b.x+=b.vx*h;b.y+=b.vy*h;b.vz=(b.vz??0)-g*h;b.z=(b.z||0)+b.vz*h;moving=true;
-      if(b.z<=0){bounce(b,P.et,P.mus);if(ev)ev.push({t:'land',a:B.indexOf(b),x:b.x,y:b.y});}
+      if(b.z<=0){ // it touched down t seconds before the end of the step: bounce at that instant, then fly on for the rest of the step
+        const t=b.vz<0?b.z/b.vz:0,ox=b.vx,oy=b.vy;
+        b.vz+=g*t;bounce(b,P.et,P.mus);
+        b.x+=(b.vx-ox)*t;b.y+=(b.vy-oy)*t;
+        if(b.vz>g*t){b.vz-=g*t;b.z=b.vz*t;}else b.vz=0; // a hop that is over before the step ends stays down
+        if(ev)ev.push({t:'land',a:B.indexOf(b),x:b.x-b.vx*t,y:b.y-b.vy*t});}
       continue;
     }
     const ux=b.vx-R*b.wy,uy=b.vy+R*b.wx,us=hyp(ux,uy),ox=b.vx,oy=b.vy;
