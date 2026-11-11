@@ -60,12 +60,13 @@ uniform float cut; uniform float six; uniform float e;
 half4 main(float2 p) {
   float3 v = float3(p, sqrt(max(0.0, 1.0 - dot(p, p))));
   float3 n = abs(float3(dot(r0, v), dot(r1, v), dot(r2, v)));
-  float4 c = mix(body, float4(band.rgb, 1.0), band.a * (1.0 - smoothstep(0.52 - e, 0.52 + e, n.y)));
+  float4 c = mix(body, float4(band.rgb, 1.0), band.a * (1.0 - smoothstep(0.58 - e, 0.58 + e, n.y)));
   float w = e * sqrt(1.0 - cut * cut);
   c = mix(c, spot, smoothstep(cut - w, cut + w, mix(n.z, max(n.x, max(n.y, n.z)), six)));
   return half4(c);
 }`;
-const SPOT = Math.cos(Math.asin(0.46)), CUE_SPOT = Math.cos(Math.asin(0.17)); // spot radius 0.46 R (number), 0.17 R (cue ball)
+// Proportions are the approved ball sheet's: stripe band 0.58 R to each side, number spot 0.52 R, digits 0.74 R tall (0.6 R for two).
+const SPOT = Math.cos(Math.asin(0.52)), CUE_SPOT = Math.cos(Math.asin(0.17)); // spot radius 0.52 R (number), 0.17 R (cue ball)
 
 export interface Kit { fx: SkRuntimeEffect; fill: SkPaint; line: SkPaint; ball: SkPaint; font: SkFont | null; col: (hex: string) => Float32Array; tw: number[] }
 // font: any bold face at size 10, or null to leave the numbers off.
@@ -81,28 +82,29 @@ const axis = (m: number[], i: number, land: boolean, k = 1) => (land ? [k * m[i]
 
 export function drawBalls(kit: Kit, canvas: SkCanvas, B: Ball[], ids: number[], look: Look, v: View) {
   const { fill, line, ball, col, font } = kit, r = P.R * v.s, { land, calm } = v, dpr = v.dpr || 1;
-  const hue = (id: number) => (id === 0 ? C.chalk : BALLS[(id - 1) % 8]);
+  const hue = (id: number) => (id === 0 ? C.white : BALLS[(id - 1) % 8]);
   const circle = (x: number, y: number, rad: number, hex: string, a: number) => { fill.setColor(col(hex)); fill.setAlphaf(a); canvas.drawCircle(x, y, rad, fill); };
   const stroke = (hex: string, a: number, w: number) => { line.setColor(col(hex)); line.setAlphaf(a); line.setStrokeWidth(w); return line; };
   const lift = (z: number) => 1 + 2.5 * z; // a ball in the air is drawn larger: 10 cm up = 25%
-  const shadow = (x: number, y: number, z: number, a = 1) => { const o = 0.25 * r + 0.5 * z * v.s; circle(x + o, y + o, r, '#000000', a * Math.max(0.18, 0.35 - 2 * z)); };
+  // One hard shadow, down and right of the ball; it moves away and thins as the ball rises.
+  const shadow = (x: number, y: number, z: number, a = 1) => { const o = 0.5 * z * v.s; circle(x + 0.28 * r + o, y + 0.36 * r + o, r, C.shade, a * Math.max(0.2, 0.45 - 2 * z)); };
 
   const sphere = (i: number, x: number, y: number, rad: number, a: number) => {
     const id = ids[i], m = look.m[i], stripe = id > 8;
     // Portrait turns the pattern a quarter turn in the ball's own frame, so a racked ball reads upright either way.
     const X = land ? axis(m, 0, land) : axis(m, 1, land, -1), Y = land ? axis(m, 1, land) : axis(m, 0, land), Z = axis(m, 2, land);
-    const body = col(id === 0 || stripe ? C.chalk : hue(id)), band = col(hue(id)), spot = col(id === 0 ? C.accent : C.chalk);
+    const body = col(id === 0 || stripe ? C.white : hue(id)), band = col(hue(id)), spot = col(id === 0 ? C.accent : C.white);
     ball.setShader(kit.fx.makeShader([...X, ...Y, ...Z, ...body, band[0], band[1], band[2], stripe ? 1 : 0, ...spot, id === 0 ? CUE_SPOT : SPOT, id === 0 ? 1 : 0, 1.2 / (rad * dpr)]));
     ball.setAlphaf(a);
     canvas.save(); canvas.translate(x, y); canvas.scale(rad, rad); canvas.drawCircle(0, 0, 1, ball); canvas.restore();
     if (font && id > 0) for (const k of [1, -1]) { // the number lies flat on its spot, so it turns and foreshortens with the ball
       if (k * Z[2] < 0.35) continue; // nearer the edge the flat number would poke past the ball
-      const tw = kit.tw[id] ?? (kit.tw[id] = font.measureText(String(id)).width), f = rad * 0.062;
+      const tw = kit.tw[id] ?? (kit.tw[id] = font.measureText(String(id)).width), f = rad * (id > 9 ? 0.06 : 0.074);
       canvas.save(); canvas.concat([k * X[0] * f, -Y[0] * f, x + k * Z[0] * rad, k * X[1] * f, -Y[1] * f, y + k * Z[1] * rad, 0, 0, 1]); // the far number reads upright after a half turn about its own upright, as on a real ball
       fill.setColor(col(C.ink)); fill.setAlphaf(a); canvas.drawText(String(id), -tw / 2, 3.6, fill, font); canvas.restore();
     }
-    canvas.drawCircle(x, y, rad - 0.5 / dpr, stroke(C.chalk, 0.4 * a, 1 / dpr)); // rim: keeps the 7 and 8 an edge on dark slate
-    canvas.drawArc({ x: x - rad * 0.7, y: y - rad * 0.7, width: rad * 1.4, height: rad * 1.4 }, 205, 40, false, stroke(C.chalk, 0.75 * a, rad * 0.11)); // fixed highlight: the pattern moves under it
+    canvas.drawCircle(x, y, rad * 0.95, stroke(C.chalk, 0.5 * a, rad * 0.1)); // rim: keeps the 7 and 8 an edge on dark slate
+    canvas.drawArc({ x: x - rad * 0.76, y: y - rad * 0.76, width: rad * 1.52, height: rad * 1.52 }, 202, 46, false, stroke('#FFFFFF', 0.8 * a, rad * 0.14)); // fixed highlight tick: the pattern moves under it
   };
 
   // Under everything: speed smears, landing rings, balls falling into pockets.
