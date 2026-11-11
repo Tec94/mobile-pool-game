@@ -9,7 +9,7 @@ import { Ball, CUE, HOLES, P, predict, rack, SEGS, Shot, step, strike } from './
 
 const C = { ground: '#101F1C', felt: '#27504A', cushion: '#1C3A35', frame: '#D9A866', pocket: '#08100E', chalk: '#EEF2EA' };
 const COLORS = ['#F2C230', '#4B98EE', '#E0483C', '#8448C8', '#EC7428', '#3FBF7F', '#A8323F', '#16191A'];
-const PAD = 24; // frame width in px
+const RAIL = 0.14; // m from the cushion nose to the outside of the frame; the WPA pockets sit up to 0.125 m into it
 const MAX_DRAG = 160; // px of pull-back for full power
 
 const newTable = () => {
@@ -22,7 +22,8 @@ export default function App() {
   const { width, height } = useWindowDimensions();
   const land = width > height;
   // Table metres -> screen px. Portrait stands the table up with the head string at the bottom.
-  const s = land ? Math.min((width - 2 * PAD) / P.L, (height - 2 * PAD - 60) / P.W) : Math.min((width - 2 * PAD) / P.W, (height - 2 * PAD - 60) / P.L);
+  const s = land ? Math.min(width / (P.L + 2 * RAIL), (height - 60) / (P.W + 2 * RAIL)) : Math.min(width / (P.W + 2 * RAIL), (height - 60) / (P.L + 2 * RAIL));
+  const PAD = RAIL * s;
   const toS = (x: number, y: number) => (land ? { x: PAD + x * s, y: PAD + (P.W - y) * s } : { x: PAD + y * s, y: PAD + (P.L - x) * s });
   const toT = (px: number, py: number) => (land ? { x: (px - PAD) / s, y: P.W - (py - PAD) / s } : { x: P.L - (py - PAD) / s, y: (px - PAD) / s });
   const map = useRef({ toT }); map.current.toT = toT; // the pan responder is created once, so it reads the latest mapping
@@ -80,7 +81,7 @@ export default function App() {
       <StatusBar style="light" />
       <Canvas style={StyleSheet.absoluteFill}>
         <Rect x={box.x - PAD} y={box.y - PAD} width={box.w + 2 * PAD} height={box.h + 2 * PAD} color={C.frame} />
-        <Rect x={box.x - 6} y={box.y - 6} width={box.w + 12} height={box.h + 12} color={C.cushion} />
+        <Rect x={box.x - 0.05 * s} y={box.y - 0.05 * s} width={box.w + 0.1 * s} height={box.h + 0.1 * s} color={C.cushion} />
         <Rect x={box.x} y={box.y} width={box.w} height={box.h} color={C.felt} />
         {HOLES.map(([x, y, rad], i) => { const p = toS(x, y); return <Circle key={'h' + i} cx={p.x} cy={p.y} r={rad * s} color={C.pocket} />; })}
         {SEGS.map(([x1, y1, x2, y2], i) => <Line key={'s' + i} p1={seg(x1, y1)} p2={seg(x2, y2)} color={C.chalk} strokeWidth={1} opacity={0.5} />)}

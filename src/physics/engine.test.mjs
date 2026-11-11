@@ -1,6 +1,7 @@
 // Run: npm test   (checks the engine against known pool behaviour; ported from physics/engine.test.js)
 import assert from 'node:assert';
-import { P, CUE, step, strike, predict, simulate, rack, jumpRuling } from './engine.ts';
+import * as EngineAll from './engine.ts';
+const { P, CUE, step, strike, predict, simulate, rack, jumpRuling } = EngineAll;
 const { R, L, W } = P, D = 180 / Math.PI;
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 CUE.squirt = 0; // isolate table physics from cue deflection
@@ -268,4 +269,17 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   const v = m => { const c = mk(1, 0.5); strike(c, { ang: 0, speed: 3, a: 0, b: -0.5 }, { ...CUE, massRatio: m }); return c.vx; };
   assert(Math.abs(v(0.316) / 3 - 0.678) < 0.002 && Math.abs(v(2.28) / 3 - 0.84) < 0.002, 'massRatio 2.28 halves the speed cost of full spin');
   console.log(`pocket size ok (corner, straight in: ${slow.toFixed(2)} in at 1 m/s, ${fast.toFixed(2)} in at 4.5 m/s), per-cue massRatio ok`); }
+
+// 24. Pocket geometry is inside the WPA table spec (Recommended Equipment Specifications, section 9), and every
+// hole sits behind the cushion nose line, outside the playing field. Shelf = mouth line to the slate drop.
+{ const { POCKET: K, HOLES, SEGS } = EngineAll, inch = 0.0254, deg = (a, b) => Math.acos((a[0] * b[0] + a[1] * b[1]) / Math.hypot(...a) / Math.hypot(...b)) * D;
+  const corner = K.cc * Math.SQRT2 / inch, side = 2 * K.sc / inch;
+  const cShelf = (K.cc / Math.SQRT2 - (K.r - K.cornerOut * Math.SQRT2)) / inch, sShelf = (K.sideOut - K.r) / inch;
+  const [rail, , cj, , sj] = SEGS, along = [rail[2] - rail[0], rail[3] - rail[1]], back = [-along[0], -along[1]];
+  const cAng = deg(along, [cj[2] - cj[0], cj[3] - cj[1]]), sAng = deg(back, [sj[2] - sj[0], sj[3] - sj[1]]);
+  assert(corner >= 4.5 && corner <= 4.625 && side >= 5 && side <= 5.125, `mouths ${corner} / ${side} in`);
+  assert(Math.abs(cAng - 142) <= 1 && Math.abs(sAng - 104) <= 1, `facing angles ${cAng} / ${sAng}`);
+  assert(cShelf >= 1 && cShelf <= 2.25 && sShelf >= 0 && sShelf <= 0.375, `shelves ${cShelf} / ${sShelf} in`);
+  for (const [x, y] of HOLES) assert(x < 0 || x > L || y < 0 || y > W, 'pocket centre must be outside the playing field');
+  console.log(`pocket geometry ok (corner ${corner.toFixed(2)} in, ${cAng.toFixed(0)} deg, shelf ${cShelf.toFixed(2)} in; side ${side.toFixed(2)} in, ${sAng.toFixed(0)} deg, shelf ${sShelf.toFixed(2)} in)`); }
 console.log('all checks passed');

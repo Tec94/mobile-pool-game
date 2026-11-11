@@ -1,4 +1,4 @@
-// Pool physics engine, ported from physics/pool-physics-lab.html (the <script id="engine"> block, 2026-11-11).
+// Pool physics engine, ported from physics/pool-physics-lab.html (the <script id="engine"> block, 2026-11-11, WPA pockets).
 // Kept line-for-line close to the lab so changes there can be diffed across. Pure TS: no React, no DOM.
 export type Game=8|9;
 export interface Ball{x:number;y:number;vx:number;vy:number;wx:number;wy:number;wz:number;on:boolean;z?:number;vz?:number}
@@ -31,15 +31,21 @@ export const CUE: Cue={maxSpeed:4.5,breakSpeed:12,squirt:0.035,tipLimit:0.5,maxE
 const hyp=(x:number,y:number,z=0)=>Math.sqrt(x*x+y*y+z*z);
 
 // Cushion noses as line segments (with pocket jaws), built for one quadrant and mirrored.
+// Pocket geometry is the WPA table spec (wpapool.com, Recommended Equipment Specifications, section 9), all measured
+// from the cushion nose line, which is the edge of the 100 x 50 in playing field:
+//  corner: mouth 4.5 to 4.625 in between the nose points (ours 4.57), facings cut at 142 deg, shelf 1 to 2.25 in (ours 1.6)
+//  side:   mouth 5 to 5.125 in (ours 5.12), facings cut at 104 deg, shelf 0 to 0.375 in (ours 0.2)
+// Shelf = middle of the mouth line to where the slate drops away, so every hole sits outside the playing field, in the rail.
 export const SEGS:number[][]=[],HOLES:number[][]=[];
-{const {L,W}=P,cc=0.082,sc=0.065;
+export const POCKET={cc:0.082,sc:0.065,deep:0.05,ca:38*Math.PI/180,sa:14*Math.PI/180,r:0.06,cornerOut:0.03,sideOut:0.065};
+{const {L,W}=P,{cc,sc,deep,ca,sa,r,cornerOut,sideOut}=POCKET,cj=deep/Math.tan(ca),sj=deep*Math.tan(sa);
  for(const [fx,fy] of [[0,0],[1,0],[0,1],[1,1]]){
   const X=(x:number)=>fx?L-x:x,Y=(y:number)=>fy?W-y:y;
-  for(const [a,b,c,d] of [[cc,0,L/2-sc,0],[0,cc,0,W/2],[cc,0,cc-0.05,-0.043],[0,cc,-0.043,cc-0.05],[L/2-sc,0,L/2-sc+0.009,-0.04]])
+  for(const [a,b,c,d] of [[cc,0,L/2-sc,0],[0,cc,0,W/2],[cc,0,cc-cj,-deep],[0,cc,-deep,cc-cj],[L/2-sc,0,L/2-sc+sj,-deep]])
    SEGS.push([X(a),Y(b),X(c),Y(d)]);
-  HOLES.push([X(-0.02),Y(-0.02),0.06]);
+  HOLES.push([X(-cornerOut),Y(-cornerOut),r]);
  }
- HOLES.push([L/2,-0.055,0.06],[L/2,W+0.055,0.06]);}
+ HOLES.push([L/2,-sideOut,r],[L/2,W+sideOut,r]);}
 
 // Rack spots [id,x,y] for 8-ball or 9-ball: apex on the foot spot, g between neighbours' centres.
 // 9-ball is the diamond with the 1 at the apex and the 9 in the middle. The caller adds any random play.
