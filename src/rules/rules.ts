@@ -14,6 +14,7 @@ export type Player = 0 | 1;
 export interface Option { label: string; turn?: Player; hand?: Hand; rack?: boolean }
 export interface State {
   game: Game; turn: Player; phase: 'break' | 'play' | 'over';
+  breaker: Player;        // who broke this rack: the break alternates (1.3)
   balls: number[];        // object balls on the table
   solids: -1 | Player;    // 8-ball: who has balls 1 to 7; -1 = open table
   hand: Hand;
@@ -34,7 +35,7 @@ export interface Rec { first: number; pots: { id: number; pocket: number }[]; of
 export const newRec = (): Rec => ({ first: -1, pots: [], off: [], rails: [], railAfter: false, crossed: false, direct: false, mixed: false });
 
 export const newGame = (game: Game, breaker: Player = 0, callAll = true): State => ({
-  game, turn: breaker, phase: 'break', balls: Array.from({ length: game === 8 ? 15 : 9 }, (_, i) => i + 1), solids: -1,
+  game, turn: breaker, breaker, phase: 'break', balls: Array.from({ length: game === 8 ? 15 : 9 }, (_, i) => i + 1), solids: -1,
   hand: 'kitchen', callAll, call: -1, fouls: [0, 0], push: false, winner: -1, choice: null, spot: [], note: '',
 });
 

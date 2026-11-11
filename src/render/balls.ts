@@ -33,13 +33,14 @@ export function turn(m: number[], wx: number, wy: number, wz: number, dt: number
 
 // Run the table for ms of play (1 step = 1 ms) while run is true, turn the balls and start the effects the engine's
 // events call for. Returns whether balls are still travelling; effects in look.fx can outlive that by a few frames.
+// seen gets each step's events (the rules keep a record of the shot from them).
 const ev: Ev[] = [];
-export function advance(B: Ball[], look: Look, ms: number, run: boolean): boolean {
+export function advance(B: Ball[], look: Look, ms: number, run: boolean, seen?: (ev: Ev[]) => void): boolean {
   const { pre, last, fx } = look;
   for (let i = 0; i < B.length; i++) { last[2 * i] = B[i].x; last[2 * i + 1] = B[i].y; }
   for (let k = 0; k < ms && run; k++) {
     for (let i = 0; i < B.length; i++) { const b = B[i]; pre[4 * i] = b.vx; pre[4 * i + 1] = b.vy; pre[4 * i + 2] = b.z || 0; pre[4 * i + 3] = b.vz || 0; }
-    ev.length = 0; run = step(B, ev);
+    ev.length = 0; run = step(B, ev); seen?.(ev);
     for (let i = 0; i < B.length; i++) { const b = B[i]; if (b.on && (b.wx || b.wy || b.wz)) turn(look.m[i], b.wx, b.wy, b.wz, P.h); }
     for (const e of ev) {
       const i = e.a, vz = pre[4 * i + 3];
