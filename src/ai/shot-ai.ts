@@ -25,6 +25,9 @@ interface Rail { k: 'x' | 'y'; v: number }
 // Margin kept after one cushion, measured on the engine (critique/probe5.js C, H). The window itself is 0.91 (bank) and 1.05 (kick)
 // of the mirror geometry, but the rebound angle moves with speed, so under a tier's own speed error 0.76 to 0.87 is what it pots at.
 export const RAIL_FACTOR = 0.8;
+// Aim error a cushion adds on top of the striker's, measured on the engine (scripts/ai-visit.mjs, Shark and Legend both
+// fit 0.3 degrees): with RAIL_FACTOR alone, banks and kicks potted 0.6 to 0.7 of the chance the planner gave them.
+const RAIL_SIGMA = 0.3 * Math.PI / 180;
 export const SIGMA_REF = 0.30 * Math.PI / 180; // "average player" aim error with a long aim line, used to price the reply of the opponent
 // Pocket model measured on the engine's WPA pockets (critique/probe5.js A). x, y = centre of the window a ball must
 // pass through (the middle of the mouth, not the corner of the field). A ball arriving at angle alpha off the pocket's
@@ -48,6 +51,8 @@ function erf(x: number) { // Abramowitz-Stegun 7.1.26, |error| < 1.5e-7
   return x < 0 ? -y : y;
 }
 export const makeProb = (tol: number, sigma: number) => erf(tol / (sigma * Math.SQRT2));
+// Chance a striker with aim error sigma (radians) pots shot s.
+export const potProb = (s: Cand, sigma: number) => makeProb(s.tol, s.type === 'bank' || s.type === 'kick' ? Math.hypot(sigma, RAIL_SIGMA) : sigma);
 
 // Half-width of the window a ball arriving along `dir` must pass through, or 0 if it cannot drop.
 export function slack(pk: Pocket, dir: Pt) {
@@ -191,14 +196,14 @@ const R_REF = 0.75, RACK = 4, HOOK = 0.2; // reference player's pot rate per fur
 const REPLY = 2, WIN = 3; // a reply is worth about 2 balls to the opponent; potting the 8 is worth 3
 const need = (balls: Obj[], group: number[]) => (group === NINE ? balls.length : balls.filter((b) => group.includes(b.id)).length + 1);
 const replyCost = (tier: Tier, balls: Obj[], oppGroup: number[]) => REPLY + (tier.rack ? RACK * Math.pow(R_REF, need(balls, oppGroup) - 1) : 0);
-const oppBest = (cue: Pt, balls: Obj[], oppGroup: number[]) => Math.max(0, ...enumerate(cue, balls, legalFor(balls, oppGroup), potFor(balls, oppGroup)).map((s) => makeProb(s.tol, SIGMA_REF)));
+const oppBest = (cue: Pt, balls: Obj[], oppGroup: number[]) => Math.max(0, ...enumerate(cue, balls, legalFor(balls, oppGroup), potFor(balls, oppGroup)).map((s) => potProb(s, SIGMA_REF)));
 export function plan(cue: Pt, balls: Obj[], group: number[], tier: Tier, depth: number, width: number, oppGroup?: number[]): Planned[] {
   const sigma = tier.sigma * Math.PI / 180, win = winBall(group);
   let cands = enumerate(cue, balls, legalFor(balls, group), potFor(balls, group));
   const inRepertoire = cands.filter((s) => tier.types.includes(s.type));
   if (inRepertoire.length) cands = inRepertoire; // outside the repertoire only when nothing else exists
   const shots: Planned[] = cands.map((s) => {
-    const p = makeProb(s.tol, sigma);
+    const p = potProb(s, sigma);
     return { ...s, p, value: 0, score: p * (s.ball === win ? WIN : 1) * (1 + (s.type === 'bank' || s.type === 'combo' ? tier.flair : 0)) };
   }).sort((a, b) => b.score - a.score).slice(0, width);
   for (const s of shots) {
@@ -243,7 +248,7 @@ export function safety(cue: Pt, balls: Obj[], group: number[], oppGroup: number[
         const table = balls.map((b) => (b.id === B.id ? { ...b, x: obj.x, y: obj.y } : b));
         const replies = enumerate(lv, table, legalFor(table, oppGroup), potFor(table, oppGroup));
         opts.push({ type: 'safety', ball: B.id, aim: Math.atan2(v.y, v.x), paths: [[cue, G], obj.path], leave: lv, G, v, u,
-          oppBest: Math.max(0, ...replies.map((s) => makeProb(s.tol, SIGMA_REF))), hooked: !replies.some((s) => s.type === 'direct') });
+          oppBest: Math.max(0, ...replies.map((s) => potProb(s, SIGMA_REF))), hooked: !replies.some((s) => s.type === 'direct') });
       }
     }
   }

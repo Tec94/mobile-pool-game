@@ -1,7 +1,7 @@
 // The AI's shot on the real engine: correct the picker's ghost-ball aim for throw, squirt and swerve, refine aim, speed
 // and tip with noise-free rollouts within the tier's budget, and turn a pick into an engine Shot with the tier's strike noise. Port of the ai-progression prototype (engine-aim.js) plus the glue.
 import { type Ball, CUE, type Ev, P, type Shot, step, strike } from '../physics/engine.ts';
-import { decide, dist, enumerate, legalFor, makeProb, NINE, type Obj, type Pick, POCKETS, type Pt, type Tier } from './shot-ai.ts';
+import { decide, dist, enumerate, legalFor, NINE, type Obj, type Pick, POCKETS, potProb, type Pt, type Tier } from './shot-ai.ts';
 
 // Direction the object ball actually leaves in, for a given strike. Stops at first contact.
 function departure(cue: Ball, obj: Ball, shot: Shot) {
@@ -92,7 +92,7 @@ function nextP(B: Ball[], S: Ball[], ids: number[], group: number[], tier: Tier)
   if (w > 0 && B[w].on && !S[w].on) return group === NINE || !balls.some((b) => group.includes(b.id)) ? 1 : -1;
   const legal = legalFor(balls, group), all = enumerate({ x: S[0].x * 1000, y: S[0].y * 1000 }, balls, legal, group === NINE ? NINE : legal);
   const mine = all.filter((c) => tier.types.includes(c.type));
-  return Math.max(0, ...(mine.length ? mine : all).map((c) => makeProb(c.tol, tier.sigma * Math.PI / 180)));
+  return Math.max(0, ...(mine.length ? mine : all).map((c) => potProb(c, tier.sigma * Math.PI / 180)));
 }
 type Roll = ReturnType<typeof rollout> & { shot: Shot; score: number };
 const SPEEDS = [1, 1.3, 0.8, 1.7, 0.65, 2.2, 0.5]; // tried in this order, times the starting speed
