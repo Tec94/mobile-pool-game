@@ -33,6 +33,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq([pay(0.9, { type: 'combo' }).xp, pay(0.9, { type: 'kick' }).xp], [13, 15], 'combo x1.25, kick x1.5');
   eq([1, 2, 3, 4, 5, 6].map(tier => pay(0.9, { tier }).xp), [8, 9, 10, 11, 12, 13], 'tiers Rookie .8 to Legend 1.3');
   eq(pay(0.9, { boss: 5 }).xp, 12, 'a boss of rating 5: x1.2');
+  for (const tier of [0, 7, 1.5, -1]) assert.throws(() => pay(0.9, { tier }), /tier/, `tier ${tier} is a bug`);
   eq([0, 3, 7, 9].map(run => pay(0.9, { run }).xp), [10, 13, 17, 17], 'run: +10% per pot in a row, at most +70%');
   eq(pay(0.9, { cue: 'twig' }).xp, 15, 'Twig: x1.5'); eq(pay(0.9, { cue: 'rocket' }).xp, 10, 'other cues: x1');
   eq(pay(0.05, { type: 'kick', tier: 6, run: 7, cue: 'twig' }), { xp: 120, coins: 48 }, 'all multipliers together: at most x12');

@@ -19,7 +19,11 @@ export interface Pot extends Vs {
 export const band = (pRef: number): [string, number] =>
   pRef >= 0.8 ? ['Routine', 1] : pRef >= 0.55 ? ['Solid', 1.5] : pRef >= 0.3 ? ['Tough', 2.5] : pRef >= 0.12 ? ['Brutal', 4] : ['Outrageous', 6];
 const TYPE = { direct: 1, bank: 1.25, combo: 1.25, kick: 1.5 }, TIER = [0.8, 0.9, 1, 1.1, 1.2, 1.3];
-const vs = (v: Vs) => (v.boss ? 0.7 + 0.1 * v.boss : v.tier ? TIER[v.tier - 1] : 1) * (v.cue === 'twig' ? 1.5 : 1);
+// A tier outside 1 to 6 is a bug in the caller, not a pay to guess at.
+function vs(v: Vs) {
+  if (v.tier !== undefined && !TIER[v.tier - 1]) throw new Error(`AI tier ${v.tier} is not 1 to 6`);
+  return (v.boss ? 0.7 + 0.1 * v.boss : v.tier ? TIER[v.tier - 1] : 1) * (v.cue === 'twig' ? 1.5 : 1);
+}
 const paid = (mult: number): Pay => ({ xp: Math.round(10 * Math.min(12, mult)), coins: Math.round(4 * Math.min(12, mult)) });
 
 export function shotPay(p: Pot): Pay {
