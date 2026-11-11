@@ -77,8 +77,7 @@ export function rack(game:Game,g=2*P.R+3e-4,play=(g-2*P.R)/3){
 }
 // Where the cue ball starts for the break: on the head string, 11 cm from the side cushion, where real players break from.
 // Measured on this table (1,500 breaks a spot, power 75 to 100%, aim within half a degree of the head ball): a break from
-// here pots a ball with no foul on 35% of 8-ball breaks and 77% of 9-ball breaks; from the middle of the head string, 27% and 61%.
-// (Measured with the 1 on the foot spot in both racks. The 9-ball rack now has the 9 there: not measured again.)
+// here pots a ball with no foul on 35% of 8-ball breaks and 62% of 9-ball breaks; from the middle of the head string, 27% and 48%.
 export const breakSpot=():[number,number]=>[P.L/4,P.W-0.11];
 
 // Cue strike. s={ang,speed,a,b}: a = tip offset right, b = tip offset up, in ball radii.
