@@ -5,7 +5,7 @@ import { PanResponder, Pressable, StyleSheet, Text, View, ViewStyle } from 'reac
 import { Canvas, Picture, Skia, SkCanvas } from '@shopify/react-native-skia';
 import Animated, { cubicBezier } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { drawSide, drawTip, drawTipBall, grab, LEVEL, MAX_ELEV, moveElev, moveSpin, padReach, PRESETS, ringAt, ringTurn, SIDE, spinLabel, tapSpin, Tip, zone, zoneLabel } from '../render/tip';
+import { drawSide, drawTip, drawTipBall, grab, LEVEL, MAX_ELEV, moveElev, moveSpin, padReach, ringAt, ringTurn, SIDE, spinLabel, tapSpin, Tip, zone, zoneLabel } from '../render/tip';
 import { C } from '../theme';
 
 // The tip lives outside React state: the game screen reads it when a shot is made and never re-renders for it. Only
@@ -40,7 +40,7 @@ export function TipButton({ store, onPress }: { store: TipStore; onPress: () => 
 // The sheet. The table stays live around it: a pull on the table still aims and shoots while it is open.
 // width = the sheet's own; a sheet narrower than the big ring and the side picture need takes a smaller ring.
 export function TipSheet({ store, land, calm, felt, onDone, width, style }: { store: TipStore; land: boolean; calm: boolean; felt: string; onDone: () => void; width: number; style: ViewStyle }) {
-  const t = useSyncExternalStore(store.sub, store.get), D = Math.min(land ? 150 : 190, width - 140), wide = land || width < 340; // 140 = side picture, gap, padding and border
+  const t = useSyncExternalStore(store.sub, store.get), D = Math.min(land ? 150 : 190, width - 140); // 140 = side picture, gap, padding and border
   const size = useRef(D), drag = useRef<{ on: 'ring' | 'pad'; from: Tip; x: number; y: number; t: number; moved: boolean; a: number; e: number } | null>(null);
   if (size.current !== D) drag.current = null; // the phone turned during a drag: the touch no longer maps to the ring
   size.current = D; // the pan responder is created once, so it reads the latest size
@@ -105,19 +105,15 @@ export function TipSheet({ store, land, calm, felt, onDone, width, style }: { st
         </View>
       </View>
       <Text maxFontSizeMultiplier={1.3} style={styles.label} accessibilityLiveRegion="polite">{spinLabel(t)}</Text>
-      <View style={styles.presets}>
-        <Chip label="Center" wide={wide} onPress={() => { store.set({ ...store.get(), x: 0, y: 0 }); tap(); }} />
-        {PRESETS.map(([label, e]) => <Chip key={label} label={label} wide={wide} on={t.elev === e} onPress={() => { store.set({ ...store.get(), elev: e }); tap(); }} />)}
-      </View>
     </Animated.View>
   );
 }
 
-// Sheet button: a 44 pt target with the same 3% press as the control bar buttons. `on` marks the preset in use.
-function Chip({ label, onPress, on, wide }: { label: string; onPress: () => void; on?: boolean; wide?: boolean }) {
+// Sheet button: a 44 pt target with the same 3% press as the control bar buttons.
+function Chip({ label, onPress }: { label: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} pressRetentionOffset={16} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: !!on }} style={wide === undefined ? undefined : { flexBasis: wide ? '45%' : 0, flexGrow: 1 }}>
-      {({ pressed }) => <Animated.View style={[styles.chip, on && { borderColor: C.chalk }, press(pressed)]}><Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={[styles.chipText, on && { color: C.chalk }]}>{label}</Text></Animated.View>}
+    <Pressable onPress={onPress} pressRetentionOffset={16} accessibilityRole="button" accessibilityLabel={label}>
+      {({ pressed }) => <Animated.View style={[styles.chip, press(pressed)]}><Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.chipText}>{label}</Text></Animated.View>}
     </Pressable>
   );
 }
@@ -131,7 +127,6 @@ const styles = StyleSheet.create({
   deg: { color: C.chalk, fontSize: 22, fontWeight: '700', fontVariant: ['tabular-nums'] },
   zone: { color: C.chalk + 'B3', fontSize: 11.5, textAlign: 'center', minHeight: 30 }, // room for two lines, so the picture does not move when the text wraps
   label: { color: C.chalk + 'B3', fontSize: 13, textAlign: 'center' },
-  presets: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { minHeight: 44, minWidth: 56, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', borderColor: C.chalk + '66', borderWidth: 1, borderRadius: 12 },
   chipText: { color: C.chalk + 'CC', fontSize: 12.5, fontWeight: '600' },
 });

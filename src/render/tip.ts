@@ -8,7 +8,7 @@ import { BALLS, C } from '../theme.ts';
 // x, y = tip offset as a part of the miscue limit (right and up are positive); elev = cue elevation in whole degrees.
 export interface Tip { x: number; y: number; elev: number }
 export const LEVEL: Tip = { x: 0, y: 0, elev: 0 };
-export const MAX_ELEV = 80, NOTCHES = [15, 44, 60], PRESETS: [string, number][] = [['Level', 0], ['Jump 40°', 40], ['Massé 65°', 65]];
+export const MAX_ELEV = 80, NOTCHES = [15, 44, 60];
 export const SIDE = { w: 104, h: 84 }; // size of the side picture
 
 export const shotTip = (t: Tip, cue = CUE) => ({ a: t.x * cue.tipLimit, b: t.y * cue.tipLimit, elev: t.elev * Math.PI / 180 });
