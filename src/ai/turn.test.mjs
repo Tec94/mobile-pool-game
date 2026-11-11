@@ -3,8 +3,9 @@
 import assert from 'node:assert';
 import { breakSpot, HOLES, P, rack, step, strike } from '../physics/engine.ts';
 import { choose, handCue, judge, legalSpot, moveCue, newGame, newRec, record, setCall, spotBall } from '../rules/rules.ts';
-import { breakShot, callFor, choiceFor, groupsOf, holeOf, nextSafeties, placeCue, potPay, safetiesArg, think } from './turn.ts';
-import { enumerate, NINE, rng, SOLIDS, STRIPES } from './shot-ai.ts';
+import { breakShot, callFor, candsFor, choiceFor, groupsOf, holeOf, nextSafeties, placeCue, potPay, safetiesArg, think } from './turn.ts';
+import { enumerate, NINE, rng, SOLIDS, STRIPES, TIERS } from './shot-ai.ts';
+import { TIER_COUNT } from '../settings/settings.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 const mk = (x, y, on = true) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on });
@@ -53,10 +54,14 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, true), phase: 'play', turn: 1, 
 { // Pay for the human (player 0, solids) at tier Regular: a pot matched to its candidate, a fluke, a foul, their ball.
   const s = { ...play8(), turn: 0 }, cands = enumerate({ x: 600, y: 560 }, [{ id: 1, x: 1100, y: 560 }], [1]), c = cands.find(k => k.type === 'direct');
   const after = judge(s, rec(1, [[1, holeOf(c)]], { direct: true }));
-  let r = potPay(cands, rec(1, [[1, holeOf(c)]]), s, after, 0, 1); assert(r.pay.xp > 0 && r.run === 1, 'a pot pays and the run goes on');
+  let r = potPay(cands, rec(1, [[1, holeOf(c)]]), s, after, 0, 1); assert(r.pay.xp > 0 && r.run === 1 && r.own === 1, 'a pot pays, counts as own and the run goes on');
   eq(potPay([], rec(1, [[1, holeOf(c)]]), s, after, 0, 1).pay, { xp: 9, coins: 4 }, 'no candidate: a fluke, Routine x0.9');
-  const foul = judge(s, rec(1, [[1, 0], [0, 1]])); eq(potPay(cands, rec(1, [[1, 0], [0, 1]]), s, foul, 2, 1), { pay: { xp: 0, coins: 0 }, run: 0 }, 'a foul pays nothing and ends the run');
+  const foul = judge(s, rec(1, [[1, 0], [0, 1]])); eq(potPay(cands, rec(1, [[1, 0], [0, 1]]), s, foul, 2, 1), { pay: { xp: 0, coins: 0 }, run: 0, own: 0 }, 'a foul pays nothing and ends the run');
   eq(potPay(cands, rec(9, [[9, 0]]), s, judge(s, rec(1, [[9, 0]])), 0, 1).pay, { xp: 0, coins: 0 }, 'their ball pays nothing');
+  const T = [mk(0.6, 0.56), mk(1.1, 0.56), mk(1.6, 0.9)], ids = [0, 1, 10];
+  eq([...new Set(candsFor(T, ids, s).map(k => k.ball))], [1], 'solids: candidates for the 1 only');
+  eq([...new Set(candsFor(T, ids, { ...s, solids: -1 }).map(k => k.ball))].sort(), [1, 10], 'open table: any ball');
+  assert.strictEqual(TIER_COUNT, TIERS.length, 'the settings know how many tiers there are');
   ok('the human pots pay against the AI');
 }
 

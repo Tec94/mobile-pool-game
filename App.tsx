@@ -1,5 +1,5 @@
-// The menus (src/ui/Menus.tsx) and the match. In the match two players pass the phone: 8-ball or 9-ball under the WPA
-// rules (src/rules), with the shot controls. Drag or tap on
+// The menus (src/ui/Menus.tsx) and the match. In the match two players pass the phone, or one plays the AI (quick match,
+// src/ai/turn.ts): 8-ball or 9-ball under the WPA rules (src/rules), with the shot controls. Drag or tap on
 // the table to aim, turn the dial to aim finely, pull the rail down and let go to shoot. The table never fires a shot.
 // With the cue ball in hand, drag it; tap a pocket to call it. The cue ball button opens the tip and cue angle sheet
 // (spin, jump, masse).
@@ -21,6 +21,10 @@ import { drawCue, shotLayout } from './src/render/cue';
 import { BAR, drawAim, drawTable, onTable, toScreen, toTable } from './src/render/table';
 import { LEVEL, shotTip } from './src/render/tip';
 import { canCall, choose, handCue, judge, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
+import { thinkAsync } from './src/ai/think';
+import { candsFor, choiceFor, type Move, nextSafeties, potPay, type Safeties, safetiesArg, think } from './src/ai/turn';
+import { type Cand, TIERS } from './src/ai/shot-ai';
+import { matchPay, type Pay } from './src/progress/pay';
 import { aimGuide, DRAG, guideFor, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { award, PASS_PLAY } from './src/progress';
 import { levelNote } from './src/progress/profile';
@@ -39,6 +43,7 @@ const GRAB = 36; // px: a touch this near the cue ball in hand drags it. The bal
 const GUIDE_WORK = 3200; // ball-steps the aim guide may follow after first contact: one update stays inside a frame, even into the rack
 // Pass and play is a matched game: both players on House Cue stats with the perks off, whatever cues the phone owns.
 const MATCH_CUE = 'house', STICK = stick(MATCH_CUE, true), GUIDE_LEVEL = guideFor(CUES[MATCH_CUE].aim); // one cue for the shot and its guide
+const THINK_MS = 800; // the AI takes at least this long, so a fast tier does not shoot the moment the table stops
 const STILL = 1e9; // ms: a picture that stays on screen until the next one comes (the table at rest, the last frame of a shot)
 // Sample shots, played from a fresh rack so the spin, jump and masse animation can be seen without aiming one.
 const DEMOS: [string, Partial<Shot>][] = [['Draw', { speed: 2.5, b: -0.45 }], ['Side', { speed: 1.2, a: 0.45 }], ['Jump', { speed: 4.2, elev: 0.7 }], ['Massé', { speed: 3.5, a: 0.4, elev: 1.19 }]];
@@ -60,33 +65,40 @@ const LOCKS = [ScreenOrientation.OrientationLock.DEFAULT, ScreenOrientation.Orie
 
 // The screen on show and the settings. A match reads its setup when it starts.
 function Root() {
-  const [set, setSet] = useState(loadSettings), [screen, go] = useState<Screen | 'match'>('home');
+  const [set, setSet] = useState(loadSettings), [screen, go] = useState<Screen | 'match' | 'ai'>('home');
   const change = (p: Partial<Settings>) => setSet(s => ({ ...s, ...p }));
   const first = useRef(true);
   useEffect(() => { if (first.current) first.current = false; else saveSettings(set); }, [set]);
   useEffect(() => { ScreenOrientation.lockAsync(LOCKS[set.orient]).catch(() => {}); }, [set.orient]);
   useEffect(() => { // Android back: from a menu page to home
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (screen !== 'home' && screen !== 'match') { go('home'); return true; } return false; });
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (screen !== 'home' && screen !== 'match' && screen !== 'ai') { go('home'); return true; } return false; });
     return () => sub.remove();
   }, [screen]);
   return <>
     <StatusBar style="light" />
-    {screen === 'match' ? <Game set={set} onQuit={() => go('home')} /> : <Menus screen={screen} set={set} change={change} go={go} />}
+    {screen === 'match' || screen === 'ai' ? <Game set={set} ai={screen === 'ai' ? set.tier : -1} onQuit={() => go('home')} /> : <Menus screen={screen} set={set} change={change} go={go} />}
   </>;
 }
 
-function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
+// ai = the AI tier (index into TIERS) in player 1's seat; -1 = pass and play.
+function Game({ set, ai, onQuit }: { set: Settings; ai: number; onQuit: () => void }) {
+  const vs = ai >= 0, game = vs ? set.aiGame : set.game, race = vs ? set.aiRace : set.race, names = vs ? [set.names[0], TIERS[ai].name] : set.names;
   const { width, height } = useWindowDimensions();
   const pad = useSafeAreaInsets(), calm = useReducedMotion();
-  const table = useRef(newTable(newGame(set.game, 0, set.callAll))), HUD = hudHeight(table.current.rules.game); // screen units kept above the table for the HUD
+  const table = useRef(newTable(newGame(game, 0, set.callAll))), HUD = hudHeight(table.current.rules.game); // screen units kept above the table for the HUD
   const lay = shotLayout(width, height, { ...pad, top: pad.top + HUD }), view = { ...lay.view, dpr: PixelRatio.get(), calm }, where = [view.land, view.s, view.ox, view.oy];
-  const { cloth, names, race } = set;
+  const { cloth } = set;
   const map = useRef(view); map.current = view; // the pan responder is created once, so it reads the latest mapping
   // The table never changes during play: one picture, drawn again only when the window does.
   const felt = useMemo(() => { const rec = Skia.PictureRecorder(); drawTable(Skia, rec.beginRecording(), view, CLOTHS[cloth]); return rec.finishRecordingAsPicture(); }, [...where, cloth]);
 
   const score = useRef<[number, number]>([0, 0]), [paused, setPaused] = useState(false); // score = frames won
   const gained = useRef<ReturnType<typeof award> | null>(null); // the award of the match, for the results card
+  // Quick match: what the human's shots earned this match, the run of pots this visit, fouls and own balls potted (for
+  // matchPay), the pots on the table at the strike (for pRef), and the pay of the finished match.
+  // shortcut: a match left from the pause card pays nothing, not even its shots; no safety pay (needs the AI's reply).
+  const won = useRef({ shots: { xp: 0, coins: 0 } as Pay, run: 0, fouls: 0, own: 0, cands: [] as Cand[], pay: PASS_PLAY });
+  const safe = useRef<Safeties>({ row: 0, rack: 0 }), seed = useRef(Math.floor(Math.random() * 2 ** 31)), [thinking, setThinking] = useState(false);
   useEffect(() => { const sub = BackHandler.addEventListener('hardwareBackPress', () => { setPaused(p => !p); return true; }); return () => sub.remove(); }, []); // Android back opens and closes the pause card
   const rules = table.current.rules, [, redraw] = useReducer((n: number) => n + 1, 0); // the rules live with the table; redraw shows a change
   const shot = useRef(shotStore(nearest(table.current.B))).current; // the held aim and the power on the rail
@@ -128,13 +140,18 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
   useEffect(() => { const again = () => { stale.current = true; }, off = [shot.sub(again), tip.sub(again)]; return () => off.forEach(f => f()); }, []);
   const shotOf = (power: number): Shot => ({ ang: shot.get().aim, speed: Math.max(0.05, power * (table.current.rules.phase === 'break' ? STICK.breakSpeed : STICK.maxSpeed)), ...shotTip(tip.get(), STICK) });
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the rack is over.
-  const shut = () => { const t = table.current; return moving.current || !!t.rec || !!t.rules.choice || t.rules.phase === 'over'; };
+  // On the AI's turn nothing can be touched.
+  const bot = () => vs && table.current.rules.turn === 1;
+  const shut = () => { const t = table.current; return moving.current || !!t.rec || !!t.rules.choice || t.rules.phase === 'over' || bot(); };
   // Put a ruling on the table: a new rack, or the balls the rules spot and the cue ball in hand.
   const apply = useRef((s: State) => {});
   apply.current = (s: State) => {
     const t = table.current;
-    if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++; if (score.current[s.winner] === race) gained.current = award(PASS_PLAY); }
-    if (s.phase === 'break') { table.current = newTable(s); moving.current = false; }
+    if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++; if (score.current[s.winner] === race) {
+      const w = won.current, m = vs && matchPay({ tier: ai + 1, won: s.winner === 0, fouls: w.fouls, ownPotted: w.own, early: s.winner === 1 && s.note.startsWith('Lost the rack') });
+      w.pay = m ? { xp: m.xp + w.shots.xp, coins: m.coins + w.shots.coins } : PASS_PLAY; gained.current = award(w.pay);
+    } }
+    if (s.phase === 'break') { table.current = newTable(s); moving.current = false; safe.current = { row: 0, rack: 0 }; }
     else { for (const id of s.spot) spotBall(t.B, t.ids.indexOf(id)); if (s.hand) handCue(t.B, s.hand); Object.assign(t, { rules: s, rec: null, push: false }); }
     paint(); redraw();
     shot.set({ aim: nearest(table.current.B, shot.get().aim), power: 0, fine: false, locked: shut() }); // the cue points at the nearest ball and the controls unlock
@@ -172,6 +189,7 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
       } else if (rec) { // the shot is over: when its last frame is on screen, the rules say what it was
         if (!queue.value.length) {
           const next = judge(s, rec, pushOut);
+          if (vs && s.turn === 0) { const w = won.current, p = potPay(w.cands, rec, s, next, w.run, ai); w.shots.xp += p.pay.xp; w.shots.coins += p.pay.coins; w.run = p.run; w.own += p.own; w.fouls += +next.note.startsWith('Foul'); }
           if (next.phase === 'over' || next.note.startsWith('Foul')) Haptics.notificationAsync(next.winner < 0 ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
           apply.current(next);
         }
@@ -202,9 +220,38 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
     const t = table.current;
     if (shut() || (onEight(t.rules) && t.rules.call < 0)) { shot.set({ power: 0 }); return; } // the 8 needs its pocket called first: the HUD asks for it
     Haptics.impactAsync(power > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
+    if (vs) won.current.cands = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules); // shortcut: a full candidate search on the strike frame, cheap next to a guide
     t.rec = newRec(); strike(t.B[0], shotOf(power), STICK); moving.current = true;
     tip.set(LEVEL); setSheet(false); setTools(false); shot.set({ power: 0, fine: false, locked: true });
   };
+  // The AI's shot: its cue ball in hand, its call, then the strike as fire() makes it. The AI plays the engine CUE it
+  // planned with. shortcut: no cue stick on the table before the AI strikes.
+  const play = (m: Move) => {
+    const t = table.current;
+    if (moving.current || t.rec || t.rules.phase === 'over' || !bot()) return;
+    if (m.at) moveCue(t.B, m.at[0], m.at[1], t.rules.hand);
+    if (m.call >= 0) t.rules = setCall(t.rules, m.call);
+    safe.current = nextSafeties(safe.current, m.safety);
+    t.rec = newRec(); strike(t.B[0], m.shot); moving.current = true; paint(); redraw();
+  };
+  // The AI's turn: when the table rests and no ruling waits, think (off the JS thread), wait out THINK_MS, then decide
+  // or shoot. A pause, a new ruling or leaving the match drops a think that is still running; its result is ignored.
+  useEffect(() => {
+    const t = table.current, s = t.rules;
+    if (!vs || paused || s.turn !== 1 || s.phase === 'over' || t.rec || moving.current) return;
+    let live = true, wait: ReturnType<typeof setTimeout> | undefined;
+    const t0 = Date.now(), then = (f: () => void) => { if (live) wait = setTimeout(() => { setThinking(false); f(); }, Math.max(0, THINK_MS - (Date.now() - t0))); };
+    setThinking(true);
+    if (s.choice) then(() => apply.current(choose(s, choiceFor(s))));
+    else {
+      const args = [t.B, t.ids, s, ai, seed.current++, safetiesArg(safe.current)] as const;
+      thinkAsync(...args).then(m => then(() => play(m)), e => { // the runtime failed: think on the JS thread rather than stall the match
+        if (__DEV__) console.warn('AI think failed off the JS thread', e);
+        then(() => play(think(args[0].map(b => ({ ...b })), [...args[1]], s, ai, args[4], args[5])));
+      });
+    }
+    return () => { live = false; clearTimeout(wait); setThinking(false); };
+  }, [rules, paused]);
   // Where the finger is about the cue ball: its angle in the table frame and its distance on the screen.
   const finger = (px: number, py: number) => { const p = toTable(map.current, px, py), c = table.current.B[0]; return { ang: Math.atan2(p.y - c.y, p.x - c.x), lever: Math.hypot(p.x - c.x, p.y - c.y) * map.current.s }; };
   const touch = useRef<{ t: number; moved: boolean; ang: number; lever: number } | null>(null);
@@ -236,8 +283,11 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
 
   // A new rack. The break alternates after a finished rack (WPA 1.3); a rack started over keeps its breaker.
   const over = rules.phase === 'over';
-  const win = rules.winner === -1 ? 0 : rules.winner, won = over && score.current[win] >= race; // the match is over
-  const rerack = (breaker = over ? 1 - rules.breaker : rules.breaker) => { if (won) score.current = [0, 0]; apply.current(newGame(set.game, breaker as 0 | 1, set.callAll)); };
+  const win = rules.winner === -1 ? 0 : rules.winner, done = over && score.current[win] >= race; // the match is over
+  const rerack = (breaker = over ? 1 - rules.breaker : rules.breaker) => {
+    if (done) { score.current = [0, 0]; won.current = { shots: { xp: 0, coins: 0 }, run: 0, fouls: 0, own: 0, cands: [], pay: PASS_PLAY }; }
+    apply.current(newGame(game, breaker as 0 | 1, set.callAll));
+  };
 
   return (
     <View style={styles.root} {...pan.panHandlers}>
@@ -251,12 +301,12 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
       </Canvas>
       {hud && <Text pointerEvents="none" style={[styles.rates, { top: pad.top + HUD, left: pad.left + 8 }]}>{rates}</Text>}
       {/* The player plates, the 9-ball strip and the banner with the last ruling (src/ui/MatchHud.tsx). */}
-      <MatchHud rules={rules} names={names} push={table.current.push} view={view} pad={pad} calm={calm}>
-        {rules.push && !rules.choice && <Btn label={table.current.push ? 'Push out: on' : 'Push out'} onPress={() => { if (!table.current.rec) { table.current.push = !table.current.push; redraw(); } }} />}
+      <MatchHud rules={rules} names={names} push={table.current.push} view={view} pad={pad} calm={calm} wait={thinking ? `${names[1]} is thinking…` : undefined}>
+        {rules.push && !rules.choice && !(vs && rules.turn === 1) && <Btn label={table.current.push ? 'Push out: on' : 'Push out'} onPress={() => { if (!table.current.rec) { table.current.push = !table.current.push; redraw(); } }} />}
         <Btn label="II" name="Pause" onPress={() => { setPaused(true); setTools(false); setSheet(false); }} />
       </MatchHud>
       {/* A decision the rules hand to a player: a card over the table, and play waits for it. */}
-      {rules.choice && !paused && (
+      {rules.choice && !paused && !(vs && rules.turn === 1) && (
         <View style={styles.sheet} pointerEvents="box-none">
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>{`${names[rules.turn]}, your call`}</Text>
@@ -267,13 +317,14 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
       )}
       {/* The end of the rack: the frame score in a race, the pay at the end of the match. */}
       {over && !paused && (
-        <Results rules={rules} title={`${names[win]} wins${race > 1 ? won ? ' the match' : ' the frame' : ''}`}>
+        <Results rules={rules} kind={vs ? 'Quick match' : undefined} title={`${names[win]} wins${race > 1 ? done ? ' the match' : ' the frame' : ''}`}>
           {race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} ${score.current[0]} – ${score.current[1]} ${names[1]}`}</Text>}
-          {!won && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[1 - rules.breaker]} breaks`}</Text>}
-          {won && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.pay]}>{`+${PASS_PLAY.xp} XP · +${PASS_PLAY.coins} coins`}</Text>}
-          {won && gained.current && <Gained {...gained.current} />}
-          <Btn label={won ? 'Rematch' : 'Next rack'} onPress={() => rerack()} />
-          {won && <Btn label="Menu" onPress={onQuit} />}
+          {!done && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[1 - rules.breaker]} breaks`}</Text>}
+          {done && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.pay]}>{`+${won.current.pay.xp} XP · +${won.current.pay.coins} coins`}</Text>}
+          {done && vs && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`Shots +${won.current.shots.xp} XP · +${won.current.shots.coins} coins`}</Text>}
+          {done && gained.current && <Gained {...gained.current} />}
+          <Btn label={done ? 'Rematch' : 'Next rack'} onPress={() => rerack()} />
+          {done && <Btn label="Menu" onPress={onQuit} />}
         </Results>
       )}
       {/* The shot controls sit inside the safe area where shotLayout puts them. */}

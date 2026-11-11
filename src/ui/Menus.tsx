@@ -1,5 +1,5 @@
-// The screens around a match: home, the pass and play setup, settings and cues (screens spec, s-home, s-passplay, s-prefs).
-// shortcut: only what works today is on them. Quick match, practice, learn, career and the other settings of
+// The screens around a match: home, the pass and play and quick match setups, settings and cues (screens spec, s-home,
+// s-passplay, s-prefs, the quick match sheet). shortcut: only what works today is on them. The Rival, Fresh Chalk, practice, learn, career and the other settings of
 // the spec come with the work that makes them play.
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -8,11 +8,13 @@ import { keep, profile } from '../progress';
 import { CUE_IDS, CUES, type CueId, type CueInfo } from '../progress/cues';
 import { buy, FEATS, featCount, type FeatId, levelOf, select, type Profile } from '../progress/profile';
 import { NAME_MAX, RACES, Settings } from '../settings/settings';
+import { TIERS } from '../ai/shot-ai';
 import { C, CLOTHS } from '../theme';
 import { Btn } from './Btn';
 
-export type Screen = 'home' | 'pass' | 'settings' | 'cues';
-interface Props { set: Settings; change: (s: Partial<Settings>) => void; go: (to: Screen | 'match') => void }
+export type Screen = 'home' | 'pass' | 'quick' | 'settings' | 'cues';
+// match = pass and play, ai = quick match against the AI
+interface Props { set: Settings; change: (s: Partial<Settings>) => void; go: (to: Screen | 'match' | 'ai') => void }
 
 // A setting: its name, an optional line on what it does, and one button for each value.
 function Row<T>({ label, note, value, pick, options }: { label: string; note?: string; value: T; pick: (v: T) => void; options: [string, T][] }) {
@@ -44,10 +46,12 @@ function Page({ title, back, children }: { title: string; back?: () => void; chi
 
 export function Menus({ screen, set, change, go }: Props & { screen: Screen }) {
   if (screen === 'pass') return <PassPlay set={set} change={change} go={go} />;
+  if (screen === 'quick') return <QuickMatch set={set} change={change} go={go} />;
   if (screen === 'settings') return <SettingsPage set={set} change={change} go={go} />;
   if (screen === 'cues') return <Cues go={go} />;
   return (
     <Page title="Pool">
+      <Btn label={'Quick match\n8-ball or 9-ball against the AI'} name="Quick match" onPress={() => go('quick')} />
       <Btn label={'Pass and play\nTwo players, one phone'} name="Pass and play" onPress={() => go('pass')} />
       <Btn label="Cues" onPress={() => go('cues')} />
       <Btn label="Settings" onPress={() => go('settings')} />
@@ -70,6 +74,18 @@ function PassPlay({ set, change, go }: Props) {
       <Row<Settings['game']> label="Game" value={set.game} pick={game => change({ game })} options={[['8-ball', 8], ['9-ball', 9]]} />
       <Row label="Race to" note="Frames to win. The break alternates" value={set.race} pick={race => change({ race })} options={RACES.map(r => [String(r), r])} />
       <Btn label="Rack them up" onPress={start} />
+    </Page>
+  );
+}
+
+// The opponent is an AI tier; the setup is kept for next time, as pass and play keeps its own.
+function QuickMatch({ set, change, go }: Props) {
+  return (
+    <Page title="Quick match" back={() => go('home')}>
+      <Row<Settings['aiGame']> label="Game" note="9-ball: hit the lowest ball first. Potting the 9 wins" value={set.aiGame} pick={aiGame => change({ aiGame })} options={[['8-ball', 8], ['9-ball', 9]]} />
+      <Row label="Opponent" value={set.tier} pick={tier => change({ tier })} options={TIERS.map((t, i) => [t.name, i])} />
+      <Row label="Race to" note="Frames to win. The break alternates" value={set.aiRace} pick={aiRace => change({ aiRace })} options={RACES.map(r => [String(r), r])} />
+      <Btn label="Rack them up" onPress={() => go('ai')} />
     </Page>
   );
 }
@@ -131,7 +147,7 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, minWidth: 160, gap: 2 },
   label: { color: C.chalk, fontSize: 15, fontWeight: '600' },
   note: { color: C.chalk, fontSize: 13, lineHeight: 17, opacity: 0.75 },
-  seg: { flexDirection: 'row', gap: 6 },
+  seg: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, // six AI tiers wrap on a phone
   field: { gap: 6 },
   bar: { height: 4, marginTop: 4, borderRadius: 2, backgroundColor: C.chalk + '26' },
   fill: { height: 4, borderRadius: 2, backgroundColor: C.accent },
