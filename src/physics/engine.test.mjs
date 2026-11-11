@@ -138,12 +138,14 @@ const shot = (gap, speed, a, b, offY = 0) => {
   const r = simulate(B, s); assert(r.settled && r.first === 1 && r.potted.includes(1) && B[1].on, 'simulate pots the ball on a copy');
   const c = simulate(B, s, CUE, 100); assert(!c.settled && c.steps <= 101, 'simulate stops at the cap');
   console.log('bot simulate ok'); }
-// 14. Racks: 15 balls for 8-ball, a 9-ball diamond with the 1 on the foot spot and the 9 in the middle; both break cleanly.
+// 14. Racks: 15 balls for 8-ball, the 1 on the foot spot; a 9-ball diamond with the 9 in the middle and on the foot spot; both break cleanly.
 // The rack is not perfect: every ball is a little off its spot (at most 0.1 mm each way), by the same pattern every time.
 { for (const [game, n] of [[8, 15], [9, 9]]) {
     const S = rack(game), T = rack(game, undefined, 0), off = S.map((s, i) => Math.hypot(s[1] - T[i][1], s[2] - T[i][2])); // T: the perfect rack
     assert(S.length === n && new Set(S.map(s => s[0])).size === n, game + '-ball rack size');
-    assert(T[0][0] === 1 && Math.abs(T[0][1] - 0.75 * L) < 1e-12 && Math.abs(T[0][2] - W / 2) < 1e-12, 'the 1 sits on the foot spot');
+    const spot = T.find(s => s[0] === (game === 8 ? 1 : 9)); // WPA 4.2: the apex ball of the 8-ball rack; 5.2: the 9
+    assert(T[0][0] === 1 && Math.abs(spot[1] - 0.75 * L) < 1e-12 && Math.abs(spot[2] - W / 2) < 1e-12, `the ${spot[0]} sits on the foot spot`);
+    assert(T.every(s => s[1] >= T[0][1]), 'the 1 is the apex, towards the head of the table');
     assert(Math.min(...off) > 0 && Math.max(...off) < 1.42e-4 && Math.max(...off) > 5e-5, `each ball is off its spot by 0.14 mm at most, got ${Math.min(...off) * 1e3} to ${Math.max(...off) * 1e3} mm`);
     assert.deepStrictEqual(rack(game), S, 'the rack is the same every time');
     for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) assert(Math.hypot(S[i][1] - S[j][1], S[i][2] - S[j][2]) > 2 * R, 'racked balls overlap');
@@ -368,12 +370,13 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
 // 120 breaks a game with the real cue, power 75 to 100%, aimed within half a degree of the head ball. The floors are
 // well under the measured rates (35% of 8-ball breaks and 77% of 9-ball breaks pot a ball with no foul), so they catch
 // a break that has stopped working, not a small change.
+// The 77% was measured with the 1 on the foot spot. With the 9 on the foot spot (WPA 5.2) this sample gives 58%.
 { CUE.squirt = SQUIRT; CUE.minElev = TILT;
   const [x, y] = breakSpot(), rate = [], N = 120;
   assert(x === L / 4 && y > W / 2 + 0.3 && y < W - 3 * R, 'the break spot is on the head string, to one side, clear of the cushion');
-  for (const [game, floor] of [[8, 0.2], [9, 0.55]]) { let good = 0;
+  for (const [game, floor] of [[8, 0.2], [9, 0.55]]) { let good = 0; const [, hx, hy] = rack(game, undefined, 0)[0]; // the head ball
     for (let k = 0; k < N; k++) { const r = simulate([mk(x, y), ...rack(game).map(s => mk(s[1], s[2]))],
-        { ang: Math.atan2(W / 2 - y, 0.75 * L - x) + ((k * 0.6180339887498949) % 1 - 0.5) * Math.PI / 180, speed: CUE.breakSpeed * (0.75 + 0.25 * (k + 0.5) / N), a: 0, b: 0 }, CUE, 60000);
+        { ang: Math.atan2(hy - y, hx - x) + ((k * 0.6180339887498949) % 1 - 0.5) * Math.PI / 180, speed: CUE.breakSpeed * (0.75 + 0.25 * (k + 0.5) / N), a: 0, b: 0 }, CUE, 60000);
       assert(r.settled && !r.off.length, 'a break from the spot settles and keeps every ball on the table');
       if (r.potted.length && !r.scratch) good++; }
     rate.push(good / N); assert(good / N > floor, `${game}-ball: ${good} of ${N} breaks from the spot pot a ball with no foul`); }
