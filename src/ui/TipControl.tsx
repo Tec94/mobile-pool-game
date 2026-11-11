@@ -5,7 +5,7 @@ import { PanResponder, Pressable, StyleSheet, Text, View, ViewStyle } from 'reac
 import { Canvas, Picture, Skia, SkCanvas } from '@shopify/react-native-skia';
 import Animated, { cubicBezier } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { drawSide, drawTip, drawTipBall, grab, LEVEL, MAX_ELEV, moveElev, moveSpin, padReach, PRESETS, ringAt, SIDE, spinLabel, tapSpin, Tip, zone, zoneLabel } from '../render/tip';
+import { drawSide, drawTip, drawTipBall, grab, LEVEL, MAX_ELEV, moveElev, moveSpin, padReach, PRESETS, ringAt, ringTurn, SIDE, spinLabel, tapSpin, Tip, zone, zoneLabel } from '../render/tip';
 import { C } from '../theme';
 
 // The tip lives outside React state: the game screen reads it when a shot is made and never re-renders for it. Only
@@ -38,27 +38,29 @@ export function TipButton({ store, onPress }: { store: TipStore; onPress: () => 
 }
 
 // The sheet. The table stays live around it: a pull on the table still aims and shoots while it is open.
-export function TipSheet({ store, land, felt, onDone, style }: { store: TipStore; land: boolean; felt: string; onDone: () => void; style: ViewStyle }) {
+export function TipSheet({ store, land, calm, felt, onDone, style }: { store: TipStore; land: boolean; calm: boolean; felt: string; onDone: () => void; style: ViewStyle }) {
   const t = useSyncExternalStore(store.sub, store.get), D = land ? 150 : 190;
-  const size = useRef(D); size.current = D; // the pan responder is created once, so it reads the latest size
+  const size = useRef(D), drag = useRef<{ on: 'ring' | 'pad'; from: Tip; x: number; y: number; t: number; moved: boolean; a: number; e: number } | null>(null);
+  if (size.current !== D) drag.current = null; // the phone turned during a drag: the touch no longer maps to the ring
+  size.current = D; // the pan responder is created once, so it reads the latest size
   const ring = useMemo(() => picture(c => drawTip(Skia, c, D, t)), [D, t]);
   const side = useMemo(() => picture(c => drawSide(Skia, c, t.elev, felt)), [t.elev, felt]);
   const put = ({ tip, bump }: { tip: Tip; bump: boolean }) => { store.set(tip); if (bump) tick(); };
 
   // Both handles move by the drag from where they are, so nothing jumps to the finger and the thumb need not cover
   // the dot. A quick tap on the ball places the dot.
-  const drag = useRef<{ on: 'ring' | 'pad'; from: Tip; x: number; y: number; t: number; moved: boolean } | null>(null);
   const pan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: e => grab(e.nativeEvent.locationX, e.nativeEvent.locationY, size.current) !== null,
     onPanResponderGrant: e => {
       const { locationX: x, locationY: y } = e.nativeEvent;
-      drag.current = { on: grab(x, y, size.current)!, from: store.get(), x, y, t: Date.now(), moved: false };
+      drag.current = { on: grab(x, y, size.current)!, from: store.get(), x, y, t: Date.now(), moved: false, a: ringAt(x, y, size.current)[0], e: store.get().elev };
     },
     onPanResponderMove: (e, g) => {
       const d = drag.current; if (!d) return;
       if (d.on === 'ring') {
-        const at = (x: number, y: number) => ringAt(x, y, size.current)[0]; // the finger is the start point plus the drag
-        put(moveElev(store.get(), d.from.elev + at(d.x + g.dx, d.y + g.dy) - at(d.x, d.y)));
+        const a = ringAt(d.x + g.dx, d.y + g.dy, size.current)[0]; // the finger is the start point plus the drag
+        d.e += ringTurn(d.a, a); d.a = a; // not clamped, so a finger that overshoots an end comes back the same way
+        put(moveElev(store.get(), d.e));
       } else {
         if (!d.moved && Math.hypot(g.dx, g.dy) < 6) return;
         d.moved = true; const k = padReach(size.current);
@@ -70,6 +72,7 @@ export function TipSheet({ store, land, felt, onDone, style }: { store: TipStore
       if (d.on === 'ring') { if (now.elev > 0 && now.elev < 4) { store.set({ ...now, elev: 0 }); tap(); } } // almost level means level
       else if (!d.moved && Date.now() - d.t < 300) { const c = size.current / 2, k = padReach(size.current); store.set(tapSpin(now, (d.x - c) / k, -(d.y - c) / k).tip); tap(); }
     },
+    onPanResponderTerminationRequest: () => false, // a second finger on the table must not take the drag and shoot
     onPanResponderTerminate: () => { drag.current = null; },
   })).current;
 
@@ -80,9 +83,10 @@ export function TipSheet({ store, land, felt, onDone, style }: { store: TipStore
     'Tip higher': () => nudge(0, 0.2), 'Tip lower': () => nudge(0, -0.2), 'Tip left': () => nudge(-0.2, 0), 'Tip right': () => nudge(0.2, 0) };
 
   return (
+    // Reduced motion: the sheet fades in and does not slide.
     // The sheet takes every touch that starts on it, so a slip off a handle never aims the cue on the table below.
-    <Animated.View onStartShouldSetResponder={() => true} style={{ ...styles.sheet, ...(land && { gap: 6, paddingVertical: 8 }), ...style,
-      animationName: { from: { opacity: 0, transform: [land ? { translateX: 24 } : { translateY: 24 }] } }, animationDuration: '220ms', animationTimingFunction: cubicBezier(0.23, 1, 0.32, 1) }}>
+    <Animated.View onStartShouldSetResponder={() => true} onResponderTerminationRequest={() => false} style={{ ...styles.sheet, ...(land && { gap: 6, paddingTop: 8, paddingBottom: 8 }), ...style,
+      animationName: { from: { opacity: 0, transform: [calm ? { translateY: 0 } : land ? { translateX: 24 } : { translateY: 24 }] } }, animationDuration: '220ms', animationTimingFunction: cubicBezier(0.23, 1, 0.32, 1) }}>
       <View style={styles.head}>
         <Text maxFontSizeMultiplier={1.3} style={styles.eyebrow}>TIP AND CUE ANGLE</Text>
         <Chip label="Done" onPress={onDone} />
@@ -127,6 +131,6 @@ const styles = StyleSheet.create({
   zone: { color: C.chalk + 'B3', fontSize: 11.5, textAlign: 'center', minHeight: 30 }, // room for two lines, so the picture does not move when the text wraps
   label: { color: C.chalk + 'B3', fontSize: 13, textAlign: 'center' },
   presets: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { minHeight: 44, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', borderColor: C.chalk + '66', borderWidth: 1, borderRadius: 12 },
+  chip: { minHeight: 44, minWidth: 56, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', borderColor: C.chalk + '66', borderWidth: 1, borderRadius: 12 },
   chipText: { color: C.chalk + 'CC', fontSize: 12.5, fontWeight: '600' },
 });

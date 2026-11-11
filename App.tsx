@@ -16,7 +16,7 @@ import { C, CLOTHS } from './src/theme';
 import { TipButton, TipSheet, tipStore } from './src/ui/TipControl';
 
 const MAX_DRAG = 160; // px of pull-back for full power
-// Shots the screen has no controls for yet, played from a fresh rack so the spin, jump and masse animation can be seen.
+// Sample shots, played from a fresh rack so the spin, jump and masse animation can be seen without aiming one.
 const DEMOS: [string, Partial<Shot>][] = [['Draw', { speed: 2.5, b: -0.45 }], ['Side', { speed: 1.2, a: 0.45 }], ['Jump', { speed: 4.2, elev: 0.7 }], ['Massé', { speed: 3.5, a: 0.4, elev: 1.19 }]];
 const kit = makeKit(Skia);
 const EMPTY = (() => { const rec = Skia.PictureRecorder(); rec.beginRecording(); return rec.finishRecordingAsPicture(); })();
@@ -117,7 +117,7 @@ function Game() {
         <Btn label={'Felt\n' + CLOTHS[cloth].name} onPress={() => setCloth((cloth + 1) % CLOTHS.length)} />
         <TipButton store={tip} onPress={() => setSheet(!sheet)} />
       </View>
-      {sheet && <TipSheet store={tip} land={view.land} felt={CLOTHS[cloth].felt} onDone={() => setSheet(false)}
+      {sheet && <TipSheet store={tip} land={view.land} calm={calm} felt={CLOTHS[cloth].felt} onDone={() => setSheet(false)}
         style={view.land ? { right: pad.right + BAR + 8, bottom: Math.max(pad.bottom, 8), width: 300 } : { left: pad.left + 8, right: pad.right + 8, bottom: pad.bottom + BAR + 8 }} />}
     </View>
   );
