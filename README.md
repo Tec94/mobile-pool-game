@@ -13,7 +13,7 @@ npm run typecheck
 ## Getting it on your iPhone from Windows
 
 xtool cannot build a React Native app itself: it only builds Swift packages. What it can do is sign any `.ipa` with your
-Apple ID and install it over USB. So GitHub's macOS runner builds an unsigned `.ipa`, and xtool signs and installs it.
+Apple developer account and install it over USB. So GitHub's macOS runner builds an unsigned `.ipa`, and xtool signs and installs it.
 
 ### One-time setup
 
@@ -34,8 +34,10 @@ Apple ID and install it over USB. So GitHub's macOS runner builds an unsigned `.
    chmod +x xtool && sudo mv xtool /usr/local/bin/
    ```
    If it says FUSE is missing: `sudo apt-get install -y libfuse2`.
-3. `xtool auth login`, pick **1: Password** (works with a free Apple ID), and enter your Apple ID, password and 2FA
-   code. You do not need Swift or `Xcode.xip`: those are only for building Swift apps with xtool.
+3. `xtool auth login`. Either mode works with the paid account: **0: API Key** (create one at App Store Connect >
+   Users and Access > Integrations > App Store Connect API, role Developer, and give xtool the key ID, issuer ID and
+   `.p8` file; uses only official APIs) or **1: Password** (Apple ID, password, 2FA code). You do not need Swift or
+   `Xcode.xip`: those are only for building Swift apps with xtool.
 
 ### Each time you install
 
@@ -63,11 +65,11 @@ Rebuilding the app for every change is slow. Build once with **Debug** instead o
 way. That app is a dev client: on Windows run `npm start` in this folder, keep the phone on the same Wi-Fi, open Pool on
 the phone and pick your PC's server. JS and TS changes then reload live. Only rebuild when a native package changes.
 
-### Limits of a free Apple ID
+### Signing
 
-- The app stops opening after **7 days**. Run `xtool install Pool.ipa` again (same file is fine) to renew it.
-- At most 3 sideloaded apps at once, and 10 new app IDs per week.
-- A paid developer account ($99/yr) lifts these and is needed for TestFlight and the App Store anyway.
+xtool signs with a development certificate from your paid account, so the install lasts as long as the profile (a
+year) instead of the 7 days a free Apple ID gets. TestFlight and App Store builds need distribution signing on the Mac
+runner instead; that is a later step.
 
 GitHub minutes: macOS builds are free on a public repo. On a private repo the free 2,000 minutes count 10x on macOS,
 so about 200 macOS minutes, roughly 8 to 12 builds a month.
