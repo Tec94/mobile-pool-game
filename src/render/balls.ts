@@ -125,7 +125,7 @@ export function drawBalls(kit: Kit, canvas: SkCanvas, B: Ball[], ids: number[], 
     // The ball runs on to the middle of the hole (ease-out, it arrives with speed) while it falls away (ease-in, gravity).
     let H = HOLES[0]; for (const h of HOLES) if (Math.hypot(h[0] - f.x, h[1] - f.y) < Math.hypot(H[0] - f.x, H[1] - f.y)) H = h;
     const e = 1 - (1 - t) ** 3, c = toScreen(v, f.x + (H[0] - f.x) * e, f.y + (H[1] - f.y) * e), rad = r * (1 - 0.3 * t * t);
-    sphere(f.i, c.x, c.y, rad, 1); circle(c.x, c.y, rad + 0.5, C.pocket, 1 - (1 - t) ** 2);
+    sphere(f.i, c.x, c.y, rad, 1); circle(c.x, c.y, rad + 0.5, C.pocket, t * t); // dark with depth: still bright while part of it is over the cloth
   }
   // Shadows lie on the cloth, under every ball; then the balls, lowest first so a jumping ball passes over.
   const order = B.map((_, i) => i).filter(i => B[i].on).sort((a, b) => (B[a].z || 0) - (B[b].z || 0));
