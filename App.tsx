@@ -1,4 +1,5 @@
-// Two players pass the phone: 8-ball or 9-ball under the WPA rules (src/rules). Pull back from anywhere to aim and shoot.
+// Two players pass the phone: 8-ball or 9-ball under the WPA rules (src/rules), with the shot controls. Drag or tap on
+// the table to aim, turn the dial to aim finely, pull the rail down and let go to shoot. The table never fires a shot.
 // With the cue ball in hand, drag it; tap a pocket to call it. The cue ball button opens the tip and cue angle sheet
 // (spin, jump, masse).
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
@@ -9,18 +10,20 @@ import { scheduleOnUI } from 'react-native-worklets';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ball, breakSpot, CUE, Game as Discipline, HOLES, P, predict, rack, Shot, strike } from './src/physics/engine';
+import { Ball, breakSpot, CUE, Game as Discipline, HOLES, P, rack, Shot, strike } from './src/physics/engine';
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
 import { drawMarks } from './src/render/marks';
 import { newPace, nextFrame, type Pace, refresh, type Slot, spent } from './src/render/pace';
-import { BAR, drawAim, drawTable, fit, toScreen, toTable } from './src/render/table';
+import { drawCue, shotLayout } from './src/render/cue';
+import { BAR, drawAim, drawTable, onTable, toScreen, toTable } from './src/render/table';
 import { LEVEL, shotTip } from './src/render/tip';
 import { canCall, choose, handCue, judge, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
+import { aimGuide, DRAG, guideFor, HOUSE_CUE, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { C, CLOTHS } from './src/theme';
 import { hudHeight, MatchHud, Results } from './src/ui/MatchHud';
+import { AimDial, PowerRail, shotStore } from './src/ui/ShotControls';
 import { TipButton, TipSheet, tipStore } from './src/ui/TipControl';
 
-const MAX_DRAG = 160; // px of pull-back for full power
 const GRAB = 36; // px: a touch this near the cue ball in hand drags it. The ball is smaller than a fingertip, so the
 // ball keeps its distance from the finger and stays in view.
 // Game button: the discipline, and for 8-ball whether shots are called the WPA way or only the pocket of the 8 is.
@@ -47,7 +50,7 @@ function Game() {
   const { width, height } = useWindowDimensions();
   const pad = useSafeAreaInsets(), calm = useReducedMotion();
   const table = useRef(newTable(newGame(8))), HUD = hudHeight(table.current.rules.game); // screen units kept above the table for the HUD
-  const view = { ...fit(width, height, { ...pad, top: pad.top + HUD }), dpr: PixelRatio.get(), calm }, where = [view.land, view.s, view.ox, view.oy];
+  const lay = shotLayout(width, height, { ...pad, top: pad.top + HUD }), view = { ...lay.view, dpr: PixelRatio.get(), calm }, where = [view.land, view.s, view.ox, view.oy];
   const [cloth, setCloth] = useState(0); // shortcut: not saved between launches, save it when the settings screen exists
   const map = useRef(view); map.current = view; // the pan responder is created once, so it reads the latest mapping
   // The table never changes during play: one picture, drawn again only when the window does.
@@ -55,11 +58,11 @@ function Game() {
 
   const [mode, setMode] = useState(0);
   const rules = table.current.rules, [, redraw] = useReducer((n: number) => n + 1, 0); // the rules live with the table; redraw shows a change
-  const [pull, setPull] = useState<number | null>(null); // % of full power while the player aims
-  const want = useRef<number[] | null>(null); // the newest pull-back not yet drawn: touches can come faster than frames
+  const shot = useRef(shotStore(nearest(table.current.B))).current; // the held aim and the power on the rail
+  const stale = useRef(true); // the guide must be drawn again: the aim, the power, the tip or the table changed
   const [demo, setDemo] = useState(0);
   const [hud, setHud] = useState(__DEV__), [rates, setRates] = useState(''); // frame rate readout: hold the Rack button to show or hide it
-  const tip = useRef(tipStore()).current, [sheet, setSheet] = useState(false);
+  const tip = useRef(tipStore()).current, [sheet, setSheet] = useState(false), [tools, setTools] = useState(false);
   const moving = useRef(false), grab = useRef<{ x: number; y: number } | 'call' | null>(null);
   // The balls and the aim guide are Skia pictures, recorded on the JS thread and handed to the canvas through shared
   // values, so a frame of play or of aiming never re-renders React.
@@ -88,8 +91,13 @@ function Game() {
   const pace = useRef<Pace | null>(null), made = useRef([0, 0]); // made = frames made and the ms they took, for the readout
   // The table as it is now, shown at once in place of any frames that wait. Play that goes on starts its frames again.
   // A ball the rules or a finger moved did not travel there: no speed streak.
-  const paint = () => { const { B, look } = table.current; look.last.set(B.flatMap(b => [b.x, b.y])); pace.current = null; scheduleOnUI(still, draw.current()); };
-  useEffect(paint, where);
+  // again = the guide is drawn again too; the pulse of the ring round the cue ball in hand does not need that.
+  const paint = (again = true) => { const { B, look } = table.current; look.last.set(B.flatMap(b => [b.x, b.y])); pace.current = null; if (again) stale.current = true; scheduleOnUI(still, draw.current()); };
+  useEffect(() => { touch.current = null; paint(); }, where); // a drag measured in the old layout ends when the window turns
+  useEffect(() => { const again = () => { stale.current = true; }, off = [shot.sub(again), tip.sub(again)]; return () => off.forEach(f => f()); }, []);
+  const shotOf = (power: number): Shot => ({ ang: shot.get().aim, speed: Math.max(0.05, power * (table.current.rules.phase === 'break' ? CUE.breakSpeed : CUE.maxSpeed)), ...shotTip(tip.get()) });
+  // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the rack is over.
+  const shut = () => { const t = table.current; return moving.current || !!t.rec || !!t.rules.choice || t.rules.phase === 'over'; };
   // Put a ruling on the table: a new rack, or the balls the rules spot and the cue ball in hand.
   const apply = useRef((s: State) => {});
   apply.current = (s: State) => {
@@ -97,6 +105,7 @@ function Game() {
     if (s.phase === 'break') { table.current = newTable(s); moving.current = false; }
     else { for (const id of s.spot) spotBall(t.B, t.ids.indexOf(id)); if (s.hand) handCue(t.B, s.hand); Object.assign(t, { rules: s, rec: null, push: false }); }
     paint(); redraw();
+    shot.set({ aim: nearest(table.current.B, shot.get().aim), power: 0, fine: false, locked: shut() }); // the cue points at the nearest ball and the controls unlock
   };
 
 
@@ -107,10 +116,13 @@ function Game() {
     let timer = rest(); on = false;
     const tick = (t: number) => {
       const { B, ids, look, rules: s, rec, push: pushOut } = table.current;
-      if (want.current) { // one aim guide a frame, for the newest touch
-        const { shot, pull } = shotFrom(want.current[0], want.current[1]), { cue, hit, lands, scratch, split } = predict(B, shot, 0.4, undefined, undefined, GUIDE_WORK);
-        const rec = Skia.PictureRecorder(); drawAim(Skia, rec.beginRecording(), map.current, cue, hit && [hit.x, hit.y], lands, scratch && split < 0);
-        guide.value = rec.finishRecordingAsPicture(); setPull(Math.round(pull * 100)); want.current = null;
+      if (stale.current) { // one guide a frame, however many touches came. While a shot can be made the guide and the cue stick are always there: for the pull on the rail, or for a firm shot without one
+        const rec = Skia.PictureRecorder(), c = rec.beginRecording(), { aim, power } = shot.get();
+        if (!shut()) {
+          const g = aimGuide(B, shotOf(previewPower(power)), guideFor(HOUSE_CUE.aim), GUIDE_WORK);
+          drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob); drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power);
+        }
+        guide.value = rec.finishRecordingAsPicture(); stale.current = false;
       }
       const busy = () => moving.current || look.fx.length > 0; // effects (a ball falling into a pocket) outlive the last moving ball
       if (busy()) {
@@ -133,7 +145,7 @@ function Game() {
         }
       } else {
         if (on) { on = false; pace.current = null; timer = rest(); }
-        if (s.hand && !s.choice && !map.current.calm) paint(); // the ring round the cue ball in hand pulses
+        if (s.hand && !s.choice && !map.current.calm) paint(false); // the ring round the cue ball in hand pulses
       }
       raf = requestAnimationFrame(tick);
     };
@@ -152,35 +164,42 @@ function Game() {
     return () => clearInterval(id);
   }, [hud]);
 
-  const shotFrom = (dx: number, dy: number): { shot: Shot; pull: number } => {
-    const pull = Math.min(1, Math.hypot(dx, dy) / MAX_DRAG);
-    const a = toTable(map.current, 0, 0), b = toTable(map.current, -dx, -dy); // aim opposite the pull
-    const max = table.current.rules.phase === 'break' ? CUE.breakSpeed : CUE.maxSpeed;
-    return { shot: { ang: Math.atan2(b.y - a.y, b.x - a.x), speed: Math.max(0.05, pull * max), ...shotTip(tip.get()) }, pull };
+  // The rail calls this on release: the strike. The cue goes back to level and centre ball after every shot.
+  // shortcut: no follow-through of the stick; the cue is off the table from the frame of the strike.
+  const fire = (power: number) => {
+    const t = table.current;
+    if (shut() || (onEight(t.rules) && t.rules.call < 0)) { shot.set({ power: 0 }); return; } // the 8 needs its pocket called first: the HUD asks for it
+    Haptics.impactAsync(power > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
+    t.rec = newRec(); strike(t.B[0], shotOf(power)); moving.current = true;
+    tip.set(LEVEL); setSheet(false); setTools(false); shot.set({ power: 0, fine: false, locked: true });
   };
+  // Where the finger is about the cue ball: its angle in the table frame and its distance on the screen.
+  const finger = (px: number, py: number) => { const p = toTable(map.current, px, py), c = table.current.B[0]; return { ang: Math.atan2(p.y - c.y, p.x - c.x), lever: Math.hypot(p.x - c.x, p.y - c.y) * map.current.s }; };
+  const touch = useRef<{ t: number; moved: boolean; ang: number; lever: number } | null>(null);
   const pan = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => { const t = table.current; return !moving.current && !t.rec && !t.rules.choice && t.rules.phase !== 'over'; },
+    onStartShouldSetPanResponder: e => !shut() && onTable(map.current, e.nativeEvent.pageX, e.nativeEvent.pageY), // a touch that misses a control must not turn the aim
     onPanResponderGrant: (_, g) => { // a touch by the cue ball in hand drags it, a touch on a pocket calls it, any other aims
       const t = table.current, s = t.rules, v = map.current, p = toTable(v, g.x0, g.y0), c = t.B[0], at = toScreen(v, c.x, c.y);
       const k = canCall(s) ? HOLES.findIndex(h => Math.hypot(h[0] - p.x, h[1] - p.y) < 0.1) : -1;
       grab.current = s.hand && Math.hypot(at.x - g.x0, at.y - g.y0) < GRAB ? { x: c.x - p.x, y: c.y - p.y } : k >= 0 ? 'call' : null;
       if (k >= 0 && grab.current === 'call') { t.rules = setCall(s, k === s.call ? -1 : k); Haptics.selectionAsync(); paint(); redraw(); }
+      touch.current = grab.current ? null : { t: Date.now(), moved: false, ...finger(g.x0, g.y0) };
     },
     onPanResponderMove: (_, g) => {
-      const d = grab.current, t = table.current;
-      if (d) { if (d !== 'call') { const p = toTable(map.current, g.moveX, g.moveY); if (moveCue(t.B, p.x + d.x, p.y + d.y, t.rules.hand)) paint(); } return; }
-      want.current = [g.dx, g.dy];
+      if (g.numberActiveTouches > 1) { touch.current = null; return; } // a second finger moves the centre of the touches: no aim and no ball follows that
+      const h = grab.current, t = table.current;
+      if (h) { if (h !== 'call') { const p = toTable(map.current, g.moveX, g.moveY); if (moveCue(t.B, p.x + h.x, p.y + h.y, t.rules.hand)) paint(); } return; }
+      const d = touch.current; if (!d || (!d.moved && Math.hypot(g.dx, g.dy) < DRAG)) return; // a drag swings the aim by the turn of the finger about the cue ball
+      const f = finger(g.moveX, g.moveY);
+      if (d.moved) shot.set({ aim: swing(shot.get().aim, d.ang, f.ang, f.lever) }); // the turn is counted from where the drag began: a touch on the cue ball itself would turn a slip of 6 px into a whip
+      d.moved = true; d.ang = f.ang;
     },
-    onPanResponderRelease: (_, g) => {
-      want.current = null; guide.value = EMPTY; setPull(null);
-      if (grab.current) { grab.current = null; return; }
-      const { shot, pull } = shotFrom(g.dx, g.dy), t = table.current;
-      if (pull < 0.05 || t.rec || moving.current || t.rules.choice || (onEight(t.rules) && t.rules.call < 0)) return; // the 8 needs its pocket called first: the HUD asks for it
-      Haptics.impactAsync(pull > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
-      t.rec = newRec(); strike(t.B[0], shot); moving.current = true;
-      tip.set(LEVEL); setSheet(false); // the cue goes back to level and centre ball after every shot
+    onPanResponderRelease: () => { // a tap points the cue at the tapped point
+      const d = touch.current, s = shot.get(); touch.current = grab.current = null;
+      if (!d || d.moved || Date.now() - d.t >= TAP_MS || d.lever < P.R * map.current.s) return; // a tap on the cue ball itself points nowhere
+      const aim = tapAim(s.aim, s.fine, d.ang); if (aim !== s.aim) { shot.set({ aim }); Haptics.selectionAsync(); }
     },
-    onPanResponderTerminate: () => { want.current = null; guide.value = EMPTY; setPull(null); grab.current = null; },
+    onPanResponderTerminate: () => { touch.current = grab.current = null; },
   })).current;
 
   // A new rack. The break alternates after a finished rack (WPA 1.3); a rack started over keeps its breaker.
@@ -214,31 +233,37 @@ function Game() {
         </View>
       )}
       {over && <Results rules={rules}><Btn label="Rematch" onPress={() => rerack(mode)} /></Results>}
-      {/* Controls sit inside the safe area: a row under the table in portrait, a column beside it in landscape. */}
-      <View style={[styles.bar, view.land ? { top: pad.top, bottom: pad.bottom, right: pad.right, width: BAR, flexDirection: 'column' } : { left: pad.left, right: pad.right, bottom: pad.bottom, height: BAR, flexDirection: 'row' }]}>
-        {pull !== null && <Text maxFontSizeMultiplier={1.3} style={[styles.power, view.land ? { top: 8 } : { left: 16 }]}>{pull}%</Text>}
-        <Btn label="Rack" onPress={() => rerack(mode)} onLongPress={() => setHud(!hud)} />
-        <Btn label={'Game\n' + MODES[mode][0]} onPress={() => { const m = (mode + 1) % MODES.length; setMode(m); rerack(m, 0); }} />
-        <Btn label={'Demo\n' + DEMOS[demo][0]} onPress={() => { // a fresh rack, and the demo shot is its break
-          rerack(mode); const t = table.current; t.B[0].y = P.W / 2; // the demo shots go straight down the middle
-          t.rec = newRec(); strike(t.B[0], { ang: 0, speed: 1, a: 0, b: 0, ...DEMOS[demo][1] });
-          paint(); moving.current = true; setDemo((demo + 1) % DEMOS.length);
-        }} />
-        <Btn label={'Felt\n' + CLOTHS[cloth].name} onPress={() => setCloth((cloth + 1) % CLOTHS.length)} />
-        <TipButton store={tip} onPress={() => setSheet(!sheet)} />
-      </View>
-      {sheet && <TipSheet store={tip} land={view.land} calm={calm} felt={CLOTHS[cloth].felt} onDone={() => setSheet(false)}
-        style={view.land ? { right: pad.right + BAR + 8, bottom: Math.max(pad.bottom, 8), width: 300 } : { left: pad.left + 8, right: pad.right + 8, bottom: pad.bottom + BAR + 8 }} />}
+      {/* The shot controls sit inside the safe area where shotLayout puts them. */}
+      <PowerRail store={shot} box={lay.rail} onStrike={fire} />
+      <AimDial store={shot} box={lay.dial} />
+      <View style={[styles.at, lay.spin]}><TipButton store={tip} onPress={() => { setSheet(!sheet); setTools(false); }} /></View>
+      <View style={[styles.at, lay.tools]}><Btn label="•••" name="Table tools" onPress={() => { setTools(!tools); setSheet(false); }} /></View>
+      {/* shortcut: the smoke-test buttons, behind one button until the menus exist. */}
+      {tools && (
+        <View onStartShouldSetResponder={() => true} style={[styles.tools, view.land ? { left: lay.tools.left + lay.tools.width + 12, bottom: height - lay.tools.top - lay.tools.height } : { left: lay.tools.left, bottom: height - lay.dial.top + 8 }]}>
+          <Btn label="Rack" onPress={() => rerack(mode)} onLongPress={() => setHud(!hud)} />
+          <Btn label={'Game\n' + MODES[mode][0]} onPress={() => { const m = (mode + 1) % MODES.length; setMode(m); rerack(m, 0); }} />
+          <Btn label={'Demo\n' + DEMOS[demo][0]} onPress={() => { // a fresh rack, and the demo shot is its break
+            rerack(mode); const t = table.current; t.B[0].y = P.W / 2; // the demo shots go straight down the middle
+            t.rec = newRec(); strike(t.B[0], { ang: 0, speed: 1, a: 0, b: 0, ...DEMOS[demo][1] });
+            paint(); moving.current = true; shot.set({ power: 0, locked: true }); setDemo((demo + 1) % DEMOS.length);
+          }} />
+          <Btn label={'Felt\n' + CLOTHS[cloth].name} onPress={() => setCloth((cloth + 1) % CLOTHS.length)} />
+        </View>
+      )}
+      {/* The sheet stops short of the rail, so a shot can be pulled while it is open. */}
+      {sheet && <TipSheet store={tip} land={view.land} calm={calm} felt={CLOTHS[cloth].felt} onDone={() => setSheet(false)} width={view.land ? 300 : lay.rail.left - 8 - lay.tools.left}
+        style={view.land ? { right: width - lay.rail.left + 8, bottom: Math.max(pad.bottom, 8) } : { left: lay.tools.left, bottom: height - lay.dial.top + 8 }} />}
     </View>
   );
 }
 
 // Chrome button: hairline outline, a 44 pt target, and a 3% press that follows the finger down (no bounce). Its label
 // grows with the system text size only as far as the control bar has room for.
-function Btn({ label, onPress, onLongPress }: { label: string; onPress: () => void; onLongPress?: () => void }) {
+function Btn({ label, name, onPress, onLongPress }: { label: string; name?: string; onPress: () => void; onLongPress?: () => void }) {
   const [down, setDown] = useState(false);
   return (
-    <Pressable onPress={onPress} onLongPress={onLongPress} onPressIn={() => setDown(true)} onPressOut={() => setDown(false)} pressRetentionOffset={16} accessibilityRole="button" accessibilityLabel={label.replace('\n', ' ')}>
+    <Pressable onPress={onPress} onLongPress={onLongPress} onPressIn={() => setDown(true)} onPressOut={() => setDown(false)} pressRetentionOffset={16} accessibilityRole="button" accessibilityLabel={name ?? label.replace('\n', ' ')}>
       <Animated.View style={{ ...styles.btn, transform: [{ scale: down ? 0.97 : 1 }], transitionProperty: 'transform', transitionDuration: '120ms', transitionTimingFunction: 'ease-out' }}>
         <Text maxFontSizeMultiplier={1.3} style={styles.btnText}>{label}</Text>
       </Animated.View>
@@ -248,12 +273,12 @@ function Btn({ label, onPress, onLongPress }: { label: string; onPress: () => vo
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.ground },
-  bar: { position: 'absolute', alignItems: 'center', justifyContent: 'center', gap: 12 },
+  at: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
+  tools: { position: 'absolute', flexDirection: 'row', gap: 8, padding: 8, backgroundColor: C.panel, borderColor: C.chalk + '40', borderWidth: 1, borderRadius: 12 },
   sheet: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 24 },
   card: { maxWidth: 320, alignSelf: 'center', padding: 16, gap: 10, borderRadius: 10, borderWidth: 1, borderColor: C.chalk + '66', backgroundColor: C.ground + 'F2' },
   cardTitle: { color: C.chalk, fontSize: 18, fontWeight: '800', textAlign: 'center' },
   cardNote: { color: C.chalk, fontSize: 14, lineHeight: 19, textAlign: 'center' },
-  power: { position: 'absolute', color: C.chalk, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
   rates: { position: 'absolute', color: C.chalk, fontSize: 10, lineHeight: 13, fontVariant: ['tabular-nums'] },
   btn: { minWidth: 56, minHeight: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', borderColor: C.chalk + '66', borderWidth: 1, borderRadius: 6 }, // outline at 40%: 3:1 on the ground
   btnText: { color: C.chalk, fontSize: 13, lineHeight: 16, textAlign: 'center' },
