@@ -1,9 +1,11 @@
-// The screens around a match: home, the pass and play setup, settings and cues (screens spec, s-home, s-passplay, s-prefs).
-// shortcut: only what works today is on them. Quick match, practice, learn, career and the other settings of
+// The screens around a match: home, the pass and play setup, settings, cues and learn (screens spec, s-home,
+// s-passplay, s-prefs, s-learn).
+// shortcut: only what works today is on them. Quick match, practice, career and the other settings of
 // the spec come with the work that makes them play.
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LESSON_PAY, LESSONS, SOLO_RUN } from '../learn/lessons';
 import { keep, profile } from '../progress';
 import { CUE_IDS, CUES, type CueId, type CueInfo } from '../progress/cues';
 import { buy, FEATS, featCount, type FeatId, levelOf, select, type Profile } from '../progress/profile';
@@ -11,8 +13,9 @@ import { NAME_MAX, RACES, Settings } from '../settings/settings';
 import { C, CLOTHS } from '../theme';
 import { Btn } from './Btn';
 
-export type Screen = 'home' | 'pass' | 'settings' | 'cues';
+export type Screen = 'home' | 'pass' | 'settings' | 'cues' | 'learn';
 interface Props { set: Settings; change: (s: Partial<Settings>) => void; go: (to: Screen | 'match') => void }
+interface LearnProps { done: string[]; learn: (lesson: number) => void }
 
 // A setting: its name, an optional line on what it does, and one button for each value.
 function Row<T>({ label, note, value, pick, options }: { label: string; note?: string; value: T; pick: (v: T) => void; options: [string, T][] }) {
@@ -42,13 +45,16 @@ function Page({ title, back, children }: { title: string; back?: () => void; chi
   );
 }
 
-export function Menus({ screen, set, change, go }: Props & { screen: Screen }) {
+export function Menus({ screen, set, change, go, done, learn }: Props & LearnProps & { screen: Screen }) {
   if (screen === 'pass') return <PassPlay set={set} change={change} go={go} />;
   if (screen === 'settings') return <SettingsPage set={set} change={change} go={go} />;
   if (screen === 'cues') return <Cues go={go} />;
+  if (screen === 'learn') return <Learn go={go} done={done} learn={learn} />;
+  const next = LESSONS.find(l => !done.includes(l.id));
   return (
     <Page title="Pool">
       <Btn label={'Pass and play\nTwo players, one phone'} name="Pass and play" onPress={() => go('pass')} />
+      <Btn label={`Learn\n${next ? `Next: ${next.title}` : 'Every lesson passed'}`} name="Learn" onPress={() => go('learn')} />
       <Btn label="Cues" onPress={() => go('cues')} />
       <Btn label="Settings" onPress={() => go('settings')} />
     </Page>
@@ -70,6 +76,20 @@ function PassPlay({ set, change, go }: Props) {
       <Row<Settings['game']> label="Game" value={set.game} pick={game => change({ game })} options={[['8-ball', 8], ['9-ball', 9]]} />
       <Row label="Race to" note="Frames to win. The break alternates" value={set.race} pick={race => change({ race })} options={RACES.map(r => [String(r), r])} />
       <Btn label="Rack them up" onPress={start} />
+    </Page>
+  );
+}
+
+// Every lesson is open from the start; the first one not yet passed is only a suggestion.
+function Learn({ go, done, learn }: Pick<Props, 'go'> & LearnProps) {
+  const next = LESSONS.findIndex(l => !done.includes(l.id));
+  return (
+    <Page title="Learn" back={() => go('home')}>
+      <Text maxFontSizeMultiplier={1.3} style={styles.note}>{`Every lesson is open. Each is watch, then guided, then solo: ${SOLO_RUN} in a row to pass. The first pass pays ${LESSON_PAY.xp} XP. ${done.length} of ${LESSONS.length} done.`}</Text>
+      {LESSONS.map((l, i) => {
+        const passed = done.includes(l.id);
+        return <Btn key={l.id} label={`${passed ? '✓' : i + 1}  ${l.title}\n${passed ? 'Done · replay any time' : i === next ? 'Suggested next' : 'Open'}`} name={`Lesson ${i + 1}, ${l.title}, ${passed ? 'done' : 'open'}`} onPress={() => learn(i)} />;
+      })}
     </Page>
   );
 }
