@@ -28,7 +28,9 @@ import { thinkAsync } from './src/ai/think';
 import { candsFor, choiceFor, type Move, nextSafeties, potPay, type Safeties, safetiesArg, softMove, think } from './src/ai/turn';
 import { type Cand, TIERS } from './src/ai/shot-ai';
 import { matchPay, type Pay } from './src/progress/pay';
-import { aimGuide, DRAG, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
+import { DRAG, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
+import { farGuide, type Guide, type GuideAsk, nearGuide } from './src/shot/far';
+import { guidePacer } from './src/shot/pacer';
 import { award, keep, ownStats, PASS_PLAY, profile, unlockCue } from './src/progress';
 import { clear, clearFeats, isOpen, par, SCENARIOS, type Scenario, starCount, starsFor } from './src/scenarios/scenarios';
 import { armChalk, chalkResult, dailyClear, dailyPick, dayKey, grantChalk } from './src/daily/daily';
@@ -48,7 +50,7 @@ import { TipButton, TipSheet, tipStore } from './src/ui/TipControl';
 
 const GRAB = 36; // px: a touch this near the cue ball in hand drags it. The ball is smaller than a fingertip, so the
 // ball keeps its distance from the finger and stays in view.
-const GUIDE_WORK = 3200; // ball-steps the aim guide may follow after first contact: one update stays inside a frame, even into the rack
+const GUIDE_WORK = 3200; // ball-steps the aim guide may follow after first contact. The steps before it are not capped: a slow guide is worked out off the JS thread (src/shot/pacer.ts)
 // Pass and play is a matched game: both players on House Cue stats with the perks off, whatever cues the phone owns.
 const MATCH_CUE = 'house', STICK = stick(MATCH_CUE, true), GUIDE_AIM = CUES[MATCH_CUE].aim; // one cue for the shot and its guide
 const THINK_MS = 800; // the AI takes at least this long, so a fast tier does not shoot the moment the table stops
@@ -178,7 +180,10 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   useEffect(() => { const sub = BackHandler.addEventListener('hardwareBackPress', () => { setPaused(p => !p); return true; }); return () => sub.remove(); }, []); // Android back opens and closes the pause card
   const rules = table.current.rules, [, redraw] = useReducer((n: number) => n + 1, 0); // the rules live with the table; redraw shows a change
   const shot = useRef(shotStore(nearest(table.current.B))).current; // the held aim and the power on the rail
-  const stale = useRef(true); // the guide must be drawn again: the aim, the power, the tip or the table changed
+  const stale = useRef(true); // the guide must be worked out again: the aim, the power, the tip or the table changed
+  // line = the newest guide; redo = it or the stick must be drawn again; took = what it took and where; gap = the longest wait between two turns of the JS thread (readout)
+  const line = useRef<Guide | null>(null), redo = useRef(false), took = useRef<[number, boolean]>([0, false]), gap = useRef(0);
+  const guides = useRef(guidePacer<GuideAsk, Guide>(nearGuide, farGuide(), (g, ms, off) => { line.current = g; redo.current = true; took.current = [ms, off]; })).current;
   const [demo, setDemo] = useState(0);
   const [hud, setHud] = useState(__DEV__), [rates, setRates] = useState(''); // frame rate readout: hold the Rack button to show or hide it
   const tip = useRef(tipStore()).current, [sheet, setSheet] = useState(false), [tools, setTools] = useState(false);
@@ -245,16 +250,24 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
     live.current.setActive(true); // a short run at launch measures the display's refresh interval for the first shot
     const rest = () => setTimeout(() => { if (!on) live.current.setActive(false); }, 300);
     let timer = rest(); on = false;
+    let was = performance.now();
     const tick = (t: number) => {
       const { B, ids, look, rules: s, rec, push: pushOut } = table.current;
       if (stale.current) { // one guide a frame, however many touches came. While a shot can be made the guide and the cue stick are always there: for the pull on the rail, or for a firm shot without one
-        const rec = Skia.PictureRecorder(), c = rec.beginRecording(), { aim, power } = shot.get();
-        if (!shut() || watching()) {
-          const g = aimGuide(B, shotOf(previewPower(power)), S || vs ? mine.aim : L ? 10 : GUIDE_AIM, GUIDE_WORK, cue); // lessons use the full guide
-          if (!(S && les.current.guideOff)) { peeked.current = true; drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob); } drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power);
-        }
-        guide.value = rec.finishRecordingAsPicture(); stale.current = false;
+        stale.current = false; redo.current = true;
+        const { power } = shot.get();
+        if (!shut() || watching()) guides.ask({ B, shot: shotOf(previewPower(power)), aim: S || vs ? mine.aim : L ? 10 : GUIDE_AIM, budget: GUIDE_WORK, stick: cue }, power > 0.05); // lessons use the full guide
+        else { guides.drop(); line.current = null; }
       }
+      if (redo.current) { // the stick follows the finger every frame; the line is the newest guide there is, a few frames old when it came from the other thread
+        const rec = Skia.PictureRecorder(), c = rec.beginRecording(), { aim, power } = shot.get(), g = line.current;
+        if (!shut() || watching()) {
+          if (g && !(S && les.current.guideOff)) { peeked.current = true; drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob); }
+          drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power);
+        }
+        guide.value = rec.finishRecordingAsPicture(); redo.current = false;
+      }
+      gap.current = Math.max(gap.current, t - was); was = t;
       const busy = () => moving.current || look.fx.length > 0; // effects (a ball falling into a pocket) outlive the last moving ball
       if (busy()) {
         let p = pace.current;
@@ -291,7 +304,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
     let was = seen.value, n = 0, cost = 0;
     const id = setInterval(() => { // twice a second
       const s = seen.value, [m, c] = made.current, k = m - n;
-      setRates(`display ${s[4] > 0.5 ? 120 : 60} Hz  shown ${2 * (s[1] - was[1])}/s  none ready ${2 * (s[2] - was[2])}/s  skipped ${2 * (s[3] - was[3])}/s\nmade ${2 * k}/s  ${k ? ((c - cost) / k).toFixed(1) : '-'} ms each${pace.current ? `  for ${Math.round(1000 / pace.current.frame)} Hz` : ''}`);
+      setRates(`display ${s[4] > 0.5 ? 120 : 60} Hz  shown ${2 * (s[1] - was[1])}/s  none ready ${2 * (s[2] - was[2])}/s  skipped ${2 * (s[3] - was[3])}/s\nmade ${2 * k}/s  ${k ? ((c - cost) / k).toFixed(1) : '-'} ms each${pace.current ? `  for ${Math.round(1000 / pace.current.frame)} Hz` : ''}\nguide ${took.current[0].toFixed(1)} ms ${took.current[1] ? 'off thread' : 'on JS'}  longest JS gap ${gap.current.toFixed(0)} ms`); gap.current = 0;
       was = s; n = m; cost = c;
     }, 500);
     return () => clearInterval(id);
