@@ -17,11 +17,12 @@ export const newLook = (B: Ball[]): Look => ({
   last: Float64Array.from(B.flatMap(b => [b.x, b.y])),
 });
 
+const ROT = new Float64Array(9); // scratch: turn runs for every spinning ball every millisecond of play
 // Turn orientation m by angular velocity (wx,wy,wz) for dt seconds (Rodrigues, exact at any spin rate).
 export function turn(m: number[], wx: number, wy: number, wz: number, dt: number) {
   const w = Math.sqrt(wx * wx + wy * wy + wz * wz), a = w * dt; if (a < 1e-9) return;
   const x = wx / w, y = wy / w, z = wz / w, c = Math.cos(a), s = Math.sin(a), t = 1 - c;
-  const r = [t * x * x + c, t * x * y - s * z, t * x * z + s * y, t * x * y + s * z, t * y * y + c, t * y * z - s * x, t * x * z - s * y, t * y * z + s * x, t * z * z + c];
+  const r = ROT; r[0] = t * x * x + c; r[1] = t * x * y - s * z; r[2] = t * x * z + s * y; r[3] = t * x * y + s * z; r[4] = t * y * y + c; r[5] = t * y * z - s * x; r[6] = t * x * z - s * y; r[7] = t * y * z + s * x; r[8] = t * z * z + c;
   for (let k = 0; k < 3; k++) {
     const p = m[k], q = m[3 + k], u = m[6 + k];
     m[k] = r[0] * p + r[1] * q + r[2] * u; m[3 + k] = r[3] * p + r[4] * q + r[5] * u; m[6 + k] = r[6] * p + r[7] * q + r[8] * u;
@@ -69,12 +70,12 @@ half4 main(float2 p) {
 }`;
 const SPOT = Math.cos(Math.asin(0.46)), CUE_SPOT = Math.cos(Math.asin(0.17)); // spot radius 0.46 R (number), 0.17 R (cue ball)
 
-export interface Kit { fx: SkRuntimeEffect; fill: SkPaint; line: SkPaint; ball: SkPaint; font: SkFont | null; col: (hex: string) => Float32Array; rect: (typeof Skia)['XYWHRect']; tw: number[] }
+export interface Kit { fx: SkRuntimeEffect; fill: SkPaint; line: SkPaint; ball: SkPaint; font: SkFont | null; col: (hex: string) => Float32Array; tw: number[] }
 // font: any bold face at size 10, or null to leave the numbers off.
 export function makeKit(api: typeof Skia, font: SkFont | null): Kit {
   const paint = (stroke: boolean) => { const p = api.Paint(); p.setAntiAlias(true); if (stroke) { p.setStyle(1); p.setStrokeCap(1); } return p; }; // 1 = PaintStyle.Stroke, StrokeCap.Round
   const cache: Record<string, Float32Array> = {};
-  return { fx: api.RuntimeEffect.Make(SKSL)!, fill: paint(false), line: paint(true), ball: paint(false), font, rect: api.XYWHRect,
+  return { fx: api.RuntimeEffect.Make(SKSL)!, fill: paint(false), line: paint(true), ball: paint(false), font,
     col: hex => cache[hex] || (cache[hex] = api.Color(hex)), tw: [] };
 }
 
@@ -98,13 +99,13 @@ export function drawBalls(kit: Kit, canvas: SkCanvas, B: Ball[], ids: number[], 
     ball.setAlphaf(a);
     canvas.save(); canvas.translate(x, y); canvas.scale(rad, rad); canvas.drawCircle(0, 0, 1, ball); canvas.restore();
     if (font && id > 0) for (const k of [1, -1]) { // the number lies flat on its spot, so it turns and foreshortens with the ball
-      if (k * Z[2] < 0.25) continue;
+      if (k * Z[2] < 0.35) continue; // nearer the edge the flat number would poke past the ball
       const tw = kit.tw[id] ?? (kit.tw[id] = font.measureText(String(id)).width), f = rad * 0.062;
       canvas.save(); canvas.concat([k * X[0] * f, -Y[0] * f, x + k * Z[0] * rad, k * X[1] * f, -Y[1] * f, y + k * Z[1] * rad, 0, 0, 1]); // the far number reads upright after a half turn about its own upright, as on a real ball
       fill.setColor(col(C.ink)); fill.setAlphaf(a); canvas.drawText(String(id), -tw / 2, 3.6, fill, font); canvas.restore();
     }
     canvas.drawCircle(x, y, rad - 0.5 / dpr, stroke(C.chalk, 0.4 * a, 1 / dpr)); // rim: keeps the 7 and 8 an edge on dark slate
-    canvas.drawArc(kit.rect(x - rad * 0.7, y - rad * 0.7, rad * 1.4, rad * 1.4), 205, 40, false, stroke(C.chalk, 0.75 * a, rad * 0.11)); // fixed highlight: the pattern moves under it
+    canvas.drawArc({ x: x - rad * 0.7, y: y - rad * 0.7, width: rad * 1.4, height: rad * 1.4 }, 205, 40, false, stroke(C.chalk, 0.75 * a, rad * 0.11)); // fixed highlight: the pattern moves under it
   };
 
   // Under everything: speed smears, landing rings, balls falling into pockets.
@@ -116,7 +117,7 @@ export function drawBalls(kit: Kit, canvas: SkCanvas, B: Ball[], ids: number[], 
   }
   for (const f of look.fx) {
     const t = f.age / (f.t === 'pocket' ? DROP : RING), p = toScreen(v, f.x, f.y);
-    if (f.t === 'land' && !calm) canvas.drawCircle(p.x, p.y, r * (1 + 0.9 * (1 - (1 - t) ** 3)), stroke(C.chalk, 0.6 * (1 - t), 1));
+    if (f.t === 'land' && !calm) canvas.drawCircle(p.x, p.y, r * (1 + 0.9 * (1 - (1 - t) ** 3)), stroke(C.chalk, 0.6 * (1 - t), 1 / dpr));
     if (f.t !== 'pocket') continue;
     if (calm) { sphere(f.i, p.x, p.y, r, 1 - t); continue; }
     // The ball runs on to the middle of the hole (ease-out, it arrives with speed) while it falls away (ease-in, gravity).
