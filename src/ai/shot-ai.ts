@@ -177,7 +177,7 @@ export const TIERS: Tier[] = [
 // 9-ball: pass NINE as the group for both sides. The lowest ball must be hit first, any ball may drop, the 9 wins.
 export const NINE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 // By its length, not by identity: a worklet runtime gets copies of NINE (src/ai/think.ts), and SOLIDS and STRIPES have 7.
-const nine = (group: number[]) => group.length === 9;
+export const nine = (group: number[]) => group.length === 9;
 export const legalFor = (balls: Obj[], group: number[]): number[] => {
   if (nine(group)) return balls.length ? [Math.min(...balls.map((b) => b.id))] : [];
   const own = balls.filter((b) => group.includes(b.id)).map((b) => b.id);
