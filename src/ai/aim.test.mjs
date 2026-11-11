@@ -2,7 +2,8 @@
 import assert from 'node:assert';
 import { CUE, P, simulate, step, strike } from '../physics/engine.ts';
 import { aiShot, correctAim } from './aim.ts';
-import { SOLIDS, STRIPES, TIERS, randomLayout, rng } from './shot-ai.ts';
+import { visit } from './bench.ts';
+import { enumerate, SOLIDS, STRIPES, TIERS, randomLayout, rng } from './shot-ai.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 // Direction the object ball leaves in, measured on the engine, independent of aim.ts.
@@ -60,12 +61,12 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   assert(off(shot.ang, Math.atan2(-0.3, -0.8)) < 0.02 && shot.speed >= 0.5 && shot.speed <= 1.5, `soft shot at the 1 (${JSON.stringify(shot)})`);
   ok('a hooked AI plays softly at its nearest ball');
 }
-{ // Strike noise follows the tier: the Shot handed to strike() scatters about the noise-free one (aim) by the tier's aim,
-  // speed and tip error. A dead-straight pot is played with no side, so the side offset scatters about zero.
+{ // Strike noise follows the tier: the Shot handed to strike() scatters about the noise-free one (aim) by the tier's aim
+  // (the cue ball's line, squirt from the side tip error included), speed and tip error. A dead-straight pot is played with no side, so the side offset scatters about zero.
   const B = [mk(P.L / 2, 0.8), mk(P.L / 2, 0.3)], rms = a => Math.sqrt(a.reduce((t, x) => t + x * x, 0) / a.length);
   for (const tier of [TIERS[0], TIERS[5]]) {
     const r = []; for (let i = 0; r.length < 60; i++) { const x = aiShot(B, [0, 1], SOLIDS, STRIPES, tier, rng(i)); if (x.pick.pocket === 1 && x.pick.type === 'direct') r.push(x); }
-    const aim = rms(r.map(x => x.shot.ang - x.aim.ang)) * 180 / Math.PI, side = rms(r.map(x => x.shot.a)), up = rms(r.map(x => x.shot.b - x.aim.b));
+    const aim = rms(r.map(x => x.shot.ang + x.shot.a * CUE.squirt - x.aim.ang)) * 180 / Math.PI, side = rms(r.map(x => x.shot.a)), up = rms(r.map(x => x.shot.b - x.aim.b));
     const sp = 100 * rms(r.map(x => x.shot.speed / x.aim.speed - 1));
     assert(up > 0.6 * tier.tipErr && up < 1.4 * tier.tipErr, `${tier.name}: tip error up and down ${up.toFixed(3)} ball radii`);
     assert(r.every(x => Math.abs(x.shot.b) <= CUE.tipLimit), `${tier.name}: the tip stays inside the miscue limit`);
@@ -75,13 +76,14 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   }
   ok('strike noise is the tier\'s aim, speed and tip error');
 }
-{ // Random full tables, every tier: a Shot strike() can take, with the tip low for a draw leave and high for a follow one.
+{ // Random full tables, every tier: a Shot strike() can take. With no engine time (Rookie, Regular) the tip is low for a
+  // draw leave and high for a follow one; the tiers that refine pick the tip by where the cue ball really stops.
   const rnd = rng(5), spins = new Set();
-  for (const tier of TIERS) for (let i = 0; i < 4; i++) {
+  for (const tier of TIERS) for (let i = 0; i < (tier.budget < 3 ? 8 : 3); i++) {
     const { B, ids } = table(randomLayout(rnd, 7)), { shot, pick, aim } = aiShot(B, ids, SOLIDS, STRIPES, tier, rnd);
     const { ang, speed, a, b } = shot, lim = CUE.tipLimit;
     assert(Number.isFinite(ang) && speed >= 0.5 && speed <= CUE.maxSpeed && Math.abs(a) <= lim && Math.abs(b) <= lim, `${tier.name}: ${JSON.stringify(shot)}`);
-    if (pick.leave) { const want = pick.leave.spin; spins.add(want); assert(Math.sign(aim.b) === want && Math.abs(b - aim.b) < 4 * tier.tipErr, `${tier.name}: spin ${want}, tip ${b}`); }
+    if (pick.leave && tier.budget < 3) { const want = pick.leave.spin; spins.add(want); assert(Math.sign(aim.b) === want && Math.abs(b - aim.b) < 4 * tier.tipErr, `${tier.name}: spin ${want}, tip ${b}`); }
   }
   assert.strictEqual(spins.size, 3, 'draw, stun and follow were all played');
   ok('shots on random tables are within the cue\'s limits, with the tip the leave asks for');
@@ -115,13 +117,14 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   assert(made >= 4, `combos potted ${made}/${p.length}`);
   ok('Legend\'s combos pot on the engine');
 }
-{ // Draw: a straight pot planned with draw comes back off the contact point, which needs a cue ball still spinning back
-  // when it gets there (hit harder than a rolling ball needs). A stun would stop on the contact point, a roll go on.
-  const B = [mk(P.L / 2, 0.8), mk(P.L / 2, 0.3), mk(0.4, 0.8)];
-  let r; for (let i = 0; !r; i++) { const x = aiShot(B, [0, 1, 2], SOLIDS, STRIPES, TIERS[5], rng(i)); if (x.pick.pocket === 1 && x.pick.leave.spin === -1) r = x; }
-  const sim = simulate(B, r.aim), rest = { x: sim.balls[0].x * 1000, y: sim.balls[0].y * 1000 }, d = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
-  assert(sim.potted.includes(1) && rest.y > r.pick.G.y + 20 && d(rest, r.pick.leave) < d(r.pick.G, r.pick.leave), `drew back to ${rest.y.toFixed(0)} mm, contact at ${r.pick.G.y.toFixed(0)}, planned ${r.pick.leave.y.toFixed(0)}`);
-  ok('a planned draw comes back');
+{ // Leave on the engine: a stun or a follow on this straight pot rolls the cue ball to the side cushion, where the 9 and
+  // the 10 hide the 2. Scored by where the cue ball really stops, the pot draws back to a direct shot on the 2.
+  const B = [mk(P.L / 2, 0.8), mk(P.L / 2, 0.3), mk(0.4, 0.8), mk(0.97, 0.21), mk(1.27, 0.21)], ids = [0, 1, 2, 9, 10];
+  const r = aiShot(B, ids, SOLIDS, STRIPES, TIERS[5], rng(1)), sim = simulate(B, r.aim), c = sim.balls[0];
+  const balls = sim.balls.map((b, i) => ({ id: ids[i], x: b.x * 1000, y: b.y * 1000 })).filter((_, i) => i && sim.balls[i].on);
+  const next = enumerate({ x: c.x * 1000, y: c.y * 1000 }, balls, [2]).filter((s) => s.type === 'direct');
+  assert(sim.potted.includes(1) && !sim.scratch && r.aim.b < 0 && c.y > 0.3 && next.length, `tip ${r.aim.b}, rest ${c.x.toFixed(2)}, ${c.y.toFixed(2)}`);
+  ok('the leave is scored where the engine stops the cue ball: it draws back for the next ball');
 }
 { // No legal ball at all (the group and the 8 are gone): no pick, and the AI still hands strike() a shot.
   const { B, ids } = table({ cue: { x: 1000, y: 500 }, balls: [{ id: 9, x: 300, y: 300 }] }), r = aiShot(B, ids, SOLIDS, STRIPES, TIERS[5], rng(1));
@@ -133,4 +136,13 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   const p = picksOf('bank', 20, TIERS[0]), made = p.filter(potted).length;
   assert(made >= 4, `Rookie's banks potted ${made}/${p.length}`);
   ok('with no engine time a bank is still hit hard enough');
+}
+{ // Tiers on the engine: one visit from each of 10 seeded full tables (bench.ts visit(), as npm run bench:visit plays them).
+  // Better tiers run more balls from planning and position, so Legend > Shark > Rookie by a margin.
+  const run = (t, nine = false) => Array.from({ length: 10 }, (_, i) => visit(TIERS[t], 1 + i, nine).potted).reduce((a, b) => a + b, 0);
+  const [rookie, shark, legend] = [0, 3, 5].map((t) => run(t));
+  assert(shark > 2 * rookie && legend > 1.3 * shark, `balls in 10 visits: Rookie ${rookie}, Shark ${shark}, Legend ${legend}`);
+  const [rookie9, legend9] = [0, 5].map((t) => run(t, true));
+  assert(legend9 > 2 * rookie9, `9-ball balls in 10 visits: Rookie ${rookie9}, Legend ${legend9}`);
+  ok('Legend runs more balls than Shark, and Shark than Rookie, on the engine, and Legend than Rookie in 9-ball');
 }

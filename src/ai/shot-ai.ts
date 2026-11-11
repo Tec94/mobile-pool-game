@@ -2,8 +2,8 @@
 // Shot picker for the AI opponent: a typed port of the ai-progression prototype (shot-ai.js). Pure: no React, no engine
 // calls. Units: mm and radians, origin at a corner of the playing field, x along the length (the engine's axes, x1000).
 // shortcut: geometry only. Cue-ball travel is a rule of thumb (tangent line, plus or minus follow/draw, straight rolls with
-// mirror bounces, stops at the first ball it meets); replace roll() and leaves() with rollouts in the engine before trusting
-// any number here. aim.ts turns a pick into an engine Shot and corrects its aim on the engine.
+// mirror bounces, stops at the first ball it meets), off the engine by 250-300 mm (median), so it only ranks the pots.
+// aim.ts turns a pick into an engine Shot, corrects its aim and scores its leave where the engine stops the cue ball.
 import { P } from '../physics/engine.ts';
 
 // shortcut: the table is read once at load; setTable() (the 9 ft calibration table) is not followed. Read P per call if the app ever changes table size.
@@ -19,14 +19,17 @@ export interface Planned extends Cand { p: number; score: number; value: number;
 // G, v and u are kept on a safety (the prototype dropped them) so the engine glue maps it like a pot.
 export interface Safety { type: 'safety'; ball: number; aim: number; paths: Pt[][]; leave: Leave; oppBest: number; hooked: boolean; G: Pt; v: Pt; u: Pt }
 export type Pick = Planned | Safety | { type: 'foul' };
-export interface Tier { name: string; sigma: number; types: ShotType[]; flair: number; temp: number; depth: number; planShare?: number; wPos: number; posErr: number; speedErr: number; tipErr: number; ctrl: number; wLeave: number; rack?: boolean; safetyAngles: number[]; budget: number }
+export interface Tier { name: string; sigma: number; types: ShotType[]; flair: number; temp: number; depth: number; planShare?: number; wPos: number; posErr: number; speedErr: number; tipErr: number; ctrl: number; wLeave: number; rack?: boolean; safetyAngles: number[]; budget: number; tries?: number }
 interface Pocket extends Pt { ax: [number, number]; m: number; c: number; back: number }
 interface Rail { k: 'x' | 'y'; v: number }
 
 // Margin kept after one cushion, measured on the engine (critique/probe5.js C, H). The window itself is 0.91 (bank) and 1.05 (kick)
 // of the mirror geometry, but the rebound angle moves with speed, so under a tier's own speed error 0.76 to 0.87 is what it pots at.
 export const RAIL_FACTOR = 0.8;
-export const SIGMA_REF = 0.30 * Math.PI / 180; // "average player" aim error with a long aim line, used for rewards
+// Aim error a cushion adds on top of the striker's, measured on the engine (scripts/ai-visit.mjs, Shark and Legend both
+// fit 0.3 degrees): with RAIL_FACTOR alone, banks and kicks potted 0.6 to 0.7 of the chance the planner gave them.
+const RAIL_SIGMA = 0.3 * Math.PI / 180;
+export const SIGMA_REF = 0.30 * Math.PI / 180; // "average player" aim error with a long aim line, used to price the reply of the opponent
 // Pocket model measured on the engine's WPA pockets (critique/probe5.js A). x, y = centre of the window a ball must
 // pass through (the middle of the mouth, not the corner of the field). A ball arriving at angle alpha off the pocket's
 // axis has a window m*cos(alpha) - c wide. back = distance from that point to the hole centre, for drawing only.
@@ -49,6 +52,8 @@ function erf(x: number) { // Abramowitz-Stegun 7.1.26, |error| < 1.5e-7
   return x < 0 ? -y : y;
 }
 export const makeProb = (tol: number, sigma: number) => erf(tol / (sigma * Math.SQRT2));
+// Chance a striker with aim error sigma (radians) pots shot s.
+export const potProb = (s: Cand, sigma: number) => makeProb(s.tol, s.type === 'bank' || s.type === 'kick' ? Math.hypot(sigma, RAIL_SIGMA) : sigma);
 
 // Half-width of the window a ball arriving along `dir` must pass through, or 0 if it cannot drop.
 export function slack(pk: Pocket, dir: Pt) {
@@ -165,14 +170,18 @@ function leaves(G: Pt, v: Pt, u: Pt, balls: Obj[], ignore: number[], powers = PO
 // wLeave = how much the tier cares what a miss (or a safety) leaves the opponent.
 // ctrl (depth 0 only): 0 = cue ball ends up anywhere, 1 = at least avoids the scratch.
 // planShare = share of turns that are planned at all; it sets Hustler half way between Regular and Shark.
-// budget = engine time for the shot in hand, in full-table simulations (aim.ts refine()).
+// budget = engine time for the shot in hand, in full-table simulations (aim.ts refine()); tries = pots it is split over.
+// Measured on the engine (npm run bench:visit): budget past about 20 a shot and depth 2 add no balls a visit; aim error
+// (sigma) moves it most, Legend at 0.15 degrees runs 4.8 balls against 4.1 at 0.19. Shark's budget of 12 (not 17) and
+// Pro's wLeave of 0.6 (not 0.9: fewer safeties) set Shark, Pro and Legend apart: at 300 tables 2.76, 3.66, 4.04 balls in
+// 8-ball and 0.83, 1.05, 1.40 in 9-ball, against 2.88, 3.47, 4.04 and 0.88, 0.86, 1.40. tries 2, 3 or 4 changed nothing.
 export const TIERS: Tier[] = [
   { name: 'Rookie',  sigma: 0.71, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1 },
   { name: 'Regular', sigma: 0.42, types: ['direct', 'bank'],                  flair: 0.03, temp: 0.08, depth: 0, wPos: 0,   posErr: 0.16, speedErr: 12, tipErr: 0.08, ctrl: 1, wLeave: 0, safetyAngles: [], budget: 2 },
   { name: 'Hustler', sigma: 0.35, types: ['direct', 'bank', 'combo'],         flair: 0.05, temp: 0.08, depth: 1, planShare: 0.5, wPos: 0.5, posErr: 0.11, speedErr: 8, tipErr: 0.06, ctrl: 1, wLeave: 0.3, safetyAngles: [0], budget: 9 },
-  { name: 'Shark',   sigma: 0.30, types: ['direct', 'bank', 'combo', 'kick'], flair: 0.05, temp: 0.04, depth: 1, wPos: 0.8, posErr: 0.10, speedErr: 7, tipErr: 0.055, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-30, 0, 30], budget: 17 },
-  { name: 'Pro',     sigma: 0.24, types: ['direct', 'bank', 'combo', 'kick'], flair: 0.04, temp: 0.02, depth: 2, wPos: 0.9, posErr: 0.08, speedErr: 5, tipErr: 0.04, ctrl: 1, wLeave: 0.9, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 34 },
-  { name: 'Legend',  sigma: 0.19, types: ['direct', 'bank', 'combo', 'kick'], flair: 0.03, temp: 0.01, depth: 2, wPos: 1,   posErr: 0.07, speedErr: 3.5, tipErr: 0.03, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 60 },
+  { name: 'Shark',   sigma: 0.30, types: ['direct', 'bank', 'combo', 'kick'], flair: 0.05, temp: 0.04, depth: 1, tries: 2, wPos: 0.8, posErr: 0.10, speedErr: 7, tipErr: 0.055, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-30, 0, 30], budget: 12 },
+  { name: 'Pro',     sigma: 0.24, types: ['direct', 'bank', 'combo', 'kick'], flair: 0.04, temp: 0.02, depth: 1, tries: 3, wPos: 0.9, posErr: 0.08, speedErr: 5, tipErr: 0.04, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 24 },
+  { name: 'Legend',  sigma: 0.19, types: ['direct', 'bank', 'combo', 'kick'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1,   posErr: 0.07, speedErr: 3.5, tipErr: 0.03, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 33 },
 ];
 // 9-ball: pass NINE as the group for both sides. The lowest ball must be hit first, any ball may drop, the 9 wins.
 export const NINE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -183,8 +192,8 @@ export const legalFor = (balls: Obj[], group: number[]): number[] => {
   const own = balls.filter((b) => group.includes(b.id)).map((b) => b.id);
   return own.length ? own : balls.some((b) => b.id === 8) ? [8] : [];
 };
-const potFor = (balls: Obj[], group: number[]) => (nine(group) ? NINE : legalFor(balls, group));
-const winBall = (group: number[]) => (nine(group) ? 9 : 8);
+export const potFor = (balls: Obj[], group: number[]) => (nine(group) ? NINE : legalFor(balls, group));
+export const winBall = (group: number[]) => (nine(group) ? 9 : 8);
 
 // Run-out planner. value ~ expected balls potted from here: P(make) x (1 + trust x value of the position left).
 // Searches the `width` best pots, every cue-ball leave of each, and recurses `depth` shots ahead.
@@ -194,14 +203,14 @@ const R_REF = 0.75, RACK = 4, HOOK = 0.2; // reference player's pot rate per fur
 const REPLY = 2, WIN = 3; // a reply is worth about 2 balls to the opponent; potting the 8 is worth 3
 const need = (balls: Obj[], group: number[]) => (nine(group) ? balls.length : balls.filter((b) => group.includes(b.id)).length + 1);
 const replyCost = (tier: Tier, balls: Obj[], oppGroup: number[]) => REPLY + (tier.rack ? RACK * Math.pow(R_REF, need(balls, oppGroup) - 1) : 0);
-const oppBest = (cue: Pt, balls: Obj[], oppGroup: number[]) => Math.max(0, ...enumerate(cue, balls, legalFor(balls, oppGroup), potFor(balls, oppGroup)).map((s) => makeProb(s.tol, SIGMA_REF)));
+const oppBest = (cue: Pt, balls: Obj[], oppGroup: number[]) => Math.max(0, ...enumerate(cue, balls, legalFor(balls, oppGroup), potFor(balls, oppGroup)).map((s) => potProb(s, SIGMA_REF)));
 export function plan(cue: Pt, balls: Obj[], group: number[], tier: Tier, depth: number, width: number, oppGroup?: number[]): Planned[] {
   const sigma = tier.sigma * Math.PI / 180, win = winBall(group);
   let cands = enumerate(cue, balls, legalFor(balls, group), potFor(balls, group));
   const inRepertoire = cands.filter((s) => tier.types.includes(s.type));
   if (inRepertoire.length) cands = inRepertoire; // outside the repertoire only when nothing else exists
   const shots: Planned[] = cands.map((s) => {
-    const p = makeProb(s.tol, sigma);
+    const p = potProb(s, sigma);
     return { ...s, p, value: 0, score: p * (s.ball === win ? WIN : 1) * (1 + (s.type === 'bank' || s.type === 'combo' ? tier.flair : 0)) };
   }).sort((a, b) => b.score - a.score).slice(0, width);
   for (const s of shots) {
@@ -246,7 +255,7 @@ export function safety(cue: Pt, balls: Obj[], group: number[], oppGroup: number[
         const table = balls.map((b) => (b.id === B.id ? { ...b, x: obj.x, y: obj.y } : b));
         const replies = enumerate(lv, table, legalFor(table, oppGroup), potFor(table, oppGroup));
         opts.push({ type: 'safety', ball: B.id, aim: Math.atan2(v.y, v.x), paths: [[cue, G], obj.path], leave: lv, G, v, u,
-          oppBest: Math.max(0, ...replies.map((s) => makeProb(s.tol, SIGMA_REF))), hooked: !replies.some((s) => s.type === 'direct') });
+          oppBest: Math.max(0, ...replies.map((s) => potProb(s, SIGMA_REF))), hooked: !replies.some((s) => s.type === 'direct') });
       }
     }
   }
@@ -279,15 +288,6 @@ export function decide(cue: Pt, balls: Obj[], group: number[], oppGroup: number[
     pick.leave = pool[Math.floor(rnd() * pool.length)];
   }
   return { ranked, pick };
-}
-
-// Reward side of the same model: how hard was this shot for an average player?
-export const BANDS: [string, number, number][] = [['Routine', 0.80, 1], ['Solid', 0.55, 1.5], ['Tough', 0.30, 2.5], ['Brutal', 0.12, 4], ['Outrageous', 0, 6]];
-const TYPE_BONUS: Record<ShotType, number> = { direct: 1, bank: 1.25, kick: 1.5, combo: 1.25 };
-export function reward(shot: Cand) {
-  const pRef = makeProb(shot.tol, SIGMA_REF);
-  const [band, , mult] = BANDS.find((b) => pRef >= b[1])!;
-  return { pRef, band, mult, xp: Math.round(10 * mult * TYPE_BONUS[shot.type]), coins: Math.round(4 * mult * TYPE_BONUS[shot.type]) };
 }
 
 export function rng(seed: number) { // mulberry32
