@@ -20,8 +20,8 @@ export function dialTurn(aim: number, px: number, sens = SENS.Normal) {
   return { aim: to, tick: Math.floor(to / (0.5 * DEG)) !== Math.floor(aim / (0.5 * DEG)) };
 }
 export const nudge = (aim: number, side: number) => aim - side * 0.1 * DEG; // a tap on the dial: side 1 = its right or lower half
-// The power rail: dy = px the finger is below where it went down, rail = the rail's height, from = the power it had.
-export const pullPower = (dy: number, rail: number, from = 0) => Math.min(1, Math.max(0, from + dy / (0.75 * rail)));
+// The power rail: dy = px the finger is below where it went down, pull = px of pull for full power, from = the power it had.
+export const pullPower = (dy: number, pull: number, from = 0) => Math.min(1, Math.max(0, from + dy / pull));
 // What the hand feels for a change of power: 1 = a tick at a 10% line, 2 = the heavy one on reaching full power.
 export const powerTick = (was: number, now: number) => (Math.floor(now * 10) === Math.floor(was * 10) || now <= 0.05 ? 0 : now >= 1 ? 2 : 1);
 // The power to strike with when the finger lifts, 0 = no shot. hist = [ms, power] for each move of the pull. A finger

@@ -28,8 +28,8 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
   ok('the dial turns 0.0012 rad per px with a tick each half degree, a tap nudges 0.1 degree');
 }
 { // The rail: full power over 75% of its height, from the power it had when the finger went down.
-  near(pullPower(150, 400), 0.5, 1e-12, 'half'); assert(pullPower(400, 400) === 1 && pullPower(-20, 400) === 0, 'held in 0..1');
-  near(pullPower(30, 400, 0.3), 0.4, 1e-12, 'a pull goes on from the set power');
+  near(pullPower(150, 300), 0.5, 1e-12, 'half'); assert(pullPower(400, 300) === 1 && pullPower(-20, 300) === 0, 'held in 0..1');
+  near(pullPower(30, 300, 0.3), 0.4, 1e-12, 'a pull goes on from the set power');
   assert(powerTick(0.08, 0.12) === 1 && powerTick(0.12, 0.18) === 0 && powerTick(0.12, 0.08) === 1, 'a tick at each 10% line');
   assert(powerTick(0.95, 1) === 2 && powerTick(0.12, 0.04) === 0, 'heavy at full, none under 5%');
   assert(['Pull', '50%', 'Cancel', '30%'].join() === [railLabel(0, false), railLabel(0.5, true), railLabel(0.03, true), railLabel(0.3, false)].join(), 'label');
