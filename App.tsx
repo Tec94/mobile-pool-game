@@ -14,6 +14,7 @@ import { BAR, drawAim, drawTable, fit, toTable } from './src/render/table';
 import { C, CLOTHS } from './src/theme';
 
 const MAX_DRAG = 160; // px of pull-back for full power
+const GUIDE_WORK = 3200; // ball-steps the aim guide may follow after first contact: one update stays inside a frame, even into the rack
 // Shots the screen has no controls for yet, played from a fresh rack so the spin, jump and masse animation can be seen.
 const DEMOS: [string, Partial<Shot>][] = [['Draw', { speed: 2.5, b: -0.45 }], ['Side', { speed: 1.2, a: 0.45 }], ['Jump', { speed: 4.2, elev: 0.7 }], ['Massé', { speed: 3.5, a: 0.4, elev: 1.19 }]];
 const kit = makeKit(Skia);
@@ -39,13 +40,13 @@ function Game() {
   const felt = useMemo(() => { const rec = Skia.PictureRecorder(); drawTable(Skia, rec.beginRecording(), view, CLOTHS[cloth]); return rec.finishRecordingAsPicture(); }, [...where, cloth]);
 
   const table = useRef(newTable());
-  const [aim, setAim] = useState<{ path: number[][]; ghost: number[] | null; pull: number } | null>(null);
-  const guide = useMemo(() => { const rec = Skia.PictureRecorder(), c = rec.beginRecording(); if (aim) drawAim(Skia, c, view, aim.path, aim.ghost); return rec.finishRecordingAsPicture(); }, [aim, ...where]);
+  const [pull, setPull] = useState<number | null>(null); // % of full power while the player aims
+  const want = useRef<number[] | null>(null); // the newest pull-back not yet drawn: touches can come faster than frames
   const [demo, setDemo] = useState(0);
   const moving = useRef(false);
-  // The balls are one Skia picture, recorded here each frame and handed to the canvas through a shared value, so a
-  // frame of play never re-renders React.
-  const picture = useSharedValue(EMPTY);
+  // The balls and the aim guide are Skia pictures, recorded on the JS thread and handed to the canvas through shared
+  // values, so a frame of play or of aiming never re-renders React.
+  const picture = useSharedValue(EMPTY), guide = useSharedValue(EMPTY);
   const paint = useRef(() => {});
   paint.current = () => {
     const rec = Skia.PictureRecorder(), { B, ids, look } = table.current;
@@ -58,6 +59,11 @@ function Game() {
     let raf = 0, last = 0, owed = 0;
     const tick = (t: number) => {
       const { B, look } = table.current;
+      if (want.current) { // one aim guide a frame, for the newest touch
+        const { shot, pull } = shotFrom(want.current[0], want.current[1]), { cue, hit } = predict(B, shot, 0.4, undefined, undefined, GUIDE_WORK);
+        const rec = Skia.PictureRecorder(); drawAim(Skia, rec.beginRecording(), map.current, cue, hit && [hit.x, hit.y]);
+        guide.value = rec.finishRecordingAsPicture(); setPull(Math.round(pull * 100)); want.current = null;
+      }
       if (moving.current || look.fx.length) { // effects (a ball falling into a pocket) outlive the last moving ball
         owed = Math.min(50, owed + (last ? t - last : 16)); // real time, capped after a stall; the part of a millisecond left over carries on
         const ms = Math.floor(owed); owed -= ms;
@@ -78,12 +84,9 @@ function Game() {
   };
   const pan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => !moving.current,
-    onPanResponderMove: (_, g) => {
-      const { shot, pull } = shotFrom(g.dx, g.dy), { cue, hit } = predict(table.current.B, shot, 0.4);
-      setAim({ pull, path: cue, ghost: hit && [hit.x, hit.y] });
-    },
+    onPanResponderMove: (_, g) => { want.current = [g.dx, g.dy]; },
     onPanResponderRelease: (_, g) => {
-      setAim(null);
+      want.current = null; guide.value = EMPTY; setPull(null);
       const { shot, pull } = shotFrom(g.dx, g.dy);
       if (pull < 0.05) return;
       const { B } = table.current;
@@ -106,7 +109,7 @@ function Game() {
       </Canvas>
       {/* Controls sit inside the safe area: a row under the table in portrait, a column beside it in landscape. */}
       <View style={[styles.bar, view.land ? { top: pad.top, bottom: pad.bottom, right: pad.right, width: BAR, flexDirection: 'column' } : { left: pad.left, right: pad.right, bottom: pad.bottom, height: BAR, flexDirection: 'row' }]}>
-        {aim && <Text maxFontSizeMultiplier={1.3} style={[styles.power, view.land ? { top: 8 } : { left: 16 }]}>{Math.round(aim.pull * 100)}%</Text>}
+        {pull !== null && <Text maxFontSizeMultiplier={1.3} style={[styles.power, view.land ? { top: 8 } : { left: 16 }]}>{pull}%</Text>}
         <Btn label="Rack" onPress={() => { table.current = newTable(); moving.current = false; paint.current(); }} />
         <Btn label={'Demo\n' + DEMOS[demo][0]} onPress={() => {
           table.current = newTable(); table.current.broken = true;
