@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { CUE } from '../physics/engine.ts';
 import { CUES, stick } from './cues.ts';
 import { matchPay, safetyPay, shotPay } from './pay.ts';
-import { buy, feat, featCount, gain, levelOf, NEW, opens, PACKS, select, VENUES } from './profile.ts';
+import { buy, feat, featCount, gain, levelOf, NEW, opens, PACKS, readProfile, select, VENUES } from './profile.ts';
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 
@@ -95,4 +95,20 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(opens(VENUES, 0), ['Garage'], 'no stars: the Garage'); eq(opens(VENUES, 28), ['Garage', 'Corner Bar', 'Social Club'], '28 stars');
   eq(opens(VENUES, 52).at(-1), 'Penthouse', '52 stars: the Penthouse');
   ok('gates: packs by level, venues by stars');
+}
+
+{ for (const t of [null, '{oops', '[1,2]', '"x"', 'null', '7']) eq(readProfile(t), NEW, `${t}: a new profile`);
+  readProfile(null).owned.push('x'); eq(NEW.owned, ['house'], 'the new profile is not shared');
+  const all = { xp: 12345, coins: 678, owned: ['house', 'baguette', 'twig'], cue: 'baguette', feats: { bank: { play: 12, scen: 3 }, long: { play: 25, scen: 0 } } };
+  eq(readProfile(JSON.stringify(all)), all, 'a good save round trips');
+  eq(readProfile(JSON.stringify({ coins: 5 })), { ...NEW, coins: 5 }, 'an older save keeps what it has');
+  ok('a missing, damaged or good save');
+}
+{ const p = readProfile(JSON.stringify({ xp: -5, coins: 'lots', owned: ['twig', 'laser', 'twig', 7], cue: 'golden', feats: { bank: { play: 2.7, scen: -1 }, storm: { play: 3 }, kick: 'x' }, extra: 1 }));
+  eq(p, { xp: 0, coins: 0, owned: ['house', 'twig'], cue: 'house', feats: { bank: { play: 2, scen: 0 } } }, 'bad values take their defaults, unknown cues and feats are dropped, House Cue is always owned');
+  eq(readProfile(JSON.stringify({ owned: [], cue: 'house' })).owned, ['house'], 'House Cue cannot be lost');
+  eq(readProfile(JSON.stringify({ owned: 'house', cue: 'twig' })).cue, 'house', 'a selected cue that is not owned: House Cue');
+  eq(readProfile(JSON.stringify({ xp: 1e300, coins: Infinity })).xp, 1e9, 'numbers are clamped');
+  eq(readProfile('{"coins": 1e999}').coins, 1e9, 'even past what JSON can hold');
+  ok('bad values in a save');
 }

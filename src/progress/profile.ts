@@ -1,5 +1,5 @@
 // The player's progress: total XP (the level comes from it), coins, cues and feat counts (progression design).
-import { CUES, type CueId, type CueInfo } from './cues.ts';
+import { CUE_IDS, CUES, type CueId, type CueInfo } from './cues.ts';
 import type { Pay } from './pay.ts';
 
 export const FEATS = {
@@ -63,3 +63,16 @@ export function feat(p: Profile, id: FeatId, n = 1, scen = false): Profile {
 export const PACKS: [string, number][] = [['Pots', 1], ['Cut shots', 3], ['Banks', 5], ['Position', 8], ['9-ball', 9], ['Combos', 11], ['Kicks', 14], ['Safeties and escapes', 18], ['Trick shots', 22]];
 export const VENUES: [string, number][] = [['Garage', 0], ['Corner Bar', 8], ['Social Club', 18], ['Pool Hall', 29], ['Tournament Floor', 40], ['Penthouse', 52]];
 export const opens = (gates: [string, number][], n: number) => gates.filter(g => n >= g[1]).map(g => g[0]);
+
+// The profile from the saved text, like readSettings: a value that is missing, of the wrong type or out of range takes
+// its default, unknown cues and feats are dropped, House Cue is always owned and the selected cue is an owned one.
+export function readProfile(text: string | null): Profile {
+  let o: any = null;
+  try { o = JSON.parse(text ?? 'null'); } catch {}
+  if (!o || typeof o !== 'object') return { ...NEW, owned: [...NEW.owned] };
+  const num = (v: unknown) => (typeof v === 'number' && v >= 0 ? Math.min(1e9, Math.floor(v)) : 0);
+  const owned = CUE_IDS.filter(id => id === 'house' || (Array.isArray(o.owned) && o.owned.includes(id)));
+  const feats: Profile['feats'] = {};
+  for (const id of Object.keys(FEATS) as FeatId[]) { const f = o.feats?.[id]; if (f && typeof f === 'object') feats[id] = { play: num(f.play), scen: num(f.scen) }; }
+  return { xp: num(o.xp), coins: num(o.coins), owned, cue: owned.includes(o.cue) ? o.cue : 'house', feats };
+}
