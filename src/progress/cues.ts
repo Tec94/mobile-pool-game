@@ -1,5 +1,6 @@
 // The cues: their stats (1 to 10), perk and how to get them, and the engine cue they make (progression design).
-import { CUE, type Cue } from '../physics/engine.ts';
+import { CUE, P, type Cue } from '../physics/engine.ts';
+import { GUIDE, guideFor } from '../shot/aim.ts';
 
 export interface CueInfo {
   name: string; power: number; spin: number; aim: number;
@@ -38,3 +39,12 @@ export function stick(id: CueId, matched = false): Cue {
   const k = matched ? 'house' : id, c: CueInfo = CUES[k], top = 3.7 + (c.power - 1) * 0.8 / 9;
   return { ...CUE, maxSpeed: top * (k === 'rocket' ? 1.1 : 1), breakSpeed: top * CUE.breakSpeed / CUE.maxSpeed, tipLimit: 0.33 + (c.spin - 1) * 0.17 / 9, squirt: k === 'wizard' ? 0 : CUE.squirt };
 }
+
+// What a cue's stats mean on the table, for the cue pages: top shot and break speed in m/s, the farthest the tip may
+// sit from the centre in mm, and how much of the path past the first contact the aim guide shows, in cm.
+export function specs(id: CueId) {
+  const s = stick(id);
+  return { shot: s.maxSpeed, brk: s.breakSpeed, tipMm: s.tipLimit * P.R * 1000, guideCm: GUIDE[guideFor(CUES[id].aim)] * 100 };
+}
+export const specLine = ({ shot, brk, tipMm, guideCm }: ReturnType<typeof specs>) =>
+  `Power: ${shot.toFixed(2)} m/s top shot, ${brk.toFixed(1)} m/s break\nSpin: tip up to ${tipMm.toFixed(1)} mm off centre\nAim: guide ${guideCm} cm past contact`;
