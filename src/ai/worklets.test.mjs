@@ -10,7 +10,7 @@ const babel = require('@babel/core'), preset = require.resolve('babel-preset-exp
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 
 globalThis.__DEV__ = false;
-const done = {}, FILES = ['physics/engine', 'rules/rules', 'ai/shot-ai', 'ai/aim', 'ai/turn', 'progress/pay', 'progress/cues'];
+const done = {}, FILES = ['physics/engine', 'rules/rules', 'ai/shot-ai', 'ai/aim', 'ai/turn', 'progress/pay', 'progress/cues', 'shot/aim'];
 function load(name) { // a compiled file as a CommonJS module; the other files of FILES come compiled too
   if (done[name]) return done[name].exports;
   const file = path.join(root, 'src', name + '.ts'), m = done[name] = { exports: {} };
@@ -32,6 +32,7 @@ const walk = (f, at) => {
   });
 };
 walk(turn.think, 'think');
+walk(load('shot/aim').aimGuide, 'aimGuide'); // the aim guide runs there too (src/shot/far.ts)
 for (const k of FILES.slice(0, 4)) for (const [name, f] of Object.entries(load(k))) if (typeof f === 'function') walk(f, `${k}.${name}`);
 assert.deepStrictEqual(bad, [], 'every function think() reaches is a worklet with all it captures defined');
 assert(seen.size > 50, `${seen.size} worklets`);
