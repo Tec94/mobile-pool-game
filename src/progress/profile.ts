@@ -21,7 +21,8 @@ export type FeatId = keyof typeof FEATS;
 // feats: progress from play and from scenarios apart, since scenarios may give at most half of a count.
 export interface Profile { xp: number; coins: number; owned: CueId[]; cue: CueId; feats: Partial<Record<FeatId, { play: number; scen: number }>> }
 export const NEW: Profile = { xp: 0, coins: 0, owned: ['house'], cue: 'house', feats: {} };
-const give = (p: Profile, id: CueId): Profile => (p.owned.includes(id) ? p : { ...p, owned: [...p.owned, id] });
+// Give a cue (Learn, a boss, a feat, a level). An owned cue returns the same profile, so the caller can skip the save.
+export const unlock = (p: Profile, id: CueId): Profile => (p.owned.includes(id) ? p : { ...p, owned: [...p.owned, id] });
 export const MAX_LEVEL = 50;
 export const toLeave = (level: number) => 200 + 50 * (level - 1); // XP to go from this level to the next
 
@@ -37,13 +38,13 @@ export function gain(p: Profile, pay: Pay) {
   const from = levelOf(p.xp).level, to = levelOf(p.xp + pay.xp).level;
   let bonus = 0; for (let l = from + 1; l <= to; l++) bonus += 50 + 10 * l;
   const next = { ...p, xp: p.xp + pay.xp, coins: p.coins + pay.coins + bonus };
-  return { profile: to >= 20 ? give(next, 'twig') : next, from, to, bonus };
+  return { profile: to >= 20 ? unlock(next, 'twig') : next, from, to, bonus };
 }
 
 // A cue with a price that is not owned, for at most the coins there are. Anything else leaves the profile as it is.
 export function buy(p: Profile, id: CueId): Profile {
   const price = (CUES[id] as CueInfo).price;
-  return price === undefined || p.owned.includes(id) || p.coins < price ? p : { ...give(p, id), coins: p.coins - price };
+  return price === undefined || p.owned.includes(id) || p.coins < price ? p : { ...unlock(p, id), coins: p.coins - price };
 }
 export const select = (p: Profile, id: CueId): Profile => (p.owned.includes(id) ? { ...p, cue: id } : p);
 
@@ -56,7 +57,7 @@ export function feat(p: Profile, id: FeatId, n = 1, scen = false): Profile {
   const f = p.feats[id] ?? { play: 0, scen: 0 }, F: { count: number; cue?: CueId; coins?: number } = FEATS[id];
   const next = { ...p, feats: { ...p.feats, [id]: scen ? { ...f, scen: f.scen + n } : { ...f, play: f.play + n } } };
   if (featCount(next, id) < F.count) return next;
-  if (F.cue) return give(next, F.cue); // give is once, and puts back a cue a damaged save lost
+  if (F.cue) return unlock(next, F.cue); // unlock is once, and puts back a cue a damaged save lost
   return featCount(p, id) >= F.count ? next : { ...next, coins: next.coins + (F.coins ?? 0) };
 }
 

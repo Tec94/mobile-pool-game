@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { CUE } from '../physics/engine.ts';
 import { CUES, stick } from './cues.ts';
 import { matchPay, safetyPay, shotPay } from './pay.ts';
-import { buy, feat, featCount, gain, levelOf, NEW, opens, PACKS, readProfile, select, VENUES } from './profile.ts';
+import { buy, feat, featCount, gain, levelOf, NEW, opens, PACKS, readProfile, select, unlock, VENUES } from './profile.ts';
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 
@@ -77,7 +77,9 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(buy(rich, 'crowbar'), rich, 'a feat cue has no price'); eq(buy({ ...NEW, coins: 1e5 }, 'golden').coins, 1e5, 'nor the Golden Cue');
   eq(select(rich, 'baguette'), rich, 'a cue not owned cannot be selected');
   eq(select({ ...rich, owned: ['house', 'baguette'] }, 'baguette').cue, 'baguette', 'an owned one can');
-  ok('buying and selecting');
+  eq(unlock(NEW, 'pencil').owned, ['house', 'pencil'], 'unlock gives a cue'); eq(NEW.owned, ['house'], 'and leaves the old profile');
+  const pen = unlock(NEW, 'pencil'); eq(unlock(pen, 'pencil') === pen, true, 'an owned cue: the same profile, nothing to save');
+  ok('buying, selecting and unlocking');
 }
 { let p = NEW;
   for (let i = 0; i < 49; i++) p = feat(p, 'bank');
