@@ -1,8 +1,8 @@
 // Shot picker for the AI opponent: a typed port of the ai-progression prototype (shot-ai.js). Pure: no React, no engine
 // calls. Units: mm and radians, origin at a corner of the playing field, x along the length (the engine's axes, x1000).
 // shortcut: geometry only. Cue-ball travel is a rule of thumb (tangent line, plus or minus follow/draw, straight rolls with
-// mirror bounces, stops at the first ball it meets); replace roll() and leaves() with rollouts in the engine before trusting
-// any number here. aim.ts turns a pick into an engine Shot and corrects its aim on the engine.
+// mirror bounces, stops at the first ball it meets), off the engine by 250-300 mm (median), so it only ranks the pots.
+// aim.ts turns a pick into an engine Shot, corrects its aim and scores its leave where the engine stops the cue ball.
 import { P } from '../physics/engine.ts';
 
 // shortcut: the table is read once at load; setTable() (the 9 ft calibration table) is not followed. Read P per call if the app ever changes table size.
@@ -169,7 +169,9 @@ function leaves(G: Pt, v: Pt, u: Pt, balls: Obj[], ignore: number[], powers = PO
 // wLeave = how much the tier cares what a miss (or a safety) leaves the opponent.
 // ctrl (depth 0 only): 0 = cue ball ends up anywhere, 1 = at least avoids the scratch.
 // planShare = share of turns that are planned at all; it sets Hustler half way between Regular and Shark.
-// budget = engine time for the shot in hand, in full-table simulations (aim.ts refine()).
+// budget = engine time for the shot in hand, in full-table simulations (aim.ts refine()); tries = pots it is split over.
+// Measured on the engine (npm run bench:visit): budget past about 20 a shot and depth 2 add no balls a visit; aim error
+// (sigma) moves it most, Legend at 0.15 degrees runs 4.8 balls against 4.1 at 0.19.
 export const TIERS: Tier[] = [
   { name: 'Rookie',  sigma: 0.71, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1 },
   { name: 'Regular', sigma: 0.42, types: ['direct', 'bank'],                  flair: 0.03, temp: 0.08, depth: 0, wPos: 0,   posErr: 0.16, speedErr: 12, tipErr: 0.08, ctrl: 1, wLeave: 0, safetyAngles: [], budget: 2 },
