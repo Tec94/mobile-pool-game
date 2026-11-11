@@ -134,7 +134,7 @@ function Root() {
       : screen === 'lesson' ? <Game key={lesson} set={set} lesson={lesson} fresh={!done.includes(LESSONS[lesson].id)} onPass={pass} onNext={() => setLesson(lesson + 1)} onQuit={() => go('learn')} />
       : screen === 'scenario' ? <Game key={`s${scen}`} set={set} scen={SCENARIOS[scen]} onClear={(t, off) => cleared(SCENARIOS[scen], t, off)} onNext={nextScen ? () => setScen(scen + 1) : undefined} onQuit={() => go('scenarios')} />
       : screen === 'daily' ? <Game key={`d${day}`} set={set} scen={dayScen} back="Daily Table" onClear={dayCleared} onQuit={() => go('calendar')} />
-      : <Menus screen={screen} set={set} change={change} go={go} done={done} learn={learn} stars={stars} play={play} daily={daily} today={today} playDay={playDay} />}
+      : <Menus screen={screen} set={set} change={change} go={go} done={done} learn={learn} stars={stars} play={play} daily={daily} today={today} day={day} playDay={playDay} />}
   </>;
 }
 
@@ -339,7 +339,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext, scen: S, onC
       else {
         const c = onClear!(les.current.tries, !peeked.current), k = starCount(c.bits);
         const left = !(c.bits & 2) ? `Next star: clear it within ${par(S)} tries.` : !(c.bits & 4) ? 'Next star: clear it with the guide off.' : '';
-        const pay = !c.n ? 'No new stars.' : c.saved ? `+${c.pay.xp} XP · +${c.pay.coins} coins${c.gained ? ` · ${levelNote(c.gained)}` : ''}` : 'The stars could not be saved, so they pay nothing yet.';
+        const pay = !c.n ? 'No new stars.' : c.saved ? [c.pay.xp && `+${c.pay.xp} XP`, c.pay.coins && `+${c.pay.coins} coins`, c.gained && levelNote(c.gained)].filter(Boolean).join(' · ') : 'The stars could not be saved, so they pay nothing yet.';
         out = { title: `${'★'.repeat(k)}${'☆'.repeat(3 - k)}  Cleared`, say: [pay, left].filter(Boolean).join('\n'), ok: true };
       }
       les.current = { ...les.current, said: out }; setSaid(out); paint(); redraw(); return;

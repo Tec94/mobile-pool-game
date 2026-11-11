@@ -71,7 +71,7 @@ async function clearDay(p, day, tries = 4) { // retry a miss up to tries times
 let p = await page(390, 844);
 await store(p, {}); await reload(p);
 let home = await text(p);
-check(/^Pool\s+Daily Table\s+Mon 21 Dec · Pots · ☆☆☆\s+Fresh Chalk: 1\s+Pass and play/.test(home), 'fresh home: Daily Table first, date, theme, no stars, no run, Fresh Chalk 1', home.slice(0, 90));
+check(/^Pool\s+Daily Table\s+Mon 21 Dec · Pots · ☆☆☆\s+Fresh Chalk: 1 · will double a win against the computer\s+Pass and play/.test(home), 'fresh home: Daily Table first, date, theme, no stars, no run, Fresh Chalk 1', home.slice(0, 90));
 check((await read(p, 'daily.json'))?.chalk?.charges === 1, 'fresh install saves 1 charge of Fresh Chalk', await read(p, 'daily.json'));
 await shot(p, '01-home-fresh-portrait'); await layout(p, 'home portrait');
 await btn(p, 'Daily Table').click();
@@ -79,8 +79,8 @@ let cal = await text(p);
 check(/Daily Table\s+Run 0 · best 0/.test(cal) && /Play today\s+Mon 21 Dec · Pots/.test(cal) && /December 2026/.test(cal), 'fresh calendar: Run 0 · best 0, Play today, December 2026', cal.slice(0, 160));
 check(await btn(p, 'Previous month').isDisabled() && await btn(p, 'Next month').isDisabled(), 'fresh calendar: ‹ and › both off');
 const open = await p.locator('[aria-label*=" December"]:not([aria-disabled=true])').evaluateAll(es => es.map(e => e.getAttribute('aria-label')));
-check(open.length === 1 && open[0] === '21 December, 0 of 3 stars, today', 'fresh calendar: only today open', open);
-const b1 = await p.locator('[aria-label^="1 December"]').boundingBox(), b7 = await p.locator('[aria-label^="7 December"]').boundingBox();
+check(open.length === 1 && open[0] === 'Monday 21 December, 0 of 3 stars, today', 'fresh calendar: only today open', open);
+const b1 = await p.locator('[aria-label^="Tuesday 1 December"]').boundingBox(), b7 = await p.locator('[aria-label^="Monday 7 December"]').boundingBox();
 check(b7.y > b1.y + 10 && b7.x < b1.x, 'grid is Monday first: 1 Dec (Tue) in column 2, 7 Dec (Mon) starts row 2');
 await scrollShots(p, '02-calendar-fresh-portrait'); await layout(p, 'calendar portrait');
 
@@ -97,7 +97,7 @@ check(prof?.xp === 100 && prof?.coins === 60, 'profile holds the pay: 100 XP, 60
 await btn(p, 'Back to Daily Table').click();
 cal = await text(p);
 check(/Run 1 · best 1/.test(cal), 'back on the calendar: Run 1 · best 1', cal.slice(0, 40));
-check(await p.locator('[aria-label="21 December, 2 of 3 stars, today"]').count() === 1, 'calendar shows 2 stars on today');
+check(await p.locator('[aria-label="Monday 21 December, 2 of 3 stars, today"]').count() === 1, 'calendar shows 2 stars on today');
 await p.getByRole('button', { name: 'Back', exact: true }).click();
 check(/Mon 21 Dec · Pots · ★★☆ · run 1/.test(await text(p)), 'home shows ★★☆ · run 1');
 await reload(p);
@@ -118,12 +118,12 @@ await btn(p, 'Previous month').click(); await btn(p, 'Previous month').click();
 const oct = await p.locator('[aria-label*=" October"]').evaluateAll(es => es.map(e => e.getAttribute('aria-disabled')));
 check(/October 2026/.test(await text(p)) && await btn(p, 'Previous month').isDisabled(), 'October (first day month): ‹ off');
 check(oct.slice(0, 19).every(d => d === 'true') && oct.slice(19).every(d => d !== 'true'), '1-19 Oct off, 20-31 Oct open');
-check(await p.locator('[aria-label="23 October, 3 of 3 stars"]').count() === 1, 'October: 23 Oct shows 3 stars');
+check(await p.locator('[aria-label="Friday 23 October, 3 of 3 stars"]').count() === 1, 'October: 23 Oct shows 3 stars');
 await scrollShots(p, '06-calendar-seeded-october');
 await btn(p, 'Next month').click();
 
 // 4. A past day: 27 Nov (Combos) joins 25-26 Nov into a run of 3. First clear, a replay with the guide off, a replay with nothing new.
-await p.locator('[aria-label^="27 November"]').click();
+await p.locator('[aria-label^="Friday 27 November"]').click();
 await p.getByText(/Combos \d+ · par/i).first().waitFor();
 check(true, 'tapping 27 Nov plays its Combos table');
 r = await clearDay(p, '2026-11-27');
@@ -133,7 +133,7 @@ await p.getByRole('radio', { name: 'Aim guide' }).click(); // guide off before t
 await btn(p, 'Play again').click();
 const p1 = await read(p, 'profile.json');
 r = await clearDay(p, '2026-11-27');
-check(/\+0 XP · \+30 coins/.test(r.card), 'replay with the guide off pays only the new star: +0 XP · +30 coins', r.card);
+check(/^\+30 coins\b/m.test(r.card) && !/\+0 XP/.test(r.card), 'replay with the guide off pays only the new star: +30 coins, no "+0 XP"', r.card);
 await btn(p, 'Play again').click();
 const p2 = await read(p, 'profile.json');
 check(p2.xp - p1.xp === 0 && p2.coins - p1.coins === 30, 'profile after the guide-off replay: +0 XP, +30 coins', [p1, p2].map(q => [q.xp, q.coins]));
@@ -145,6 +145,7 @@ check(p3.xp === p2.xp && p3.coins === p2.coins, 'profile after a replay with no 
 check((await read(p, 'daily.json'))?.stars?.['2026-11-27'] === 7, 'saved stars for 27 Nov = 7');
 await btn(p, 'Back to Daily Table').click();
 check(/Run 1 · best 4/.test(await text(p)), 'calendar after 27 Nov: Run 1 · best 4 (25-27 Nov is a run of 3)', (await text(p)).slice(0, 40));
+check(/November 2026/.test(await text(p)), 'back from 27 Nov: the calendar opens on November');
 await scrollShots(p, '09-calendar-after-past-day');
 await p.getByRole('button', { name: 'Back', exact: true }).click();
 check(/Mon 21 Dec · Pots · ☆☆☆ · run 1/.test(await text(p)), 'home after a past day: today still ☆☆☆, run 1');
