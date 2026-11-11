@@ -338,4 +338,14 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   for (let k = 1; k <= 400; k++) { const x = second(0.05 + k * 2e-5), d = x - prev; if (pd !== null) worst = Math.max(worst, Math.abs(d - pd)); pd = d; prev = x; }
   assert(worst < 5e-5, `second landing jumps by ${worst * 1e3} mm between drop heights 0.02 mm apart`);
   console.log(`landing ok (second landing moves smoothly with the drop height, largest jump ${(worst * 1e3).toFixed(3)} mm)`); }
+
+// 29. The aim guide's cost cap. A hit into the rack sets every ball moving; with a budget the guide stops soon after
+// first contact, is the same up to there, and a plain two-ball shot (which costs little) is not cut short at all.
+{ const T = () => [mk(L / 4, W / 2), ...EngineAll.rack(8).map(([, x, y]) => mk(x, y))], s = { ang: 0, speed: 6, a: 0, b: 0 };
+  const whole = predict(T(), s, 0.4), capped = predict(T(), s, 0.4, undefined, 25000, 3200);
+  assert(capped.split === whole.split && capped.hit.b === whole.hit.b && capped.cue.length < whole.cue.length, 'the capped guide has the same first contact and a shorter path after it');
+  for (let i = 0; i <= capped.split; i++) assert.deepStrictEqual(capped.cue[i], whole.cue[i], 'the path to first contact is the same');
+  const two = [mk(0.4, 0.5), mk(1.2, 0.52)];
+  assert.deepStrictEqual(predict(two, { ...s, speed: 2 }, 0.4, undefined, 25000, 3200), predict(two, { ...s, speed: 2 }, 0.4), 'a two-ball shot is not cut short');
+  console.log(`guide budget ok (rack: ${whole.cue.length} path points uncapped, ${capped.cue.length} capped)`); }
 console.log('all checks passed');
