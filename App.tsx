@@ -213,8 +213,8 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   useEffect(() => { touch.current = null; paint(); }, where); // a drag measured in the old layout ends when the window turns
   useEffect(() => { const again = () => { stale.current = true; }, off = [shot.sub(again), tip.sub(again)]; return () => off.forEach(f => f()); }, []);
   // A lesson plays with the engine's own cue, the one its reference shots are tuned on (src/learn/lessons.test.mjs).
-  // A scenario plays with the player's own cue and its aim guide (stick stats count in challenges).
-  const own = useMemo(() => profile().cue, []), mine = useMemo(() => ownStats(own), []), cue = useMemo(() => (S ? stick(own, false, mine) : L ? CUE : STICK), []); // fixed for the life of the screen: a cue change takes effect at the next table
+  // A scenario and quick match play with the player's own cue and its aim guide (stick stats count in challenges).
+  const own = useMemo(() => profile().cue, []), mine = useMemo(() => ownStats(own), []), cue = useMemo(() => (S || vs ? stick(own, false, mine) : L ? CUE : STICK), []); // fixed for the life of the screen: a cue change takes effect at the next table
   const shotOf = (power: number): Shot => ({ ang: shot.get().aim, speed: Math.max(0.05, power * (table.current.rules.phase === 'break' ? cue.breakSpeed : cue.maxSpeed)), ...shotTip(tip.get(), cue) });
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the
   // rack is over. In a lesson: the shot plays itself, or the verdict card is up.
@@ -227,7 +227,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
     const t = table.current;
     if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++; if (score.current[s.winner] === race) {
       const w = won.current, m = vs && matchPay({ tier: ai + 1, won: s.winner === 0, fouls: w.fouls, ownPotted: w.own, early: s.winner === 1 && s.note.startsWith('Lost the rack') });
-      w.pay = m ? { xp: m.xp + w.shots.xp, coins: m.coins + w.shots.coins } : PASS_PLAY; gained.current = award(w.pay);
+      w.pay = m ? { xp: m.xp + w.shots.xp, coins: m.coins + w.shots.coins } : PASS_PLAY; gained.current = award(w.pay, vs ? own : undefined); // quick match played the player's own cue
     } }
     if (s.phase === 'break') { table.current = newTable(s); moving.current = false; safe.current = { row: 0, rack: 0 }; }
     else { for (const id of s.spot) spotBall(t.B, t.ids.indexOf(id)); if (s.hand) handCue(t.B, s.hand); Object.assign(t, { rules: s, rec: null, push: false }); }
@@ -246,7 +246,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       if (stale.current) { // one guide a frame, however many touches came. While a shot can be made the guide and the cue stick are always there: for the pull on the rail, or for a firm shot without one
         const rec = Skia.PictureRecorder(), c = rec.beginRecording(), { aim, power } = shot.get();
         if (!shut() || watching()) {
-          const g = aimGuide(B, shotOf(previewPower(power)), S ? guideFor(mine.aim) : L ? 3 : GUIDE_LEVEL, GUIDE_WORK, cue); // lessons use the full guide
+          const g = aimGuide(B, shotOf(previewPower(power)), S || vs ? guideFor(mine.aim) : L ? 3 : GUIDE_LEVEL, GUIDE_WORK, cue); // lessons use the full guide
           if (!(S && les.current.guideOff)) { peeked.current = true; drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob); } drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power);
         }
         guide.value = rec.finishRecordingAsPicture(); stale.current = false;
@@ -303,15 +303,16 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
     t.rec = L ? newLessonRec() : newRec(); strike(t.B[0], shotOf(power), cue); moving.current = true;
     tip.set(LEVEL); setSheet(false); setTools(false); shot.set({ power: 0, fine: false, locked: true });
   };
-  // The AI's shot: its cue ball in hand, its call, then the strike as fire() makes it. The AI plays the engine CUE it
-  // planned with. shortcut: no cue stick on the table before the AI strikes.
+  // The AI's shot: its cue ball in hand, its call, then the strike as fire() makes it. The AI plans on the engine CUE and
+  // strikes with the House Cue (STICK), its speed and tip held to that cue. shortcut: no cue stick on the table before the AI strikes.
   const play = (m: Move) => {
     const t = table.current;
     if (moving.current || t.rec || t.rules.phase === 'over' || !bot()) return;
     if (m.at) moveCue(t.B, m.at[0], m.at[1], t.rules.hand);
     if (m.call >= 0) t.rules = setCall(t.rules, m.call);
     safe.current = nextSafeties(safe.current, m.safety);
-    t.rec = newRec(); strike(t.B[0], m.shot); moving.current = true; paint(); redraw();
+    const top = t.rules.phase === 'break' ? STICK.breakSpeed : STICK.maxSpeed, hold = (x: number) => Math.max(-STICK.tipLimit, Math.min(STICK.tipLimit, x));
+    t.rec = newRec(); strike(t.B[0], { ...m.shot, speed: Math.min(m.shot.speed, top), a: hold(m.shot.a), b: hold(m.shot.b) }, STICK); moving.current = true; paint(); redraw();
   };
   // The AI's turn: when the table rests and no ruling waits, think (off the JS thread), wait out THINK_MS, then decide
   // or shoot. A pause, a new ruling or leaving the match drops a think that is still running; its result is ignored.
@@ -467,6 +468,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
           {done && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.pay]}>{`+${won.current.pay.xp} XP · +${won.current.pay.coins} coins`}</Text>}
           {done && vs && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`Shots +${won.current.shots.xp} XP · +${won.current.shots.coins} coins`}</Text>}
           {done && gained.current && <Gained {...gained.current} />}
+          {done && !!gained.current?.mastery && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{gained.current.mastery}</Text>}
           <Btn label={done ? 'Rematch' : 'Next rack'} onPress={() => rerack()} />
           {done && <Btn label="Menu" onPress={onQuit} />}
         </Results>
