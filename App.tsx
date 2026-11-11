@@ -46,6 +46,7 @@ function Game() {
   const [pull, setPull] = useState<number | null>(null); // % of full power while the player aims
   const want = useRef<number[] | null>(null); // the newest pull-back not yet drawn: touches can come faster than frames
   const [demo, setDemo] = useState(0);
+  const [hud, setHud] = useState(__DEV__), [rates, setRates] = useState(''); // frame rate readout: hold the Rack button to show or hide it
   const moving = useRef(false);
   // The balls and the aim guide are Skia pictures, recorded on the JS thread and handed to the canvas through shared
   // values, so a frame of play or of aiming never re-renders React.
@@ -69,7 +70,7 @@ function Game() {
   const live = useRef(beat); live.current = beat;
   const push = (pic: SkPicture, ms: number, first: boolean) => { 'worklet'; queue.value = first ? [{ pic, ms }] : [...queue.value, { pic, ms }]; if (first) left.value = 0; };
   const still = (pic: SkPicture) => { 'worklet'; queue.value = []; left.value = STILL; picture.value = pic; };
-  const pace = useRef<Pace | null>(null), rate = useRef(0); // rate = the frame time a phone too slow for the display fell back to
+  const pace = useRef<Pace | null>(null), rate = useRef(0), made = useRef([0, 0]); // rate = the frame time a phone too slow for the display fell back to; made = frames made and the ms they took, for the readout
   // The table as it is now, shown at once in place of any frames that wait. Play that goes on starts its frames again.
   const paint = () => { pace.current = null; scheduleOnUI(still, draw.current()); };
   useEffect(paint, where);
@@ -96,7 +97,7 @@ function Game() {
           const t0 = performance.now();
           moving.current = advance(B, look, ms, moving.current);
           scheduleOnUI(push, draw.current(), busy() ? p.frame : STILL, first && !n);
-          spent(p, performance.now() - t0); rate.current = p.frame;
+          const cost = performance.now() - t0; spent(p, cost); rate.current = p.frame; made.current[0]++; made.current[1] += cost;
         }
       } else if (on) { on = false; pace.current = null; timer = rest(); }
       raf = requestAnimationFrame(tick);
@@ -104,6 +105,17 @@ function Game() {
     raf = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(raf); clearTimeout(timer); };
   }, []);
+
+  useEffect(() => {
+    if (!hud) return;
+    let was = seen.value, n = 0, cost = 0;
+    const id = setInterval(() => { // twice a second
+      const s = seen.value, [m, c] = made.current, k = m - n;
+      setRates(`display ${Math.round(1000 / s[4])} Hz  shown ${2 * (s[1] - was[1])}/s  none ready ${2 * (s[2] - was[2])}/s  skipped ${2 * (s[3] - was[3])}/s\nmade ${2 * k}/s  ${k ? ((c - cost) / k).toFixed(1) : '-'} ms each${pace.current ? `  for ${Math.round(1000 / pace.current.frame)} Hz` : ''}`);
+      was = s; n = m; cost = c;
+    }, 500);
+    return () => clearInterval(id);
+  }, [hud]);
 
   const shotFrom = (dx: number, dy: number): { shot: Shot; pull: number } => {
     const pull = Math.min(1, Math.hypot(dx, dy) / MAX_DRAG);
@@ -136,10 +148,11 @@ function Game() {
         <Picture picture={guide} />
         <Picture picture={picture} />
       </Canvas>
+      {hud && <Text pointerEvents="none" style={[styles.hud, { top: pad.top, left: pad.left + 8 }]}>{rates}</Text>}
       {/* Controls sit inside the safe area: a row under the table in portrait, a column beside it in landscape. */}
       <View style={[styles.bar, view.land ? { top: pad.top, bottom: pad.bottom, right: pad.right, width: BAR, flexDirection: 'column' } : { left: pad.left, right: pad.right, bottom: pad.bottom, height: BAR, flexDirection: 'row' }]}>
         {pull !== null && <Text maxFontSizeMultiplier={1.3} style={[styles.power, view.land ? { top: 8 } : { left: 16 }]}>{pull}%</Text>}
-        <Btn label="Rack" onPress={() => { table.current = newTable(); moving.current = false; paint(); }} />
+        <Btn label="Rack" onPress={() => { table.current = newTable(); moving.current = false; paint(); }} onLongPress={() => setHud(!hud)} />
         <Btn label={'Demo\n' + DEMOS[demo][0]} onPress={() => {
           table.current = newTable(); table.current.broken = true;
           strike(table.current.B[0], { ang: 0, speed: 1, a: 0, b: 0, ...DEMOS[demo][1] });
@@ -153,10 +166,10 @@ function Game() {
 
 // Chrome button: hairline outline, a 44 pt target, and a 3% press that follows the finger down (no bounce). Its label
 // grows with the system text size only as far as the control bar has room for.
-function Btn({ label, onPress }: { label: string; onPress: () => void }) {
+function Btn({ label, onPress, onLongPress }: { label: string; onPress: () => void; onLongPress?: () => void }) {
   const [down, setDown] = useState(false);
   return (
-    <Pressable onPress={onPress} onPressIn={() => setDown(true)} onPressOut={() => setDown(false)} pressRetentionOffset={16} accessibilityRole="button" accessibilityLabel={label.replace('\n', ' ')}>
+    <Pressable onPress={onPress} onLongPress={onLongPress} onPressIn={() => setDown(true)} onPressOut={() => setDown(false)} pressRetentionOffset={16} accessibilityRole="button" accessibilityLabel={label.replace('\n', ' ')}>
       <Animated.View style={{ ...styles.btn, transform: [{ scale: down ? 0.97 : 1 }], transitionProperty: 'transform', transitionDuration: '120ms', transitionTimingFunction: 'ease-out' }}>
         <Text maxFontSizeMultiplier={1.3} style={styles.btnText}>{label}</Text>
       </Animated.View>
@@ -168,6 +181,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.ground },
   bar: { position: 'absolute', alignItems: 'center', justifyContent: 'center', gap: 12 },
   power: { position: 'absolute', color: C.chalk, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  hud: { position: 'absolute', color: C.chalk, fontSize: 10, lineHeight: 13, fontVariant: ['tabular-nums'] },
   btn: { minWidth: 56, minHeight: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', borderColor: C.chalk + '66', borderWidth: 1, borderRadius: 6 }, // outline at 40%: 3:1 on the ground
   btnText: { color: C.chalk, fontSize: 13, lineHeight: 16, textAlign: 'center' },
 });
