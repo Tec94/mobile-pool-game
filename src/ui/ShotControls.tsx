@@ -6,7 +6,7 @@ import { PanResponder, StyleSheet, Text, View } from 'react-native';
 import { Canvas, Picture, Skia, SkCanvas } from '@shopify/react-native-skia';
 import Animated, { useSharedValue } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { Box, drawDial, drawRail, RAIL_LABEL } from '../render/cue';
+import { Box, DIAL, drawDial, drawRail, pullOf, RAIL_LABEL } from '../render/cue';
 import { dialTurn, nudge, powerTick, pullPower, railLabel, release, TAP_MS } from '../shot/aim';
 import { C } from '../theme';
 
@@ -52,7 +52,7 @@ export function PowerRail({ store, box, onStrike }: { store: ShotStore; box: Box
     onPanResponderGrant: e => { pull.current = { from: store.get().power, hist: [], id: e.nativeEvent.identifier, y: e.nativeEvent.pageY }; },
     onPanResponderMove: e => { // the pull is the travel of the finger that went down on the rail: a second finger elsewhere does not change the power
       const d = pull.current, f = d && e.nativeEvent.touches.find(t => t.identifier === d.id); if (!d || !f) return;
-      const p = pullPower(f.pageY - d.y, now.current.box.height, d.from);
+      const p = pullPower(f.pageY - d.y, pullOf(now.current.box.height), d.from);
       d.hist.push([Date.now(), p]); if (d.hist.length > 60) d.hist.shift();
       setPower(p);
     },
@@ -115,7 +115,7 @@ export function AimDial({ store, box }: { store: ShotStore; box: Box }) {
     onPanResponderTerminate: () => { drag.current = null; },
   })).current;
   return (
-    <Animated.View {...pan.panHandlers} style={[styles.at, box, dim(locked)]} accessible accessibilityRole="adjustable" accessibilityLabel="Fine aim" accessibilityHint="A tenth of a degree for each step"
+    <Animated.View {...pan.panHandlers} hitSlop={box.height > box.width ? { left: (44 - DIAL) / 2, right: (44 - DIAL) / 2 } : { top: (44 - DIAL) / 2, bottom: (44 - DIAL) / 2 }} style={[styles.at, box, dim(locked)]} accessible accessibilityRole="adjustable" accessibilityLabel="Fine aim" accessibilityHint="A tenth of a degree for each step"
       accessibilityState={{ disabled: locked }} accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
       onAccessibilityAction={e => { if (!store.get().locked) store.set({ aim: nudge(store.get().aim, e.nativeEvent.actionName === 'increment' ? 1 : -1), fine: true }); }}>
       <Canvas style={StyleSheet.absoluteFill} pointerEvents="none"><Picture picture={pic} /></Canvas>

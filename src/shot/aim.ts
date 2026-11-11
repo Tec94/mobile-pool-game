@@ -21,8 +21,8 @@ export function dialTurn(aim: number, px: number, sens = SENS.Normal) {
   return { aim: to, tick: Math.floor(to / (0.5 * DEG)) !== Math.floor(aim / (0.5 * DEG)) };
 }
 export const nudge = (aim: number, side: number) => aim - side * 0.1 * DEG; // a tap on the dial: side 1 = its right or lower half
-// The power rail: dy = px the finger is below where it went down, rail = the rail's height, from = the power it had.
-export const pullPower = (dy: number, rail: number, from = 0) => Math.min(1, Math.max(0, from + dy / (0.75 * rail)));
+// The power rail: dy = px the finger is below where it went down, pull = px of pull for full power, from = the power it had.
+export const pullPower = (dy: number, pull: number, from = 0) => Math.min(1, Math.max(0, from + dy / pull));
 // What the hand feels for a change of power: 1 = a tick at a 10% line, 2 = the heavy one on reaching full power.
 export const powerTick = (was: number, now: number) => (Math.floor(now * 10) === Math.floor(was * 10) || now <= 0.05 ? 0 : now >= 1 ? 2 : 1);
 // The power to strike with when the finger lifts, 0 = no shot. hist = [ms, power] for each move of the pull. A finger
@@ -45,7 +45,8 @@ export function nearest(B: Ball[], keep = 0) {
   return ang;
 }
 // What drawAim needs for a shot: the cue ball's path, the object ball's path, the ghost ball at the first contact,
-// the touchdowns of a jump, and `lost` when the cue ball leaves the table before it meets anything.
+// the touchdowns of a jump, `lost` when the cue ball leaves the table before it meets anything, and `first` = the index
+// in B of the ball the ghost touches (-1 none, or a kick whose ring is on the cushion).
 // aim = the Aim stat of the cue (lessons pass 10). The cue ball's path after the first contact shows only from LONG.
 // budget = the limit on the work after the first contact (see predict), so one guide stays inside a frame.
 // stick = the engine cue that will strike, so the guide squirts as the shot will.
@@ -60,6 +61,6 @@ export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, st
   // A kick: the cue ball meets a cushion first. Below LONG the line stops there, so the ring goes there too and no
   // object ball path hangs loose beyond it.
   const q = g.cue[k - 1], kick = aim < LONG && g.split >= 0 && !!g.hit && Math.hypot(q[0] - g.hit.x, q[1] - g.hit.y) > 1e-6;
-  if (kick) return { path: g.cue.slice(0, k), ob: [], ghost: [q[0], q[1]], lands: g.lands, lost: false };
-  return { path: [...g.cue.slice(0, k), ...(aim < LONG ? [] : clip(g.cue.slice(k - 1), L).slice(1))], ob: clip(g.ob, L), ghost: g.hit && [g.hit.x, g.hit.y], lands: g.lands, lost: g.scratch && g.split < 0 };
+  if (kick) return { path: g.cue.slice(0, k), ob: [], ghost: [q[0], q[1]], lands: g.lands, lost: false, first: -1 };
+  return { path: [...g.cue.slice(0, k), ...(aim < LONG ? [] : clip(g.cue.slice(k - 1), L).slice(1))], ob: clip(g.ob, L), ghost: g.hit && [g.hit.x, g.hit.y], lands: g.lands, lost: g.scratch && g.split < 0, first: g.hit ? g.hit.b! : -1 };
 }

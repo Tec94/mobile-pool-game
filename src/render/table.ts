@@ -63,17 +63,22 @@ export function drawTable(api: typeof Skia, canvas: SkCanvas, v: View, cloth = C
 // meets a ball. Each run on the cloth is one path, so the joints of a see-through line do not double up.
 // With a raised cue the ball can leave the cloth: a gap in the line is the ball in the air, a small ring is where it
 // lands (`lands`), and a ring in the warning colour is where it leaves the table or falls in a pocket (`lost`).
-// `ob` is the path of the ball it meets first, from that ball.
-export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: number[][], ghost?: number[] | null, lands: number[][] = [], lost = false, ob: number[][] = []) {
+// `ob` is the path of the ball it meets first, from that ball. `bad` = the rules do not let the cue ball hit that ball
+// first: the ghost is a prohibited sign in the warning colour and the ball's path is not drawn, as the shot is a foul.
+export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: number[][], ghost?: number[] | null, lands: number[][] = [], lost = false, ob: number[][] = [], bad = false) {
   const r = P.R * v.s, p = api.Paint(); p.setAntiAlias(true); p.setColor(api.Color(C.chalk)); p.setStyle(1); p.setStrokeCap(1); p.setStrokeJoin(1); // stroke, round, round
   p.setAlphaf(0.92); p.setStrokeWidth(0.19 * r);
   let run: number[][] = [];
   const end = () => { if (run.length > 1) canvas.drawPath(api.Path.Polygon(run.map(([x, y]) => toScreen(v, x, y)), false), p); run = []; };
   for (const q of path) if ((q[2] || 0) > 0.05 * P.R) end(); else run.push(q);
   end();
-  run = ob; end();
+  if (!bad) { run = ob; end(); }
   p.setAlphaf(0.9); p.setStrokeWidth(0.16 * r);
   for (const [x, y] of lands) { const g = toScreen(v, x, y); canvas.drawCircle(g.x, g.y, 0.7 * r, p); }
-  if (ghost) { const g = toScreen(v, ghost[0], ghost[1]); canvas.drawCircle(g.x, g.y, 0.92 * r, p); }
+  if (ghost) {
+    const g = toScreen(v, ghost[0], ghost[1]), d = 0.92 * r * Math.SQRT1_2;
+    if (bad) { p.setColor(api.Color(C.warn)); p.setAlphaf(1); p.setStrokeWidth(0.22 * r); canvas.drawLine(g.x - d, g.y - d, g.x + d, g.y + d, p); } // the slash of the sign
+    canvas.drawCircle(g.x, g.y, 0.92 * r, p);
+  }
   if (lost) { const q = path[path.length - 1], g = toScreen(v, q[0], q[1]); p.setColor(api.Color(C.warn)); canvas.drawCircle(g.x, g.y, 0.92 * r, p); }
 }
