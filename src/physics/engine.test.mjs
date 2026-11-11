@@ -281,5 +281,8 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   assert(Math.abs(cAng - 142) <= 1 && Math.abs(sAng - 104) <= 1, `facing angles ${cAng} / ${sAng}`);
   assert(cShelf >= 1 && cShelf <= 2.25 && sShelf >= 0 && sShelf <= 0.375, `shelves ${cShelf} / ${sShelf} in`);
   for (const [x, y] of HOLES) assert(x < 0 || x > L || y < 0 || y > W, 'pocket centre must be outside the playing field');
+  // The same pockets on a 9 ft table (100 x 50 in), and back again.
+  EngineAll.setTable(2.54, 1.27); assert(P.L === 2.54 && SEGS.length === 20 && HOLES.length === 6 && HOLES[5][0] === 1.27 && Math.abs(HOLES[5][1] - 1.27 - K.sideOut) < 1e-12, '9 ft table');
+  EngineAll.setTable(L, W); assert(P.L === L && P.W === W && SEGS.length === 20 && HOLES[4][0] === L / 2, 'back to the 8 ft table');
   console.log(`pocket geometry ok (corner ${corner.toFixed(2)} in, ${cAng.toFixed(0)} deg, shelf ${cShelf.toFixed(2)} in; side ${side.toFixed(2)} in, ${sAng.toFixed(0)} deg, shelf ${sShelf.toFixed(2)} in)`); }
 console.log('all checks passed');
