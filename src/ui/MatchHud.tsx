@@ -1,7 +1,7 @@
 // The match HUD (screens spec: player plates, the 9-ball strip, the banner) and the results card. What they show comes
 // from src/ui/hud.ts; this file only draws it.
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
 import type { EdgeInsets } from 'react-native-safe-area-context';
 import { P } from '../physics/engine';
@@ -98,12 +98,12 @@ function Banner({ rules, push, calm, wait, style }: { rules: State; push: boolea
 export function Results({ rules, title, kind = 'Pass and play', children }: { rules: State; title: string; kind?: string; children: ReactNode }) {
   return (
     <View style={styles.sheet} pointerEvents="box-none">
-      <View style={styles.card} accessibilityViewIsModal>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.card} accessibilityViewIsModal>
         <Text maxFontSizeMultiplier={1.3} style={styles.eyebrow}>{kind} · {rules.game}-ball</Text>
         <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.title}>{title}</Text>
         {!!rules.note && <Text maxFontSizeMultiplier={1.3} style={styles.why}>{rules.note}</Text>}
         {children}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -123,6 +123,7 @@ const styles = StyleSheet.create({
   banner: { maxWidth: '100%', paddingVertical: 4, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: LINE, backgroundColor: '#000b' },
   bannerText: { color: C.chalk, fontSize: 13, lineHeight: 16, fontWeight: '600', textAlign: 'center' },
   sheet: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  scroll: { flexGrow: 0, maxWidth: '100%', borderRadius: 10 }, // a long card (quick match pay) scrolls on a short landscape phone
   card: { width: 300, maxWidth: '100%', padding: 20, gap: 10, borderRadius: 10, borderWidth: 1, borderColor: LINE, backgroundColor: C.ground + 'F2', alignItems: 'center' },
   eyebrow: { color: C.chalk + 'B3', fontSize: 11, fontWeight: '600', letterSpacing: 0.9, textTransform: 'uppercase' },
   title: { color: C.chalk, fontSize: 24, fontWeight: '800', textAlign: 'center' },
