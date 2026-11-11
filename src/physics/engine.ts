@@ -3,7 +3,7 @@
 export type Game=8|9;
 export interface Ball{x:number;y:number;vx:number;vy:number;wx:number;wy:number;wz:number;on:boolean;z?:number;vz?:number}
 export interface Shot{ang:number;speed:number;a:number;b:number;elev?:number}
-export interface Cue{maxSpeed:number;breakSpeed:number;squirt:number;tipLimit:number;maxElev:number;massRatio?:number}
+export interface Cue{maxSpeed:number;breakSpeed:number;squirt:number;tipLimit:number;maxElev:number;minElev?:number;massRatio?:number}
 export interface Ev{t:'bb'|'rail'|'pocket'|'off'|'land';a:number;b?:number;x:number;y:number;cut?:number;thr?:number;air?:boolean}
 type Vec3=[number,number,number];
 interface Contact{i:number;j:number;nx:number;ny:number;nz:number;tb:number;cut:number;jn:number;goal:number;f:Vec3|null}
@@ -30,7 +30,11 @@ export const P={R:0.028575,L:2.2352,W:1.1176,g:9.81,
 // cap for the opening shot only (real 11 to 13). massRatio = ball mass / cue mass (6 oz ball, 19 oz cue).
 // squirt = radians the cue ball leaves off the aim line per ball radius of side offset, away from the offset. Measured
 // at the miscue limit (Dr. Dave): 2.5 degrees for a standard shaft (0.087, the default), 1.8 for a low-deflection one (0.063).
-export const CUE: Cue={maxSpeed:4.5,breakSpeed:12,squirt:0.087,tipLimit:0.5,maxElev:1.4,massRatio:0.316};
+// minElev = the flattest the cue can be, radians. A real cue is never level, because the butt must clear the rail: 3 degrees
+// (the butt 3 in higher than the tip; Dr. Dave: one degree per inch). This is what makes a side spin shot swerve: a full
+// side spin shot bends 1.5 degrees back toward the aim line, early when slow and late when fast. The cue ball leaves the
+// cloth only above 8 m/s, so on a firm break it hops on its way to the rack, as on a real table.
+export const CUE: Cue={maxSpeed:4.5,breakSpeed:12,squirt:0.087,tipLimit:0.5,maxElev:1.4,minElev:0.052,massRatio:0.316};
 // sqrt is exactly rounded on every JS engine and Math.hypot is not (and is slow), so the engine uses this.
 const hyp=(x:number,y:number,z=0)=>Math.sqrt(x*x+y*y+z*z);
 
@@ -67,12 +71,12 @@ export function rack(game:Game,g=2*P.R+3e-4){
 }
 
 // Cue strike. s={ang,speed,a,b}: a = tip offset right, b = tip offset up, in ball radii.
-// elev = cue elevation in radians (0 = level). The cue's impulse runs down its own axis, so with elevation:
+// elev = cue elevation in radians, never flatter than cue.minElev. The cue's impulse runs down its own axis, so with elevation:
 //  - forward speed is speed*cos(elev) and the ball is driven into the slate at speed*sin(elev), which bounces it up (jump);
 //  - side offset a spins the ball about an axis tilted forward by elev, i.e. partly about its line of travel (masse).
 // Spin = 2.5*speed/R * (a*(r x d) + b*(u x d)) for cue axis d, tip-right r, tip-up u. Maths: https://claude.ai/artifact/TVh3RwdDyQP2htw8iHVYFd
 export function strike(b:Ball,s:Shot,cue:Cue=CUE){
-  const el=s.elev||0,ce=Math.cos(el),se=Math.sin(el);
+  const el=Math.max(s.elev||0,cue.minElev||0),ce=Math.cos(el),se=Math.sin(el);
   // shot.speed is the ball speed of a centre hit. Off centre, part of the stroke goes into spin, so the ball leaves
   // slower: v = v0 (1+m)/(1+m+2.5 off^2), the standard tip-ball impact result (32% slower at the miscue limit).
   const mr=cue.massRatio??0.316,v=s.speed*(1+mr)/(1+mr+2.5*(s.a*s.a+s.b*s.b));

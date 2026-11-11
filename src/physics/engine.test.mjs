@@ -4,7 +4,7 @@ import * as EngineAll from './engine.ts';
 const { P, CUE, step, strike, predict, simulate, rack, jumpRuling } = EngineAll;
 const { R, L, W } = P, D = 180 / Math.PI, Rc = R * Math.sqrt(1 - P.nose ** 2); // Rc: ball centre to the cushion nose at contact
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
-const SQUIRT = CUE.squirt; CUE.squirt = 0; // isolate table physics from cue deflection
+const SQUIRT = CUE.squirt, TILT = CUE.minElev; CUE.squirt = 0; CUE.minElev = 0; // isolate table physics from cue deflection and from the tilt of the cue
 
 function run(B, maxT = 60, each) {
   const ev = [], all = [];
@@ -338,4 +338,25 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   for (let k = 1; k <= 400; k++) { const x = second(0.05 + k * 2e-5), d = x - prev; if (pd !== null) worst = Math.max(worst, Math.abs(d - pd)); pd = d; prev = x; }
   assert(worst < 5e-5, `second landing jumps by ${worst * 1e3} mm between drop heights 0.02 mm apart`);
   console.log(`landing ok (second landing moves smoothly with the drop height, largest jump ${(worst * 1e3).toFixed(3)} mm)`); }
+
+// 29. Swerve. The cue is never level (CUE.minElev, 3 degrees: the butt must clear the rail), so side spin is partly about
+// the line of travel and the cloth bends the path back toward the aim line, by atan(a sin(elev) / (cos(elev) + b)) once
+// the ball rolls (Coriolis): early on a slow shot, late on a fast one, not at all without side spin. The ball stays on
+// the cloth at every normal power. On a full break it hops a few millimetres and lands before the rack (Dr. Dave: with
+// a firm break "the CB will always be airborne or hopping on the way to the rack").
+{ CUE.squirt = SQUIRT; CUE.minElev = TILT;
+  const go = (speed, a, b) => { const c = mk(0.2, W / 2); strike(c, { ang: 0, speed, a, b });
+    const r = { leave: a * SQUIRT, hop: c.vz, apex: 0, shift: 0, land: 0 }, ev = []; // leave: the direction the squirt alone gives
+    while (c.x < 1.9 && step([c], ev)) { if (c.z > r.apex) r.apex = c.z; if (!r.shift && c.x >= 1.2) r.shift = c.y - W / 2; if (!r.land && ev.length) r.land = ev[0].x - 0.2; }
+    r.end = Math.atan2(c.vy, c.vx); return r; };
+  for (const [a, b] of [[0.5, 0], [0.25, 0], [0.35, -0.35], [0.35, 0.35], [-0.5, 0]]) { const r = go(2, a, b), want = -Math.atan(a * Math.sin(TILT) / (Math.cos(TILT) + b));
+    assert(Math.abs(r.end - r.leave - want) < 2e-4, `side spin ${a}, ${b}: the path should bend ${want * D} deg, bent ${(r.end - r.leave) * D}`);
+    assert(Math.abs(r.end) < Math.abs(r.leave) + 1e-9 && r.apex === 0, 'the bend is back toward the aim line and the ball stays down'); }
+  const slow = go(1, 0.5, 0), fast = go(CUE.maxSpeed, 0.5, 0), bend = (fast.end - fast.leave) * D, none = go(CUE.maxSpeed, 0, -0.5);
+  assert(slow.shift < 0.6 * fast.shift && fast.shift < Math.tan(fast.leave), 'a slow shot bends early, a fast one late');
+  assert(none.end === 0 && none.shift === 0 && none.hop === 0 && fast.hop === 0, 'no bend without side spin, no hop at full power');
+  const brk = go(CUE.breakSpeed, 0, 0);
+  assert(brk.apex > 0.001 && brk.apex < 0.008 && brk.land > 0.3 && brk.land < 0.9, `a full break should hop a few mm and land before the rack: ${brk.apex * 1e3} mm, ${brk.land} m`);
+  CUE.squirt = 0; CUE.minElev = 0;
+  console.log(`swerve ok (full side spin leaves at ${(fast.leave * D).toFixed(2)} deg and bends ${bend.toFixed(2)}; 1 m on, ${(slow.shift * 1e3).toFixed(0)} mm off the aim line slow, ${(fast.shift * 1e3).toFixed(0)} fast; full break hops ${(brk.apex * 1e3).toFixed(1)} mm, lands after ${brk.land.toFixed(2)} m)`); }
 console.log('all checks passed');
