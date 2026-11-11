@@ -137,3 +137,66 @@ const deg = (r) => r * 180 / Math.PI;
   }
   ok('a safety makes the reply harder');
 }
+// A ball from `from` into ball X at spot G leaves bent off its own line by tan t = sin c cos c / (sin^2 c + 2/5 f),
+// c = the cut, f = its share of natural roll: travel / slide (a struck object ball slides 150 mm; 0 = rolling from the
+// start): the direction it leaves in (radians).
+const rollsOff = (from, G, X, slide) => {
+  const v = S.norm(S.sub(G, from)), n = S.norm(S.sub(X, G)), c = Math.acos(v.x * n.x + v.y * n.y), side = Math.sign(v.x * n.y - v.y * n.x);
+  return Math.atan2(v.y, v.x) - side * Math.atan2(Math.sin(c) * Math.cos(c), Math.sin(c) ** 2 + 0.4 * Math.min(1, S.dist(G, from) / slide));
+};
+const heads = (from, G, X, T, slide = 0) => { const e = rollsOff(from, G, X, slide) - Math.atan2(T.y - G.y, T.x - G.x); return Math.abs(Math.atan2(Math.sin(e), Math.cos(e))) < 1e-3; };
+{ // Carom: the 1 rolls into the 9 (just under the top side pocket), glances off it and drops. It meets the 9 at a spot
+  // 2R from it, one each side of the 9, from which it rolls on to the pocket. A ball in either lane removes it.
+  const P = S.POCKETS[1], H9 = { id: 9, x: W / 2, y: 300 };
+  const carom = (O, cue, more = []) => S.enumerate(cue, [O, H9, ...more], [1]).find((x) => x.type === 'carom' && x.ball === 1 && x.pocket === 1 && x.via === 9);
+  for (const side of [-1, 1]) {
+    const O = { id: 1, x: W / 2 + side * 300, y: 600 }, cue = { id: 0, x: W / 2 + side * 500, y: 900 }, s = carom(O, cue);
+    assert(s, `carom found on side ${side}`);
+    const G2 = s.paths[1][1];
+    assert(Math.abs(S.dist(G2, H9) - 2 * R) < 1e-6 && heads(O, G2, H9, P, 150) && Math.sign(G2.x - H9.x) === side, `ghost spot on side ${side}: ${JSON.stringify(G2)}`);
+    assert(s.first === 1 && S.dist(s.paths[1][2], P) < 1e-6 && s.tol > 0, 'the 1 is hit first and its path ends in the pocket');
+    const mid = (a, b) => ({ id: 5, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    assert(!carom(O, cue, [mid(G2, P)]) && !carom(O, cue, [mid(O, G2)]) && !carom(O, cue, [mid(cue, s.G)]), `a ball in any lane removes the carom (side ${side})`);
+  }
+  ok('a carom is found on both sides of the helper ball, and a ball in its lanes removes it');
+}
+{ // Billiard, 9-ball: the cue ball hits the 1 (the lowest) first and carries on along its tangent line into the 9, which
+  // drops in the top side pocket. The cue ball meets the 1 at a spot 2R from it from which it rolls on into the 9's
+  // ghost ball. A ball in the cue ball's lane from the 1 to the 9 removes it.
+  const P = S.POCKETS[1], B9 = { id: 9, x: W / 2, y: 250 }, GB = { x: W / 2, y: 250 + 2 * R };
+  const billiard = (A, cue, more = []) => S.enumerate(cue, [A, B9, ...more], [1], S.NINE).find((x) => x.type === 'billiard' && x.ball === 9 && x.pocket === 1 && x.first === 1);
+  const A = { id: 1, x: W / 2 - 250, y: 500 }, sides = new Set();
+  for (const cue of [{ id: 0, x: W / 2 - 700, y: 500 }, { id: 0, x: W / 2 - 300, y: 800 }]) { // from the left, then from below the 1
+    const s = billiard(A, cue), side = s && Math.sign((s.G.x - A.x) * (GB.y - A.y) - (s.G.y - A.y) * (GB.x - A.x));
+    assert(s, `billiard found from ${JSON.stringify(cue)}`); sides.add(side);
+    const [, GA, at9] = s.paths[0];
+    assert(S.dist(s.G, GA) < 1e-9 && Math.abs(S.dist(GA, A) - 2 * R) < 1e-6 && heads(cue, GA, A, GB) && S.dist(at9, GB) < 1e-6, `cue ball's spots on side ${side}`);
+    assert(S.dist(s.paths[1][1], P) < 1e-6 && s.tol > 0, 'the 9 goes to the pocket');
+    const mid = (a, b) => ({ id: 5, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    assert(!billiard(A, cue, [mid(GA, GB)]) && !billiard(A, cue, [mid(cue, GA)]), `a ball in either of the cue ball's lanes removes it (side ${side})`);
+  }
+  assert.strictEqual(sides.size, 2, 'the cue ball meets the 1 on either side of the line to the 9');
+  ok('a billiard (hit the lowest, carry on into the 9) is found on both sides, and a ball in its lane removes it');
+}
+{ // Repertoire: Hustler plays a carom only off a helper ball within 60 mm of the potted ball; Shark off any; Rookie and
+  // Regular never play a carom or a billiard, not even when nothing else is on.
+  const H9 = { id: 9, x: W / 2, y: 300 }, cue = { id: 0, x: W / 2 - 500, y: 900 };
+  const caroms = (O, tier) => S.plan(cue, [O, H9], [1], tier, 0, 1000).filter((x) => x.type === 'carom' && x.via === 9);
+  const near = { id: 1, x: W / 2 - 100, y: 360 }, far = { id: 1, x: W / 2 - 100, y: 370 }; // gaps 59 and 65 mm
+  assert(caroms(near, S.TIERS[2]).length && !caroms(far, S.TIERS[2]).length, 'Hustler: a carom 59 mm off the helper, none 65 mm off');
+  assert(caroms(far, S.TIERS[3]).length, 'Shark: a carom 65 mm off the helper');
+  const [s] = S.plan(cue, [near, H9], [1], S.TIERS[3], 1, 1000).filter((x) => x.type === 'carom');
+  assert(Math.abs(s.score - s.p * (1 + S.TIERS[3].flair)) < 1e-12 && !s.leave, 'a carom gets the flair, and no planned leave (the helper moves)');
+  const rnd = S.rng(17); let exotic = 0, only = 0;
+  for (let i = 0; i < 300; i++) {
+    const { cue, balls } = S.randomLayout(rnd, 7), all = S.enumerate(cue, balls, S.SOLIDS);
+    if (!all.some((x) => x.type === 'carom' || x.type === 'billiard')) continue;
+    exotic++; only += !all.some((x) => x.type === 'direct');
+    const at = (id) => balls.find((b) => b.id === id);
+    for (const x of all.filter((x) => x.type === 'carom')) assert(x.tol > 0 && heads(at(x.ball), x.paths[1][1], at(x.via), S.POCKETS[x.pocket], 150), 'a carom rolls off its helper into an open pocket');
+    for (const x of all.filter((x) => x.type === 'billiard')) assert(x.first !== x.ball && heads(cue, x.G, at(x.first), x.paths[0][2]), 'a billiard rolls off one ball into another');
+    for (const tier of S.TIERS.slice(0, 2)) assert(S.plan(cue, balls, S.SOLIDS, tier, 0, 1000).every((x) => x.type !== 'carom' && x.type !== 'billiard'), `${tier.name} plays no carom or billiard`);
+  }
+  assert(exotic > 20 && only > 0, `tables with a carom or billiard ${exotic}, with no direct pot ${only}`);
+  ok('Hustler plays caroms off a close helper only, with the flair; Rookie and Regular never play caroms or billiards');
+}

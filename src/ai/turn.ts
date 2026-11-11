@@ -6,7 +6,7 @@ import { type Ball, CUE, HOLES, P, type Shot } from '../physics/engine.ts';
 import { canCall, legalSpot, onEight, type Hand, type Rec, type State } from '../rules/rules.ts';
 import { aiShot } from './aim.ts';
 import { chooseGroup, type Cand, enumerate, makeProb, NINE, type Obj, type Pick, rng, SIGMA_REF, SOLIDS, STRIPES, TIERS } from './shot-ai.ts';
-import { type Pay, shotPay } from '../progress/pay.ts';
+import { type Pay, shotPay, type ShotType as PayType } from '../progress/pay.ts';
 
 // The AI's turn. at = where it puts the cue ball in hand (null = where it lies); call = the pocket it calls (-1 none);
 // safety = it played a safety, for safetiesInRow.
@@ -104,10 +104,10 @@ export interface Safeties { row: number; rack: number }
 export const nextSafeties = (k: Safeties, safety: boolean): Safeties => (safety ? { row: k.row + 1, rack: k.rack + 1 } : { row: 0, rack: k.rack });
 export const safetiesArg = (k: Safeties) => (k.rack >= 4 ? 2 : Math.min(2, k.row));
 
-// Every pot the shooter (s.turn) has on this table, for potPay. Picker units (mm).
+// Every pot the shooter (s.turn) has on this table, for potPay. Picker units (mm). No caroms or billiards: they pay as flukes.
 export function candsFor(B: Ball[], ids: number[], s: State): Cand[] {
   const g = groupsOf(s, s.turn), legal = legalIds(s, g && g[0]);
-  return enumerate({ x: B[0].x * 1000, y: B[0].y * 1000 }, mm(B, ids), legal, s.game === 9 ? s.balls : legal);
+  return enumerate({ x: B[0].x * 1000, y: B[0].y * 1000 }, mm(B, ids), legal, s.game === 9 ? s.balls : legal, false);
 }
 
 // The human's pots on one shot against the AI (progress/pay.ts): each pot is matched to a candidate the picker found
@@ -119,7 +119,8 @@ export function potPay(cands: Cand[], r: Rec, before: State, after: State, run: 
   const mine = (id: number) => before.game === 9 || after.solids < 0 || id === 8 || (id < 8) === (after.solids === me);
   const pots = r.pots.filter(p => p.id);
   for (const p of pots) {
-    const c = cands.find(k => k.ball === p.id && holeOf(k) === p.pocket);
+    // shortcut: a carom or a billiard pays as a fluke, grade them once pay.ts has those types
+    const c = cands.find((k): k is Cand & { type: PayType } => k.ball === p.id && holeOf(k) === p.pocket && k.type !== 'carom' && k.type !== 'billiard');
     const g = shotPay({ pRef: c ? makeProb(c.tol, SIGMA_REF) : null, type: c?.type, run, brk: before.phase === 'break', hand: !!before.hand, foul, theirs: !mine(p.id), tier: tier + 1 });
     pay.xp += g.xp; pay.coins += g.coins;
   }
