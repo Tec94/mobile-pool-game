@@ -12,8 +12,9 @@ import { C } from '../theme';
 
 // The shot being set up lives outside React state, as the tip does: a frame of aiming or pulling redraws Skia
 // pictures through shared values and never renders the game screen.
-// aim = radians in the table frame; power = 0..1; fine = the dial was used for this shot; locked = balls are moving.
-export interface ShotState { aim: number; power: number; fine: boolean; locked: boolean }
+// aim = radians in the table frame; power = 0..1; fine = the dial was used for this shot; locked = balls are moving;
+// shown = the AI lines up its shot on the controls: drawn undimmed, still locked to touch.
+export interface ShotState { aim: number; power: number; fine: boolean; locked: boolean; shown?: boolean }
 export interface ShotStore { get: () => ShotState; set: (s: Partial<ShotState>) => void; sub: (f: () => void) => () => void }
 export function shotStore(aim: number): ShotStore {
   let v: ShotState = { aim, power: 0, fine: false, locked: false }; const subs = new Set<() => void>();
@@ -22,6 +23,7 @@ export function shotStore(aim: number): ShotStore {
 const picture = (draw: (c: SkCanvas) => void) => { const rec = Skia.PictureRecorder(); draw(rec.beginRecording()); return rec.finishRecordingAsPicture(); };
 const EMPTY = picture(() => {});
 const tick = () => { Haptics.selectionAsync(); };
+const dimmed = (store: ShotStore) => () => { const v = store.get(); return v.locked && !v.shown; };
 const dim = (locked: boolean) => ({ opacity: locked ? 0.35 : 1, transitionProperty: 'opacity', transitionDuration: '200ms' }) as const; // the controls wait while balls move
 
 // The power rail. A pull starts anywhere on it and is measured from where the finger went down, so the thumb never
@@ -73,7 +75,7 @@ export function PowerRail({ store, box, onStrike }: { store: ShotStore; box: Box
     else setPower(Math.min(1, Math.max(0, Math.round(p * 10 + (name === 'increment' ? 1 : -1)) / 10)));
   };
   return (
-    <Animated.View {...pan.panHandlers} style={[styles.at, box, dim(locked)]} accessible accessibilityRole="adjustable" accessibilityLabel="Power" accessibilityHint="Pull down and release to shoot"
+    <Animated.View {...pan.panHandlers} style={[styles.at, box, dim(useSyncExternalStore(store.sub, dimmed(store)))]} accessible accessibilityRole="adjustable" accessibilityLabel="Power" accessibilityHint="Pull down and release to shoot"
       accessibilityState={{ disabled: locked }} accessibilityValue={{ min: 0, max: 100, now: pct, text: `${pct} percent` }}
       accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }, { name: 'activate', label: 'Shoot' }]} onAccessibilityAction={e => act(e.nativeEvent.actionName)}>
       <Canvas style={StyleSheet.absoluteFill} pointerEvents="none"><Picture picture={pic} /></Canvas>
@@ -115,7 +117,7 @@ export function AimDial({ store, box }: { store: ShotStore; box: Box }) {
     onPanResponderTerminate: () => { drag.current = null; },
   })).current;
   return (
-    <Animated.View {...pan.panHandlers} hitSlop={box.height > box.width ? { left: (44 - DIAL) / 2, right: (44 - DIAL) / 2 } : { top: (44 - DIAL) / 2, bottom: (44 - DIAL) / 2 }} style={[styles.at, box, dim(locked)]} accessible accessibilityRole="adjustable" accessibilityLabel="Fine aim" accessibilityHint="A tenth of a degree for each step"
+    <Animated.View {...pan.panHandlers} hitSlop={box.height > box.width ? { left: (44 - DIAL) / 2, right: (44 - DIAL) / 2 } : { top: (44 - DIAL) / 2, bottom: (44 - DIAL) / 2 }} style={[styles.at, box, dim(useSyncExternalStore(store.sub, dimmed(store)))]} accessible accessibilityRole="adjustable" accessibilityLabel="Fine aim" accessibilityHint="A tenth of a degree for each step"
       accessibilityState={{ disabled: locked }} accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
       onAccessibilityAction={e => { if (!store.get().locked) store.set({ aim: nudge(store.get().aim, e.nativeEvent.actionName === 'increment' ? 1 : -1), fine: true }); }}>
       <Canvas style={StyleSheet.absoluteFill} pointerEvents="none"><Picture picture={pic} /></Canvas>
