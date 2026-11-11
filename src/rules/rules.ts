@@ -1,3 +1,4 @@
+'worklet'; // every function here also runs on the AI's worklet runtime (src/ai/think.ts): define a function before its callers
 // 8-ball and 9-ball rules: WPA Rules of Play, effective 2026-10-21 (wpapool.com/rules). Rule numbers below are that
 // edition's (8-ball is section 4, 9-ball section 5, fouls section 3). Pure TS: the screen feeds it what happened on
 // a shot (Rec, built from the engine's events) and draws what it decides (State).

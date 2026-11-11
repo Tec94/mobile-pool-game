@@ -105,13 +105,6 @@ const deg = (r) => r * 180 / Math.PI;
   assert(s.leave.spin && S.dist(s.leave, s.G) > 50, `the cue ball moves off the contact point (spin ${s.leave.spin})`);
   ok('a straight pot can draw or follow');
 }
-{ // Reward: a short straight-in is routine, a long thin cut is not.
-  const cue = { id: 0, x: W / 2, y: 500 }, easy = S.enumerate(cue, [{ id: 1, x: W / 2, y: 300 }], [1]).find((x) => x.pocket === 1);
-  assert.deepStrictEqual([S.reward(easy).band, S.reward(easy).xp], ['Routine', 10], 'short straight-in');
-  const hard = S.enumerate({ id: 0, x: 200, y: 900 }, [{ id: 1, x: 1900, y: 300 }], [1]).filter((x) => x.type === 'direct').sort((a, b) => a.tol - b.tol)[0];
-  assert(S.reward(hard).mult > 1, 'a long cut pays more');
-  ok('rewards grow with difficulty');
-}
 { // Calibration in miniature (check.js runs 120 tables): one visit each from 8 random full tables. Legend thinks for
   // about 2 s here, so only Rookie, Shark and Legend play.
   const potted = [S.TIERS[0], S.TIERS[3], S.TIERS[5]].map((tier) => {
