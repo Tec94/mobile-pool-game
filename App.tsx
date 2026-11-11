@@ -333,11 +333,27 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   const play = (m: Move) => {
     const t = table.current;
     if (moving.current || t.rec || t.rules.phase === 'over' || !bot()) return;
+    if (m.at && Math.hypot(m.at[0] - t.B[0].x, m.at[1] - t.B[0].y) > 1e-3) { carry(m.at, () => play({ ...m, at: null })); return; }
     if (m.at) moveCue(t.B, m.at[0], m.at[1], t.rules.hand);
     if (m.call >= 0) t.rules = setCall(t.rules, m.call);
     safe.current = nextSafeties(safe.current, m.safety);
     const top = t.rules.phase === 'break' ? STICK.breakSpeed : STICK.maxSpeed, hold = (x: number) => Math.max(-STICK.tipLimit, Math.min(STICK.tipLimit, x));
     t.rec = newRec(); strike(t.B[0], { ...m.shot, speed: Math.min(m.shot.speed, top), a: hold(m.shot.a), b: hold(m.shot.b) }, STICK); moving.current = true; paint(); redraw();
+  };
+  // The AI's cue ball in hand slides to its spot (eased, longer for a longer way), rests a beat, then done() strikes.
+  // Lifted over the balls on the way: only the end spot must be legal. drop() undoes a carry the turn left: the ball goes back.
+  const drop = useRef(() => {});
+  const carry = ([x, y]: [number, number], done: () => void) => {
+    const c = table.current.B[0], x0 = c.x, y0 = c.y, ms = Math.min(900, 350 + 400 * Math.hypot(x - x0, y - y0)), t0 = performance.now();
+    let raf = 0, wait: ReturnType<typeof setTimeout> | undefined;
+    const step = (now: number) => {
+      const k = Math.min(1, (now - t0) / ms), e = k < 0.5 ? 2 * k * k : 1 - (2 - 2 * k) ** 2 / 2; // ease in and out
+      c.x = x0 + (x - x0) * e; c.y = y0 + (y - y0) * e;
+      if (map.current.calm) paint(false); // else the tick paints the pulsing ring round the ball in hand every frame
+      if (k < 1) raf = requestAnimationFrame(step); else wait = setTimeout(() => { drop.current = () => {}; done(); }, 250);
+    };
+    drop.current = () => { cancelAnimationFrame(raf); clearTimeout(wait); c.x = x0; c.y = y0; paint(false); drop.current = () => {}; };
+    raf = requestAnimationFrame(step);
   };
   // The AI's turn: when the table rests and no ruling waits, think (off the JS thread), wait out THINK_MS, then decide
   // or shoot. A pause, a new ruling or leaving the match drops a think that is still running; its result is ignored.
@@ -360,7 +376,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         });
       });
     }
-    return () => { live = false; clearTimeout(wait); setThinking(false); };
+    return () => { live = false; clearTimeout(wait); setThinking(false); drop.current(); };
   }, [rules, paused]);
   // Where the finger is about the cue ball: its angle in the table frame and its distance on the screen.
   const finger = (px: number, py: number) => { const p = toTable(map.current, px, py), c = table.current.B[0]; return { ang: Math.atan2(p.y - c.y, p.x - c.x), lever: Math.hypot(p.x - c.x, p.y - c.y) * map.current.s }; };
