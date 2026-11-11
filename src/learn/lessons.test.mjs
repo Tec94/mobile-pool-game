@@ -3,7 +3,7 @@
 import assert from 'node:assert';
 import { CUE, step, strike } from '../physics/engine.ts';
 import { shotTip } from '../render/tip.ts';
-import { LESSONS, lessonTable, newLessonRec, noteLesson, verdict } from './lessons.ts';
+import { LESSONS, lessonTable, newLessonRec, noteLesson, readDone, verdict } from './lessons.ts';
 
 const play = (l, ang, power, tip) => {
   const { B, ids } = lessonTable(l), r = newLessonRec(), ev = [];
@@ -18,19 +18,20 @@ assert.strictEqual(new Set(LESSONS.map(l => l.id)).size, 13, 'lesson ids are uni
 for (const l of LESSONS) {
   const v = play(l, l.ref.ang, l.ref.power, l.ref.tip);
   assert(v.ok, `${l.id}: the reference shot fails: ${v.say}`);
-  // a lesson can be passed by a person: a quarter of a degree either side of the reference still passes
+  // a lesson can be passed by a person: a tenth of a degree, or 3% of power, either side of the reference still passes
   for (const d of [-0.002, 0.002]) assert(play(l, l.ref.ang + d, l.ref.power, l.ref.tip).ok, `${l.id}: too tight at ${d} rad`);
+  for (const d of [-0.03, 0.03]) assert(play(l, l.ref.ang, l.ref.power + d, l.ref.tip).ok, `${l.id}: too tight at power ${d}`);
 }
 { const l = at('draw'), { ang, power, tip } = l.ref;
-  assert.match(play(l, ang, power, { ...tip, y: 0.6 }).say, /ran past the ring|went in/, 'draw: follow in place of draw runs on');
-  assert.match(play(l, ang, power, { ...tip, y: -0.25 }).say, /short of the ring/, 'draw: too little draw stops short');
+  assert.match(play(l, ang, power, { ...tip, y: 0.6 }).say, /went the wrong way/, 'draw: follow in place of draw goes the wrong way');
+  assert.match(play(l, ang, power, { ...tip, y: -0.1 }).say, /wrong way|short of the ring/, 'draw: too little draw misses the ring');
   assert.match(play(l, ang + 0.3, power, tip).say, /missed the pocket|hit nothing/, 'draw: a bad aim misses');
 }
-assert.match(play(at('kick'), Math.PI * 0, 0.45, { x: 0, y: 0, elev: 0 }).say, /cushion first/, 'kick: straight at the 2 is no kick');
+assert.match(play(at('kick'), 0, 0.45, { x: 0, y: 0, elev: 0 }).say, /cushion first/, 'kick: straight at the 2 is no kick');
 assert.match(play(at('jump'), 0, 0.5, { x: 0, y: 0, elev: 0 }).say, /hit the 2 first/, 'jump: a level shot hits the blocker');
 assert.match(play(at('safety'), at('safety').ref.ang, 0.02, { x: 0, y: 0, elev: 0 }).say, /hit nothing|cushion after/, 'safety: too soft is a foul');
 console.log('lessons: all checks passed');
-{ const { readDone } = await import('./lessons.ts');
+{
   assert.deepStrictEqual(readDone(null), [], 'no save');
   assert.deepStrictEqual(readDone('{oops'), [], 'damaged save');
   assert.deepStrictEqual(readDone('{"a":1}'), [], 'not a list');
