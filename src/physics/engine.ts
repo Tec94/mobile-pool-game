@@ -62,7 +62,8 @@ export function setTable(L=P.L,W=P.W){
 setTable();
 
 // Rack spots [id,x,y] for 8-ball or 9-ball: apex on the foot spot, g between neighbours' centres.
-// 9-ball is the diamond with the 1 at the apex and the 9 in the middle.
+// 9-ball is the diamond with the 1 at the apex and the 9 in the middle, and it is the 9 that sits on the foot spot
+// (WPA 5.2, 2026-10-21).
 // A real rack is never perfect: each ball sits up to `play` off its spot along x and along y, by a fixed pattern, the same
 // in every rack, with no random numbers (of 24 patterns measured, this one gives the median break). A square hit then
 // no longer gives a mirror-image break. The two back corner balls still take most of the speed, as in the perfect rack.
@@ -71,12 +72,13 @@ const RACKS:Record<Game,number[][]>={8:[[1],[9,2],[10,8,3],[11,7,14,4],[5,13,15,
 export function rack(game:Game,g=2*P.R+3e-4,play=(g-2*P.R)/3){
   const out:[number,number,number][]=[];let s=2;
   const off=()=>(s=Math.imul(s,1664525)+1013904223|0)/2147483648*play; // -play to play, in whole-number arithmetic so every device agrees
-  RACKS[game].forEach((r,i)=>r.forEach((id,k)=>out.push([id,0.75*P.L+i*g*Math.cos(Math.PI/6)+off(),P.W/2+(k-(r.length-1)/2)*g+off()])));
+  RACKS[game].forEach((r,i)=>r.forEach((id,k)=>out.push([id,0.75*P.L+(i-(game===9?2:0))*g*Math.cos(Math.PI/6)+off(),P.W/2+(k-(r.length-1)/2)*g+off()])));
   return out;
 }
 // Where the cue ball starts for the break: on the head string, 11 cm from the side cushion, where real players break from.
 // Measured on this table (1,500 breaks a spot, power 75 to 100%, aim within half a degree of the head ball): a break from
 // here pots a ball with no foul on 35% of 8-ball breaks and 77% of 9-ball breaks; from the middle of the head string, 27% and 61%.
+// (Measured with the 1 on the foot spot in both racks. The 9-ball rack now has the 9 there: not measured again.)
 export const breakSpot=():[number,number]=>[P.L/4,P.W-0.11];
 
 // Cue strike. s={ang,speed,a,b}: a = tip offset right, b = tip offset up, in ball radii.
