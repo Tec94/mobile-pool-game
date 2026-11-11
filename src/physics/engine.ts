@@ -150,12 +150,21 @@ function air(a:Ball,b:Ball,c:Contact,ev?:Ev[]){
   b.x+=(b.vx-o[3])*tb;b.y+=(b.vy-o[4])*tb;if((b.z??0)>0)b.z!+=(b.vz!-o[5])*tb;
   if(ev)ev.push({t:'bb',a:c.i,b:c.j,x:a.x,y:a.y,cut,thr:0,air:true});
 }
-// One ball pair: if the balls overlap and are closing, record the contact (normal and time since contact).
-function touch(B:Ball[],i:number,j:number,C:Contact[]|null):Contact[]|null{
+// How long ago a point crossed into a sphere of radius r about the origin, given where it is now (q) and its velocity
+// (v), or -1 if it did not cross within the last win seconds. The whole of the last step is swept, not only its end, so
+// a thin hit that starts and ends between two steps is still found and the result does not depend on where the steps fall.
+function since(qx:number,qy:number,qz:number,vx:number,vy:number,vz:number,r:number,win:number){
+  const qv=qx*vx+qy*vy+qz*vz,c=qx*qx+qy*qy+qz*qz-r*r;if(c>=0&&qv<=0)return -1; // outside and not on its way out: it was never in
+  const v2=vx*vx+vy*vy+vz*vz,d=qv*qv-v2*c;if(!(d>0))return -1;
+  const t=(qv+Math.sqrt(d))/v2;
+  return qv<0?Math.min(win,t):t<=win?t:-1; // still going in: a contact however long ago it crossed. On its way out: only if it crossed in this step
+}
+// One ball pair: if the balls met during the step, record the contact (normal and time since contact).
+// far2 = square of the furthest apart two balls can be at the end of a step in which they touched.
+function touch(B:Ball[],i:number,j:number,C:Contact[]|null,far2:number):Contact[]|null{
   const a=B[i],b=B[j],R=P.R;if(!b.on)return C;
-  const dx=b.x-a.x,dy=b.y-a.y,dz=(b.z||0)-(a.z||0),d2=dx*dx+dy*dy+dz*dz;if(d2>=4*R*R)return C; // 3D, so a high ball passes over
-  const wx=b.vx-a.vx,wy=b.vy-a.vy,wv=(b.vz||0)-(a.vz||0),pw=dx*wx+dy*wy+dz*wv;if(pw>=0)return C;
-  const w2=wx*wx+wy*wy+wv*wv,tb=Math.min(P.h,(pw+Math.sqrt(pw*pw-w2*(d2-4*R*R)))/w2);
+  const dx=b.x-a.x,dy=b.y-a.y,dz=(b.z||0)-(a.z||0);if(dx*dx+dy*dy+dz*dz>=far2)return C; // 3D, so a high ball passes over
+  const wx=b.vx-a.vx,wy=b.vy-a.vy,wv=(b.vz||0)-(a.vz||0),tb=since(dx,dy,dz,wx,wy,wv,2*R,P.h);if(tb<0)return C;
   const px=dx-wx*tb,py=dy-wy*tb,pz=dz-wv*tb,d=hyp(px,py,pz);
   (C||(C=[])).push({i,j,nx:px/d,ny:py/d,nz:pz/d,tb,cut:0,jn:0,goal:0,f:null});return C;
 }
@@ -184,11 +193,12 @@ export function step(B:Ball[],ev?:Ev[]):boolean{
   }
   // Ball-ball. Every contact in the step is found first, at the instant of contact so the normal (and the cut
   // angle) is exact. Only pairs with a moving ball are scanned.
-  let C:Contact[]|null=null;const mv:number[]=[];
-  for(let i=0;i<B.length;i++){const b=B[i];if(b.on&&(b.vx||b.vy||b.vz))mv.push(i);}
+  let C:Contact[]|null=null,vm=0;const mv:number[]=[];
+  for(let i=0;i<B.length;i++){const b=B[i];if(b.on&&(b.vx||b.vy||b.vz)){mv.push(i);const q=b.vx*b.vx+b.vy*b.vy+(b.vz||0)*(b.vz||0);if(q>vm)vm=q;}}
+  const far=2*R+2*Math.sqrt(vm)*h,far2=far*far;
   if(mv.length)for(let i=0;i<B.length;i++){const a=B[i];if(!a.on)continue;
-    if(a.vx||a.vy||a.vz){for(let j=i+1;j<B.length;j++)C=touch(B,i,j,C);}
-    else for(let q=0;q<mv.length;q++)if(mv[q]>i)C=touch(B,i,mv[q],C);}
+    if(a.vx||a.vy||a.vz){for(let j=i+1;j<B.length;j++)C=touch(B,i,j,C,far2);}
+    else for(let q=0;q<mv.length;q++)if(mv[q]>i)C=touch(B,i,mv[q],C,far2);}
   if(C){
     C=C.filter(c=>{if(!c.nz)return true;air(B[c.i],B[c.j],c,ev);return false;});
     const deg:number[]=[],v0:number[][]=[];

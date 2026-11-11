@@ -285,4 +285,13 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   EngineAll.setTable(2.54, 1.27); assert(P.L === 2.54 && SEGS.length === 20 && HOLES.length === 6 && HOLES[5][0] === 1.27 && Math.abs(HOLES[5][1] - 1.27 - K.sideOut) < 1e-12, '9 ft table');
   EngineAll.setTable(L, W); assert(P.L === L && P.W === W && SEGS.length === 20 && HOLES[4][0] === L / 2, 'back to the 8 ft table');
   console.log(`pocket geometry ok (corner ${corner.toFixed(2)} in, ${cAng.toFixed(0)} deg, shelf ${cShelf.toFixed(2)} in; side ${side.toFixed(2)} in, ${sAng.toFixed(0)} deg, shelf ${sShelf.toFixed(2)} in)`); }
+
+// 25. A thin hit is found wherever the steps fall. A ball that grazes another by 0.02 mm at break speed touches it for
+// less than one step, so the whole step is swept, not only its end.
+{ let n = 0;
+  for (const v of [1, 4.5, 12]) for (const depth of [1e-4, 2e-5]) for (let ph = 0; ph < 20; ph++, n++) {
+    const B = [{ ...mk(0.5 + ph * v * P.h / 20, 0.5), vx: v, wy: v / R }, mk(0.9, 0.5 + 2 * R - depth)], ev = [];
+    for (let i = 0; i < 600 && !ev.length; i++) step(B, ev);
+    assert(ev.some(e => e.t === 'bb'), `thin hit missed: ${v} m/s, ${depth * 1e3} mm deep, step phase ${ph}/20`); }
+  console.log(`thin hits ok (${n} grazes, found at every step phase)`); }
 console.log('all checks passed');
