@@ -6,14 +6,14 @@ import Animated from 'react-native-reanimated';
 import type { EdgeInsets } from 'react-native-safe-area-context';
 import { P } from '../physics/engine';
 import type { State } from '../rules/rules';
-import { BAR, RAIL, type View as TableView } from '../render/table';
+import { RAIL, type View as TableView } from '../render/table';
 import { BALLS, C } from '../theme';
 import { banner, fresh, type Plate, plates, strip } from './hud';
 
 const RED = BALLS[2]; // fouls reuse the three-ball red (Quiet Slate)
 const LINE = C.chalk + '66'; // chalk hairline at 40%: 3:1 on the ground
 const POP = { animationName: { from: { opacity: 0, transform: [{ scale: 0.95 }] } }, animationDuration: '200ms', animationTimingFunction: 'ease-out' } as const; // a new ruling pops in
-const TOP = 4, PLATE = 44, STRIP = 24;
+const TOP = 4, PLATE = 44, STRIP = 24, STRIP_PIP = 18;
 // Screen units the HUD takes above the table: the plates, and in 9-ball the strip of balls under them.
 export const hudHeight = (game: number) => TOP + PLATE + 8 + (game === 9 ? STRIP : 0);
 
@@ -23,23 +23,26 @@ export function MatchHud({ rules, names, push, view, pad, calm, wait, pause, chi
   const [a, b] = plates(rules, names), nine = strip(rules), next = nine.find(q => q.next);
   // Landscape: the banner sits between the plates, above the table, where it covers no pocket. Portrait: over the
   // foot rail, between the corner pockets.
+  // 9-ball: both players share the balls, so the strip is centred on the table, under the plates, in both orientations.
+  const mid = view.ox + (view.land ? P.L : P.W) * view.s / 2, wide = 9 * STRIP_PIP + 8 * 5;
   const say = <Banner rules={rules} push={push} calm={calm} wait={wait} style={view.land ? { flex: 1 } : { position: 'absolute', top: view.oy - RAIL * view.s + 4, left: view.ox, width: P.W * view.s, paddingHorizontal: 0.12 * view.s }} />;
   return (
     <>
-      <View style={[styles.hud, { top: pad.top + TOP, left: Math.max(pad.left, 8), right: Math.max(pad.right, 8) + (view.land ? BAR : 0) }]}>
+      {/* Landscape: the rail starts under the HUD, so the row spans the window and sits symmetric about the table. */}
+      <View style={[styles.hud, { top: pad.top + TOP, left: Math.max(pad.left, 8), right: Math.max(pad.right, 8) }]}>
         <View style={styles.row} accessibilityLiveRegion="polite">
           {pause}<PlateView p={a} land={view.land} />{view.land && say}<PlateView p={b} land={view.land} />{children}
         </View>
-        {nine.length > 0 && (
-          <View style={styles.nine} accessible accessibilityLabel={`${next ? `Ball ${next.id} to hit. ` : ''}Potted: ${nine.filter(q => q.gone).map(q => q.id).join(', ') || 'none'}`}>
-            {nine.map(q => (
-              <Pip key={q.id} id={q.id} gone={q.gone} size={18} style={q.next ? styles.next : undefined}>
-                <Text maxFontSizeMultiplier={1} style={[styles.num, { color: q.gone ? C.chalk + '80' : q.id === 8 ? C.white : C.ink }]}>{q.id}</Text>
-              </Pip>
-            ))}
-          </View>
-        )}
       </View>
+      {nine.length > 0 && (
+        <View style={[styles.nine, { top: pad.top + TOP + PLATE + 6, left: mid - wide / 2, width: wide }]} accessible accessibilityLabel={`${next ? `Ball ${next.id} to hit. ` : ''}Potted: ${nine.filter(q => q.gone).map(q => q.id).join(', ') || 'none'}`}>
+          {nine.map(q => (
+            <Pip key={q.id} id={q.id} gone={q.gone} size={STRIP_PIP} style={q.next ? styles.next : undefined}>
+              <Text maxFontSizeMultiplier={1} style={[styles.num, { color: q.gone ? C.chalk + '80' : q.id === 8 ? C.white : C.ink }]}>{q.id}</Text>
+            </Pip>
+          ))}
+        </View>
+      )}
       {!view.land && say}
     </>
   );
@@ -117,7 +120,7 @@ const styles = StyleSheet.create({
   l2Text: { color: C.chalk + 'B3', fontSize: 12, lineHeight: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
   under: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: C.chalk },
   eight: { borderWidth: 1, borderColor: LINE }, // the 7 and 8 keep an edge on the dark ground (a border: outline needs a style on web)
-  nine: { flexDirection: 'row', justifyContent: 'center', gap: 5, height: 18 },
+  nine: { position: 'absolute', flexDirection: 'row', justifyContent: 'center', gap: 5, height: STRIP_PIP },
   num: { fontSize: 10, lineHeight: 18, fontWeight: '700', fontVariant: ['tabular-nums'] },
   next: { borderWidth: 2, borderColor: C.chalk }, // inside the box: the pip keeps its size
   banner: { maxWidth: '100%', paddingVertical: 4, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: LINE, backgroundColor: '#000b' },
