@@ -9,7 +9,8 @@ import { drawCue, drawDial, drawRail, shotLayout } from '../src/render/cue.ts';
 import { drawMarks } from '../src/render/marks.ts';
 import { drawAim, drawTable, toScreen } from '../src/render/table.ts';
 import { drawSide, drawTip, drawTipBall, LEVEL, shotTip, SIDE } from '../src/render/tip.ts';
-import { aimGuide, guideFor, HOUSE_CUE } from '../src/shot/aim.ts';
+import { aimGuide, guideFor } from '../src/shot/aim.ts';
+import { CUES } from '../src/progress/cues.ts';
 import { C, CLOTHS } from '../src/theme.ts';
 
 const require = createRequire(import.meta.url);
@@ -42,7 +43,7 @@ function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, c
   for (let f = 0; f < n; f++) {
     const p = typeof at === 'function' ? at(B) : at, o = w ? toScreen(v, p[0], p[1]) : { x: W / 2, y: H / 2 };
     c.save(); c.translate(f * (cw + 4), 0); c.clipRect(Skia.XYWHRect(0, 0, cw, ch), 1, true); c.scale(dpr, dpr); c.translate(cw / 2 / dpr - o.x, ch / 2 / dpr - o.y);
-    drawTable(Skia, c, v, CLOTHS[cloth]); if (aim) { const g = aimGuide(B, aim, guideFor(HOUSE_CUE.aim)); drawAim(Skia, c, v, g.path, g.ghost, g.lands, g.lost, g.ob); if (pull !== undefined) drawCue(Skia, c, v, B[0].x, B[0].y, aim.ang, pull); } // as App.tsx does
+    drawTable(Skia, c, v, CLOTHS[cloth]); if (aim) { const g = aimGuide(B, aim, guideFor(CUES.house.aim)); drawAim(Skia, c, v, g.path, g.ghost, g.lands, g.lost, g.ob); if (pull !== undefined) drawCue(Skia, c, v, B[0].x, B[0].y, aim.ang, pull); } // as App.tsx does
     if (marks) drawMarks(Skia, c, v, { hand: false, x: B[0].x, y: B[0].y, call: -1, ask: false, ms: 500 + f * 300, ...marks });
     drawBalls(kit, c, B, ids, look, v);
     if (!w) { // the whole window: the shot controls where the app puts them (the tools button is its outline)
