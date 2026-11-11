@@ -18,9 +18,9 @@ const TOP = 4, PLATE = 44, STRIP = 24;
 export const hudHeight = (game: number) => TOP + PLATE + 8 + (game === 9 ? STRIP : 0);
 
 // The plates row sits above the table and out of the control column in landscape. The push out button, when the rules
-// offer one, comes in as children at the end of the row.
-export function MatchHud({ rules, push, view, pad, calm, children }: { rules: State; push: boolean; view: TableView; pad: EdgeInsets; calm: boolean; children?: ReactNode }) {
-  const [a, b] = plates(rules), nine = strip(rules), next = nine.find(q => q.next);
+// offer one, and the pause button come in as children at the end of the row.
+export function MatchHud({ rules, names, push, view, pad, calm, children }: { rules: State; names: string[]; push: boolean; view: TableView; pad: EdgeInsets; calm: boolean; children?: ReactNode }) {
+  const [a, b] = plates(rules, names), nine = strip(rules), next = nine.find(q => q.next);
   // Landscape: the banner sits between the plates, above the table, where it covers no pocket. Portrait: over the
   // foot rail, between the corner pockets.
   const say = <Banner rules={rules} push={push} calm={calm} style={view.land ? { flex: 1 } : { position: 'absolute', top: view.oy - RAIL * view.s + 4, left: view.ox, width: P.W * view.s, paddingHorizontal: 0.12 * view.s }} />;
@@ -94,13 +94,13 @@ function Banner({ rules, push, calm, style }: { rules: State; push: boolean; cal
   );
 }
 
-// The end of the rack: who won and why. The rematch button comes in as children.
-export function Results({ rules, children }: { rules: State; children: ReactNode }) {
+// The end of the rack: who won and why. The score, the pay and the buttons come in as children.
+export function Results({ rules, title, children }: { rules: State; title: string; children: ReactNode }) {
   return (
     <View style={styles.sheet} pointerEvents="box-none">
       <View style={styles.card} accessibilityViewIsModal>
         <Text maxFontSizeMultiplier={1.3} style={styles.eyebrow}>Pass and play · {rules.game}-ball</Text>
-        <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.title}>Player {rules.winner + 1} wins</Text>
+        <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.title}>{title}</Text>
         {!!rules.note && <Text maxFontSizeMultiplier={1.3} style={styles.why}>{rules.note}</Text>}
         {children}
       </View>

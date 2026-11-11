@@ -8,10 +8,10 @@ export interface Plate { name: string; on: boolean; text: string; warn: boolean;
 
 const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
 
-export function plates(s: State): Plate[] {
+export function plates(s: State, names = ['Player 1', 'Player 2']): Plate[] {
   const pip = (id: number): Pip => ({ id, gone: !s.balls.includes(id) });
   return [0, 1].map(p => {
-    const name = `Player ${p + 1}`, on = s.turn === p, warn = s.game === 9 && s.fouls[p] === 2;
+    const name = names[p], on = s.turn === p, warn = s.game === 9 && s.fouls[p] === 2;
     let text = '', pips: Pip[] = [];
     if (s.game === 9) text = warn ? '2 fouls · next loses' : ''; // WPA 5.8 warning: on the plate, where the banner's 2-line cap cannot cut it
     else if (s.phase === 'break') text = on ? 'Break' : 'Open';
