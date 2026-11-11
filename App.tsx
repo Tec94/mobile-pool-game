@@ -96,8 +96,11 @@ function Game() {
   return (
     <View style={styles.root} {...pan.panHandlers}>
       <StatusBar style="light" />
+      {/* The table has its own canvas: it is most of the drawing work and it does not change during play. */}
       <Canvas style={StyleSheet.absoluteFill}>
         <Picture picture={felt} />
+      </Canvas>
+      <Canvas style={StyleSheet.absoluteFill}>
         <Picture picture={guide} />
         <Picture picture={picture} />
       </Canvas>
