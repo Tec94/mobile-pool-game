@@ -8,7 +8,7 @@ import Animated, { useReducedMotion, useSharedValue } from 'react-native-reanima
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ball, CUE, P, predict, rack, Shot, strike } from './src/physics/engine';
+import { Ball, breakSpot, CUE, P, predict, rack, Shot, strike } from './src/physics/engine';
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
 import { BAR, drawAim, drawTable, fit, toTable } from './src/render/table';
 import { LEVEL, shotTip } from './src/render/tip';
@@ -21,8 +21,8 @@ const DEMOS: [string, Partial<Shot>][] = [['Draw', { speed: 2.5, b: -0.45 }], ['
 const kit = makeKit(Skia);
 const EMPTY = (() => { const rec = Skia.PictureRecorder(); rec.beginRecording(); return rec.finishRecordingAsPicture(); })();
 
-const newTable = () => {
-  const ids = [0], B: Ball[] = [{ x: P.L / 4, y: P.W / 2, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true }];
+const newTable = ([x, y] = breakSpot()) => {
+  const ids = [0], B: Ball[] = [{ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true }];
   for (const [id, x, y] of rack(8)) { ids.push(id); B.push({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true }); }
   return { B, ids, look: newLook(B), broken: false };
 };
@@ -110,7 +110,7 @@ function Game() {
         {aim && <Text maxFontSizeMultiplier={1.3} style={[styles.power, view.land ? { top: 8 } : { left: 16 }]}>{Math.round(aim.pull * 100)}%</Text>}
         <Btn label="Rack" onPress={() => { table.current = newTable(); moving.current = false; paint.current(); }} />
         <Btn label={'Demo\n' + DEMOS[demo][0]} onPress={() => {
-          table.current = newTable(); table.current.broken = true;
+          table.current = newTable([P.L / 4, P.W / 2]); table.current.broken = true; // the demo shots go straight down the middle
           strike(table.current.B[0], { ang: 0, speed: 1, a: 0, b: 0, ...DEMOS[demo][1] });
           moving.current = true; setDemo((demo + 1) % DEMOS.length);
         }} />
