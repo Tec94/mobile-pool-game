@@ -195,13 +195,19 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   const moving = useRef(false), grab = useRef<{ x: number; y: number } | 'call' | null>(null);
   // The balls and the aim guide are Skia pictures, recorded on the JS thread and handed to the canvas through shared
   // values, so a frame of play or of aiming never re-renders React.
-  const picture = useSharedValue(EMPTY), guide = useSharedValue(EMPTY);
-  const draw = useRef(() => EMPTY);
+  // The marks (src/render/marks.ts) are a picture of their own: the pulse of the ring round the cue ball in hand
+  // redraws them alone, not the 16 balls (4 canvas calls a frame in place of about 190, scripts/draw-bench.mjs).
+  const picture = useSharedValue(EMPTY), guide = useSharedValue(EMPTY), marks = useSharedValue(EMPTY);
+  const draw = useRef(() => EMPTY), mark = useRef(() => EMPTY);
   draw.current = () => {
-    const rec = Skia.PictureRecorder(), c = rec.beginRecording(), { B, ids, look, rules: s, rec: shot } = table.current;
+    const rec = Skia.PictureRecorder(), { B, ids, look } = table.current;
+    drawBalls(kit, rec.beginRecording(), B, ids, look, view);
+    return rec.finishRecordingAsPicture();
+  };
+  mark.current = () => {
+    const rec = Skia.PictureRecorder(), { B, rules: s, rec: shot } = table.current;
     const me = !shot && !bot(); // on the AI's turn the human's marks stay off
-    drawMarks(Skia, c, view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call, ask: me && onEight(s), ms: performance.now(), zone: L?.goal.zone });
-    drawBalls(kit, c, B, ids, look, view);
+    drawMarks(Skia, rec.beginRecording(), view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call, ask: me && onEight(s), ms: performance.now(), zone: L?.goal.zone });
     return rec.finishRecordingAsPicture();
   };
   // Frames of play wait in queue and the UI thread shows one on each display refresh (see src/render/pace.ts).
@@ -216,13 +222,14 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
     seen.value = [s[0] + 1, s[1] + (r.show ? 1 : 0), s[2] + (r.dry ? 1 : 0), s[3] + r.skipped, dt ? 0.9 * s[4] + (dt < 12 ? 0.1 : 0) : s[4]];
   }, []), false);
   const live = useRef(beat); live.current = beat;
-  const push = (pic: SkPicture, ms: number, first: boolean) => { 'worklet'; queue.value = first ? [{ pic, ms }] : [...queue.value, { pic, ms }]; if (first) left.value = 0; };
-  const still = (pic: SkPicture) => { 'worklet'; queue.value = []; left.value = STILL; picture.value = pic; };
+  // mk = the marks for the shot in play, with its first frame (they do not change while balls move)
+  const push = (pic: SkPicture, ms: number, first: boolean, mk: SkPicture | null) => { 'worklet'; queue.value = first ? [{ pic, ms }] : [...queue.value, { pic, ms }]; if (first) left.value = 0; if (mk) marks.value = mk; };
+  const still = (pic: SkPicture, mk: SkPicture) => { 'worklet'; queue.value = []; left.value = STILL; picture.value = pic; marks.value = mk; };
+  const setMarks = (mk: SkPicture) => { 'worklet'; marks.value = mk; };
   const pace = useRef<Pace | null>(null), made = useRef([0, 0]); // made = frames made and the ms they took, for the readout
   // The table as it is now, shown at once in place of any frames that wait. Play that goes on starts its frames again.
   // A ball the rules or a finger moved did not travel there: no speed streak.
-  // again = the guide is drawn again too; the pulse of the ring round the cue ball in hand does not need that.
-  const paint = (again = true) => { const { B, look } = table.current; look.last.set(B.flatMap(b => [b.x, b.y])); pace.current = null; if (again) { stale.current = true; guides.drop(); line.current = null; } scheduleOnUI(still, draw.current()); }; // a guide for the table as it was is not drawn
+  const paint = () => { const { B, look } = table.current; look.last.set(B.flatMap(b => [b.x, b.y])); pace.current = null; stale.current = true; guides.drop(); line.current = null; scheduleOnUI(still, draw.current(), mark.current()); }; // a guide for the table as it was is not drawn
   useEffect(() => { touch.current = null; paint(); }, where); // a drag measured in the old layout ends when the window turns
   useEffect(() => { const again = () => { stale.current = true; }, off = [shot.sub(again), tip.sub(again)]; return () => off.forEach(f => f()); }, []);
   // A lesson plays with the engine's own cue, the one its reference shots are tuned on (src/learn/lessons.test.mjs).
@@ -285,7 +292,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         for (let n = 0, ms; n < 4 && busy() && (ms = nextFrame(p, t)); n++) { // at most 4 frames a turn, so a late JS thread still answers touches
           const t0 = performance.now();
           moving.current = advance(B, look, ms, moving.current, rec ? ev => (L ? noteLesson(rec as LessonRec, ev, B, ids) : record(rec, ev, B, ids)) : undefined);
-          scheduleOnUI(push, draw.current(), busy() ? p.frame : STILL, first && !n);
+          scheduleOnUI(push, draw.current(), busy() ? p.frame : STILL, first && !n, first && !n ? mark.current() : null);
           const cost = performance.now() - t0; spent(p, cost); made.current[0]++; made.current[1] += cost;
         }
         if (!busy()) pace.current = null; // the last frame stays on screen: a shot struck before the next turn starts its frames again
@@ -299,7 +306,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         }
       } else {
         if (on) { on = false; pace.current = null; timer = rest(); }
-        if (s.hand && !s.choice && !map.current.calm) paint(false); // the ring round the cue ball in hand pulses
+        if (s.hand && !s.choice && !map.current.calm) scheduleOnUI(setMarks, mark.current()); // the ring round the cue ball in hand pulses
       }
       raf = requestAnimationFrame(tick);
     };
@@ -449,6 +456,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       </Canvas>
       <Canvas style={StyleSheet.absoluteFill}>
         <Picture picture={guide} />
+        <Picture picture={marks} />
         <Picture picture={picture} />
       </Canvas>
       {hud && <Text pointerEvents="none" style={[styles.rates, { top: pad.top + HUD, left: pad.left + 8 }]}>{rates}</Text>}
