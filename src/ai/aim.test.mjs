@@ -60,12 +60,12 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   assert(off(shot.ang, Math.atan2(-0.3, -0.8)) < 0.02 && shot.speed >= 0.5 && shot.speed <= 1.5, `soft shot at the 1 (${JSON.stringify(shot)})`);
   ok('a hooked AI plays softly at its nearest ball');
 }
-{ // Strike noise follows the tier: the Shot handed to strike() scatters about the noise-free one (aim) by the tier's aim,
-  // speed and tip error. A dead-straight pot is played with no side, so the side offset scatters about zero.
+{ // Strike noise follows the tier: the Shot handed to strike() scatters about the noise-free one (aim) by the tier's aim
+  // (the cue ball's line, squirt from the side tip error included), speed and tip error. A dead-straight pot is played with no side, so the side offset scatters about zero.
   const B = [mk(P.L / 2, 0.8), mk(P.L / 2, 0.3)], rms = a => Math.sqrt(a.reduce((t, x) => t + x * x, 0) / a.length);
   for (const tier of [TIERS[0], TIERS[5]]) {
     const r = []; for (let i = 0; r.length < 60; i++) { const x = aiShot(B, [0, 1], SOLIDS, STRIPES, tier, rng(i)); if (x.pick.pocket === 1 && x.pick.type === 'direct') r.push(x); }
-    const aim = rms(r.map(x => x.shot.ang - x.aim.ang)) * 180 / Math.PI, side = rms(r.map(x => x.shot.a)), up = rms(r.map(x => x.shot.b - x.aim.b));
+    const aim = rms(r.map(x => x.shot.ang + x.shot.a * CUE.squirt - x.aim.ang)) * 180 / Math.PI, side = rms(r.map(x => x.shot.a)), up = rms(r.map(x => x.shot.b - x.aim.b));
     const sp = 100 * rms(r.map(x => x.shot.speed / x.aim.speed - 1));
     assert(up > 0.6 * tier.tipErr && up < 1.4 * tier.tipErr, `${tier.name}: tip error up and down ${up.toFixed(3)} ball radii`);
     assert(r.every(x => Math.abs(x.shot.b) <= CUE.tipLimit), `${tier.name}: the tip stays inside the miscue limit`);

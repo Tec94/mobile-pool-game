@@ -154,6 +154,8 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   const aim = sims < 2 ? start : refine(B, ids, group, tier, ids.indexOf(pick.ball), first, pick.type === 'safety' ? null : POCKETS[pick.pocket], pick.G, pick.leave!, start, sims);
   const t2 = performance.now(), g = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd()); // Box-Muller
   const tip = (x: number) => Math.max(-CUE.tipLimit, Math.min(CUE.tipLimit, x + g() * tier.tipErr)); // tipErr is in ball radii, as a and b are
-  const shot = { ang: aim.ang + g() * tier.sigma * Math.PI / 180, speed: Math.min(CUE.maxSpeed, Math.max(0.5, aim.speed * (1 + g() * tier.speedErr / 100))), a: tip(0), b: tip(aim.b) };
+  // side tip error squirts the cue ball off line (strike() adds a * squirt), so the aim itself scatters by the rest of sigma
+  const rad = tier.sigma * Math.PI / 180, aimSd = Math.sqrt(Math.max(0, rad * rad - (tier.tipErr * CUE.squirt) ** 2));
+  const shot = { ang: aim.ang + g() * aimSd, speed: Math.min(CUE.maxSpeed, Math.max(0.5, aim.speed * (1 + g() * tier.speedErr / 100))), a: tip(0), b: tip(aim.b) };
   return { shot, aim, pick, ms: [t1 - t0, t2 - t1] };
 }
