@@ -24,8 +24,8 @@ export default function App() {
   // Table metres -> screen px. Portrait stands the table up with the head string at the bottom.
   const s = land ? Math.min(width / (P.L + 2 * RAIL), (height - 60) / (P.W + 2 * RAIL)) : Math.min(width / (P.W + 2 * RAIL), (height - 60) / (P.L + 2 * RAIL));
   const PAD = RAIL * s;
-  const toS = (x: number, y: number) => (land ? { x: PAD + x * s, y: PAD + (P.W - y) * s } : { x: PAD + y * s, y: PAD + (P.L - x) * s });
-  const toT = (px: number, py: number) => (land ? { x: (px - PAD) / s, y: P.W - (py - PAD) / s } : { x: P.L - (py - PAD) / s, y: (px - PAD) / s });
+  const toS = (x: number, y: number) => (land ? { x: PAD + x * s, y: PAD + (P.W - y) * s } : { x: PAD + (P.W - y) * s, y: PAD + (P.L - x) * s }); // a turn, not a mirror: right english must stay right
+  const toT = (px: number, py: number) => (land ? { x: (px - PAD) / s, y: P.W - (py - PAD) / s } : { x: P.L - (py - PAD) / s, y: P.W - (px - PAD) / s });
   const map = useRef({ toT }); map.current.toT = toT; // the pan responder is created once, so it reads the latest mapping
 
   const table = useRef(newTable());
