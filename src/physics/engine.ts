@@ -38,6 +38,7 @@ const hyp=(x:number,y:number,z=0)=>Math.sqrt(x*x+y*y+z*z);
 //  corner: mouth 4.5 to 4.625 in between the nose points (ours 4.57), facings cut at 142 deg, shelf 1 to 2.25 in (ours 1.6)
 //  side:   mouth 5 to 5.125 in (ours 5.12), facings cut at 104 deg, shelf 0 to 0.375 in (ours 0.2)
 // Shelf = middle of the mouth line to where the slate drops away, so every hole sits outside the playing field, in the rail.
+// A cushion segment is [x0,y0,x1,y1, unit normal x,y, 1/length^2]; a hole is [x,y,radius].
 export const SEGS:number[][]=[],HOLES:number[][]=[];
 export const POCKET={cc:0.082,sc:0.065,deep:0.05,ca:38*Math.PI/180,sa:14*Math.PI/180,r:0.06,cornerOut:0.03,sideOut:0.065};
 export function setTable(L=P.L,W=P.W){
@@ -46,7 +47,7 @@ export function setTable(L=P.L,W=P.W){
  for(const [fx,fy] of [[0,0],[1,0],[0,1],[1,1]]){
   const X=(x:number)=>fx?L-x:x,Y=(y:number)=>fy?W-y:y;
   for(const [a,b,c,d] of [[cc,0,L/2-sc,0],[0,cc,0,W/2],[cc,0,cc-cj,-deep],[0,cc,-deep,cc-cj],[L/2-sc,0,L/2-sc+sj,-deep]])
-   SEGS.push([X(a),Y(b),X(c),Y(d)]);
+   {const s=[X(a),Y(b),X(c),Y(d)],ex=s[2]-s[0],ey=s[3]-s[1],l2=ex*ex+ey*ey,l=Math.sqrt(l2);SEGS.push([...s,-ey/l,ex/l,1/l2]);}
   HOLES.push([X(-cornerOut),Y(-cornerOut),r]);
  }
  HOLES.push([L/2,-sideOut,r],[L/2,W+sideOut,r]);}
@@ -199,8 +200,10 @@ export function step(B:Ball[],ev?:Ev[]):boolean{
   if(mv.length)for(let i=0;i<B.length;i++){const a=B[i];if(!a.on)continue;
     if(a.vx||a.vy||a.vz){for(let j=i+1;j<B.length;j++)C=touch(B,i,j,C,far2);}
     else for(let q=0;q<mv.length;q++)if(mv[q]>i)C=touch(B,i,mv[q],C,far2);}
+  let T:number[]|null=null; // T[k] = how long ago ball k hit another ball in this step: its velocity now holds only that far back
   if(C){
-    C=C.filter(c=>{if(!c.nz)return true;air(B[c.i],B[c.j],c,ev);return false;});
+    const hit=T=[] as number[];
+    C=C.filter(c=>{if(!c.nz)return true;air(B[c.i],B[c.j],c,ev);hit[c.i]=hit[c.j]=c.tb;return false;});
     const deg:number[]=[],v0:number[][]=[];
     for(const c of C)for(const k of [c.i,c.j]){deg[k]=(deg[k]||0)+1;const s=v0[k]||(v0[k]=[B[k].vx,B[k].vy,0]);if(c.tb>s[2])s[2]=c.tb;}
     // A ball touching two or more others at once (the rack, a cluster) is solved together, so the outcome
@@ -217,27 +220,38 @@ export function step(B:Ball[],ev?:Ev[]):boolean{
     for(const c of C){const a=B[c.i],b=B[c.j];
       if(!(deg[c.i]>1||deg[c.j]>1))collide(a,b,ev,c.i,c.j,c.nx,c.ny);
       else if(c.jn>0)land(a,b,ev,c.i,c.j,c.nx,c.ny,0,c.cut,c.f);}
-    for(const k in v0){const b=B[k],s=v0[k];b.x+=(b.vx-s[0])*s[2];b.y+=(b.vy-s[1])*s[2];}
+    for(const k in v0){const b=B[k],s=v0[k];b.x+=(b.vx-s[0])*s[2];b.y+=(b.vy-s[1])*s[2];hit[k]=s[2];}
   }
-  for(let i=0;i<B.length;i++){const b=B[i];
-    if(!b.on||!(b.vx||b.vy)||(b.x>R&&b.x<L-R&&b.y>R&&b.y<W-R))continue;
+  // Rails, pocket points and pockets. The path of the ball over the step is swept, and what it met first is handled
+  // first, at the instant it met it, so a clip of a pocket point does not depend on where the steps fall.
+  for(let i=0;i<B.length;i++){const b=B[i];if(!b.on||!(b.vx||b.vy))continue;
+    const m=R+(Math.abs(b.vx)+Math.abs(b.vy))*h;if(b.x>m&&b.x<L-m&&b.y>m&&b.y<W-m)continue;
     if((b.z??0)>P.railH){ // above the cushion: no rail or pocket can stop it, and once past the nose line it has left the table
       if(b.x<0||b.x>L||b.y<0||b.y>W){b.on=false;b.vx=b.vy=b.wx=b.wy=b.wz=b.z=b.vz=0;if(ev)ev.push({t:'off',a:i,x:b.x,y:b.y});}
       continue;}
-    let out=b.x<-0.012||b.x>L+0.012||b.y<-0.012||b.y>W+0.012;
-    for(const H of HOLES){const hx=b.x-H[0],hy=b.y-H[1];if(hx*hx+hy*hy<H[2]*H[2])out=true;}
-    if(out){b.on=false;b.vx=b.vy=b.wx=b.wy=b.wz=b.z=b.vz=0;if(ev)ev.push({t:'pocket',a:i,x:b.x,y:b.y});continue;}
-    for(const s of SEGS){
-      const ex=s[2]-s[0],ey=s[3]-s[1];
-      let t=((b.x-s[0])*ex+(b.y-s[1])*ey)/(ex*ex+ey*ey);t=t<0?0:t>1?1:t;
-      const dx=b.x-s[0]-t*ex,dy=b.y-s[1]-t*ey,d2=dx*dx+dy*dy;if(d2>=R*R||d2===0)continue;
-      const d=Math.sqrt(d2),nx=dx/d,ny=dy/d,vn=b.vx*nx+b.vy*ny;if(vn>=0)continue;
-      const tb=Math.min(h,(R-d)/-vn);
+    let pot=b.x<-0.012||b.x>L+0.012||b.y<-0.012||b.y>W+0.012;
+    for(let win=T?T[i]??h:h,pass=0;!pot&&pass<4;pass++){ // a pass for each cushion the ball can meet in one step (the two jaws of a pocket)
+      let tb=-1,nx=0,ny=0;
+      for(const H of HOLES){const hx=b.x-H[0],hy=b.y-H[1];let t=since(hx,hy,0,b.vx,b.vy,0,H[2],win);
+        if(t<0&&hx*hx+hy*hy<H[2]*H[2])t=win; // over the hole and on its way out after a hit in this step: it still drops
+        if(t>tb){tb=t;pot=true;}}
+      for(const s of SEGS){
+        const qx=b.x-s[0],qy=b.y-s[1],sd=qx*s[4]+qy*s[5],sg=sd<0?-1:1,a=sg*sd;if(a>=m)continue; // too far from its line to have met it
+        const vn=sg*(b.vx*s[4]+b.vy*s[5]);
+        if(a<R&&vn<0){ // the face: the ball is into it and still going in. It counts if the ball came in between the two ends
+          const t=Math.min(win,(R-a)/-vn),u=((qx-b.vx*t)*(s[2]-s[0])+(qy-b.vy*t)*(s[3]-s[1]))*s[6];
+          if(t>tb&&u>=-1e-9&&u<=1+1e-9){tb=t;nx=sg*s[4];ny=sg*s[5];pot=false;}}
+        // the point at the start of the segment: every pocket point starts a jaw, and the far end of a jaw is inside the hole
+        const t=since(qx,qy,0,b.vx,b.vy,0,R,win);
+        if(t>tb){const px=qx-b.vx*t,py=qy-b.vy*t,d=hyp(px,py);if(d>0){tb=t;nx=px/d;ny=py/d;pot=false;}}
+      }
+      if(tb<0||pot)break;
       b.x-=b.vx*tb;b.y-=b.vy*tb;
       if(ev)ev.push({t:'rail',a:i,x:b.x,y:b.y});
       cushion(b,-nx,-ny);
-      b.x+=b.vx*tb;b.y+=b.vy*tb;
+      b.x+=b.vx*tb;b.y+=b.vy*tb;win=tb;
     }
+    if(pot){b.on=false;b.vx=b.vy=b.wx=b.wy=b.wz=b.z=b.vz=0;if(ev)ev.push({t:'pocket',a:i,x:b.x,y:b.y});}
   }
   if(!moving)for(const b of B)b.wz=0; // sidespin left on a ball at rest must not leak into the next shot
   return moving;
