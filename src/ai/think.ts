@@ -15,6 +15,6 @@ const runtime = () => { if (rt === undefined) { try { rt = Platform.OS === 'web'
 // The AI's move for this table. Copies go across: a value handed to a worklet is frozen on the JS thread in dev builds.
 export function thinkAsync(B: Ball[], ids: number[], s: State, tier: number, seed: number, safeties: number): Promise<Move> {
   const args: Parameters<typeof think> = [B.map(b => ({ ...b })), [...ids], JSON.parse(JSON.stringify(s)), tier, seed, safeties], r = runtime();
-  if (r) return runOnRuntimeAsync(r, think, ...args);
+  if (r) { try { return runOnRuntimeAsync(r, think, ...args); } catch (e) { return Promise.reject(e); } } // a sync throw (dev, a function that is not a worklet) goes to the fallback too
   return new Promise((ok, no) => setTimeout(() => { try { ok(think(...args)); } catch (e) { no(e); } }, 50));
 }
