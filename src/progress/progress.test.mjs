@@ -65,7 +65,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   ok('match pay vs AI');
 }
 
-{ eq(NEW, { xp: 0, coins: 0, owned: ['house'], cue: 'house', feats: {}, mastery: {} }, 'a new profile: House Cue, nothing else');
+{ eq(NEW, { xp: 0, coins: 0, owned: ['house'], cue: 'house', feats: {}, mastery: {}, rival: { 8: { rating: 1, matches: 0 }, 9: { rating: 1, matches: 0 } } }, 'a new profile: House Cue, nothing else');
   eq(gain(NEW, { xp: 40, coins: 20 }), { profile: { ...NEW, xp: 40, coins: 20 }, from: 1, to: 1, bonus: 0 }, 'pay adds up');
   eq(gain({ ...NEW, xp: 190 }, { xp: 40, coins: 20 }), { profile: { ...NEW, xp: 230, coins: 90 }, from: 1, to: 2, bonus: 70 }, 'a level-up pays 50 + 10 x the new level');
   eq(gain(NEW, { xp: 450, coins: 0 }).bonus, 150, 'two level-ups pay both');
@@ -117,13 +117,13 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
 
 { for (const t of [null, '{oops', '[1,2]', '"x"', 'null', '7']) eq(readProfile(t), NEW, `${t}: a new profile`);
   readProfile(null).owned.push('x'); eq(NEW.owned, ['house'], 'the new profile is not shared');
-  const all = { xp: 12345, coins: 678, owned: ['house', 'baguette', 'twig'], cue: 'baguette', feats: { bank: { play: 12, scen: 3 }, long: { play: 25, scen: 0 } }, mastery: { baguette: { xp: 1200, power: 1, spin: 1, aim: 0, paid: 2 } } };
+  const all = { xp: 12345, coins: 678, owned: ['house', 'baguette', 'twig'], cue: 'baguette', feats: { bank: { play: 12, scen: 3 }, long: { play: 25, scen: 0 } }, mastery: { baguette: { xp: 1200, power: 1, spin: 1, aim: 0, paid: 2 } }, rival: { 8: { rating: 3.4, matches: 12 }, 9: { rating: 1.6, matches: 2 } } };
   eq(readProfile(JSON.stringify(all)), all, 'a good save round trips');
   eq(readProfile(JSON.stringify({ coins: 5 })), { ...NEW, coins: 5 }, 'an older save keeps what it has');
   ok('a missing, damaged or good save');
 }
 { const p = readProfile(JSON.stringify({ xp: -5, coins: 'lots', owned: ['twig', 'laser', 'twig', 7], cue: 'golden', feats: { bank: { play: 2.7, scen: -1 }, storm: { play: 3 }, kick: 'x' }, extra: 1 }));
-  eq(p, { xp: 0, coins: 0, owned: ['house', 'twig'], cue: 'house', feats: { bank: { play: 2, scen: 0 } }, mastery: {} }, 'bad values take their defaults, unknown cues and feats are dropped, House Cue is always owned');
+  eq(p, { xp: 0, coins: 0, owned: ['house', 'twig'], cue: 'house', feats: { bank: { play: 2, scen: 0 } }, mastery: {}, rival: NEW.rival }, 'bad values take their defaults, unknown cues and feats are dropped, House Cue is always owned');
   eq(readProfile(JSON.stringify({ owned: [], cue: 'house' })).owned, ['house'], 'House Cue cannot be lost');
   eq(readProfile(JSON.stringify({ owned: 'house', cue: 'twig' })).cue, 'house', 'a selected cue that is not owned: House Cue');
   eq(readProfile(JSON.stringify({ xp: 1e300, coins: Infinity })).xp, 1e9, 'numbers are clamped');

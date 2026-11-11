@@ -29,7 +29,8 @@ import { candsFor, choiceFor, type Move, nextSafeties, potPay, type Safeties, sa
 import { type Cand, TIERS } from './src/ai/shot-ai';
 import { matchPay, type Pay } from './src/progress/pay';
 import { aimGuide, DRAG, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
-import { award, keep, ownStats, PASS_PLAY, profile, unlockCue } from './src/progress';
+import { award, keep, ownStats, PASS_PLAY, profile, rivalDone, unlockCue } from './src/progress';
+import { shown, tenth } from './src/progress/rival';
 import { clear, clearFeats, isOpen, par, SCENARIOS, type Scenario, starCount, starsFor } from './src/scenarios/scenarios';
 import { armChalk, chalkResult, dailyClear, dailyPick, dayKey, grantChalk } from './src/daily/daily';
 import { loadDaily, saveDaily } from './src/daily/save';
@@ -37,7 +38,7 @@ import { loadStars, saveStars } from './src/scenarios/save';
 import { levelNote } from './src/progress/profile';
 import { CUES, stick } from './src/progress/cues';
 import { loadSettings, saveSettings } from './src/settings/save';
-import type { Settings } from './src/settings/settings';
+import { RIVAL, type Settings } from './src/settings/settings';
 import { BALLS, C, CLOTHS } from './src/theme';
 import { Btn } from './src/ui/Btn';
 import { LESSON_HUD, LessonHud } from './src/ui/LessonHud';
@@ -150,9 +151,13 @@ type Clear = ReturnType<typeof clear> & { saved: boolean; gained?: ReturnType<ty
 // A match, a lesson (lesson), or a scenario (scen, any table: the daily table plays one too). fresh = the lesson has not
 // been passed before; onPass = it was just passed; onClear = the scenario was just cleared, with its tries and whether
 // the whole try was played with the guide off. back = the page onQuit returns to, named on the result card.
-// ai = the AI tier (index into TIERS) in player 1's seat; -1 = pass and play.
+// ai = the AI tier (index into TIERS) in player 1's seat, or RIVAL; -1 = pass and play.
 function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, scen: S, onClear, back = 'Scenarios', chalk }: { set: Settings; ai?: number; chalk?: (won: boolean, matchPay: Pay) => Pay; back?: string; onQuit: () => void; lesson?: number; fresh?: boolean; onPass?: (id: string) => boolean; onNext?: () => void; scen?: Scenario; onClear?: (tries: number, guideOff: boolean) => Clear }) {
-  const vs = ai >= 0, game = vs ? set.aiGame : set.game, race = vs ? set.aiRace : set.race, names = vs ? [set.names[0], TIERS[ai].name] : set.names;
+  const vs = ai >= 0, game = vs ? set.aiGame : set.game, race = vs ? set.aiRace : set.race, rival = ai === RIVAL;
+  // The AI's rating on the tier scale. The Rival's is frozen for the match and read again for a rematch.
+  const level = useRef(rival ? profile().rival[game].rating : ai + 1), moved = useRef('');
+  // Shot pay (in the frame loop, which reads level.current so a rematch pays at the new rating): the Rival pays 0.7 + 0.1 x rating, as a boss does.
+  const names = vs ? [set.names[0], rival ? `Rival ${shown(level.current)}` : TIERS[ai].name] : set.names;
   const { width, height } = useWindowDimensions();
   const pad = useSafeAreaInsets(), calm = useReducedMotion();
   const L: Lesson | undefined = S ?? LESSONS[n];
@@ -229,9 +234,11 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   apply.current = (s: State) => {
     const t = table.current;
     if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++; if (score.current[s.winner] === race) {
-      const w = won.current, m = vs && matchPay({ tier: ai + 1, won: s.winner === 0, fouls: w.fouls, ownPotted: w.own, early: s.winner === 1 && s.note.endsWith('went down early.') }); // early: only an early 8 pays nothing (the note of over() in rules.ts)
+      const w = won.current, m = vs && matchPay({ tier: rival ? tenth(level.current) : ai + 1, won: s.winner === 0, fouls: w.fouls, ownPotted: w.own, early: s.winner === 1 && s.note.endsWith('went down early.') }); // early: only an early 8 pays nothing (the note of over() in rules.ts)
       const x = m && chalk ? chalk(s.winner === 0, m) : null; w.chalk = x?.xp || x?.coins ? x : null; // Fresh Chalk doubles the match pay, not the shot pay
       w.pay = m ? { xp: m.xp + w.shots.xp + (x?.xp ?? 0), coins: m.coins + w.shots.coins + (x?.coins ?? 0) } : PASS_PLAY; gained.current = award(w.pay, vs ? own : undefined); // quick match played the player's own cue
+      // The loser's own balls left (8-ball; 7 on an open table) say how close the match was.
+      if (rival) { const lose = 1 - s.winner, left = s.solids < 0 ? 7 : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === lose)).length, [a, b] = rivalDone(game, s.winner === 0, left, set.mood); moved.current = `Rival ${shown(a)} to ${shown(b)}`; }
     } }
     if (s.phase === 'break') { table.current = newTable(s); moving.current = false; safe.current = { row: 0, rack: 0 }; won.current.run = 0; }
     else { for (const id of s.spot) spotBall(t.B, t.ids.indexOf(id)); if (s.hand) handCue(t.B, s.hand); Object.assign(t, { rules: s, rec: null, push: false }); }
@@ -274,7 +281,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         if (!queue.value.length && L) { table.current.rec = null; ended.current(rec as LessonRec); }
         else if (!queue.value.length) {
           const next = judge(s, rec, pushOut);
-          if (vs && s.turn === 0) { const w = won.current, p = potPay(w.cands, rec, s, next, w.run, ai); w.shots.xp += p.pay.xp; w.shots.coins += p.pay.coins; w.run = p.run; w.own += p.own; w.fouls += +next.note.startsWith('Foul'); }
+          if (vs && s.turn === 0) { const w = won.current, p = potPay(w.cands, rec, s, next, w.run, rival ? { boss: level.current } : { tier: ai + 1 }); w.shots.xp += p.pay.xp; w.shots.coins += p.pay.coins; w.run = p.run; w.own += p.own; w.fouls += +next.note.startsWith('Foul'); }
           if (next.phase === 'over' || next.note.startsWith('Foul')) Haptics.notificationAsync(next.winner < 0 ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
           apply.current(next);
         }
@@ -330,12 +337,12 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
     setThinking(true);
     if (s.choice) then(() => apply.current(choose(s, choiceFor(s))));
     else {
-      const args = [t.B, t.ids, s, ai, seed.current++, safetiesArg(safe.current)] as const;
+      const args = [t.B, t.ids, s, level.current, seed.current++, safetiesArg(safe.current)] as const;
       thinkAsync(...args).then(m => then(() => play(m)), e => { // the runtime failed: think on the JS thread rather than stall the match
         if (__DEV__) console.warn('AI think failed off the JS thread', e);
         then(() => {
           let m: Move;
-          try { m = think(args[0].map(b => ({ ...b })), [...args[1]], s, ai, args[4], args[5]); }
+          try { m = think(args[0].map(b => ({ ...b })), [...args[1]], s, args[3], args[4], args[5]); }
           catch (e2) { if (__DEV__) console.warn('AI think failed', e2); m = softMove(t.B, t.ids, s); }
           play(m);
         });
@@ -418,7 +425,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   const over = rules.phase === 'over';
   const win = rules.winner === -1 ? 0 : rules.winner, done = over && score.current[win] >= race; // the match is over
   const rerack = (breaker = over ? 1 - rules.breaker : rules.breaker) => {
-    if (done) { score.current = [0, 0]; won.current = { shots: { xp: 0, coins: 0 }, run: 0, fouls: 0, own: 0, cands: [], pay: PASS_PLAY, chalk: null }; }
+    if (done) { score.current = [0, 0]; if (rival) { level.current = profile().rival[game].rating; moved.current = ''; } won.current = { shots: { xp: 0, coins: 0 }, run: 0, fouls: 0, own: 0, cands: [], pay: PASS_PLAY, chalk: null }; }
     apply.current(newGame(game, breaker as 0 | 1, set.callAll));
   };
 
@@ -473,6 +480,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
           {!done && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[1 - rules.breaker]} breaks`}</Text>}
           {done && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.pay]}>{`+${won.current.pay.xp} XP · +${won.current.pay.coins} coins`}</Text>}
           {done && vs && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`Shots +${won.current.shots.xp} XP · +${won.current.shots.coins} coins`}</Text>}
+          {done && !!moved.current && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{moved.current}</Text>}
           {done && won.current.chalk && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`Fresh Chalk: +${won.current.chalk.xp} XP · +${won.current.chalk.coins} coins`}</Text>}
           {done && gained.current && <Gained {...gained.current} />}
           {done && !!gained.current?.mastery && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{gained.current.mastery}</Text>}
