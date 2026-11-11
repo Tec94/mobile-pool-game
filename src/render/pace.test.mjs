@@ -12,7 +12,7 @@ function play(frame, hz, js, until) {
     const r = refresh(q, left, v ? hz : 0); q = r.rest; left = r.left; skipped += r.skipped; dry += r.dry ? 1 : 0;
     if (r.show !== null) { if (last >= 0) gaps.push(now - last); last = now; shown.push(r.show); made++; }
   }
-  return { shown, gaps, dry, skipped, t };
+  return { shown, gaps, dry, skipped, t, waiting: q.reduce((a, s) => a + s.ms, 0) };
 }
 const every = (step, until, jitter = () => 0) => Array.from({ length: Math.floor(until / step) }, (_, i) => i * step + jitter(i));
 
@@ -44,6 +44,9 @@ const every = (step, until, jitter = () => 0) => Array.from({ length: Math.floor
   const r = play(1000 / 60, 1000 / 60, every(1000 / 60, 2000).filter(t => t < 500 || t > 800), 2000);
   assert(r.dry > 10, 'the display ran dry');
   assert(r.shown.every((s, i) => i === 0 || s - r.shown[i - 1] <= 17), 'no play is skipped after the stall');
+  assert(r.waiting <= AHEAD + 2 * 1000 / 60, `the frames that wait do not grow after the stall, ${r.waiting} ms`);
+  const short = play(1000 / 60, 1000 / 60, every(1000 / 60, 2000).filter(t => t < 500 || t > 590), 2000);
+  assert(short.waiting <= AHEAD + 2 * 1000 / 60, `nor after a stall of 90 ms, ${short.waiting} ms`);
   ok('a stalled JS thread pauses play and does not replay the lost time');
 }
 { // A phone that needs 6 ms for a frame cannot make 120 a second: the rate halves once, and not again at 60.

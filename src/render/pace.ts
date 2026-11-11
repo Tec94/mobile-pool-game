@@ -3,7 +3,6 @@
 // so the JS thread makes each frame a little ahead of time (nextFrame) and the UI thread shows one on each display
 // refresh (refresh). What the JS thread's timing varies by is taken up by the frames that wait.
 export const AHEAD = 40; // ms of finished frames kept waiting: covers a JS thread that runs 2 frames late at 60 Hz
-const STALL = 100; // ms: a JS thread this far behind (app in the background, a long task) does not replay the time it lost
 
 export interface Pace { frame: number; next: number; owed: number; slow: number }
 export const newPace = (frame: number): Pace => ({ frame, next: -1, owed: 0, slow: 0 });
@@ -11,7 +10,9 @@ export const newPace = (frame: number): Pace => ({ frame, next: -1, owed: 0, slo
 // JS thread. The ms of play the next frame covers (the engine steps whole ms; the part left over carries on), or 0
 // when enough frames wait already. now = the time in ms.
 export function nextFrame(p: Pace, now: number): number {
-  if (p.next < now - STALL) p.next = now;
+  // A JS thread more than AHEAD late left the display with no frame for the time beyond that. The display does not
+  // catch that time up, so it is not made here either: more would only make the frames wait longer.
+  if (p.next < now - AHEAD) p.next = now - AHEAD;
   if (p.next > now + AHEAD) return 0;
   p.next += p.frame; p.owed += p.frame;
   const ms = Math.floor(p.owed); p.owed -= ms; return ms;
