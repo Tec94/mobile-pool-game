@@ -49,8 +49,9 @@ export function nearest(B: Ball[], keep = 0) {
 // What drawAim needs for a shot: the cue ball's path, the object ball's path, the ghost ball at the first contact,
 // the touchdowns of a jump, and `lost` when the cue ball leaves the table before it meets anything.
 // The cue ball's path after the first contact is shown only at Long and Full.
-export function aimGuide(B: Ball[], shot: Shot, level: number) {
-  const g = predict(B, shot, GUIDE[level]), k = g.split < 0 ? g.cue.length : g.split + 1;
+// budget = the limit on the work after the first contact (see predict), so one guide stays inside a frame.
+export function aimGuide(B: Ball[], shot: Shot, level: number, budget?: number) {
+  const g = predict(B, shot, GUIDE[level], undefined, undefined, budget), k = g.split < 0 ? g.cue.length : g.split + 1;
   // predict runs until both balls have gone the length, so the faster one overshoots it: cut each path to the length.
   const clip = (p: number[][], len: number) => {
     const out = p.slice(0, 1);

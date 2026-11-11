@@ -3,7 +3,7 @@
 export type Game=8|9;
 export interface Ball{x:number;y:number;vx:number;vy:number;wx:number;wy:number;wz:number;on:boolean;z?:number;vz?:number}
 export interface Shot{ang:number;speed:number;a:number;b:number;elev?:number}
-export interface Cue{maxSpeed:number;breakSpeed:number;squirt:number;tipLimit:number;maxElev:number;massRatio?:number}
+export interface Cue{maxSpeed:number;breakSpeed:number;squirt:number;tipLimit:number;maxElev:number;minElev?:number;massRatio?:number}
 export interface Ev{t:'bb'|'rail'|'pocket'|'off'|'land';a:number;b?:number;x:number;y:number;cut?:number;thr?:number;air?:boolean}
 type Vec3=[number,number,number];
 interface Contact{i:number;j:number;nx:number;ny:number;nz:number;tb:number;cut:number;jn:number;goal:number;f:Vec3|null}
@@ -30,7 +30,11 @@ export const P={R:0.028575,L:2.2352,W:1.1176,g:9.81,
 // cap for the opening shot only (real 11 to 13). massRatio = ball mass / cue mass (6 oz ball, 19 oz cue).
 // squirt = radians the cue ball leaves off the aim line per ball radius of side offset, away from the offset. Measured
 // at the miscue limit (Dr. Dave): 2.5 degrees for a standard shaft (0.087, the default), 1.8 for a low-deflection one (0.063).
-export const CUE: Cue={maxSpeed:4.5,breakSpeed:12,squirt:0.087,tipLimit:0.5,maxElev:1.4,massRatio:0.316};
+// minElev = the flattest the cue can be, radians. A real cue is never level, because the butt must clear the rail: 3 degrees
+// (the butt 3 in higher than the tip; Dr. Dave: one degree per inch). This is what makes a side spin shot swerve: a full
+// side spin shot bends 1.5 degrees back toward the aim line, early when slow and late when fast. The cue ball leaves the
+// cloth only above 8 m/s, so on a firm break it hops on its way to the rack, as on a real table.
+export const CUE: Cue={maxSpeed:4.5,breakSpeed:12,squirt:0.087,tipLimit:0.5,maxElev:1.4,minElev:0.052,massRatio:0.316};
 // sqrt is exactly rounded on every JS engine and Math.hypot is not (and is slow), so the engine uses this.
 const hyp=(x:number,y:number,z=0)=>Math.sqrt(x*x+y*y+z*z);
 
@@ -58,21 +62,30 @@ export function setTable(L=P.L,W=P.W){
 setTable();
 
 // Rack spots [id,x,y] for 8-ball or 9-ball: apex on the foot spot, g between neighbours' centres.
-// 9-ball is the diamond with the 1 at the apex and the 9 in the middle. The caller adds any random play.
+// 9-ball is the diamond with the 1 at the apex and the 9 in the middle.
+// A real rack is never perfect: each ball sits up to `play` off its spot along x and along y, by a fixed pattern, the same
+// in every rack, with no random numbers (of 24 patterns measured, this one gives the median break). A square hit then
+// no longer gives a mirror-image break. The two back corner balls still take most of the speed, as in the perfect rack.
+// play = 0 gives the perfect rack. At a third of the gap between neighbours (the default: 0.1 mm) no two balls can overlap.
 const RACKS:Record<Game,number[][]>={8:[[1],[9,2],[10,8,3],[11,7,14,4],[5,13,15,6,12]],9:[[1],[2,3],[4,9,5],[6,7],[8]]};
-export function rack(game:Game,g=2*P.R+3e-4){
-  const out:[number,number,number][]=[];
-  RACKS[game].forEach((r,i)=>r.forEach((id,k)=>out.push([id,0.75*P.L+i*g*Math.cos(Math.PI/6),P.W/2+(k-(r.length-1)/2)*g])));
+export function rack(game:Game,g=2*P.R+3e-4,play=(g-2*P.R)/3){
+  const out:[number,number,number][]=[];let s=2;
+  const off=()=>(s=Math.imul(s,1664525)+1013904223|0)/2147483648*play; // -play to play, in whole-number arithmetic so every device agrees
+  RACKS[game].forEach((r,i)=>r.forEach((id,k)=>out.push([id,0.75*P.L+i*g*Math.cos(Math.PI/6)+off(),P.W/2+(k-(r.length-1)/2)*g+off()])));
   return out;
 }
+// Where the cue ball starts for the break: on the head string, 11 cm from the side cushion, where real players break from.
+// Measured on this table (1,500 breaks a spot, power 75 to 100%, aim within half a degree of the head ball): a break from
+// here pots a ball with no foul on 35% of 8-ball breaks and 77% of 9-ball breaks; from the middle of the head string, 27% and 61%.
+export const breakSpot=():[number,number]=>[P.L/4,P.W-0.11];
 
 // Cue strike. s={ang,speed,a,b}: a = tip offset right, b = tip offset up, in ball radii.
-// elev = cue elevation in radians (0 = level). The cue's impulse runs down its own axis, so with elevation:
+// elev = cue elevation in radians, never flatter than cue.minElev. The cue's impulse runs down its own axis, so with elevation:
 //  - forward speed is speed*cos(elev) and the ball is driven into the slate at speed*sin(elev), which bounces it up (jump);
 //  - side offset a spins the ball about an axis tilted forward by elev, i.e. partly about its line of travel (masse).
 // Spin = 2.5*speed/R * (a*(r x d) + b*(u x d)) for cue axis d, tip-right r, tip-up u. Maths: https://claude.ai/artifact/TVh3RwdDyQP2htw8iHVYFd
 export function strike(b:Ball,s:Shot,cue:Cue=CUE){
-  const el=s.elev||0,ce=Math.cos(el),se=Math.sin(el);
+  const el=Math.max(s.elev||0,cue.minElev||0),ce=Math.cos(el),se=Math.sin(el);
   // shot.speed is the ball speed of a centre hit. Off centre, part of the stroke goes into spin, so the ball leaves
   // slower: v = v0 (1+m)/(1+m+2.5 off^2), the standard tip-ball impact result (32% slower at the miscue limit).
   const mr=cue.massRatio??0.316,v=s.speed*(1+mr)/(1+mr+2.5*(s.a*s.a+s.b*s.b));
@@ -270,7 +283,10 @@ export function step(B:Ball[],ev?:Ev[]):boolean{
 
 // The aim line is the real simulation run ahead on a copy of the table, so it is exact.
 // len = metres of path shown after the cue ball's first contact (Infinity = to rest).
-export function predict(B:Ball[],shot:Shot,len:number,stick?:Cue,maxSteps=25000){
+// budget caps the cost after that contact, in ball-steps (one moving ball for one step): a hit into the rack or a
+// cluster sets many balls moving, and following them all until the first ball has run len can take a whole break.
+// The default follows every path to len; the app's guide passes a cap so one aim update fits in a frame.
+export function predict(B:Ball[],shot:Shot,len:number,stick?:Cue,maxSteps=25000,budget=Infinity){
   const S=B.map(b=>({...b})),ev:Ev[]=[],c=S[0],cue:number[][]=[[c.x,c.y,0]],ob:number[][]=[];
   strike(c,shot,stick);
   let split=-1,hit:Ev|null=null,o:Ball|null=null,cl=0,ol=0,scratch=false,apex=0;const lands:number[][]=[];
@@ -294,6 +310,7 @@ export function predict(B:Ball[],shot:Shot,len:number,stick?:Cue,maxSteps=25000)
     // Only the cue ball and the first ball it hits are drawn, so stop once both are done, not when the whole table is.
     if(!mv||(idle(c)&&(!o||idle(o))))break;
     if(split>=0&&cl>=len&&(!o||ol>=len))break;
+    if(split>=0&&budget<Infinity){for(const b of S)if(b.on&&(b.vx||b.vy))budget--;if(budget<0)break;}
   }
   return {cue,ob,split,hit,scratch,lands,apex}; // path points are [x,y,z]; lands = cue ball touchdowns before first contact
 }
