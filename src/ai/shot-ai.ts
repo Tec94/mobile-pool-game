@@ -182,13 +182,15 @@ export const TIERS: Tier[] = [
 ];
 // 9-ball: pass NINE as the group for both sides. The lowest ball must be hit first, any ball may drop, the 9 wins.
 export const NINE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+// By its length, not by identity: a worklet runtime gets copies of NINE (src/ai/think.ts), and SOLIDS and STRIPES have 7.
+export const nine = (group: number[]) => group.length === 9;
 export const legalFor = (balls: Obj[], group: number[]): number[] => {
-  if (group === NINE) return balls.length ? [Math.min(...balls.map((b) => b.id))] : [];
+  if (nine(group)) return balls.length ? [Math.min(...balls.map((b) => b.id))] : [];
   const own = balls.filter((b) => group.includes(b.id)).map((b) => b.id);
   return own.length ? own : balls.some((b) => b.id === 8) ? [8] : [];
 };
-const potFor = (balls: Obj[], group: number[]) => (group === NINE ? NINE : legalFor(balls, group));
-const winBall = (group: number[]) => (group === NINE ? 9 : 8);
+export const potFor = (balls: Obj[], group: number[]) => (nine(group) ? NINE : legalFor(balls, group));
+export const winBall = (group: number[]) => (nine(group) ? 9 : 8);
 
 // Run-out planner. value ~ expected balls potted from here: P(make) x (1 + trust x value of the position left).
 // Searches the `width` best pots, every cue-ball leave of each, and recurses `depth` shots ahead.
@@ -196,7 +198,7 @@ const winBall = (group: number[]) => (group === NINE ? 9 : 8);
 // so a miss gets dearer and a safety more attractive as the rack runs down. need = balls a side still has to pot.
 const R_REF = 0.75, RACK = 4, HOOK = 0.2; // reference player's pot rate per further ball; value of the rack in balls; credit for a hook
 const REPLY = 2, WIN = 3; // a reply is worth about 2 balls to the opponent; potting the 8 is worth 3
-const need = (balls: Obj[], group: number[]) => (group === NINE ? balls.length : balls.filter((b) => group.includes(b.id)).length + 1);
+const need = (balls: Obj[], group: number[]) => (nine(group) ? balls.length : balls.filter((b) => group.includes(b.id)).length + 1);
 const replyCost = (tier: Tier, balls: Obj[], oppGroup: number[]) => REPLY + (tier.rack ? RACK * Math.pow(R_REF, need(balls, oppGroup) - 1) : 0);
 const oppBest = (cue: Pt, balls: Obj[], oppGroup: number[]) => Math.max(0, ...enumerate(cue, balls, legalFor(balls, oppGroup), potFor(balls, oppGroup)).map((s) => potProb(s, SIGMA_REF)));
 export function plan(cue: Pt, balls: Obj[], group: number[], tier: Tier, depth: number, width: number, oppGroup?: number[]): Planned[] {

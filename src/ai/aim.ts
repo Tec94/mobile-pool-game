@@ -1,7 +1,7 @@
 // The AI's shot on the real engine: correct the picker's ghost-ball aim for throw, squirt and swerve, refine aim, speed
 // and tip with noise-free rollouts within the tier's budget, and turn a pick into an engine Shot with the tier's strike noise. Port of the ai-progression prototype (engine-aim.js) plus the glue.
 import { type Ball, CUE, type Ev, P, type Shot, step, strike } from '../physics/engine.ts';
-import { decide, dist, enumerate, legalFor, NINE, type Obj, type Pick, POCKETS, potProb, type Pt, type Tier } from './shot-ai.ts';
+import { decide, dist, enumerate, legalFor, nine, type Obj, type Pick, POCKETS, potFor, potProb, type Pt, type Tier, winBall } from './shot-ai.ts';
 
 // Direction the object ball actually leaves in, for a given strike. Stops at first contact.
 function departure(cue: Ball, obj: Ball, shot: Shot) {
@@ -89,10 +89,10 @@ function rollout(B: Ball[], shot: Shot, k: number, first: number, pk: Pt | null,
 // shortcut: scores the noise-free rest spot only; sampling the tier's posErr scatter around it and a depth-1 plan from it
 // moved balls a visit by less than the bench's noise (0.15) at 300 tables, try again if the leave search changes.
 function nextP(B: Ball[], S: Ball[], ids: number[], group: number[], tier: Tier) {
-  const balls: Obj[] = [], w = ids.indexOf(group === NINE ? 9 : 8);
+  const balls: Obj[] = [], w = ids.indexOf(winBall(group));
   S.forEach((b, i) => i && b.on && balls.push({ id: ids[i], x: b.x * 1000, y: b.y * 1000 }));
-  if (w > 0 && B[w].on && !S[w].on) return group === NINE || !balls.some((b) => group.includes(b.id)) ? 1 : -1;
-  const legal = legalFor(balls, group), all = enumerate({ x: S[0].x * 1000, y: S[0].y * 1000 }, balls, legal, group === NINE ? NINE : legal);
+  if (w > 0 && B[w].on && !S[w].on) return nine(group) || !balls.some((b) => group.includes(b.id)) ? 1 : -1;
+  const legal = legalFor(balls, group), all = enumerate({ x: S[0].x * 1000, y: S[0].y * 1000 }, balls, legal, potFor(balls, group));
   const mine = all.filter((c) => tier.types.includes(c.type));
   return Math.max(0, ...(mine.length ? mine : all).map((c) => potProb(c, tier.sigma * Math.PI / 180)));
 }
