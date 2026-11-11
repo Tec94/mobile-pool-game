@@ -103,7 +103,7 @@ function Game() {
       </Canvas>
       {/* Controls sit inside the safe area: a row under the table in portrait, a column beside it in landscape. */}
       <View style={[styles.bar, view.land ? { top: pad.top, bottom: pad.bottom, right: pad.right, width: BAR, flexDirection: 'column' } : { left: pad.left, right: pad.right, bottom: pad.bottom, height: BAR, flexDirection: 'row' }]}>
-        {aim && <Text style={[styles.power, view.land ? { top: 8 } : { left: 16 }]}>{Math.round(aim.pull * 100)}%</Text>}
+        {aim && <Text maxFontSizeMultiplier={1.3} style={[styles.power, view.land ? { top: 8 } : { left: 16 }]}>{Math.round(aim.pull * 100)}%</Text>}
         <Btn label="Rack" onPress={() => { table.current = newTable(); moving.current = false; paint.current(); }} />
         <Btn label={'Demo\n' + DEMOS[demo][0]} onPress={() => {
           table.current = newTable(); table.current.broken = true;
@@ -116,13 +116,14 @@ function Game() {
   );
 }
 
-// Chrome button: hairline outline, a 44 pt target, and a 3% press that follows the finger down (no bounce).
+// Chrome button: hairline outline, a 44 pt target, and a 3% press that follows the finger down (no bounce). Its label
+// grows with the system text size only as far as the control bar has room for.
 function Btn({ label, onPress }: { label: string; onPress: () => void }) {
   const [down, setDown] = useState(false);
   return (
     <Pressable onPress={onPress} onPressIn={() => setDown(true)} onPressOut={() => setDown(false)} pressRetentionOffset={16} accessibilityRole="button" accessibilityLabel={label.replace('\n', ' ')}>
       <Animated.View style={{ ...styles.btn, transform: [{ scale: down ? 0.97 : 1 }], transitionProperty: 'transform', transitionDuration: '120ms', transitionTimingFunction: 'ease-out' }}>
-        <Text style={styles.btnText}>{label}</Text>
+        <Text maxFontSizeMultiplier={1.3} style={styles.btnText}>{label}</Text>
       </Animated.View>
     </Pressable>
   );
