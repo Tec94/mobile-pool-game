@@ -56,3 +56,12 @@ export function drawTable(api: typeof Skia, canvas: SkCanvas, v: View, cloth = C
   for (const [x, y, r] of HOLES) canvas.drawCircle(x, y, r, paint(C.pocket)); // after the light: a hole stays the darkest thing on the table
   canvas.restore();
 }
+
+// The aim guide, in the chalk line of the approved design: the cue ball's real path, and a ghost ball where it first
+// meets a ball. One path, so the joints of a see-through line do not double up.
+export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: number[][], ghost?: number[] | null) {
+  const r = P.R * v.s, p = api.Paint(); p.setAntiAlias(true); p.setColor(api.Color(C.chalk)); p.setStyle(1); p.setStrokeCap(1); p.setStrokeJoin(1); // stroke, round, round
+  p.setAlphaf(0.92); p.setStrokeWidth(0.19 * r);
+  canvas.drawPath(api.Path.Polygon(path.map(([x, y]) => toScreen(v, x, y)), false), p);
+  if (ghost) { const g = toScreen(v, ghost[0], ghost[1]); p.setAlphaf(0.9); p.setStrokeWidth(0.16 * r); canvas.drawCircle(g.x, g.y, 0.92 * r, p); }
+}

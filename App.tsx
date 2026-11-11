@@ -3,14 +3,14 @@
 // this screen proves Skia, the engine and the ball animation on the phone.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, PixelRatio, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { Canvas, Line, Picture, Skia, vec } from '@shopify/react-native-skia';
+import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
 import Animated, { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ball, CUE, P, predict, rack, Shot, strike } from './src/physics/engine';
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
-import { BAR, drawTable, fit, toScreen, toTable } from './src/render/table';
+import { BAR, drawAim, drawTable, fit, toTable } from './src/render/table';
 import { C, CLOTHS } from './src/theme';
 
 const MAX_DRAG = 160; // px of pull-back for full power
@@ -39,7 +39,8 @@ function Game() {
   const felt = useMemo(() => { const rec = Skia.PictureRecorder(); drawTable(Skia, rec.beginRecording(), view, CLOTHS[cloth]); return rec.finishRecordingAsPicture(); }, [...where, cloth]);
 
   const table = useRef(newTable());
-  const [aim, setAim] = useState<{ path: number[][]; pull: number } | null>(null);
+  const [aim, setAim] = useState<{ path: number[][]; ghost: number[] | null; pull: number } | null>(null);
+  const guide = useMemo(() => { const rec = Skia.PictureRecorder(), c = rec.beginRecording(); if (aim) drawAim(Skia, c, view, aim.path, aim.ghost); return rec.finishRecordingAsPicture(); }, [aim, ...where]);
   const [demo, setDemo] = useState(0);
   const moving = useRef(false);
   // The balls are one Skia picture, recorded here each frame and handed to the canvas through a shared value, so a
@@ -78,8 +79,8 @@ function Game() {
   const pan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => !moving.current,
     onPanResponderMove: (_, g) => {
-      const { shot, pull } = shotFrom(g.dx, g.dy);
-      setAim({ pull, path: predict(table.current.B, shot, 0.4).cue });
+      const { shot, pull } = shotFrom(g.dx, g.dy), { cue, hit } = predict(table.current.B, shot, 0.4);
+      setAim({ pull, path: cue, ghost: hit && [hit.x, hit.y] });
     },
     onPanResponderRelease: (_, g) => {
       setAim(null);
@@ -92,14 +93,12 @@ function Game() {
     },
   })).current;
 
-  const seg = (x: number, y: number) => { const p = toScreen(view, x, y); return vec(p.x, p.y); };
-
   return (
     <View style={styles.root} {...pan.panHandlers}>
       <StatusBar style="light" />
       <Canvas style={StyleSheet.absoluteFill}>
         <Picture picture={felt} />
-        {aim && aim.path.slice(1).map((q, i) => <Line key={'a' + i} p1={seg(aim.path[i][0], aim.path[i][1])} p2={seg(q[0], q[1])} color={C.chalk} strokeWidth={1.5} />)}
+        <Picture picture={guide} />
         <Picture picture={picture} />
       </Canvas>
       {/* Controls sit inside the safe area: a row under the table in portrait, a column beside it in landscape. */}
