@@ -1,7 +1,7 @@
 // Run: npm test   (checks the tip and cue elevation control: what a touch sets, and that the engine gets the same shot)
 import assert from 'node:assert';
 import { CUE, P, predict } from '../physics/engine.ts';
-import { grab, LEVEL, moveElev, moveSpin, ringAt, shotTip, spinLabel, tapSpin, zone, zoneLabel } from './tip.ts';
+import { grab, LEVEL, moveElev, moveSpin, ringAt, ringTurn, shotTip, spinLabel, tapSpin, zone, zoneLabel } from './tip.ts';
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 const near = (a, b, tol, msg) => assert(Math.abs(a - b) < tol, `${msg}: ${a} vs ${b}`);
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
@@ -33,6 +33,8 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
   for (const deg of [0, 40, 65, 80]) near(ringAt(...at(deg), D)[0], deg, 1e-9, 'angle under the finger');
   assert(grab(...at(40), D) === 'ring' && grab(c + 10, c - 20, D) === 'pad', 'ring and pad');
   assert(grab(c, c + r, D) === null, 'the lower half of the ring is not a handle');
+  near(ringTurn(ringAt(...at(10), D)[0], ringAt(...at(30), D)[0]), 20, 1e-9, 'a drag along the ring');
+  near(ringTurn(ringAt(c - r, c + 1, D)[0], ringAt(c - 5, c + r, D)[0]), -58, 3, 'down past 6 o\'clock lowers the cue, it does not jump to 80');
   ok('touches map to the ring and the pad');
 }
 { // What the control shows is what the engine plays.

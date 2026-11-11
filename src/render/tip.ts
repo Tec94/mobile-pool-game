@@ -47,6 +47,9 @@ export function ringAt(px: number, py: number, D: number) {
   const x = px / D * U - U / 2, y = py / D * U - U / 2; let a = Math.atan2(y, x) * 180 / Math.PI; if (a < 90) a += 360;
   return [(a - 180) / 1.5, Math.hypot(x, y)];
 }
+// Elevation change between two ringAt readings, by the short way round: a finger that crosses the cut at 6 o'clock
+// (a full turn is 240 on this scale) does not throw the cue from level to full masse.
+export const ringTurn = (from: number, to: number) => ((to - from + 360) % 240) - 120;
 export function grab(px: number, py: number, D: number): 'ring' | 'pad' | null {
   const [deg, d] = ringAt(px, py, D);
   return d < PAD * U ? 'pad' : d >= 78 && deg >= -12 && deg <= 92 ? 'ring' : null;
