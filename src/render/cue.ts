@@ -67,15 +67,15 @@ export function drawDial(api: typeof Skia, canvas: SkCanvas, w: number, h: numbe
 // button, the dial and the spin button. Landscape: spin, dial and tools in a column on the left, the rail on the right.
 // shortcut: the rail is always on the right, the Power side setting of the settings screen mirrors this.
 export interface Box { left: number; top: number; width: number; height: number }
-export const RAIL_W = 56;
+export const RAIL_W = 56, DIAL = 36; // DIAL = the thickness of the fine aim dial (it has a hit slop of 6 on each long side)
 export function shotLayout(w: number, h: number, pad: Inset): { view: View; rail: Box; dial: Box; spin: Box; tools: Box } {
   const [t, r, b, l] = [pad.top, pad.right, pad.bottom, pad.left].map(p => Math.max(p, 8));
   if (w > h) { // fit() keeps BAR on the right, for the rail; the larger inset keeps the same on the left
     const top = t + 60, foot = h - b - 44;
     return { view: fit(w, h, { ...pad, left: l + BAR }), rail: { left: w - r - BAR + 4, top: t, width: RAIL_W, height: h - t - b },
-      spin: { left: l + 8, top: t, width: 48, height: 48 }, dial: { left: l + 8, top, width: 48, height: foot - 12 - top }, tools: { left: l + 4, top: foot, width: 56, height: 44 } };
+      spin: { left: l + 8, top: t, width: 48, height: 48 }, dial: { left: l + 32 - DIAL / 2, top, width: DIAL, height: foot - 12 - top }, tools: { left: l + 4, top: foot, width: 56, height: 44 } };
   }
   const view = fit(w, h, { ...pad, right: r + RAIL_W + 8 }), row = h - b - BAR, foot = view.oy + (P.L + RAIL) * view.s, tall = Math.min(300, (P.L + 2 * RAIL) * view.s);
   return { view, rail: { left: w - r - RAIL_W, top: foot - tall, width: RAIL_W, height: tall },
-    tools: { left: l, top: row + 10, width: 56, height: 44 }, dial: { left: l + 68, top: row + 8, width: w - r - l - 128, height: 48 }, spin: { left: w - r - 48, top: row + 8, width: 48, height: 48 } };
+    tools: { left: l, top: row + 10, width: 56, height: 44 }, dial: { left: l + 68, top: row + 32 - DIAL / 2, width: w - r - l - 128, height: DIAL }, spin: { left: w - r - 48, top: row + 8, width: 48, height: 48 } };
 }

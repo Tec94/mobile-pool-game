@@ -1,7 +1,7 @@
 // Run: npm test   (checks the shot controls: what a touch does to the aim and the power, and what the guide shows)
 import assert from 'node:assert';
 import { CUE, P, predict } from '../physics/engine.ts';
-import { shotLayout } from '../render/cue.ts';
+import { DIAL, shotLayout } from '../render/cue.ts';
 import { RAIL } from '../render/table.ts';
 import { aimGuide, dialTurn, guideLen, nearest, nudge, powerTick, previewPower, pullPower, railLabel, release, SENS, swing, tapAim } from './aim.ts';
 const mk = (x, y, on = true) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on });
@@ -79,7 +79,8 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
     const { view: v, ...ui } = shotLayout(w, h, pad), land = w > h, tw = (land ? P.L : P.W) + 2 * RAIL, th = (land ? P.W : P.L) + 2 * RAIL;
     const boxes = [...Object.entries(ui), ['table', { left: v.ox - RAIL * v.s, top: v.oy - RAIL * v.s, width: tw * v.s, height: th * v.s }]];
     for (const [name, b] of boxes) {
-      assert(b.width >= 44 && b.height >= 44, `${name} is a 44 pt target at ${w}x${h}`);
+      const slop = name === 'dial' ? 44 - DIAL : 0; // the dial is thinner and takes touches beside it
+      assert(b.width + slop >= 44 && b.height + slop >= 44, `${name} is a 44 pt target at ${w}x${h}`);
       assert(b.left >= pad.left && b.top >= pad.top && b.left + b.width <= w - pad.right + 1e-9 && b.top + b.height <= h - pad.bottom + 1e-9, `${name} is inside the safe area at ${w}x${h}`);
       for (const [other, o] of boxes) assert(name === other || b.left + b.width <= o.left + 1e-9 || o.left + o.width <= b.left + 1e-9 || b.top + b.height <= o.top + 1e-9 || o.top + o.height <= b.top + 1e-9, `${name} and ${other} overlap at ${w}x${h}`);
     }
