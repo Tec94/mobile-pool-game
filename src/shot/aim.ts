@@ -3,7 +3,7 @@
 // The aim is an angle in radians in the table frame. The screen shows the table mirrored (toScreen flips one axis in
 // both orientations), so a clockwise turn on the glass is a smaller angle here.
 import { predict } from '../physics/engine.ts';
-import type { Ball, Shot } from '../physics/engine.ts';
+import type { Ball, Cue, Shot } from '../physics/engine.ts';
 
 const TURN = 2 * Math.PI, DEG = Math.PI / 180, wrap = (a: number) => a - TURN * Math.round(a / TURN);
 export const DRAG = 6, TAP_MS = 300; // px of travel before a touch on the table is a drag; a tap is shorter than this
@@ -49,8 +49,9 @@ export function nearest(B: Ball[], keep = 0) {
 // the touchdowns of a jump, and `lost` when the cue ball leaves the table before it meets anything.
 // The cue ball's path after the first contact is shown only at Long and Full.
 // budget = the limit on the work after the first contact (see predict), so one guide stays inside a frame.
-export function aimGuide(B: Ball[], shot: Shot, level: number, budget?: number) {
-  const g = predict(B, shot, GUIDE[level], undefined, undefined, budget), k = g.split < 0 ? g.cue.length : g.split + 1;
+// stick = the engine cue that will strike, so the guide squirts as the shot will.
+export function aimGuide(B: Ball[], shot: Shot, level: number, budget?: number, stick?: Cue) {
+  const g = predict(B, shot, GUIDE[level], stick, undefined, budget), k = g.split < 0 ? g.cue.length : g.split + 1;
   // predict runs until both balls have gone the length, so the faster one overshoots it: cut each path to the length.
   const clip = (p: number[][], len: number) => {
     const out = p.slice(0, 1);

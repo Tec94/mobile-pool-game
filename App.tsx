@@ -37,7 +37,7 @@ const GRAB = 36; // px: a touch this near the cue ball in hand drags it. The bal
 // ball keeps its distance from the finger and stays in view.
 const GUIDE_WORK = 3200; // ball-steps the aim guide may follow after first contact: one update stays inside a frame, even into the rack
 // Pass and play is a matched game: both players on House Cue stats with the perks off, whatever cues the phone owns.
-const STICK = stick('house', true);
+const MATCH_CUE = 'house', STICK = stick(MATCH_CUE, true), GUIDE_LEVEL = guideFor(CUES[MATCH_CUE].aim); // one cue for the shot and its guide
 const STILL = 1e9; // ms: a picture that stays on screen until the next one comes (the table at rest, the last frame of a shot)
 // Sample shots, played from a fresh rack so the spin, jump and masse animation can be seen without aiming one.
 const DEMOS: [string, Partial<Shot>][] = [['Draw', { speed: 2.5, b: -0.45 }], ['Side', { speed: 1.2, a: 0.45 }], ['Jump', { speed: 4.2, elev: 0.7 }], ['Massé', { speed: 3.5, a: 0.4, elev: 1.19 }]];
@@ -150,7 +150,7 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
       if (stale.current) { // one guide a frame, however many touches came. While a shot can be made the guide and the cue stick are always there: for the pull on the rail, or for a firm shot without one
         const rec = Skia.PictureRecorder(), c = rec.beginRecording(), { aim, power } = shot.get();
         if (!shut()) {
-          const g = aimGuide(B, shotOf(previewPower(power)), guideFor(CUES.house.aim), GUIDE_WORK);
+          const g = aimGuide(B, shotOf(previewPower(power)), GUIDE_LEVEL, GUIDE_WORK, STICK);
           drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob); drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power);
         }
         guide.value = rec.finishRecordingAsPicture(); stale.current = false;
