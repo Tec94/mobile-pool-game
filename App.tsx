@@ -1,6 +1,6 @@
 // Device smoke test: the real engine on a Quiet Slate table. Pull back from anywhere to aim and shoot.
-// shortcut: no spin or elevation controls, rules or HUD yet (the Demo button plays spin, jump and masse shots);
-// this screen proves Skia, the engine and the ball animation on the phone.
+// The cue ball button opens the tip and cue angle sheet (spin, jump, masse).
+// shortcut: no rules or HUD yet; this screen proves Skia, the engine and the ball animation on the phone.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, PixelRatio, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Canvas, Picture, Skia, type SkPicture } from '@shopify/react-native-skia';
@@ -13,12 +13,14 @@ import { Ball, CUE, P, predict, rack, Shot, strike } from './src/physics/engine'
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
 import { newPace, nextFrame, type Pace, refresh, type Slot, spent } from './src/render/pace';
 import { BAR, drawAim, drawTable, fit, toTable } from './src/render/table';
+import { LEVEL, shotTip } from './src/render/tip';
 import { C, CLOTHS } from './src/theme';
+import { TipButton, TipSheet, tipStore } from './src/ui/TipControl';
 
 const MAX_DRAG = 160; // px of pull-back for full power
 const GUIDE_WORK = 3200; // ball-steps the aim guide may follow after first contact: one update stays inside a frame, even into the rack
 const STILL = 1e9; // ms: a picture that stays on screen until the next one comes (the table at rest, the last frame of a shot)
-// Shots the screen has no controls for yet, played from a fresh rack so the spin, jump and masse animation can be seen.
+// Sample shots, played from a fresh rack so the spin, jump and masse animation can be seen without aiming one.
 const DEMOS: [string, Partial<Shot>][] = [['Draw', { speed: 2.5, b: -0.45 }], ['Side', { speed: 1.2, a: 0.45 }], ['Jump', { speed: 4.2, elev: 0.7 }], ['Massé', { speed: 3.5, a: 0.4, elev: 1.19 }]];
 const kit = makeKit(Skia);
 const EMPTY = (() => { const rec = Skia.PictureRecorder(); rec.beginRecording(); return rec.finishRecordingAsPicture(); })();
@@ -47,6 +49,7 @@ function Game() {
   const want = useRef<number[] | null>(null); // the newest pull-back not yet drawn: touches can come faster than frames
   const [demo, setDemo] = useState(0);
   const [hud, setHud] = useState(__DEV__), [rates, setRates] = useState(''); // frame rate readout: hold the Rack button to show or hide it
+  const tip = useRef(tipStore()).current, [sheet, setSheet] = useState(false);
   const moving = useRef(false);
   // The balls and the aim guide are Skia pictures, recorded on the JS thread and handed to the canvas through shared
   // values, so a frame of play or of aiming never re-renders React.
@@ -83,8 +86,8 @@ function Game() {
     const tick = (t: number) => {
       const { B, look } = table.current;
       if (want.current) { // one aim guide a frame, for the newest touch
-        const { shot, pull } = shotFrom(want.current[0], want.current[1]), { cue, hit } = predict(B, shot, 0.4, undefined, undefined, GUIDE_WORK);
-        const rec = Skia.PictureRecorder(); drawAim(Skia, rec.beginRecording(), map.current, cue, hit && [hit.x, hit.y]);
+        const { shot, pull } = shotFrom(want.current[0], want.current[1]), { cue, hit, lands, scratch, split } = predict(B, shot, 0.4, undefined, undefined, GUIDE_WORK);
+        const rec = Skia.PictureRecorder(); drawAim(Skia, rec.beginRecording(), map.current, cue, hit && [hit.x, hit.y], lands, scratch && split < 0);
         guide.value = rec.finishRecordingAsPicture(); setPull(Math.round(pull * 100)); want.current = null;
       }
       const busy = () => moving.current || look.fx.length > 0; // effects (a ball falling into a pocket) outlive the last moving ball
@@ -121,7 +124,7 @@ function Game() {
     const pull = Math.min(1, Math.hypot(dx, dy) / MAX_DRAG);
     const a = toTable(map.current, 0, 0), b = toTable(map.current, -dx, -dy); // aim opposite the pull
     const max = table.current.broken ? CUE.maxSpeed : CUE.breakSpeed;
-    return { shot: { ang: Math.atan2(b.y - a.y, b.x - a.x), speed: Math.max(0.05, pull * max), a: 0, b: 0 }, pull };
+    return { shot: { ang: Math.atan2(b.y - a.y, b.x - a.x), speed: Math.max(0.05, pull * max), ...shotTip(tip.get()) }, pull };
   };
   const pan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => !moving.current,
@@ -134,6 +137,7 @@ function Game() {
       if (!B[0].on) Object.assign(B[0], { x: P.L / 4, y: P.W / 2, on: true }); // shortcut: a scratch respots on the head spot, no ball in hand yet
       Haptics.impactAsync(pull > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
       strike(B[0], shot); table.current.broken = true; moving.current = true;
+      tip.set(LEVEL); setSheet(false); // the cue goes back to level and centre ball after every shot
     },
   })).current;
 
@@ -159,7 +163,10 @@ function Game() {
           paint(); moving.current = true; setDemo((demo + 1) % DEMOS.length);
         }} />
         <Btn label={'Felt\n' + CLOTHS[cloth].name} onPress={() => setCloth((cloth + 1) % CLOTHS.length)} />
+        <TipButton store={tip} onPress={() => setSheet(!sheet)} />
       </View>
+      {sheet && <TipSheet store={tip} land={view.land} calm={calm} felt={CLOTHS[cloth].felt} onDone={() => setSheet(false)}
+        style={view.land ? { right: pad.right + BAR + 8, bottom: Math.max(pad.bottom, 8), width: 300 } : { left: pad.left + 8, right: pad.right + 8, bottom: pad.bottom + BAR + 8 }} />}
     </View>
   );
 }
