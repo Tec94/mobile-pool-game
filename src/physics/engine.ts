@@ -62,11 +62,16 @@ export function setTable(L=P.L,W=P.W){
 setTable();
 
 // Rack spots [id,x,y] for 8-ball or 9-ball: apex on the foot spot, g between neighbours' centres.
-// 9-ball is the diamond with the 1 at the apex and the 9 in the middle. The caller adds any random play.
+// 9-ball is the diamond with the 1 at the apex and the 9 in the middle.
+// A real rack is never perfect: each ball sits up to `play` off its spot along x and along y, by a fixed pattern, the same
+// in every rack, with no random numbers (of 24 patterns measured, this one gives the median break). A square hit then
+// no longer gives a mirror-image break. The two back corner balls still take most of the speed, as in the perfect rack.
+// play = 0 gives the perfect rack. At a third of the gap between neighbours (the default: 0.1 mm) no two balls can overlap.
 const RACKS:Record<Game,number[][]>={8:[[1],[9,2],[10,8,3],[11,7,14,4],[5,13,15,6,12]],9:[[1],[2,3],[4,9,5],[6,7],[8]]};
-export function rack(game:Game,g=2*P.R+3e-4){
-  const out:[number,number,number][]=[];
-  RACKS[game].forEach((r,i)=>r.forEach((id,k)=>out.push([id,0.75*P.L+i*g*Math.cos(Math.PI/6),P.W/2+(k-(r.length-1)/2)*g])));
+export function rack(game:Game,g=2*P.R+3e-4,play=(g-2*P.R)/3){
+  const out:[number,number,number][]=[];let s=2;
+  const off=()=>(s=Math.imul(s,1664525)+1013904223|0)/2147483648*play; // -play to play, in whole-number arithmetic so every device agrees
+  RACKS[game].forEach((r,i)=>r.forEach((id,k)=>out.push([id,0.75*P.L+i*g*Math.cos(Math.PI/6)+off(),P.W/2+(k-(r.length-1)/2)*g+off()])));
   return out;
 }
 

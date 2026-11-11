@@ -139,13 +139,17 @@ const shot = (gap, speed, a, b, offY = 0) => {
   const c = simulate(B, s, CUE, 100); assert(!c.settled && c.steps <= 101, 'simulate stops at the cap');
   console.log('bot simulate ok'); }
 // 14. Racks: 15 balls for 8-ball, a 9-ball diamond with the 1 on the foot spot and the 9 in the middle; both break cleanly.
+// The rack is not perfect: every ball is a little off its spot (at most 0.1 mm each way), by the same pattern every time.
 { for (const [game, n] of [[8, 15], [9, 9]]) {
-    const S = rack(game); assert(S.length === n && new Set(S.map(s => s[0])).size === n, game + '-ball rack size');
-    assert(S[0][0] === 1 && Math.abs(S[0][1] - 0.75 * L) < 1e-12 && Math.abs(S[0][2] - W / 2) < 1e-12, 'the 1 sits on the foot spot');
+    const S = rack(game), T = rack(game, undefined, 0), off = S.map((s, i) => Math.hypot(s[1] - T[i][1], s[2] - T[i][2])); // T: the perfect rack
+    assert(S.length === n && new Set(S.map(s => s[0])).size === n, game + '-ball rack size');
+    assert(T[0][0] === 1 && Math.abs(T[0][1] - 0.75 * L) < 1e-12 && Math.abs(T[0][2] - W / 2) < 1e-12, 'the 1 sits on the foot spot');
+    assert(Math.min(...off) > 0 && Math.max(...off) < 1.42e-4 && Math.max(...off) > 5e-5, `each ball is off its spot by 0.14 mm at most, got ${Math.min(...off) * 1e3} to ${Math.max(...off) * 1e3} mm`);
+    assert.deepStrictEqual(rack(game), S, 'the rack is the same every time');
     for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) assert(Math.hypot(S[i][1] - S[j][1], S[i][2] - S[j][2]) > 2 * R, 'racked balls overlap');
     const B = [mk(L / 4, W / 2), ...S.map(s => mk(s[1], s[2]))], r = simulate(B, { ang: 0, speed: CUE.breakSpeed, a: 0, b: 0.1 }, CUE, 60000);
     assert(r.settled && r.balls.every(b => Number.isFinite(b.x + b.y)), game + '-ball break settles'); }
-  const nine = rack(9), mid = nine.find(s => s[0] === 9), xs = nine.map(s => s[1]);
+  const nine = rack(9, undefined, 0), mid = nine.find(s => s[0] === 9), xs = nine.map(s => s[1]);
   assert(Math.abs(mid[2] - W / 2) < 1e-12 && Math.abs(mid[1] - (Math.min(...xs) + Math.max(...xs)) / 2) < 1e-12, 'the 9 is in the middle of the diamond');
   console.log('racks ok (8-ball and 9-ball)'); }
 // 15. Calibration against measured tables: roll distance and lag time for the cloth speed (Jewett: speed = 2 t^2,
