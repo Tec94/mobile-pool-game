@@ -58,5 +58,9 @@ export function aimGuide(B: Ball[], shot: Shot, level: number, budget?: number) 
     for (let i = 1; i < p.length && len > 0; i++) { const a = p[i - 1], b = p[i], d = Math.hypot(b[0] - a[0], b[1] - a[1]), t = d > len ? len / d : 1; out.push(a.map((v, j) => v + (b[j] - v) * t)); len -= d; }
     return out;
   };
+  // A kick: the cue ball meets a cushion first. Below Long the line stops there, so the ring goes there too and no
+  // object ball path hangs loose beyond it.
+  const q = g.cue[k - 1], kick = level < 3 && g.split >= 0 && !!g.hit && Math.hypot(q[0] - g.hit.x, q[1] - g.hit.y) > 1e-6;
+  if (kick) return { path: g.cue.slice(0, k), ob: [], ghost: [q[0], q[1]], lands: g.lands, lost: false };
   return { path: [...g.cue.slice(0, k), ...(level < 3 ? [] : clip(g.cue.slice(k - 1), GUIDE[level]).slice(1))], ob: clip(g.ob, GUIDE[level]), ghost: g.hit && [g.hit.x, g.hit.y], lands: g.lands, lost: g.scratch && g.split < 0 };
 }

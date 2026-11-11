@@ -58,6 +58,12 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
   const jump = aimGuide([mk(0.3, mid)], { ang: Math.PI, speed: 4.5, a: 0, b: 0, elev: 42 * DEG }, 2); assert(jump.lost && !jump.ghost, 'a jump off the table is lost');
   ok('the guide shows the object ball path, and the cue ball path after contact only at Long');
 }
+{ // A kick shot at Medium: the line stops at the cushion, the ring sits on its end and no object ball path hangs loose.
+  const ball = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true }), B = [ball(1, 0.3), ball(1.4, 0.12)];
+  const g = aimGuide(B, { ang: Math.atan2(-0.27, 0.3), speed: 2, a: 0, b: 0 }, 2), end = g.path[g.path.length - 1];
+  assert(end[1] < P.R + 1e-3, 'the line ends at the cushion'); assert(g.ghost && Math.hypot(g.ghost[0] - end[0], g.ghost[1] - end[1]) < 1e-9, 'the ring is on the end of the line'); assert(g.ob.length === 0, 'no object ball path');
+  ok('a kick shot shows the ring at the cushion');
+}
 { // The layout: on an iPhone and a small Android window, both ways up, every control is a 44 pt target inside the safe
   // area, and no control touches another or the table.
   for (const [w, h, pad] of [[393, 852, { top: 59, right: 0, bottom: 34, left: 0 }], [852, 393, { top: 0, right: 59, bottom: 21, left: 59 }], [360, 640, { top: 24, right: 0, bottom: 0, left: 0 }], [640, 360, { top: 0, right: 0, bottom: 0, left: 24 }]]) {
