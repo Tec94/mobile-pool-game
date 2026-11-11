@@ -11,7 +11,7 @@ import { type Move, think } from './turn';
 
 // A dropped think (pause, new ruling, leaving) still runs to completion on the serial runtime: there is no cancel API.
 let rt: WorkletRuntime | null | undefined; // undefined = not made yet, null = cannot be made here
-export const runtime = () => { if (rt === undefined) { try { rt = Platform.OS === 'web' ? null : createWorkletRuntime({ name: 'ai' }); } catch { rt = null; } } return rt; };
+const runtime = () => { if (rt === undefined) { try { rt = Platform.OS === 'web' ? null : createWorkletRuntime({ name: 'ai' }); } catch { rt = null; } } return rt; };
 
 // The AI's move for this table. Copies go across: a value handed to a worklet is frozen on the JS thread in dev builds.
 export function thinkAsync(B: Ball[], ids: number[], s: State, tier: number, seed: number, safeties: number): Promise<Move> {
