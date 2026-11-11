@@ -10,6 +10,7 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, false), phase: 'play', hand: fa
 { // 8-ball plates
   let [a, b] = plates(newGame(8));
   eq([a.name, a.on, a.text, b.on, b.text, a.pips], ['Player 1', true, 'Break', false, 'Open', []], 'the breaker\'s plate says Break, the other is open');
+  eq(plates(newGame(8), ['Ann', 'Bob']).map(q => [q.name, q.label]), [['Ann', 'Ann, to shoot, Break'], ['Bob', 'Bob, Open']], 'pass and play names go on the plates');
   [a, b] = plates(play8({ turn: 1 }));
   eq([a.on, a.text, b.on, b.text], [false, 'Open', true, 'Open'], 'open table after the break: both plates say Open, the turn moved');
   const s = play8({ solids: 1, balls: [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] }); // player 2 has solids; the 3 is down
