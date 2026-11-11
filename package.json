@@ -25,7 +25,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/physics/engine.test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/render/balls.test.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "frames": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/ball-frames.mjs"
   },
   "private": true
 }
