@@ -77,6 +77,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(buy(rich, 'crowbar'), rich, 'a feat cue has no price'); eq(buy({ ...NEW, coins: 1e5 }, 'golden').coins, 1e5, 'nor the Golden Cue');
   eq(select(rich, 'baguette'), rich, 'a cue not owned cannot be selected');
   eq(select({ ...rich, owned: ['house', 'baguette'] }, 'baguette').cue, 'baguette', 'an owned one can');
+  eq(select(rich, 'house') === rich, true, 'the cue in use: the same profile, nothing to save');
   eq(unlock(NEW, 'pencil').owned, ['house', 'pencil'], 'unlock gives a cue'); eq(NEW.owned, ['house'], 'and leaves the old profile');
   const pen = unlock(NEW, 'pencil'); eq(unlock(pen, 'pencil') === pen, true, 'an owned cue: the same profile, nothing to save');
   ok('buying, selecting and unlocking');

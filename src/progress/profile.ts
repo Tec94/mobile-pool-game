@@ -46,7 +46,8 @@ export function buy(p: Profile, id: CueId): Profile {
   const price = (CUES[id] as CueInfo).price;
   return price === undefined || p.owned.includes(id) || p.coins < price ? p : { ...unlock(p, id), coins: p.coins - price };
 }
-export const select = (p: Profile, id: CueId): Profile => (p.owned.includes(id) ? { ...p, cue: id } : p);
+// The cue in use or one not owned returns the same profile, so the cues page saves nothing.
+export const select = (p: Profile, id: CueId): Profile => (p.owned.includes(id) && p.cue !== id ? { ...p, cue: id } : p);
 
 export function featCount(p: Profile, id: FeatId) {
   const f = p.feats[id], count = FEATS[id].count;
