@@ -23,16 +23,18 @@ export function MatchHud({ rules, names, push, view, pad, calm, wait, pause, chi
   const [a, b] = plates(rules, names), nine = strip(rules), next = nine.find(q => q.next);
   // Landscape: the banner sits between the plates, above the table, where it covers no pocket. Portrait: over the
   // foot rail, between the corner pockets.
-  // 9-ball: both players share the balls, so the strip is centred on the table, under the plates, in both orientations.
-  const mid = view.ox + (view.land ? P.L : P.W) * view.s / 2, wide = 9 * STRIP_PIP + 8 * 5;
+  // 9-ball: both players share the balls, so the strip sits under the seam of the two plates. Landscape: that is the
+  // middle of the table. Portrait: the seam, measured, as the pause button and the rail shift it off the table's middle.
+  const [seam, setSeam] = useState(0), left = Math.max(pad.left, 8), wide = 9 * STRIP_PIP + 8 * 5;
+  const mid = !view.land && seam ? left + seam - 4 : view.ox + (view.land ? P.L : P.W) * view.s / 2; // 4 = half the row gap
   const say = <Banner rules={rules} push={push} calm={calm} wait={wait} style={view.land ? { flex: 1 } : { position: 'absolute', top: view.oy - RAIL * view.s + 4, left: view.ox, width: P.W * view.s, paddingHorizontal: 0.12 * view.s }} />;
   return (
     <>
       {/* Landscape: the rail starts under the HUD, so the row spans the window; a spacer the size of the pause button
           keeps the plates and the banner centred on the table when no push out button is there. */}
-      <View style={[styles.hud, { top: pad.top + TOP, left: Math.max(pad.left, 8), right: Math.max(pad.right, 8) }]}>
+      <View style={[styles.hud, { top: pad.top + TOP, left, right: Math.max(pad.right, 8) }]}>
         <View style={styles.row} accessibilityLiveRegion="polite">
-          {pause}<PlateView p={a} land={view.land} />{view.land && say}<PlateView p={b} land={view.land} />{children || (view.land && <View style={styles.even} />)}
+          {pause}<PlateView p={a} land={view.land} />{view.land && say}<PlateView p={b} land={view.land} onX={setSeam} />{children || (view.land && <View style={styles.even} />)}
         </View>
       </View>
       {nine.length > 0 && (
@@ -51,9 +53,9 @@ export function MatchHud({ rules, names, push, view, pad, calm, wait, pause, chi
 
 // Line 1 the name; line 2 the group's pips (hollow once potted), or Open / Break / On the 8, or the 9-ball foul warning.
 // The player to shoot is at full strength with a chalk underline.
-function PlateView({ p, land }: { p: Plate; land: boolean }) {
+function PlateView({ p, land, onX }: { p: Plate; land: boolean; onX?: (x: number) => void }) {
   return (
-    <View accessible accessibilityLabel={p.label} style={[styles.plate, land && { maxWidth: 200 }, !p.on && { opacity: 0.6 }]}>
+    <View onLayout={onX && (e => onX(e.nativeEvent.layout.x))} accessible accessibilityLabel={p.label} style={[styles.plate, land && { maxWidth: 200 }, !p.on && { opacity: 0.6 }]}>
       <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.name}>{p.name}</Text>
       <View style={styles.l2}>
         {p.pips.map(q => <Pip key={q.id} id={q.id} gone={q.gone} size={8} />)}
