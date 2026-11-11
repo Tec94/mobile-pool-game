@@ -9,7 +9,7 @@ import Animated, { useReducedMotion, useSharedValue } from 'react-native-reanima
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ball, CUE, Game as Discipline, HOLES, P, predict, rack, Shot, strike } from './src/physics/engine';
+import { Ball, breakSpot, CUE, Game as Discipline, HOLES, P, predict, rack, Shot, strike } from './src/physics/engine';
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
 import { drawMarks } from './src/render/marks';
 import { BAR, drawAim, drawTable, fit, toScreen, toTable } from './src/render/table';
@@ -31,7 +31,7 @@ const EMPTY = (() => { const rec = Skia.PictureRecorder(); rec.beginRecording();
 
 // A racked table for the start of a game. rec = the record of the shot in play; push = a push out was declared for it.
 const newTable = (rules: State) => {
-  const ids = [0], B: Ball[] = [{ x: P.L / 4 - 1e-3, y: P.W / 2, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true }]; // above the head string, not on it
+  const [x0, y0] = breakSpot(), ids = [0], B: Ball[] = [{ x: x0 - 1e-3, y: y0, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true }]; // above the head string, not on it
   for (const [id, x, y] of rack(rules.game)) { ids.push(id); B.push({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true }); }
   return { B, ids, look: newLook(B), rules, rec: null as Rec | null, push: false };
 };
@@ -170,7 +170,7 @@ function Game() {
         <Btn label="Rack" onPress={() => rerack(mode)} />
         <Btn label={'Game\n' + MODES[mode][0]} onPress={() => { const m = (mode + 1) % MODES.length; setMode(m); rerack(m, 0); }} />
         <Btn label={'Demo\n' + DEMOS[demo][0]} onPress={() => { // a fresh rack, and the demo shot is its break
-          rerack(mode); const t = table.current;
+          rerack(mode); const t = table.current; t.B[0].y = P.W / 2; // the demo shots go straight down the middle
           t.rec = newRec(); strike(t.B[0], { ang: 0, speed: 1, a: 0, b: 0, ...DEMOS[demo][1] });
           moving.current = true; setDemo((demo + 1) % DEMOS.length);
         }} />
