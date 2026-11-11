@@ -17,12 +17,13 @@ mkdirSync(out, { recursive: true });
 CUE.squirt = 0;
 
 const PHONE = { w: 393, h: 852, dpr: 3 }; // iPhone 15 and 16, in pt
+const SAFE = { port: { top: 59, right: 0, bottom: 34, left: 0 }, land: { top: 0, right: 59, bottom: 21, left: 59 } }; // their safe area insets
 const ball = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 
 // One scenario: n cells, each `every` frames (16 ms each) apart, showing w x h metres centred on at(B) or a fixed point.
 // w = 0 shows the whole phone window instead.
 function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, calm = false, skip = 0 }) {
-  const { dpr } = PHONE, W = land ? PHONE.h : PHONE.w, H = land ? PHONE.w : PHONE.h, v = { ...fit(W, H), dpr, calm }, look = newLook(B);
+  const { dpr } = PHONE, W = land ? PHONE.h : PHONE.w, H = land ? PHONE.w : PHONE.h, v = { ...fit(W, H, SAFE[land ? 'land' : 'port']), dpr, calm }, look = newLook(B);
   const cw = Math.round(w ? (land ? w : h) * v.s * dpr : W * dpr), ch = Math.round(w ? (land ? h : w) * v.s * dpr : H * dpr);
   const surface = CanvasKit.MakeSurface(n * cw + (n - 1) * 4, ch);
   const sk = surface.getCanvas(), c = new (require('@shopify/react-native-skia/lib/commonjs/skia/web/JsiSkCanvas').JsiSkCanvas)(CanvasKit, sk);

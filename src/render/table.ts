@@ -8,12 +8,15 @@ export const RAIL = 0.14; // m from the cushion nose to the outside of the frame
 // Table metres -> screen. s = screen units per metre, (ox, oy) = the screen point of the playing field's top-left corner.
 export interface View { land: boolean; s: number; ox: number; oy: number; dpr?: number; calm?: boolean } // calm = reduced motion
 
-// The largest table that fits a w x h window with 60 units kept free under it. Portrait stands the table up with the
-// head string at the bottom.
-export function fit(w: number, h: number): View {
+export interface Inset { top: number; right: number; bottom: number; left: number }
+export const BAR = 64; // screen units kept for the controls: under the table in portrait, beside it in landscape, where a phone has room to spare
+
+// The largest table that fits the window inside the safe area (notch, home indicator) and beside the controls, centred
+// in that room. Portrait stands the table up with the head string at the bottom.
+export function fit(w: number, h: number, pad: Inset = { top: 0, right: 0, bottom: 0, left: 0 }): View {
   const land = w > h, tw = (land ? P.L : P.W) + 2 * RAIL, th = (land ? P.W : P.L) + 2 * RAIL;
-  const s = Math.min(w / tw, (h - 60) / th);
-  return { land, s, ox: RAIL * s, oy: RAIL * s };
+  const aw = w - pad.left - pad.right - (land ? BAR : 0), ah = h - pad.top - pad.bottom - (land ? 0 : BAR), s = Math.min(aw / tw, ah / th);
+  return { land, s, ox: pad.left + (aw - tw * s) / 2 + RAIL * s, oy: pad.top + (ah - th * s) / 2 + RAIL * s };
 }
 export const toScreen = (v: View, x: number, y: number) => (v.land ? { x: v.ox + x * v.s, y: v.oy + (P.W - y) * v.s } : { x: v.ox + (P.W - y) * v.s, y: v.oy + (P.L - x) * v.s });
 export const toTable = (v: View, px: number, py: number) => (v.land ? { x: (px - v.ox) / v.s, y: P.W - (py - v.oy) / v.s } : { x: P.L - (py - v.oy) / v.s, y: P.W - (px - v.ox) / v.s });

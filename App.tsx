@@ -7,9 +7,10 @@ import { Canvas, Line, matchFont, Picture, Skia, vec } from '@shopify/react-nati
 import { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
+import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ball, CUE, P, predict, rack, Shot, strike } from './src/physics/engine';
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
-import { drawTable, fit, toScreen, toTable } from './src/render/table';
+import { BAR, drawTable, fit, toScreen, toTable } from './src/render/table';
 import { C } from './src/theme';
 
 const MAX_DRAG = 160; // px of pull-back for full power
@@ -25,12 +26,16 @@ const newTable = () => {
 };
 
 export default function App() {
+  return <SafeAreaProvider initialMetrics={initialWindowMetrics}><Game /></SafeAreaProvider>;
+}
+
+function Game() {
   const { width, height } = useWindowDimensions();
-  const calm = useReducedMotion();
-  const view = { ...fit(width, height), dpr: PixelRatio.get(), calm };
+  const pad = useSafeAreaInsets(), calm = useReducedMotion();
+  const view = { ...fit(width, height, pad), dpr: PixelRatio.get(), calm }, where = [view.land, view.s, view.ox, view.oy];
   const map = useRef(view); map.current = view; // the pan responder is created once, so it reads the latest mapping
   // The table never changes during play: one picture, drawn again only when the window does.
-  const felt = useMemo(() => { const rec = Skia.PictureRecorder(); drawTable(Skia, rec.beginRecording(), view); return rec.finishRecordingAsPicture(); }, [width, height]);
+  const felt = useMemo(() => { const rec = Skia.PictureRecorder(); drawTable(Skia, rec.beginRecording(), view); return rec.finishRecordingAsPicture(); }, where);
 
   const table = useRef(newTable());
   const [aim, setAim] = useState<{ path: number[][]; pull: number } | null>(null);
@@ -45,7 +50,7 @@ export default function App() {
     drawBalls(kit, rec.beginRecording(), B, ids, look, view);
     picture.set(rec.finishRecordingAsPicture());
   };
-  useEffect(() => paint.current(), [width, height]);
+  useEffect(() => paint.current(), where);
 
   useEffect(() => {
     let raf = 0, last = 0, owed = 0;
@@ -96,8 +101,9 @@ export default function App() {
         {aim && aim.path.slice(1).map((q, i) => <Line key={'a' + i} p1={seg(aim.path[i][0], aim.path[i][1])} p2={seg(q[0], q[1])} color={C.chalk} strokeWidth={1.5} />)}
         <Picture picture={picture} />
       </Canvas>
-      {aim && <Text style={styles.power}>{Math.round(aim.pull * 100)}%</Text>}
-      <View style={styles.btns}>
+      {/* Controls sit inside the safe area: a row under the table in portrait, a column beside it in landscape. */}
+      <View style={[styles.bar, view.land ? { top: pad.top, bottom: pad.bottom, right: pad.right, width: BAR, flexDirection: 'column' } : { left: pad.left, right: pad.right, bottom: pad.bottom, height: BAR, flexDirection: 'row' }]}>
+        {aim && <Text style={[styles.power, view.land ? { top: 8 } : { left: 16 }]}>{Math.round(aim.pull * 100)}%</Text>}
         <Pressable style={styles.btn} onPress={() => { table.current = newTable(); moving.current = false; paint.current(); }}>
           <Text style={styles.btnText}>Rack</Text>
         </Pressable>
@@ -115,8 +121,8 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.ground },
-  power: { position: 'absolute', top: 48, alignSelf: 'center', color: C.chalk, fontSize: 18, fontWeight: '800' },
-  btns: { position: 'absolute', bottom: 24, alignSelf: 'center', flexDirection: 'row', gap: 12 },
+  bar: { position: 'absolute', alignItems: 'center', justifyContent: 'center', gap: 12 },
+  power: { position: 'absolute', color: C.chalk, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
   btn: { borderColor: C.chalk, borderWidth: 1, borderRadius: 6, paddingHorizontal: 20, paddingVertical: 8 },
   btnText: { color: C.chalk, fontSize: 16 },
 });
