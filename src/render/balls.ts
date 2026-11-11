@@ -101,10 +101,10 @@ export function drawBalls(kit: Kit, canvas: SkCanvas, B: Ball[], ids: number[], 
     ball.setAlphaf(a);
     canvas.save(); canvas.translate(x, y); canvas.scale(rad, rad); canvas.drawCircle(0, 0, 1, ball); canvas.restore();
     if (font && id > 0) for (const k of [1, -1]) { // the number lies flat on its spot, so it turns and foreshortens with the ball
-      if (k * Z[2] < 0.35) continue; // nearer the edge the flat number would poke past the ball
+      const show = Math.min(1, (k * Z[2] - 0.35) / 0.15); if (show <= 0) continue; // nearer the edge the flat number would poke past the ball, so it fades out on the way there
       const ink = kit.ink[id] ?? (kit.ink[id] = font.measureText(String(id))), f = rad * (id > 9 ? 0.06 : 0.074); // ink = the box the digits fill, so they sit dead centre on the spot
       canvas.save(); canvas.concat([k * X[0] * f, -Y[0] * f, x + k * Z[0] * rad, k * X[1] * f, -Y[1] * f, y + k * Z[1] * rad, 0, 0, 1]); // the far number reads upright after a half turn about its own upright, as on a real ball
-      fill.setColor(col(C.ink)); fill.setAlphaf(a); canvas.drawText(String(id), -ink.x - ink.width / 2, -ink.y - ink.height / 2, fill, font); canvas.restore();
+      fill.setColor(col(C.ink)); fill.setAlphaf(a * show); canvas.drawText(String(id), -ink.x - ink.width / 2, -ink.y - ink.height / 2, fill, font); canvas.restore();
     }
     canvas.drawCircle(x, y, rad * 0.95, stroke(C.chalk, 0.5 * a, rad * 0.1)); // rim: keeps the 7 and 8 an edge on dark slate
     canvas.drawArc({ x: x - rad * 0.76, y: y - rad * 0.76, width: rad * 1.52, height: rad * 1.52 }, 202, 46, false, stroke('#FFFFFF', 0.8 * a, rad * 0.14)); // fixed highlight tick: the pattern moves under it
