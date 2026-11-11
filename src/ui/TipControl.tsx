@@ -39,12 +39,12 @@ export function TipButton({ store, onPress }: { store: TipStore; onPress: () => 
 
 // The sheet. The table stays live around it: a pull on the table still aims and shoots while it is open.
 // width = the sheet's own; a sheet narrower than the big ring and the side picture need takes a smaller ring.
-export function TipSheet({ store, land, calm, felt, onDone, width, style }: { store: TipStore; land: boolean; calm: boolean; felt: string; onDone: () => void; width: number; style: ViewStyle }) {
+export function TipSheet({ store, land, calm, felt, blend, onDone, width, style }: { store: TipStore; land: boolean; calm: boolean; felt: string; blend: boolean; onDone: () => void; width: number; style: ViewStyle }) {
   const t = useSyncExternalStore(store.sub, store.get), D = Math.min(land ? 150 : 190, width - 140); // 140 = side picture, gap, padding and border
   const size = useRef(D), drag = useRef<{ on: 'ring' | 'pad'; from: Tip; x: number; y: number; t: number; moved: boolean; a: number; e: number } | null>(null);
   if (size.current !== D) drag.current = null; // the phone turned during a drag: the touch no longer maps to the ring
   size.current = D; // the pan responder is created once, so it reads the latest size
-  const ring = useMemo(() => picture(c => drawTip(Skia, c, D, t)), [D, t]);
+  const ring = useMemo(() => picture(c => drawTip(Skia, c, D, t, blend)), [D, t, blend]);
   const side = useMemo(() => picture(c => drawSide(Skia, c, t.elev, felt)), [t.elev, felt]);
   const put = ({ tip, bump }: { tip: Tip; bump: boolean }) => { store.set(tip); if (bump) tick(); };
 
