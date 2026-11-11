@@ -3,6 +3,7 @@ import assert from 'node:assert';
 import { CUE } from '../physics/engine.ts';
 import { CUES, specLine, specs, stick } from './cues.ts';
 import { matchPay, safetyPay, shotPay } from './pay.ts';
+import { cueGain, masteryLevel, masteryNote, masteryOf, readMastery, statsOf, tuneDown, tuneUp, upCost } from './mastery.ts';
 import { buy, feat, featCount, gain, levelNote, levelOf, NEW, opens, PACKS, readProfile, select, unlock, VENUES } from './profile.ts';
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
@@ -64,7 +65,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   ok('match pay vs AI');
 }
 
-{ eq(NEW, { xp: 0, coins: 0, owned: ['house'], cue: 'house', feats: {} }, 'a new profile: House Cue, nothing else');
+{ eq(NEW, { xp: 0, coins: 0, owned: ['house'], cue: 'house', feats: {}, mastery: {} }, 'a new profile: House Cue, nothing else');
   eq(gain(NEW, { xp: 40, coins: 20 }), { profile: { ...NEW, xp: 40, coins: 20 }, from: 1, to: 1, bonus: 0 }, 'pay adds up');
   eq(gain({ ...NEW, xp: 190 }, { xp: 40, coins: 20 }), { profile: { ...NEW, xp: 230, coins: 90 }, from: 1, to: 2, bonus: 70 }, 'a level-up pays 50 + 10 x the new level');
   eq(gain(NEW, { xp: 450, coins: 0 }).bonus, 150, 'two level-ups pay both');
@@ -116,13 +117,13 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
 
 { for (const t of [null, '{oops', '[1,2]', '"x"', 'null', '7']) eq(readProfile(t), NEW, `${t}: a new profile`);
   readProfile(null).owned.push('x'); eq(NEW.owned, ['house'], 'the new profile is not shared');
-  const all = { xp: 12345, coins: 678, owned: ['house', 'baguette', 'twig'], cue: 'baguette', feats: { bank: { play: 12, scen: 3 }, long: { play: 25, scen: 0 } } };
+  const all = { xp: 12345, coins: 678, owned: ['house', 'baguette', 'twig'], cue: 'baguette', feats: { bank: { play: 12, scen: 3 }, long: { play: 25, scen: 0 } }, mastery: { baguette: { xp: 1200, power: 1, spin: 1, aim: 0, paid: 2 } } };
   eq(readProfile(JSON.stringify(all)), all, 'a good save round trips');
   eq(readProfile(JSON.stringify({ coins: 5 })), { ...NEW, coins: 5 }, 'an older save keeps what it has');
   ok('a missing, damaged or good save');
 }
 { const p = readProfile(JSON.stringify({ xp: -5, coins: 'lots', owned: ['twig', 'laser', 'twig', 7], cue: 'golden', feats: { bank: { play: 2.7, scen: -1 }, storm: { play: 3 }, kick: 'x' }, extra: 1 }));
-  eq(p, { xp: 0, coins: 0, owned: ['house', 'twig'], cue: 'house', feats: { bank: { play: 2, scen: 0 } } }, 'bad values take their defaults, unknown cues and feats are dropped, House Cue is always owned');
+  eq(p, { xp: 0, coins: 0, owned: ['house', 'twig'], cue: 'house', feats: { bank: { play: 2, scen: 0 } }, mastery: {} }, 'bad values take their defaults, unknown cues and feats are dropped, House Cue is always owned');
   eq(readProfile(JSON.stringify({ owned: [], cue: 'house' })).owned, ['house'], 'House Cue cannot be lost');
   eq(readProfile(JSON.stringify({ owned: 'house', cue: 'twig' })).cue, 'house', 'a selected cue that is not owned: House Cue');
   eq(readProfile(JSON.stringify({ xp: 1e300, coins: Infinity })).xp, 1e9, 'numbers are clamped');
@@ -130,4 +131,38 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(readProfile(JSON.stringify({ xp: 12350 })).owned, ['house', 'twig'], 'level 20 owns the Twig');
   eq(readProfile(JSON.stringify({ xp: 12349 })).owned, ['house'], 'level 19 does not');
   ok('bad values in a save');
+}
+
+{ eq([0, 299, 300, 999, 1000, 2500, 4999, 5000, 1e6].map(x => masteryLevel(x).level), [1, 1, 2, 2, 3, 4, 4, 5, 5], 'mastery levels at 300, 1,000, 2,500, 5,000 cue XP');
+  eq(masteryLevel(400), { level: 2, into: 100, need: 700 }, 'cue XP into a level'); eq(masteryLevel(5000).need, 0, 'level 5 is the top');
+  const g = cueGain(NEW, 'house', 320); eq([g.from, g.to, masteryOf(g.profile, 'house').xp], [1, 2, 320], 'cue XP adds up');
+  eq(masteryNote('House Cue', g), 'House Cue mastery 2: tuning point earned', 'a level-up line'); eq(masteryNote('X', { from: 4, to: 5 }), 'X mastery 5, mastered: tuning point earned', 'mastered');
+  eq(masteryNote('X', { from: 2, to: 2 }), '', 'no level-up, no line'); eq(cueGain(NEW, 'house', 0).profile, NEW, 'no XP, same profile');
+  ok('cue mastery: XP and levels');
+}
+{ const lvl = (xp, coins = 10000, id = 'house', owned = ['house', id]) => ({ ...NEW, coins, owned, mastery: { [id]: { ...masteryOf(NEW, id), xp } } });
+  const p1 = lvl(300);
+  eq(upCost(NEW, 'house', 'power'), null, 'mastery 1: no point'); eq(upCost(p1, 'house', 'power'), 300, 'the 1st point costs 300');
+  const a = tuneUp(p1, 'house', 'power'); eq([a.coins, masteryOf(a, 'house').power, masteryOf(a, 'house').paid], [9700, 1, 1], 'a point bought');
+  eq(tuneUp(a, 'house', 'spin'), a, 'one point at mastery 2'); eq(statsOf('house', masteryOf(a, 'house')), { power: 4, spin: 3, aim: 5 }, 'tuned stats');
+  const b = tuneUp(tuneDown(a, 'house', 'power'), 'house', 'spin'); eq([b.coins, masteryOf(b, 'house').spin, masteryOf(b, 'house').power], [9700, 1, 0], 'moving a point is free');
+  const p5 = lvl(5000); let q = p5; for (const s of ['power', 'power', 'spin', 'aim']) q = tuneUp(q, 'house', s);
+  eq(q.coins, 10000 - 300 - 600 - 1200 - 2400, '4 steps: 300, 600, 1,200, 2,400'); eq(upCost(q, 'house', 'spin'), null, 'all 4 points in use');
+  eq(upCost(tuneDown(q, 'house', 'aim'), 'house', 'power'), null, 'at most +2 a stat');
+  eq(tuneUp(lvl(300, 299), 'house', 'power').coins, 299, 'too few coins: nothing');
+  eq(upCost(lvl(5000, 1e4, 'twig'), 'twig', 'power'), null, 'the Twig cannot be tuned');
+  eq(upCost(lvl(5000, 1e4, 'rocket'), 'rocket', 'power'), null, 'no stat above 10'); eq(upCost(lvl(5000, 1e4, 'golden'), 'golden', 'spin'), 300, 'Golden 9 takes +1');
+  eq(upCost(lvl(5000, 1e4, 'rod', ['house']), 'rod', 'spin'), null, 'a cue not owned');
+  const t = statsOf('broomstick', { xp: 0, power: 2, spin: 0, aim: 2, paid: 2 }); eq(stick('broomstick', false, t).maxSpeed, stick('crowbar').maxSpeed, 'tuned Power 6 hits like a Power 6 cue');
+  eq(stick('broomstick', true, t), stick('house'), 'matched ignores tuning'); eq(specs('house', { power: 3, spin: 3, aim: 7 }).guideCm, 60, 'tuned Aim 7: Long guide');
+  ok('tuning: points, coins, caps, free moves');
+}
+{ const m = readMastery({ house: { xp: 1000, power: 1, spin: 1, aim: 0, paid: 2 }, twig: { xp: 50, power: 1, paid: 1 }, rocket: { xp: 5000, power: 1, paid: 1 }, bogus: { xp: 5 }, broomstick: { xp: 300, power: 1, spin: 1, paid: 2 }, noodle: 'x' });
+  eq(m.house, { xp: 1000, power: 1, spin: 1, aim: 0, paid: 2 }, 'a good record stays'); eq(m.twig, { xp: 50, power: 0, spin: 0, aim: 0, paid: 1 }, 'the Twig loses points');
+  eq(m.rocket.power, 0, 'past 10: points off'); eq(m.broomstick, { xp: 300, power: 0, spin: 0, aim: 0, paid: 2 }, 'more points than the level: points off, XP and paid kept');
+  eq(['bogus', 'noodle'].map(k => k in m), [false, false], 'unknown cues and bad records dropped');
+  eq(readMastery({ house: { xp: -5, power: 9, paid: 99 } }).house, { xp: 0, power: 0, spin: 0, aim: 0, paid: 4 }, 'out of range numbers fixed');
+  eq(readProfile(JSON.stringify({ mastery: { house: { xp: 300, power: 1, paid: 1 } } })).mastery.house.power, 1, 'mastery is read with the profile');
+  eq(readProfile(null).mastery, {}, 'no save: no mastery');
+  ok('a saved mastery is read defensively');
 }

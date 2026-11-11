@@ -9,6 +9,7 @@ import { LESSON_PAY, LESSONS, SOLO_RUN } from '../learn/lessons';
 import { keep, profile } from '../progress';
 import { isOpen, par, SCENARIOS, starCount, type Stars, totalStars } from '../scenarios/scenarios';
 import { CUE_IDS, CUES, type CueId, type CueInfo, specLine, specs } from '../progress/cues';
+import { masteryLevel, masteryOf, STATS, statsOf, tunable, tuneDown, tuneUp, upCost, used, points } from '../progress/mastery';
 import { buy, FEATS, featCount, type FeatId, levelOf, PACKS, select, type Profile } from '../progress/profile';
 import { NAME_MAX, RACES, Settings } from '../settings/settings';
 import { C, CLOTHS } from '../theme';
@@ -148,11 +149,13 @@ function Cues({ go }: Pick<Props, 'go'>) {
 
 function CueRow({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => void }) {
   const c: CueInfo = CUES[id], owned = p.owned.includes(id), f = c.feat as FeatId | undefined, feat = f && FEATS[f], done = f ? featCount(p, f) : 0;
+  const m = masteryOf(p, id), stats = statsOf(id, m);
   return (
     <View style={styles.row}>
       <View style={styles.rowText}>
         <Text maxFontSizeMultiplier={1.3} style={styles.label}>{c.name}</Text>
-        <Text maxFontSizeMultiplier={1.3} style={styles.note}>{specLine(specs(id))}</Text>
+        <Text maxFontSizeMultiplier={1.3} style={styles.note}>{specLine(specs(id, stats))}</Text>
+        {owned && <Mastery id={id} p={p} put={put} />}
         {c.perk && <Text maxFontSizeMultiplier={1.3} style={styles.note}>{c.perk}</Text>}
         {!owned && feat && <>
           <Text maxFontSizeMultiplier={1.3} style={styles.note}>{`${feat.name} ${done}/${feat.count}`}</Text>
@@ -167,7 +170,33 @@ function CueRow({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => vo
   );
 }
 
+// A cue's mastery: its level and cue XP, and once it has points, a - and + for each stat. The spec lines above show
+// the tuned numbers. Points move for free; a point past the paid ones costs the next step.
+function Mastery({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => void }) {
+  const m = masteryOf(p, id), { level, into, need } = masteryLevel(m.xp), pts = points(m), free = pts - used(m);
+  const head = `Mastery ${level}${need ? ` · ${need - into} cue XP to ${level + 1}` : ' · mastered'}`;
+  if (!tunable(id)) return <Text maxFontSizeMultiplier={1.3} style={styles.note}>{`${head} · cannot be tuned`}</Text>;
+  const cost = STATS.map(s => upCost(p, id, s)).find(x => x !== null);
+  const next = !pts ? 'Mastery 2 gives a tuning point' : !free ? 'Every point in use' : cost === undefined ? 'No stat has room for more' : cost ? `Next point: ${cost} coins` : `${free} point${free > 1 ? 's' : ''} to place`;
+  return <>
+    <Text maxFontSizeMultiplier={1.3} style={styles.note}>{`${head} · ${next}`}</Text>
+    {pts > 0 && <View style={[styles.seg, styles.wrap]}>
+      {STATS.map(s => {
+        const name = s[0].toUpperCase() + s.slice(1), up = upCost(p, id, s);
+        return <View key={s} style={styles.tune}>
+          <Btn label="−" name={`${name} down on ${CUES[id].name}`} off={!m[s]} onPress={() => put(tuneDown(p, id, s))} />
+          <Text maxFontSizeMultiplier={1.3} style={[styles.note, styles.stat]}>{`${name} ${m[s] ? `+${m[s]}` : '0'}`}</Text>
+          <Btn label="+" name={`${name} up on ${CUES[id].name}${up ? ` for ${up} coins` : ''}`} off={up === null || p.coins < up} onPress={() => put(tuneUp(p, id, s))} />
+        </View>;
+      })}
+    </View>}
+  </>;
+}
+
 const styles = StyleSheet.create({
+  wrap: { flexWrap: 'wrap', marginTop: 4 },
+  stat: { minWidth: 64, textAlign: 'center' },
+  tune: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   page: { flex: 1, backgroundColor: C.ground },
   body: { gap: 12, width: '100%', maxWidth: 560, alignSelf: 'center' },
   top: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
