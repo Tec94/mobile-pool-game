@@ -17,9 +17,9 @@ const TOP = 4, PLATE = 44, STRIP = 24;
 // Screen units the HUD takes above the table: the plates, and in 9-ball the strip of balls under them.
 export const hudHeight = (game: number) => TOP + PLATE + 8 + (game === 9 ? STRIP : 0);
 
-// The plates row sits above the table and out of the control column in landscape. The push out button, when the rules
-// offer one, and the pause button come in as children at the end of the row. wait = what the AI is doing, for the banner.
-export function MatchHud({ rules, names, push, view, pad, calm, wait, children }: { rules: State; names: string[]; push: boolean; view: TableView; pad: EdgeInsets; calm: boolean; wait?: string; children?: ReactNode }) {
+// The plates row sits above the table. The pause button comes in as `pause` at the start of the row (top left); the push
+// out button, when the rules offer one, comes in as a child at the end. wait = what the AI is doing, for the banner.
+export function MatchHud({ rules, names, push, view, pad, calm, wait, pause, children }: { rules: State; names: string[]; push: boolean; view: TableView; pad: EdgeInsets; calm: boolean; wait?: string; pause: ReactNode; children?: ReactNode }) {
   const [a, b] = plates(rules, names), nine = strip(rules), next = nine.find(q => q.next);
   // Landscape: the banner sits between the plates, above the table, where it covers no pocket. Portrait: over the
   // foot rail, between the corner pockets.
@@ -28,7 +28,7 @@ export function MatchHud({ rules, names, push, view, pad, calm, wait, children }
     <>
       <View style={[styles.hud, { top: pad.top + TOP, left: Math.max(pad.left, 8), right: Math.max(pad.right, 8) + (view.land ? BAR : 0) }]}>
         <View style={styles.row} accessibilityLiveRegion="polite">
-          <PlateView p={a} land={view.land} />{view.land && say}<PlateView p={b} land={view.land} />{children}
+          {pause}<PlateView p={a} land={view.land} />{view.land && say}<PlateView p={b} land={view.land} />{children}
         </View>
         {nine.length > 0 && (
           <View style={styles.nine} accessible accessibilityLabel={`${next ? `Ball ${next.id} to hit. ` : ''}Potted: ${nine.filter(q => q.gone).map(q => q.id).join(', ') || 'none'}`}>
