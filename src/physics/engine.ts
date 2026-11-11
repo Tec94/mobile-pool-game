@@ -58,11 +58,12 @@ export function setTable(L=P.L,W=P.W){
 setTable();
 
 // Rack spots [id,x,y] for 8-ball or 9-ball: apex on the foot spot, g between neighbours' centres.
-// 9-ball is the diamond with the 1 at the apex and the 9 in the middle. The caller adds any random play.
+// 9-ball is the diamond with the 1 at the apex and the 9 in the middle, and it is the 9 that sits on the foot spot
+// (WPA 5.2, 2026-10-21). The caller adds any random play.
 const RACKS:Record<Game,number[][]>={8:[[1],[9,2],[10,8,3],[11,7,14,4],[5,13,15,6,12]],9:[[1],[2,3],[4,9,5],[6,7],[8]]};
 export function rack(game:Game,g=2*P.R+3e-4){
-  const out:[number,number,number][]=[];
-  RACKS[game].forEach((r,i)=>r.forEach((id,k)=>out.push([id,0.75*P.L+i*g*Math.cos(Math.PI/6),P.W/2+(k-(r.length-1)/2)*g])));
+  const out:[number,number,number][]=[],row=g*Math.cos(Math.PI/6);
+  RACKS[game].forEach((r,i)=>r.forEach((id,k)=>out.push([id,0.75*P.L+(i-(game===9?2:0))*row,P.W/2+(k-(r.length-1)/2)*g])));
   return out;
 }
 

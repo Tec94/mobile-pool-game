@@ -138,10 +138,12 @@ const shot = (gap, speed, a, b, offY = 0) => {
   const r = simulate(B, s); assert(r.settled && r.first === 1 && r.potted.includes(1) && B[1].on, 'simulate pots the ball on a copy');
   const c = simulate(B, s, CUE, 100); assert(!c.settled && c.steps <= 101, 'simulate stops at the cap');
   console.log('bot simulate ok'); }
-// 14. Racks: 15 balls for 8-ball, a 9-ball diamond with the 1 on the foot spot and the 9 in the middle; both break cleanly.
+// 14. Racks: 15 balls for 8-ball with the 1 on the foot spot, a 9-ball diamond with the 9 in the middle and on the foot spot; both break cleanly.
 { for (const [game, n] of [[8, 15], [9, 9]]) {
     const S = rack(game); assert(S.length === n && new Set(S.map(s => s[0])).size === n, game + '-ball rack size');
-    assert(S[0][0] === 1 && Math.abs(S[0][1] - 0.75 * L) < 1e-12 && Math.abs(S[0][2] - W / 2) < 1e-12, 'the 1 sits on the foot spot');
+    const spot = S.find(s => s[0] === (game === 8 ? 1 : 9)); // WPA 4.2: the apex ball of the 8-ball rack; 5.2: the 9
+    assert(S[0][0] === 1 && Math.abs(spot[1] - 0.75 * L) < 1e-12 && Math.abs(spot[2] - W / 2) < 1e-12, `the ${spot[0]} sits on the foot spot`);
+    assert(S.every(s => s[1] >= S[0][1]), 'the 1 is the apex, towards the head of the table');
     for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) assert(Math.hypot(S[i][1] - S[j][1], S[i][2] - S[j][2]) > 2 * R, 'racked balls overlap');
     const B = [mk(L / 4, W / 2), ...S.map(s => mk(s[1], s[2]))], r = simulate(B, { ang: 0, speed: CUE.breakSpeed, a: 0, b: 0.1 }, CUE, 60000);
     assert(r.settled && r.balls.every(b => Number.isFinite(b.x + b.y)), game + '-ball break settles'); }
