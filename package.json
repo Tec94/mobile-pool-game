@@ -30,6 +30,7 @@
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/physics/engine.test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/render/balls.test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/render/pace.test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/render/tip.test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/rules/rules.test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/shot/aim.test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/ui/hud.test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/settings/settings.test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/ai/shot-ai.test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/ai/aim.test.mjs",
     "typecheck": "tsc --noEmit",
     "bench": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/frame-bench.mjs",
+    "bench:ai": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/ai-bench.mjs",
     "frames": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/ball-frames.mjs"
   },
   "private": true
