@@ -59,13 +59,13 @@ function Game() {
   };
   // Frames of play wait in queue and the UI thread shows one on each display refresh (see src/render/pace.ts).
   const queue = useSharedValue<Slot<SkPicture>[]>([]), left = useSharedValue(STILL);
-  const seen = useSharedValue([0, 0, 0, 0, 1000 / 60]); // counts for the readout (refreshes, frames shown, refreshes with no frame ready, frames skipped), then the shortest refresh interval in ms
+  const seen = useSharedValue([0, 0, 0, 0, 0]); // counts for the readout (refreshes, frames shown, refreshes with no frame ready, frames skipped), then the share of the last refreshes that came less than 12 ms apart: above a half is a 120 Hz display
   const beat = useFrameCallback(f => {
     'worklet';
     const dt = f.timeSincePreviousFrame ?? 0, r = refresh(queue.value, left.value, dt), s = seen.value;
     left.value = r.left;
     if (r.show) { queue.value = r.rest; picture.value = r.show; }
-    seen.value = [s[0] + 1, s[1] + (r.show ? 1 : 0), s[2] + (r.dry ? 1 : 0), s[3] + r.skipped, dt > 4 ? Math.min(s[4], dt) : s[4]];
+    seen.value = [s[0] + 1, s[1] + (r.show ? 1 : 0), s[2] + (r.dry ? 1 : 0), s[3] + r.skipped, dt ? 0.9 * s[4] + (dt < 12 ? 0.1 : 0) : s[4]];
   }, false);
   const live = useRef(beat); live.current = beat;
   const push = (pic: SkPicture, ms: number, first: boolean) => { 'worklet'; queue.value = first ? [{ pic, ms }] : [...queue.value, { pic, ms }]; if (first) left.value = 0; };
@@ -91,7 +91,7 @@ function Game() {
       if (busy()) {
         let p = pace.current;
         const first = !p;
-        if (!p) p = pace.current = newPace(Math.max(rate.current, seen.value[4] < 12 ? 1000 / 120 : 1000 / 60));
+        if (!p) p = pace.current = newPace(Math.max(rate.current, seen.value[4] > 0.5 ? 1000 / 120 : 1000 / 60));
         if (!on) { on = true; clearTimeout(timer); live.current.setActive(true); }
         for (let n = 0, ms; n < 4 && busy() && (ms = nextFrame(p, t)); n++) { // at most 4 frames a turn, so a late JS thread still answers touches
           const t0 = performance.now();
@@ -111,7 +111,7 @@ function Game() {
     let was = seen.value, n = 0, cost = 0;
     const id = setInterval(() => { // twice a second
       const s = seen.value, [m, c] = made.current, k = m - n;
-      setRates(`display ${Math.round(1000 / s[4])} Hz  shown ${2 * (s[1] - was[1])}/s  none ready ${2 * (s[2] - was[2])}/s  skipped ${2 * (s[3] - was[3])}/s\nmade ${2 * k}/s  ${k ? ((c - cost) / k).toFixed(1) : '-'} ms each${pace.current ? `  for ${Math.round(1000 / pace.current.frame)} Hz` : ''}`);
+      setRates(`display ${s[4] > 0.5 ? 120 : 60} Hz  shown ${2 * (s[1] - was[1])}/s  none ready ${2 * (s[2] - was[2])}/s  skipped ${2 * (s[3] - was[3])}/s\nmade ${2 * k}/s  ${k ? ((c - cost) / k).toFixed(1) : '-'} ms each${pace.current ? `  for ${Math.round(1000 / pace.current.frame)} Hz` : ''}`);
       was = s; n = m; cost = c;
     }, 500);
     return () => clearInterval(id);
