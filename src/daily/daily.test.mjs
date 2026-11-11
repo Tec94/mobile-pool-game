@@ -1,7 +1,7 @@
 // Run: npm test. The daily table: the 04:00 day, the pick, streaks from the calendar, the save, pay and Fresh Chalk.
 process.env.TZ = 'America/New_York'; // a zone with DST, set before any Date is made
 import assert from 'node:assert';
-import { addDays, armChalk, chalkResult, dailyClear, dailyPick, dayKey, grantChalk, readDaily, streak, themePacks } from './daily.ts';
+import { addDays, addMonths, armChalk, chalkResult, dailyClear, dailyPick, dayKey, grantChalk, monthGrid, readDaily, streak, themePacks } from './daily.ts';
 
 { // the day runs 04:00 to 04:00 local
   assert.strictEqual(dayKey(new Date(2026, 10, 11, 3, 59)), '2026-11-10', '03:59 is still yesterday');
@@ -94,4 +94,17 @@ import { addDays, armChalk, chalkResult, dailyClear, dailyPick, dayKey, grantCha
   assert.deepStrictEqual(won.state.chalk, { ...armed.chalk, charges: 0, armed: false }, 'a win spends the charge');
   assert.deepStrictEqual(chalkResult(g, true, pay), { state: g, extra: { xp: 0, coins: 0 } }, 'not armed: no extra');
   console.log('daily chalk: all checks passed');
+}
+{ // the calendar's month grid: Monday-first weeks, blanks before the 1st and after the last day
+  assert.strictEqual(addMonths('2026-12', 1), '2027-01', 'into a new year');
+  assert.strictEqual(addMonths('2026-01', -1), '2025-12', 'back over a new year');
+  const nov = monthGrid('2026-11'); // 2026-11-01 is a Sunday
+  assert.strictEqual(nov.length, 42, 'six full weeks');
+  assert.deepStrictEqual(nov.slice(0, 7), ['', '', '', '', '', '', '2026-11-01'], 'Sunday the 1st ends the first week');
+  assert.strictEqual(nov[35], '2026-11-30', 'last day');
+  assert.deepStrictEqual(nov.slice(36), ['', '', '', '', '', ''], 'blanks after');
+  const feb = monthGrid('2027-02'); // a Monday the 1st, 28 days: four full weeks
+  assert.deepStrictEqual([feb.length, feb[0], feb[27]], [28, '2027-02-01', '2027-02-28'], 'February 2027');
+  assert(monthGrid('2028-02').includes('2028-02-29') && !monthGrid('2027-02').includes('2027-02-29'), 'only a leap February has the 29th');
+  console.log('daily calendar: all checks passed');
 }

@@ -20,6 +20,14 @@ export const addDays = (k: string, n: number) => new Date(ms(k) + n * 864e5).toI
 export const daysBetween = (a: string, b: string) => Math.round((ms(b) - ms(a)) / 864e5);
 const isDay = (k: unknown): k is string => typeof k === 'string' && /^\d{4}-\d\d-\d\d$/.test(k) && !isNaN(ms(k)) && addDays(k, 0) === k; // 2026-02-30 fails the round trip
 
+// Months as '2026-11'. The calendar's grid: Monday-first weeks of day keys, '' for the blanks around the month.
+export const addMonths = (m: string, n: number) => new Date(Date.UTC(+m.slice(0, 4), +m.slice(5, 7) - 1 + n, 1)).toISOString().slice(0, 7);
+export function monthGrid(m: string) {
+  const first = `${m}-01`, days = Array.from({ length: daysBetween(first, `${addMonths(m, 1)}-01`) }, (_, i) => addDays(first, i));
+  const cells = [...Array<string>((new Date(ms(first)).getUTCDay() + 6) % 7).fill(''), ...days];
+  return [...cells, ...Array<string>((7 - cells.length % 7) % 7).fill('')];
+}
+
 // The scenario packs (PACKS in progress/profile.ts) of each weekday, Sunday first. 9-ball (4) is never a daily.
 const THEME = [[8], [0], [1], [2], [3], [5], [6, 7]];
 export const themePacks = (k: string) => THEME[new Date(ms(k)).getUTCDay()];

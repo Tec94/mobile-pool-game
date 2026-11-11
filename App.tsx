@@ -26,7 +26,9 @@ import { loadDone, saveDone } from './src/learn/save';
 import { canCall, choose, handCue, judge, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { aimGuide, DRAG, guideFor, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { award, keep, PASS_PLAY, profile, unlockCue } from './src/progress';
-import { clear, clearFeats, isOpen, par, SCENARIOS, type Scenario, starCount } from './src/scenarios/scenarios';
+import { clear, clearFeats, isOpen, par, SCENARIOS, type Scenario, starCount, starsFor } from './src/scenarios/scenarios';
+import { dailyClear, dailyPick, dayKey, grantChalk } from './src/daily/daily';
+import { loadDaily, saveDaily } from './src/daily/save';
 import { loadStars, saveStars } from './src/scenarios/save';
 import { levelNote } from './src/progress/profile';
 import { CUES, stick } from './src/progress/cues';
@@ -71,7 +73,7 @@ const LOCKS = [ScreenOrientation.OrientationLock.DEFAULT, ScreenOrientation.Orie
 
 // The screen on show and the settings. A match reads its setup when it starts.
 function Root() {
-  const [set, setSet] = useState(loadSettings), [screen, go] = useState<Screen | 'match' | 'lesson' | 'scenario'>('home');
+  const [set, setSet] = useState(loadSettings), [screen, go] = useState<Screen | 'match' | 'lesson' | 'scenario' | 'daily'>('home');
   const [done, setDone] = useState(loadDone), [lesson, setLesson] = useState(0);
   const learn = (i: number) => { setLesson(i); go('lesson'); };
   const [stars, setStars] = useState(loadStars), [scen, setScen] = useState(0);
@@ -85,6 +87,19 @@ function Root() {
     if (!saveStars(now)) return { ...c, saved: false }; // unsaved stars stay unearned, so a later clear pays them
     setStars(now);
     if (!had) keep(clearFeats(profile(), s));
+    return { ...c, saved: true, gained: award(c.pay) };
+  };
+  // The Daily Table. shortcut: today is read at launch, so the app must reopen to see a new day after 04:00.
+  const [today] = useState(() => dayKey(new Date())), [day, setDay] = useState(today);
+  const [daily, setDaily] = useState(() => { const d = loadDaily(today), g = grantChalk(d, today); if (g !== d) saveDaily(g); return g; });
+  const playDay = (k: string) => { setDay(k); go('daily'); };
+  const dayScen = SCENARIOS[dailyPick(day, SCENARIOS)];
+  const dayCleared = (tries: number, guideOff: boolean): Clear => { // like cleared: pay only what was saved
+    const c = dailyClear(daily.stars[day] ?? 0, starsFor(dayScen, tries, guideOff));
+    if (!c.n) return { ...c, saved: true };
+    const now = { ...daily, stars: { ...daily.stars, [day]: c.bits } };
+    if (!saveDaily(now)) return { ...c, saved: false };
+    setDaily(now);
     return { ...c, saved: true, gained: award(c.pay) };
   };
   const nextScen = SCENARIOS[scen + 1]?.pack === SCENARIOS[scen].pack && isOpen(scen + 1, stars, profile().xp);
@@ -102,7 +117,7 @@ function Root() {
   useEffect(() => { if (done.length >= PENCIL_AT) unlockCue('pencil'); }, []); // also at launch: lessons passed before cues existed still count
   useEffect(() => { ScreenOrientation.lockAsync(LOCKS[set.orient]).catch(() => {}); }, [set.orient]);
   useEffect(() => { // Android back: from a menu page to home
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (screen !== 'home' && screen !== 'match' && screen !== 'lesson' && screen !== 'scenario') { go('home'); return true; } return false; });
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (screen !== 'home' && screen !== 'match' && screen !== 'lesson' && screen !== 'scenario' && screen !== 'daily') { go('home'); return true; } return false; });
     return () => sub.remove();
   }, [screen]);
   return <>
@@ -110,15 +125,16 @@ function Root() {
     {screen === 'match' ? <Game set={set} onQuit={() => go('home')} />
       : screen === 'lesson' ? <Game key={lesson} set={set} lesson={lesson} fresh={!done.includes(LESSONS[lesson].id)} onPass={pass} onNext={() => setLesson(lesson + 1)} onQuit={() => go('learn')} />
       : screen === 'scenario' ? <Game key={`s${scen}`} set={set} scen={SCENARIOS[scen]} onClear={(t, off) => cleared(SCENARIOS[scen], t, off)} onNext={nextScen ? () => setScen(scen + 1) : undefined} onQuit={() => go('scenarios')} />
-      : <Menus screen={screen} set={set} change={change} go={go} done={done} learn={learn} stars={stars} play={play} />}
+      : screen === 'daily' ? <Game key={`d${day}`} set={set} scen={dayScen} back="Daily Table" onClear={dayCleared} onQuit={() => go('calendar')} />
+      : <Menus screen={screen} set={set} change={change} go={go} done={done} learn={learn} stars={stars} play={play} daily={daily} today={today} playDay={playDay} />}
   </>;
 }
 
 type Clear = ReturnType<typeof clear> & { saved: boolean; gained?: ReturnType<typeof award> };
 // A match, a lesson (lesson), or a scenario (scen, any table: the daily table plays one too). fresh = the lesson has not
 // been passed before; onPass = it was just passed; onClear = the scenario was just cleared, with its tries and whether
-// the whole try was played with the guide off.
-function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext, scen: S, onClear }: { set: Settings; onQuit: () => void; lesson?: number; fresh?: boolean; onPass?: (id: string) => boolean; onNext?: () => void; scen?: Scenario; onClear?: (tries: number, guideOff: boolean) => Clear }) {
+// the whole try was played with the guide off. back = the page onQuit returns to, named on the result card.
+function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext, scen: S, onClear, back = 'Scenarios' }: { set: Settings; back?: string; onQuit: () => void; lesson?: number; fresh?: boolean; onPass?: (id: string) => boolean; onNext?: () => void; scen?: Scenario; onClear?: (tries: number, guideOff: boolean) => Clear }) {
   const { width, height } = useWindowDimensions();
   const pad = useSafeAreaInsets(), calm = useReducedMotion();
   const L: Lesson | undefined = S ?? LESSONS[n];
@@ -361,7 +377,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext, scen: S, onC
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>{said.title}</Text>
             <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, said.say.startsWith('+') && styles.pay]}>{said.say}</Text>
-            {S ? said.ok ? <>{onNext && <Btn label="Next scenario" onPress={onNext} />}<Btn label="Play again" onPress={() => { setTries(1); les.current.tries = 1; reset('solo'); }} /><Btn label="Back to Scenarios" onPress={onQuit} /></>
+            {S ? said.ok ? <>{onNext && <Btn label="Next scenario" onPress={onNext} />}<Btn label="Play again" onPress={() => { setTries(1); les.current.tries = 1; reset('solo'); }} /><Btn label={`Back to ${back}`} onPress={onQuit} /></>
               : <Btn label="Retry" onPress={() => reset('solo')} />
               : stage === 'watch' ? <><Btn label="Try it" onPress={() => reset('guided')} /><Btn label="Watch again" onPress={() => reset('watch')} /></>
               : run >= SOLO_RUN ? <>{onNext && n + 1 < LESSONS.length && <Btn label="Next lesson" onPress={onNext} />}<Btn label="Back to Learn" onPress={onQuit} /></>
