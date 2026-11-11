@@ -2,13 +2,19 @@
 
 Expo (SDK 58) + React Native Skia + TypeScript. The physics engine is `src/physics/engine.ts`, a pure TS port of the
 lab engine with its checks in `src/physics/engine.test.mjs` (`npm test`). `App.tsx` is a smoke-test table: pull back
-anywhere to aim and shoot, tap Rack to reset.
+anywhere to aim and shoot, tap Rack to reset, Demo to see a spin, jump or massé shot, Felt to change the cloth.
 
 ```
 npm install
 npm test           # physics checks (about 30 s)
 npm run typecheck
+npm run frames -- out   # review pictures without a phone, see below
 ```
+
+`npm run frames` draws the table, the balls in motion, the aim line and both whole screens to PNG files with the app's
+own drawing code (`src/render`), at the pixel size of an iPhone 15. It also redraws the app icon and launch mark in
+`assets/` from the same ball code, so they change only when the ball design does. The buttons are React Native views
+and are not in these pictures.
 
 ## Getting it on your iPhone from Windows
 

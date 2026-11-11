@@ -12,16 +12,24 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#27504A",
+        "foregroundImage": "./assets/icon-mark.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.tec94.pool"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#101F1C",
+          "image": "./assets/icon-mark.png",
+          "imageWidth": 200
+        }
+      ]
+    ]
   }
 }
