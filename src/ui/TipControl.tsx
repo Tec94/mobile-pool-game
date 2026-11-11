@@ -38,8 +38,9 @@ export function TipButton({ store, onPress }: { store: TipStore; onPress: () => 
 }
 
 // The sheet. The table stays live around it: a pull on the table still aims and shoots while it is open.
-export function TipSheet({ store, land, calm, felt, onDone, style }: { store: TipStore; land: boolean; calm: boolean; felt: string; onDone: () => void; style: ViewStyle }) {
-  const t = useSyncExternalStore(store.sub, store.get), D = land ? 150 : 190;
+// width = the sheet's own; a sheet narrower than the big ring and the side picture need takes a smaller ring.
+export function TipSheet({ store, land, calm, felt, onDone, width, style }: { store: TipStore; land: boolean; calm: boolean; felt: string; onDone: () => void; width: number; style: ViewStyle }) {
+  const t = useSyncExternalStore(store.sub, store.get), D = Math.min(land ? 150 : 190, width - 140), wide = land || width < 340; // 140 = side picture, gap, padding and border
   const size = useRef(D), drag = useRef<{ on: 'ring' | 'pad'; from: Tip; x: number; y: number; t: number; moved: boolean; a: number; e: number } | null>(null);
   if (size.current !== D) drag.current = null; // the phone turned during a drag: the touch no longer maps to the ring
   size.current = D; // the pan responder is created once, so it reads the latest size
@@ -85,7 +86,7 @@ export function TipSheet({ store, land, calm, felt, onDone, style }: { store: Ti
   return (
     // Reduced motion: the sheet fades in and does not slide.
     // The sheet takes every touch that starts on it, so a slip off a handle never aims the cue on the table below.
-    <Animated.View onStartShouldSetResponder={() => true} onResponderTerminationRequest={() => false} style={{ ...styles.sheet, ...(land && { gap: 6, paddingTop: 8, paddingBottom: 8 }), ...style,
+    <Animated.View onStartShouldSetResponder={() => true} onResponderTerminationRequest={() => false} style={{ ...styles.sheet, ...(land && { gap: 6, paddingTop: 8, paddingBottom: 8 }), width, ...style,
       animationName: { from: { opacity: 0, transform: [calm ? { translateY: 0 } : land ? { translateX: 24 } : { translateY: 24 }] } }, animationDuration: '220ms', animationTimingFunction: cubicBezier(0.23, 1, 0.32, 1) }}>
       <View style={styles.head}>
         <Text maxFontSizeMultiplier={1.3} style={styles.eyebrow}>TIP AND CUE ANGLE</Text>
@@ -105,8 +106,8 @@ export function TipSheet({ store, land, calm, felt, onDone, style }: { store: Ti
       </View>
       <Text maxFontSizeMultiplier={1.3} style={styles.label} accessibilityLiveRegion="polite">{spinLabel(t)}</Text>
       <View style={styles.presets}>
-        <Chip label="Center" wide={land} onPress={() => { store.set({ ...store.get(), x: 0, y: 0 }); tap(); }} />
-        {PRESETS.map(([label, e]) => <Chip key={label} label={label} wide={land} on={t.elev === e} onPress={() => { store.set({ ...store.get(), elev: e }); tap(); }} />)}
+        <Chip label="Center" wide={wide} onPress={() => { store.set({ ...store.get(), x: 0, y: 0 }); tap(); }} />
+        {PRESETS.map(([label, e]) => <Chip key={label} label={label} wide={wide} on={t.elev === e} onPress={() => { store.set({ ...store.get(), elev: e }); tap(); }} />)}
       </View>
     </Animated.View>
   );

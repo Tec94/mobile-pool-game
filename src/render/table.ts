@@ -22,6 +22,8 @@ export function fit(w: number, h: number, pad: Inset = { top: 0, right: 0, botto
 }
 export const toScreen = (v: View, x: number, y: number) => (v.land ? { x: v.ox + x * v.s, y: v.oy + (P.W - y) * v.s } : { x: v.ox + (P.W - y) * v.s, y: v.oy + (P.L - x) * v.s });
 export const toTable = (v: View, px: number, py: number) => (v.land ? { x: (px - v.ox) / v.s, y: P.W - (py - v.oy) / v.s } : { x: P.L - (py - v.oy) / v.s, y: P.W - (px - v.ox) / v.s });
+// A screen point is on the table: the cloth, the cushions or the frame. Touches beside it belong to no control.
+export const onTable = (v: View, px: number, py: number) => { const p = toTable(v, px, py); return p.x >= -RAIL && p.x <= P.L + RAIL && p.y >= -RAIL && p.y <= P.W + RAIL; };
 
 // Quiet Slate table, drawn in table metres under one transform so landscape and portrait share every line below.
 // Line weights and dot sizes are the approved prototype's, scaled to a real table.
@@ -61,13 +63,15 @@ export function drawTable(api: typeof Skia, canvas: SkCanvas, v: View, cloth = C
 // meets a ball. Each run on the cloth is one path, so the joints of a see-through line do not double up.
 // With a raised cue the ball can leave the cloth: a gap in the line is the ball in the air, a small ring is where it
 // lands (`lands`), and a ring in the warning colour is where it leaves the table or falls in a pocket (`lost`).
-export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: number[][], ghost?: number[] | null, lands: number[][] = [], lost = false) {
+// `ob` is the path of the ball it meets first, from that ball.
+export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: number[][], ghost?: number[] | null, lands: number[][] = [], lost = false, ob: number[][] = []) {
   const r = P.R * v.s, p = api.Paint(); p.setAntiAlias(true); p.setColor(api.Color(C.chalk)); p.setStyle(1); p.setStrokeCap(1); p.setStrokeJoin(1); // stroke, round, round
   p.setAlphaf(0.92); p.setStrokeWidth(0.19 * r);
   let run: number[][] = [];
   const end = () => { if (run.length > 1) canvas.drawPath(api.Path.Polygon(run.map(([x, y]) => toScreen(v, x, y)), false), p); run = []; };
   for (const q of path) if ((q[2] || 0) > 0.05 * P.R) end(); else run.push(q);
   end();
+  run = ob; end();
   p.setAlphaf(0.9); p.setStrokeWidth(0.16 * r);
   for (const [x, y] of lands) { const g = toScreen(v, x, y); canvas.drawCircle(g.x, g.y, 0.7 * r, p); }
   if (ghost) { const g = toScreen(v, ghost[0], ghost[1]); canvas.drawCircle(g.x, g.y, 0.92 * r, p); }
