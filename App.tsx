@@ -251,7 +251,8 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         const rec = Skia.PictureRecorder(), c = rec.beginRecording(), { aim, power } = shot.get();
         if (!shut() || watching()) {
           const g = aimGuide(B, shotOf(previewPower(power)), S || vs ? mine.aim : L ? 10 : GUIDE_AIM, GUIDE_WORK, cue); // lessons use the full guide
-          if (!(S && les.current.guideOff)) { peeked.current = true; drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob); } drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power);
+          if (!(S && les.current.guideOff)) { peeked.current = true; drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob); }
+          if (!grab.current || grab.current === 'call') drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power); // no stick while a finger carries the cue ball in hand
         }
         guide.value = rec.finishRecordingAsPicture(); stale.current = false;
       }
@@ -350,6 +351,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       const t = table.current, s = t.rules, v = map.current, p = toTable(v, g.x0, g.y0), c = t.B[0], at = toScreen(v, c.x, c.y);
       const k = canCall(s) ? HOLES.findIndex(h => Math.hypot(h[0] - p.x, h[1] - p.y) < 0.1) : -1;
       grab.current = s.hand && Math.hypot(at.x - g.x0, at.y - g.y0) < GRAB ? { x: c.x - p.x, y: c.y - p.y } : k >= 0 ? 'call' : null;
+      if (grab.current && grab.current !== 'call') stale.current = true; // the stick goes as the finger takes the ball
       if (k >= 0 && grab.current === 'call') { t.rules = setCall(s, k === s.call ? -1 : k); Haptics.selectionAsync(); paint(); redraw(); }
       touch.current = grab.current ? null : { t: Date.now(), moved: false, ...finger(g.x0, g.y0) };
     },
@@ -363,11 +365,11 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       d.moved = true; d.ang = f.ang;
     },
     onPanResponderRelease: () => { // a tap points the cue at the tapped point
-      const d = touch.current, s = shot.get(); touch.current = grab.current = null;
+      const d = touch.current, s = shot.get(); if (grab.current) stale.current = true; touch.current = grab.current = null; // a carried cue ball gets its stick back
       if (!d || d.moved || Date.now() - d.t >= TAP_MS || d.lever < P.R * map.current.s) return; // a tap on the cue ball itself points nowhere
       const aim = tapAim(s.aim, s.fine, d.ang); if (aim !== s.aim) { shot.set({ aim }); Haptics.selectionAsync(); }
     },
-    onPanResponderTerminate: () => { touch.current = grab.current = null; },
+    onPanResponderTerminate: () => { if (grab.current) stale.current = true; touch.current = grab.current = null; },
   })).current;
 
   // A lesson: the table is set again for every shot. Guided sets the reference spin; watch lines up the reference shot
