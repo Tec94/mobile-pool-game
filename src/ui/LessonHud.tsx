@@ -11,14 +11,15 @@ import { C } from '../theme';
 export const LESSON_HUD = 92; // screen units above the table: the step, the goal on up to two lines, one line of help
 
 const STEP: Record<Stage, string> = { watch: 'Watch', guided: 'Guided', solo: 'Solo' };
-export function LessonHud({ lesson, n, stage, run, land, pad, children }: { lesson: Lesson; n: number; stage: Stage; run: number; land: boolean; pad: EdgeInsets; children?: ReactNode }) {
+// A scenario names itself and its tries in head and line.
+export function LessonHud({ lesson, n, stage, run, land, pad, head, line: said, children }: { lesson: Lesson; n: number; stage: Stage; run: number; land: boolean; pad: EdgeInsets; head?: string; line?: string; children?: ReactNode }) {
   const { tip, power } = lesson.ref;
-  const line = stage === 'guided' ? `${spinLabel(tip)}${tip.elev ? ` · ${zoneLabel(tip)} ${tip.elev}°` : ''} · power about ${Math.round(power * 100)}%`
+  const line = said ?? stage === 'guided' ? `${spinLabel(tip)}${tip.elev ? ` · ${zoneLabel(tip)} ${tip.elev}°` : ''} · power about ${Math.round(power * 100)}%`
     : stage === 'solo' ? `${run} of ${SOLO_RUN} in a row. No help with spin and power.` : 'Watch the spin and the power.';
   return (
     <View style={[styles.hud, { top: pad.top + 4, left: Math.max(pad.left, 8), right: Math.max(pad.right, 8) + (land ? BAR : 0) }]}>
       <View style={styles.text} accessible accessibilityLiveRegion="polite">
-        <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.eyebrow}>{`Lesson ${n + 1} · ${STEP[stage]}`}</Text>
+        <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.eyebrow}>{head ?? `Lesson ${n + 1} · ${STEP[stage]}`}</Text>
         <Text maxFontSizeMultiplier={1.2} numberOfLines={2} style={styles.say}>{lesson.say}</Text>
         <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.line}>{line}</Text>
       </View>
