@@ -487,7 +487,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       {!L && !vs && <View style={[styles.at, lay.tools]}><Btn label="•••" name="Table tools" onPress={() => { setTools(!tools); setSheet(false); }} /></View>}
       {/* shortcut: the test buttons (Rack, Demo), behind one button. Not in quick match: a new rack would dodge a loss and a demo pot would pay. */}
       {tools && (
-        <View onStartShouldSetResponder={() => true} style={[styles.tools, view.land ? { left: lay.tools.left + lay.tools.width + 12, bottom: height - lay.tools.top - lay.tools.height } : { left: lay.tools.left, bottom: height - lay.dial.top + 8 }]}>
+        <View onStartShouldSetResponder={() => true} style={[styles.tools, view.land ? { left: lay.tools.left + lay.tools.width + 12, bottom: height - lay.tools.top - lay.tools.height } : { left: lay.tools.left, bottom: height - lay.spin.top + 8 }]}>
           <Btn label="Rack" onPress={() => rerack()} onLongPress={() => setHud(!hud)} />
           <Btn label={'Demo\n' + DEMOS[demo][0]} onLongPress={() => Alert.alert('AI think time', benchAI())} onPress={() => { // hold: time the AI (blocks the JS thread a few seconds); tap: a fresh rack, and the demo shot is its break
             rerack(); const t = table.current; t.B[0].y = P.W / 2; // the demo shots go straight down the middle
@@ -498,7 +498,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       )}
       {/* The sheet stops short of the rail, so a shot can be pulled while it is open. */}
       {sheet && <TipSheet store={tip} land={view.land} calm={calm} felt={CLOTHS[cloth].felt} blend={set.zones} onDone={() => setSheet(false)} width={view.land ? 300 : lay.rail.left - 8 - lay.tools.left}
-        style={view.land ? { right: width - lay.rail.left + 8, bottom: Math.max(pad.bottom, 8) } : { left: lay.tools.left, bottom: height - lay.dial.top + 8 }} />}
+        style={view.land ? { right: width - lay.rail.left + 8, bottom: Math.max(pad.bottom, 8) } : { left: lay.tools.left, bottom: height - lay.spin.top + 8 }} />}
       {/* Paused: drawn last, so the card and its ground take every touch and no control or aim works behind them. Leaving ends the match. */}
       {paused && (
         <View style={[styles.sheet, styles.dim]} onStartShouldSetResponder={() => true}>
