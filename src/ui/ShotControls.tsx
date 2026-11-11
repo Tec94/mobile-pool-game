@@ -32,7 +32,7 @@ const dim = (locked: boolean) => ({ opacity: locked ? 0.35 : 1, transitionProper
 // shortcut: no Strike control "Tap" mode; the settings screen adds it.
 export function PowerRail({ store, box, onStrike }: { store: ShotStore; box: Box; onStrike: (power: number) => void }) {
   const locked = useSyncExternalStore(store.sub, () => store.get().locked), [label, setLabel] = useState('Pull');
-  const pic = useSharedValue(EMPTY), pull = useRef<{ from: number; hist: number[][] } | null>(null);
+  const pic = useSharedValue(EMPTY), pull = useRef<{ from: number; hist: number[][]; id: number; y: number } | null>(null);
   const now = useRef({ box, onStrike }); now.current = { box, onStrike }; // the pan responder is created once, so it reads the latest
   useEffect(() => {
     let was = -1;
@@ -49,10 +49,10 @@ export function PowerRail({ store, box, onStrike }: { store: ShotStore; box: Box
   };
   const pan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => !store.get().locked,
-    onPanResponderGrant: () => { pull.current = { from: store.get().power, hist: [] }; },
-    onPanResponderMove: (_, g) => {
-      const d = pull.current; if (!d) return;
-      const p = pullPower(g.dy, now.current.box.height, d.from);
+    onPanResponderGrant: e => { pull.current = { from: store.get().power, hist: [], id: e.nativeEvent.identifier, y: e.nativeEvent.pageY }; },
+    onPanResponderMove: e => { // the pull is the travel of the finger that went down on the rail: a second finger elsewhere does not change the power
+      const d = pull.current, f = d && e.nativeEvent.touches.find(t => t.identifier === d.id); if (!d || !f) return;
+      const p = pullPower(f.pageY - d.y, now.current.box.height, d.from);
       d.hist.push([Date.now(), p]); if (d.hist.length > 60) d.hist.shift();
       setPower(p);
     },
