@@ -106,7 +106,7 @@ const DRAW = -(CUE.tipLimit - 0.05);
 const GRID: [number, number][] = [[1, DRAW], [1, TIP], [1.6, DRAW], [1.6, 0], [0.7, 0], [1.3, TIP], [2.2, DRAW], [0.7, TIP],
   [1.3, DRAW], [1.6, TIP], [0.5, 0], [2.2, 0], [1.3, 0], [0.85, DRAW], [0.85, 0], [1, 0], [2.6, DRAW], [0.6, DRAW]];
 // ms clock; a worklet runtime may have no performance, so Date.now there
-const now = typeof performance === 'undefined' ? Date.now : () => performance.now();
+function now() { return typeof performance === 'undefined' ? Date.now() : performance.now(); } // a function declaration: the worklets plugin turns those into worklets, not a ternary of functions
 const THINK = 2500; // ms: past this from the start of aiShot, refine runs no more rollouts and keeps the best so far
 // The shot in hand on the engine, a few full-table simulations per call of the search it returns (more(n) runs n more and
 // returns the best so far): steer the aim until the right ball is hit first and ball k drops in the middle of the pocket
