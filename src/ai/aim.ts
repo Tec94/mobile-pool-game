@@ -77,9 +77,10 @@ function rollout(B: Ball[], shot: Shot, k: number, first: number, pk: Pt | null,
       if (e.t === 'pocket' || e.t === 'off') { if (e.a === 0) scratch = true; else if (e.a === k) { pot = e.t === 'pocket'; drop = v; } }
     }
     if (hit < 0) watch(c, G); else if (hit === first && pk && o.on) watch(o, pk);
-    // shortcut: stops once the cue ball and ball k rest, so a later kiss or a rail reached by another ball is not seen;
-    // run to rest if the AI starts fouling on those.
-    if (!mv || (hit >= 0 && !(c.on && (c.vx || c.vy)) && !(o.on && (o.vx || o.vy)))) break;
+    // A pot runs until nothing moves, so nextP scores the table as it is left (a ball knocked in, the 8 above all).
+    // shortcut: a miss or a safety stops once the cue ball and ball k rest, so a later kiss or a rail reached by another
+    // ball is not seen there; run those to rest too if the AI starts fouling on them.
+    if (!mv || (hit >= 0 && !(pk && pot) && !(c.on && (c.vx || c.vy)) && !(o.on && (o.vx || o.vy)))) break;
   }
   // a ball potted fast enough would have reached the cushion behind the pocket had it missed
   return { pot: pot && !scratch, legal: hit === first, rail: rail || drop > 0.25, scratch, err: pk || hit !== first ? err : 0, S };
