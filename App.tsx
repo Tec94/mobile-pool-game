@@ -1,7 +1,7 @@
 // Device smoke test: the real engine on a Quiet Slate table. Pull back from anywhere to aim and shoot.
 // The cue ball button opens the tip and cue angle sheet (spin, jump, masse).
 // shortcut: no rules or HUD yet; this screen proves Skia, the engine and the ball animation on the phone.
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, PixelRatio, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Canvas, Picture, Skia, type SkPicture } from '@shopify/react-native-skia';
 import Animated, { useFrameCallback, useReducedMotion, useSharedValue } from 'react-native-reanimated';
@@ -63,17 +63,18 @@ function Game() {
   // Frames of play wait in queue and the UI thread shows one on each display refresh (see src/render/pace.ts).
   const queue = useSharedValue<Slot<SkPicture>[]>([]), left = useSharedValue(STILL);
   const seen = useSharedValue([0, 0, 0, 0, 0]); // counts for the readout (refreshes, frames shown, refreshes with no frame ready, frames skipped), then the share of the last refreshes that came less than 12 ms apart: above a half is a 120 Hz display
-  const beat = useFrameCallback(f => {
+  // One function for the life of the screen: a new one would register again and lose a refresh on each React render.
+  const beat = useFrameCallback(useCallback(f => {
     'worklet';
     const dt = f.timeSincePreviousFrame ?? 0, r = refresh(queue.value, left.value, dt), s = seen.value;
     left.value = r.left;
     if (r.show) { queue.value = r.rest; picture.value = r.show; }
     seen.value = [s[0] + 1, s[1] + (r.show ? 1 : 0), s[2] + (r.dry ? 1 : 0), s[3] + r.skipped, dt ? 0.9 * s[4] + (dt < 12 ? 0.1 : 0) : s[4]];
-  }, false);
+  }, []), false);
   const live = useRef(beat); live.current = beat;
   const push = (pic: SkPicture, ms: number, first: boolean) => { 'worklet'; queue.value = first ? [{ pic, ms }] : [...queue.value, { pic, ms }]; if (first) left.value = 0; };
   const still = (pic: SkPicture) => { 'worklet'; queue.value = []; left.value = STILL; picture.value = pic; };
-  const pace = useRef<Pace | null>(null), rate = useRef(0), made = useRef([0, 0]); // rate = the frame time a phone too slow for the display fell back to; made = frames made and the ms they took, for the readout
+  const pace = useRef<Pace | null>(null), made = useRef([0, 0]); // made = frames made and the ms they took, for the readout
   // The table as it is now, shown at once in place of any frames that wait. Play that goes on starts its frames again.
   const paint = () => { pace.current = null; scheduleOnUI(still, draw.current()); };
   useEffect(paint, where);
@@ -94,14 +95,15 @@ function Game() {
       if (busy()) {
         let p = pace.current;
         const first = !p;
-        if (!p) p = pace.current = newPace(Math.max(rate.current, seen.value[4] > 0.5 ? 1000 / 120 : 1000 / 60));
+        if (!p) p = pace.current = newPace(seen.value[4] > 0.5 ? 1000 / 120 : 1000 / 60);
         if (!on) { on = true; clearTimeout(timer); live.current.setActive(true); }
         for (let n = 0, ms; n < 4 && busy() && (ms = nextFrame(p, t)); n++) { // at most 4 frames a turn, so a late JS thread still answers touches
           const t0 = performance.now();
           moving.current = advance(B, look, ms, moving.current);
           scheduleOnUI(push, draw.current(), busy() ? p.frame : STILL, first && !n);
-          const cost = performance.now() - t0; spent(p, cost); rate.current = p.frame; made.current[0]++; made.current[1] += cost;
+          const cost = performance.now() - t0; spent(p, cost); made.current[0]++; made.current[1] += cost;
         }
+        if (!busy()) pace.current = null; // the last frame stays on screen: a shot struck before the next turn starts its frames again
       } else if (on) { on = false; pace.current = null; timer = rest(); }
       raf = requestAnimationFrame(tick);
     };
