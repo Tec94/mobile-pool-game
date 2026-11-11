@@ -6,11 +6,13 @@ import { C } from '../theme.ts';
 import { toScreen, type View } from './table.ts';
 
 // hand = the cue ball at (x, y) may be dragged ('kitchen' = only above the head string); call = the called pocket,
-// -1 none; ask = a pocket must be called before the shot; ms = a clock for the pulse.
-export interface Marks { hand: false | 'any' | 'kitchen'; x: number; y: number; call: number; ask: boolean; ms: number }
+// -1 none; ask = a pocket must be called before the shot; ms = a clock for the pulse; zone = a lesson's ring [x, y, r]
+// in metres, where the cue ball must stop.
+export interface Marks { hand: false | 'any' | 'kitchen'; x: number; y: number; call: number; ask: boolean; ms: number; zone?: number[] | null }
 export function drawMarks(api: typeof Skia, canvas: SkCanvas, v: View, m: Marks) {
   const r = P.R * v.s, p = api.Paint(); p.setAntiAlias(true);
   const ring = (x: number, y: number, rad: number, hex: string, a: number, w: number) => { p.setStyle(1); p.setColor(api.Color(hex)); p.setAlphaf(a); p.setStrokeWidth(w); canvas.drawCircle(x, y, rad, p); }; // 1 = PaintStyle.Stroke
+  if (m.zone) { const c = toScreen(v, m.zone[0], m.zone[1]); p.setStyle(0); p.setColor(api.Color(C.chalk)); p.setAlphaf(0.1); canvas.drawCircle(c.x, c.y, m.zone[2] * v.s, p); ring(c.x, c.y, m.zone[2] * v.s, C.chalk, 0.8, 2); }
   if (m.hand === 'kitchen') { // the cue ball may only go above the head string: light that part of the cloth and the line
     const a = toScreen(v, 0, 0), b = toScreen(v, P.L / 4, P.W), h = toScreen(v, P.L / 4, 0);
     p.setStyle(0); p.setColor(api.Color(C.chalk)); p.setAlphaf(0.08);
