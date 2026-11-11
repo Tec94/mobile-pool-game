@@ -3,8 +3,8 @@
 import type { Skia, SkCanvas } from '@shopify/react-native-skia';
 import { P } from '../physics/engine.ts';
 import { C } from '../theme.ts';
-import { toScreen } from './table.ts';
-import type { View } from './table.ts';
+import { BAR, fit, RAIL, toScreen } from './table.ts';
+import type { Inset, View } from './table.ts';
 
 const fill = (api: typeof Skia, hex: string, a = 1) => { const p = api.Paint(); p.setAntiAlias(true); p.setColor(api.Color(hex)); p.setAlphaf(a); return p; };
 // A cue from its tip (ax, ay) to the end of its butt (bx, by), w0 wide at the tip and w1 at the butt: the chalked tip,
@@ -60,4 +60,22 @@ export function drawDial(api: typeof Skia, canvas: SkCanvas, w: number, h: numbe
   }
   canvas.restore();
   canvas.drawRRect(box, line(0.25, 1));
+}
+
+// Where the shot controls sit in a w x h window, inside the safe area, and the table that fits between them.
+// Portrait: the rail right of the table, standing on the line of the frame's foot; under the table a row of the tools
+// button, the dial and the spin button. Landscape: spin, dial and tools in a column on the left, the rail on the right.
+// shortcut: the rail is always on the right, the Power side setting of the settings screen mirrors this.
+export interface Box { left: number; top: number; width: number; height: number }
+export const RAIL_W = 56;
+export function shotLayout(w: number, h: number, pad: Inset): { view: View; rail: Box; dial: Box; spin: Box; tools: Box } {
+  const [t, r, b, l] = [pad.top, pad.right, pad.bottom, pad.left].map(p => Math.max(p, 8));
+  if (w > h) { // fit() keeps BAR on the right, for the rail; the larger inset keeps the same on the left
+    const top = t + 60, foot = h - b - 44;
+    return { view: fit(w, h, { ...pad, left: l + BAR }), rail: { left: w - r - BAR + 4, top: t, width: RAIL_W, height: h - t - b },
+      spin: { left: l + 8, top: t, width: 48, height: 48 }, dial: { left: l + 8, top, width: 48, height: foot - 12 - top }, tools: { left: l + 4, top: foot, width: 56, height: 44 } };
+  }
+  const view = fit(w, h, { ...pad, right: r + RAIL_W + 8 }), row = h - b - BAR, foot = view.oy + (P.L + RAIL) * view.s, tall = Math.min(300, (P.L + 2 * RAIL) * view.s);
+  return { view, rail: { left: w - r - RAIL_W, top: foot - tall, width: RAIL_W, height: tall },
+    tools: { left: l, top: row + 10, width: 56, height: 44 }, dial: { left: l + 68, top: row + 8, width: w - r - l - 128, height: 48 }, spin: { left: w - r - 48, top: row + 8, width: 48, height: 48 } };
 }
