@@ -186,7 +186,8 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   const draw = useRef(() => EMPTY);
   draw.current = () => {
     const rec = Skia.PictureRecorder(), c = rec.beginRecording(), { B, ids, look, rules: s, rec: shot } = table.current;
-    drawMarks(Skia, c, view, { hand: !shot && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call, ask: !shot && onEight(s), ms: performance.now(), zone: L?.goal.zone });
+    const me = !shot && !bot(); // on the AI's turn the human's marks stay off
+    drawMarks(Skia, c, view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call, ask: me && onEight(s), ms: performance.now(), zone: L?.goal.zone });
     drawBalls(kit, c, B, ids, look, view);
     return rec.finishRecordingAsPicture();
   };
@@ -429,7 +430,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         <Btn label="II" name="Pause" onPress={() => { setPaused(true); setSheet(false); }} />
       </LessonHud>}
       {/* The player plates, the 9-ball strip and the banner with the last ruling (src/ui/MatchHud.tsx). */}
-      {!L && <MatchHud rules={rules} names={names} push={table.current.push} view={view} pad={pad} calm={calm} wait={thinking ? `${names[1]} is thinking…` : undefined}>
+      {!L && <MatchHud rules={rules} names={names} push={table.current.push} view={view} pad={pad} calm={calm} wait={bot() && !over ? (thinking ? `${names[1]} is thinking…` : '') : undefined}>
         {rules.push && !rules.choice && !(vs && rules.turn === 1) && <Btn label={table.current.push ? 'Push out: on' : 'Push out'} onPress={() => { if (!table.current.rec) { table.current.push = !table.current.push; redraw(); } }} />}
         <Btn label="II" name="Pause" onPress={() => { setPaused(true); setTools(false); setSheet(false); }} />
       </MatchHud>}

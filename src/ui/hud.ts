@@ -31,10 +31,11 @@ export const strip = (s: State) => (s.game === 9 ? range(1, 9).map(id => ({ id, 
 // The banner over the table. note = the ruling on the last shot (shown for a moment); hint = what the player must do
 // now (shown until it is done). The results card and a decision card show the ruling themselves. The bank/combination
 // call tip rides as a note on purpose: it is advice, not a must, so it shows for a moment and goes. wait = what the
-// other side is doing (the AI thinks): it takes the place of the hint, even over a decision the AI makes.
-export function banner(s: State, push: boolean, wait = '') {
-  if (s.phase === 'over' || (s.choice && !wait)) return { note: '', foul: false, hint: '' };
-  if (wait) return { note: s.choice ? '' : s.note, foul: !s.choice && s.note.startsWith('Foul'), hint: wait };
+// other side is doing (the AI thinks, or '' while it shoots): it takes the place of the hint, even over a decision the
+// AI makes. undefined = the player's own turn.
+export function banner(s: State, push: boolean, wait?: string) {
+  if (s.phase === 'over' || (s.choice && wait === undefined)) return { note: '', foul: false, hint: '' };
+  if (wait !== undefined) return { note: s.choice ? '' : s.note, foul: !s.choice && s.note.startsWith('Foul'), hint: wait };
   const ask = canCall(s) && s.call < 0, eight = onEight(s);
   const note = s.note || (ask && !eight && !s.hand ? 'Tap a pocket to call a bank or a combination.' : '');
   const said = /ball in hand/i.test(note); // the ruling already says it: the hint only says what to do
