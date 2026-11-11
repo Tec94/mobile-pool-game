@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, PixelRatio, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Canvas, Line, matchFont, Picture, Skia, vec } from '@shopify/react-native-skia';
-import { useReducedMotion, useSharedValue } from 'react-native-reanimated';
+import Animated, { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -104,18 +104,26 @@ function Game() {
       {/* Controls sit inside the safe area: a row under the table in portrait, a column beside it in landscape. */}
       <View style={[styles.bar, view.land ? { top: pad.top, bottom: pad.bottom, right: pad.right, width: BAR, flexDirection: 'column' } : { left: pad.left, right: pad.right, bottom: pad.bottom, height: BAR, flexDirection: 'row' }]}>
         {aim && <Text style={[styles.power, view.land ? { top: 8 } : { left: 16 }]}>{Math.round(aim.pull * 100)}%</Text>}
-        <Pressable style={styles.btn} onPress={() => { table.current = newTable(); moving.current = false; paint.current(); }}>
-          <Text style={styles.btnText}>Rack</Text>
-        </Pressable>
-        <Pressable style={styles.btn} onPress={() => {
+        <Btn label="Rack" onPress={() => { table.current = newTable(); moving.current = false; paint.current(); }} />
+        <Btn label={'Demo\n' + DEMOS[demo][0]} onPress={() => {
           table.current = newTable(); table.current.broken = true;
           strike(table.current.B[0], { ang: 0, speed: 1, a: 0, b: 0, ...DEMOS[demo][1] });
           moving.current = true; setDemo((demo + 1) % DEMOS.length);
-        }}>
-          <Text style={styles.btnText}>Demo: {DEMOS[demo][0]}</Text>
-        </Pressable>
+        }} />
       </View>
     </View>
+  );
+}
+
+// Chrome button: hairline outline, a 44 pt target, and a 3% press that follows the finger down (no bounce).
+function Btn({ label, onPress }: { label: string; onPress: () => void }) {
+  const [down, setDown] = useState(false);
+  return (
+    <Pressable onPress={onPress} onPressIn={() => setDown(true)} onPressOut={() => setDown(false)} pressRetentionOffset={16} accessibilityRole="button" accessibilityLabel={label.replace('\n', ' ')}>
+      <Animated.View style={{ ...styles.btn, transform: [{ scale: down ? 0.97 : 1 }], transitionProperty: 'transform', transitionDuration: '120ms', transitionTimingFunction: 'ease-out' }}>
+        <Text style={styles.btnText}>{label}</Text>
+      </Animated.View>
+    </Pressable>
   );
 }
 
@@ -123,6 +131,6 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.ground },
   bar: { position: 'absolute', alignItems: 'center', justifyContent: 'center', gap: 12 },
   power: { position: 'absolute', color: C.chalk, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  btn: { borderColor: C.chalk, borderWidth: 1, borderRadius: 6, paddingHorizontal: 20, paddingVertical: 8 },
-  btnText: { color: C.chalk, fontSize: 16 },
+  btn: { minWidth: 56, minHeight: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', borderColor: C.chalk + '66', borderWidth: 1, borderRadius: 6 }, // outline at 40%: 3:1 on the ground
+  btnText: { color: C.chalk, fontSize: 13, lineHeight: 16, textAlign: 'center' },
 });
