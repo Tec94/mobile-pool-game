@@ -19,7 +19,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq([h.squirt, h.maxElev], [CUE.squirt, CUE.maxElev], 'the rest of the engine cue is kept');
   near(stick('broomstick').maxSpeed, 3.97, 'Power 4'); near(stick('wizard').tipLimit, 0.5, 'Spin 10: 0.50 R'); near(stick('twig').tipLimit, 0.33, 'Spin 1: 0.33 R');
   near(stick('golden').maxSpeed, 4.41, 'Power 9');
-  near(stick('rocket').maxSpeed, 4.95, 'Rocket Liftoff: Power 10 and 10% past the cap'); near(stick('rocket').breakSpeed, 13.2, 'Rocket break');
+  near(stick('rocket').maxSpeed, 4.95, 'Rocket Liftoff: Power 10 and 10% past the cap'); near(stick('rocket').breakSpeed, 12, 'Rocket break: Power 10, Liftoff does not count');
   eq(stick('wizard').squirt, 0, 'Wizard Staff Hex: no squirt');
   eq(stick('rocket', true), h, 'matched: House Cue stats, perks off'); eq(stick('wizard', true).squirt, CUE.squirt, 'matched Wizard squirts');
   eq(Object.keys(CUES).length, 17, '17 cues'); eq(CUES.house.aim, 5, 'House Cue Aim 5');

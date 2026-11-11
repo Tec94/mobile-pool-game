@@ -33,8 +33,8 @@ export const CUE_IDS = Object.keys(CUES) as CueId[];
 
 // The engine cue for a cue: Power 1 to 10 gives top speed 3.7 to 4.5 m/s and the break the same share of 12 m/s,
 // Spin 1 to 10 gives a tip limit of 0.33 to 0.50 R. matched = both players on House Cue stats, perks off.
+// The Rocket's Liftoff lifts shots only; its break stays at the Power 10 12 m/s.
 export function stick(id: CueId, matched = false): Cue {
-  const k = matched ? 'house' : id, c: CueInfo = CUES[k];
-  const top = (3.7 + (c.power - 1) * 0.8 / 9) * (k === 'rocket' ? 1.1 : 1);
-  return { ...CUE, maxSpeed: top, breakSpeed: top * CUE.breakSpeed / CUE.maxSpeed, tipLimit: 0.33 + (c.spin - 1) * 0.17 / 9, squirt: k === 'wizard' ? 0 : CUE.squirt };
+  const k = matched ? 'house' : id, c: CueInfo = CUES[k], top = 3.7 + (c.power - 1) * 0.8 / 9;
+  return { ...CUE, maxSpeed: top * (k === 'rocket' ? 1.1 : 1), breakSpeed: top * CUE.breakSpeed / CUE.maxSpeed, tipLimit: 0.33 + (c.spin - 1) * 0.17 / 9, squirt: k === 'wizard' ? 0 : CUE.squirt };
 }
