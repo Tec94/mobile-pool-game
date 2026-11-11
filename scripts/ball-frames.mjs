@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { CUE, P, rack, strike } from '../src/physics/engine.ts';
 import { advance, drawBalls, makeKit, newLook } from '../src/render/balls.ts';
+import { drawCue, drawDial, drawRail } from '../src/render/cue.ts';
 import { drawAim, drawTable, fit, toScreen } from '../src/render/table.ts';
 import { drawSide, drawTip, drawTipBall, shotTip, SIDE } from '../src/render/tip.ts';
 import { aimGuide, guideFor, HOUSE_CUE } from '../src/shot/aim.ts';
@@ -25,8 +26,9 @@ const SAFE = { port: { top: 59, right: 0, bottom: 34, left: 0 }, land: { top: 0,
 const ball = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 
 // One scenario: n cells, each `every` frames (16 ms each) apart, showing w x h metres centred on at(B) or a fixed point.
-// w = 0 shows the whole phone window instead. aim = a shot to draw the aim guide for, as the app does while the player aims.
-function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, calm = false, skip = 0, cloth = 0, aim }) {
+// w = 0 shows the whole phone window instead. aim = a shot to draw the aim guide for, as the app does while the player aims;
+// pull = the power on the rail, which draws the cue stick behind the cue ball as well.
+function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, calm = false, skip = 0, cloth = 0, aim, pull }) {
   const { dpr } = PHONE, W = land ? PHONE.h : PHONE.w, H = land ? PHONE.w : PHONE.h, v = { ...fit(W, H, SAFE[land ? 'land' : 'port']), dpr, calm }, look = newLook(B);
   const cw = Math.round(w ? (land ? w : h) * v.s * dpr : W * dpr), ch = Math.round(w ? (land ? h : w) * v.s * dpr : H * dpr);
   const surface = CanvasKit.MakeSurface(n * cw + (n - 1) * 4, ch);
@@ -38,7 +40,7 @@ function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, c
   for (let f = 0; f < n; f++) {
     const p = typeof at === 'function' ? at(B) : at, o = w ? toScreen(v, p[0], p[1]) : { x: W / 2, y: H / 2 };
     c.save(); c.translate(f * (cw + 4), 0); c.clipRect(Skia.XYWHRect(0, 0, cw, ch), 1, true); c.scale(dpr, dpr); c.translate(cw / 2 / dpr - o.x, ch / 2 / dpr - o.y);
-    drawTable(Skia, c, v, CLOTHS[cloth]); if (aim) { const g = aimGuide(B, aim, guideFor(HOUSE_CUE.aim)); drawAim(Skia, c, v, g.path, g.ghost, g.lands, g.lost, g.ob); } // as App.tsx does
+    drawTable(Skia, c, v, CLOTHS[cloth]); if (aim) { const g = aimGuide(B, aim, guideFor(HOUSE_CUE.aim)); drawAim(Skia, c, v, g.path, g.ghost, g.lands, g.lost, g.ob); if (pull !== undefined) drawCue(Skia, c, v, B[0].x, B[0].y, aim.ang, pull); } // as App.tsx does
     drawBalls(kit, c, B, ids, look, v); c.restore();
     for (let k = 0; k < every; k++) run = advance(B, look, 16, run);
   }
@@ -88,7 +90,16 @@ for (const [name, t, speed, ang, B] of [['jump', { x: 0, y: 0, elev: 40 }, 3.2, 
     c.translate(D + 6, (D - SIDE.h) / 2); drawSide(Skia, c, t.elev, CLOTHS[0].felt);
     c.translate(SIDE.w + 6, 0); drawTipBall(Skia, c, 24, 24, 24, t); c.restore(); });
   writeFileSync(`${out}/tip-control.png`, surface.makeImageSnapshot().encodeToBytes()); console.log('tip-control'); }
-// 14. the app icon, written to assets/: the 8 ball as the app draws it, on the cloth under the lamp. `felt` off leaves
+// 14. the shot controls at 3 px per pt: the power rail at rest, at 50% and at full power, then the fine aim dial as it
+// lies in portrait and as it stands in landscape
+{ const dpr = PHONE.dpr, surface = CanvasKit.MakeSurface(520 * dpr, 316 * dpr), sk = surface.getCanvas(), c = new JsiSkCanvas(CanvasKit, sk);
+  c.drawColor(Skia.Color(C.ground)); c.scale(dpr, dpr); c.translate(8, 8);
+  [0, 0.5, 1].forEach((p, i) => { c.save(); c.translate(i * 68, 0); drawRail(Skia, c, 56, 300, p); c.restore(); });
+  c.save(); c.translate(216, 0); drawDial(Skia, c, 220, 48, 0); c.translate(0, 60); drawDial(Skia, c, 220, 48, 0.004); c.translate(236, -60); drawDial(Skia, c, 48, 200, 0); c.restore();
+  writeFileSync(`${out}/shot-controls.png`, surface.makeImageSnapshot().encodeToBytes()); console.log('shot-controls'); }
+// 15. the cue stick behind the cue ball with the guide, at rest and pulled back to 60%, in landscape and in portrait
+for (const land of [true, false]) for (const pull of [0, 0.6]) strip(`stick-${land ? 'land' : 'port'}-${pull * 100}`, { B: [ball(0.9, mid - 0.1), ball(1.5, mid + 0.02)], ids: [0, 4], shots: [], n: 1, w: 1.9, h: 0.5, at: [0.9, mid], land, aim: { ang: Math.atan2(0.09, 0.6), speed: 2, a: 0, b: 0 }, pull });
+// 16. the app icon, written to assets/: the 8 ball as the app draws it, on the cloth under the lamp. `felt` off leaves
 // the ball alone on a clear ground, for the Android adaptive icon and the launch screen.
 function icon(file, n, k, felt) {
   const surface = CanvasKit.MakeSurface(n, n), sk = surface.getCanvas(), c = new JsiSkCanvas(CanvasKit, sk), r = n * k, B = [ball(0, 0)];
