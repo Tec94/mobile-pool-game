@@ -26,6 +26,7 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
   a = judge(s, rec(1, [[0]])); eq([a.turn, a.hand, a.choice], [1, 'kitchen', null], '(h) a scratch on the break: ball in hand above the head string');
   a = judge(s, rec(1, [], { off: [8, 4], rails: [1, 2, 3, 5] })); eq([a.turn, a.spot, a.balls.includes(4), a.choice.length], [1, [8], false, 2], '(g) balls off the table on the break: the 8 is spotted, others stay off');
   eq([choose(a, 0).hand, choose(a, 1).hand], [false, 'kitchen'], 'the incoming player accepts the table or takes ball in hand above the head string');
+  eq(judge(s, rec(8, [], { rails: [1, 2, 3, 8] })).choice, null, '(b) no ball has to be hit first on the break, not even the 8');
   ok('8-ball break follows 4.3');
 }
 { // 4.4, 4.5: open table and groups
@@ -76,6 +77,7 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
   a = judge(setCall(s, 4), rec(2, [[1, 4]])); eq(a.turn, 1, 'the same shot counts when the pocket was called');
   a = judge(setCall(s, 5), rec(1, [[1, 4]], { direct: true })); eq(a.turn, 0, 'a called pocket missed: turn over, even on a straight pot elsewhere');
   a = judge(open8(true), rec(3, [[3, 1]], { direct: false })); eq([a.solids, a.turn], [-1, 0], 'an uncalled fluke on an open table decides nothing');
+  a = judge(open8(true), rec(11, [[3, 1], [11, 2]], { direct: true })); eq(a.solids, 0, 'with no call only the ball that was aimed at counts: stripes, though a solid fell first');
   assert(canCall(s) && !canCall(solids1()) && !canCall(newGame(8)), 'pockets can be called on every shot but the break, and only on the 8 with call shot off');
   eq(judge(solids1(), rec(2, [[1, 4]], { direct: false })).turn, 1, 'with call shot off a fluke keeps the table');
   ok('call shot follows 1.7, with a switch');
@@ -113,6 +115,7 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
   r = play([mk(0.9, 0.6), mk(1.0, 0.6)], [0, 3], { ang: 0, speed: 0.5, a: 0, b: 0 }); eq([r.first, r.railAfter, r.pots.length], [3, false, 0], 'a soft hit reaches no rail');
   r = play([mk(0.3, 0.6), mk(0.45, 0.6)], [0, 3], { ang: 0, speed: 1, a: 0, b: 0 }); eq(r.crossed, false, 'a ball above the head string hit from above it');
   r = play([mk(0.3, 0.6), mk(1.0, 0.6)], [0, 3], { ang: 0, speed: 1, a: 0, b: 0 }); eq(r.crossed, true, 'a ball below the head string');
+  r = play([mk(0.3, 0.6), mk(P.L / 4 + 0.02, 0.6)], [0, 3], { ang: 0, speed: 1, a: 0, b: 0 }); eq(r.crossed, true, 'a ball just below the head string, met before the cue ball crosses it');
   r = play([mk(0.45, 0.5), mk(0.2, 0.5)], [0, 3], { ang: 0, speed: 4, a: 0, b: 0 }); eq([r.first, r.crossed], [3, true], 'a kick off the foot rail crosses the head string first');
   const B = [mk(P.L / 4 - 0.001, P.W / 2)], ids = [0]; for (const [id, x, y] of rack(8)) { ids.push(id); B.push(mk(x, y)); }
   r = play(B, ids, { ang: 0, speed: 12, a: 0, b: 0 }); assert(r.first === 1 && r.crossed && r.rails.length >= 4, 'a full break drives four balls to a rail: ' + r.rails.length);
@@ -121,7 +124,7 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
 { // Where balls may go
   const B = [mk(1, 0.5), mk(0.75 * P.L, P.W / 2), mk(0.2, 0.2)]; B[0].on = false;
   handCue(B, 'kitchen'); assert(B[0].on && B[0].x < P.L / 4 && Math.abs(B[0].y - P.W / 2) < 1e-9, 'a scratched cue ball comes back at the head spot, above the head string');
-  assert(!moveCue(B, 0.2, 0.2, 'any') || Math.hypot(B[0].x - 0.2, B[0].y - 0.2) >= 2 * P.R, 'the cue ball cannot be put on a ball');
+  assert(moveCue(B, 0.21, 0.2, 'any') && Math.abs(Math.hypot(B[0].x - 0.2, B[0].y - 0.2) - 2 * P.R) < 1e-3, 'dragged onto a ball, the cue ball slides round it');
   assert(moveCue(B, 5, 5, 'any') && B[0].x <= P.L - P.R && B[0].y <= P.W - P.R, 'it stays on the playing surface');
   moveCue(B, 1.5, 0.5, 'kitchen'); assert(B[0].x < P.L / 4, 'and above the head string when the rules say so');
   assert(!legalSpot(B, P.L / 4, 0.5, 'kitchen') && legalSpot(B, P.L / 4, 0.5, 'any'), 'on the head string is not above it');
