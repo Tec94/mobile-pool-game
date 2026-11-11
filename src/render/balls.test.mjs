@@ -2,6 +2,7 @@
 import assert from 'node:assert';
 import { P, strike } from '../physics/engine.ts';
 import { advance, newLook, turn } from './balls.ts';
+import { BAR, fit, RAIL, toScreen, toTable } from './table.ts';
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 const near = (a, b, tol, msg) => assert(Math.abs(a - b) < tol, `${msg}: ${a} vs ${b}`);
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
@@ -45,5 +46,15 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
   run = true; let off = null; while (run) { run = advance(C, l2, 16, run); off = off || l2.fx.find(e => e.t === 'off'); }
   assert(off && off.z > P.railH && off.vx < -1, 'off-table effect keeps height and speed');
   ok('landing and off-table effects follow the engine events');
+}
+{ // The table, frame included, stays off the glass, out of the safe area insets and clear of the controls, and a touch maps back.
+  for (const [w, h, pad] of [[852, 393, { top: 0, right: 59, bottom: 21, left: 59 }], [393, 852, { top: 59, right: 0, bottom: 34, left: 0 }], [667, 375, { top: 0, right: 0, bottom: 0, left: 0 }]]) {
+    const v = fit(w, h, pad), a = toScreen(v, -RAIL, -RAIL), b = toScreen(v, P.L + RAIL, P.W + RAIL), e = 1e-9;
+    const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x), y0 = Math.min(a.y, b.y), y1 = Math.max(a.y, b.y);
+    assert(x0 >= Math.max(pad.left, 8) - e && y0 >= Math.max(pad.top, 8) - e, `table starts inside the window ${w}x${h}`);
+    assert(x1 <= w - Math.max(pad.right, 8) - (v.land ? BAR : 0) + e && y1 <= h - Math.max(pad.bottom, 8) - (v.land ? 0 : BAR) + e, `table ends before the controls ${w}x${h}`);
+    const p = toScreen(v, 0.7, 0.3), q = toTable(v, p.x, p.y); near(q.x, 0.7, 1e-9, 'x maps back'); near(q.y, 0.3, 1e-9, 'y maps back');
+  }
+  ok('the table fits inside the safe area beside the controls in both orientations');
 }
 console.log(`\n${n} checks passed`);
