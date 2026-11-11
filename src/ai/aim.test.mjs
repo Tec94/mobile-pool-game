@@ -2,6 +2,7 @@
 import assert from 'node:assert';
 import { CUE, P, simulate, step, strike } from '../physics/engine.ts';
 import { aiShot, correctAim } from './aim.ts';
+import { visit } from './bench.ts';
 import { enumerate, SOLIDS, STRIPES, TIERS, randomLayout, rng } from './shot-ai.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
@@ -135,4 +136,11 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   const p = picksOf('bank', 20, TIERS[0]), made = p.filter(potted).length;
   assert(made >= 4, `Rookie's banks potted ${made}/${p.length}`);
   ok('with no engine time a bank is still hit hard enough');
+}
+{ // Tiers on the engine: one visit from each of 10 seeded full tables (bench.ts visit(), as npm run bench:visit plays them).
+  // Better tiers run more balls from planning and position, so Legend > Shark > Rookie by a margin.
+  const run = (t) => Array.from({ length: 10 }, (_, i) => visit(TIERS[t], 1 + i).potted).reduce((a, b) => a + b, 0);
+  const [rookie, shark, legend] = [0, 3, 5].map(run);
+  assert(shark > 2 * rookie && legend > 1.3 * shark, `balls in 10 visits: Rookie ${rookie}, Shark ${shark}, Legend ${legend}`);
+  ok('Legend runs more balls than Shark, and Shark than Rookie, on the engine');
 }
