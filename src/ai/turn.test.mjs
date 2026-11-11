@@ -29,6 +29,14 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, true), phase: 'play', turn: 1, 
   eq(placeCue(B, ids, 'any', []), null, 'no legal ball: no spot');
   const T = [mk(0.3, 0.3), mk(1.1, 0.56), mk(1.6, 0.9), mk(0.4, 1.0)], m = think(T.map(b => ({ ...b })), [0, 1, 10, 8], play8({ hand: 'any', balls: [1, 10, 8] }), 1, 1, 0);
   assert(m.at && Math.hypot(m.at[0] - 1.6, m.at[1] - 0.9) < 0.2 + 2 * P.R, `stripes: it places behind the 10 (${m.at})`);
+  // In the kitchen, stripes: the 10 lies behind the head string, the 12 below it. Every shot must go at the 12.
+  const K = [mk(0.2, 0.3), mk(0.4, 0.9), mk(1.8, 0.4), mk(2.2, 1.0)], kid = [0, 10, 12, 8];
+  for (let seed = 1; seed <= 5; seed++) {
+    const C = K.map(b => ({ ...b })), m = think(C, kid, play8({ hand: 'kitchen', balls: [10, 12, 8] }), 3, seed, 0), r = newRec(), ev = [];
+    C[0].x = m.at?.[0] ?? C[0].x; C[0].y = m.at?.[1] ?? C[0].y; strike(C[0], m.shot);
+    for (let i = 0; i < 20000 && r.first < 0 && step(C, (ev.length = 0, ev)); i++) record(r, ev, C, kid);
+    assert(r.first !== 10, `seed ${seed}: not the 10 behind the line`);
+  }
   ok('ball in hand: a legal spot behind a straight pot');
 }
 { const { B, ids } = racked(8), s = breakShot(B, ids, rng(1)), o = B[ids.indexOf(1)];

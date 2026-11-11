@@ -76,12 +76,14 @@ export function think(B: Ball[], ids: number[], s: State, tier: number, seed: nu
   if (s.phase === 'break') return { shot: breakShot(B, ids, rnd), at: null, call: -1, safety: false };
   // open table: the group it would pick from where the cue ball lies now. By value: on the runtime its SOLIDS is a copy
   const g = groupsOf(s, s.turn) ?? (chooseGroup({ x: B[0].x * 1000, y: B[0].y * 1000 }, mm(B, ids), T)[0] === 1 ? [SOLIDS, STRIPES] : [STRIPES, SOLIDS]);
+  // From the kitchen a ball behind the head string may not be hit first (rules.ts, crossed): leave those out, unless no other is left.
+  // shortcut: 9-ball keeps NINE whole (the picker knows it by its length), so a lowest ball behind the line is still a foul.
+  const ahead = (l: number[]) => { const k = s.hand === 'kitchen' ? l.filter(id => { const b = B[ids.indexOf(id)]; return b && b.on && b.x >= P.L / 4; }) : l; return k.length ? k : l; };
   if (s.hand) { // place first, then shoot from there
-    const at = placeCue(B, ids, s.hand, legalIds(s, g[0]));
+    const at = placeCue(B, ids, s.hand, ahead(legalIds(s, g[0])));
     if (at) { B[0].x = at[0]; B[0].y = at[1]; }
   }
-  // shortcut: from the kitchen the picker may still aim at a ball behind the head string, which is a foul; teach decide() the kitchen if it shows
-  const { shot, pick } = aiShot(B, ids, g[0], g[1], T, rnd, safeties);
+  const { shot, pick } = aiShot(B, ids, s.game === 9 ? g[0] : ahead(g[0]), g[1], T, rnd, safeties);
   return { shot, at: s.hand ? [B[0].x, B[0].y] : null, call: callFor(s, pick, B, ids), safety: pick.type === 'safety' };
 }
 
