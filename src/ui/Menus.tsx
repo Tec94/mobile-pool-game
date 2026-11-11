@@ -1,18 +1,19 @@
 // The screens around a match: home, the pass and play and quick match setups, settings, cues, learn, scenarios and the
 // Daily Table (screens spec, s-home, s-passplay, s-prefs, s-learn, the quick match sheet).
-// shortcut: only what works today is on them. The Rival, practice, career and the other settings of
+// shortcut: only what works today is on them. Practice, career and the other settings of
 // the spec come with the work that makes them play.
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LESSON_PAY, LESSONS, SOLO_RUN } from '../learn/lessons';
-import { keep, profile } from '../progress';
+import { keep, profile, rivalReset } from '../progress';
+import { between, MOODS, shown } from '../progress/rival';
 import { addMonths, type Daily, monthGrid, streak, weekday } from '../daily/daily';
 import { isOpen, par, SCENARIOS, starCount, type Stars, totalStars } from '../scenarios/scenarios';
 import { CUE_IDS, CUES, type CueId, type CueInfo, specLine, specs } from '../progress/cues';
 import { masteryLevel, masteryOf, STATS, statsOf, tunable, tuneDown, tuneUp, upCost, used, points } from '../progress/mastery';
 import { buy, FEATS, featCount, type FeatId, levelOf, PACKS, select, type Profile } from '../progress/profile';
-import { NAME_MAX, RACES, Settings } from '../settings/settings';
+import { NAME_MAX, RACES, RIVAL, Settings } from '../settings/settings';
 import { TIERS } from '../ai/shot-ai';
 import { C, CLOTHS } from '../theme';
 import { Btn } from './Btn';
@@ -95,12 +96,19 @@ function PassPlay({ set, change, go }: Props) {
   );
 }
 
-// The opponent is an AI tier; the setup is kept for next time, as pass and play keeps its own.
-function QuickMatch({ set, change, go }: Props) {
+// The opponent is the Rival, who adapts between matches, or a fixed AI tier; the setup is kept for next time, as pass
+// and play keeps its own. The Rival's rating is always shown: hidden adaptation would make the player doubt every win.
+function QuickMatch({ set, change: save, go }: Props) {
+  const [sure, setSure] = useState(false), s = profile().rival[set.aiGame].rating, names = TIERS.map(t => t.name);
+  const change = (p: Partial<Settings>) => { setSure(false); save(p); }; // any change disarms a reset, so one tap never resets another game
+  // A reset throws the rating away, so it takes a second tap (no Alert: it does nothing on web).
+  const reset = () => { if (sure) rivalReset(set.aiGame); setSure(!sure); };
   return (
     <Page title="Quick match" back={() => go('home')}>
       <Row<Settings['aiGame']> label="Game" note="9-ball: hit the lowest ball first. Potting the 9 wins" value={set.aiGame} pick={aiGame => change({ aiGame })} options={[['8-ball', 8], ['9-ball', 9]]} />
-      <Row label="Opponent" value={set.tier} pick={tier => change({ tier })} options={TIERS.map((t, i) => [t.name, i])} />
+      <Row label="Opponent" note={set.tier === RIVAL ? `Rival ${shown(s)}, ${between(s, names)}. Adapts after each match` : undefined} value={set.tier} pick={tier => change({ tier })} options={[['Rival', RIVAL], ...TIERS.map((t, i): [string, number] => [t.name, i])]} />
+      {set.tier === RIVAL && <Row label="Rival mood" note="How often you should win once the rating settles" value={set.mood} pick={mood => change({ mood })} options={MOODS.map(m => [m[0].toUpperCase() + m.slice(1), m])} />}
+      {set.tier === RIVAL && <Btn label={sure ? `Tap again: ${set.aiGame}-ball Rival back to ${shown(1)}` : 'Reset Rival rating'} onPress={reset} />}
       <Row label="Race to" note="Frames to win. The break alternates" value={set.aiRace} pick={aiRace => change({ aiRace })} options={RACES.map(r => [String(r), r])} />
       <Btn label="Rack them up" onPress={() => go('ai')} />
     </Page>
