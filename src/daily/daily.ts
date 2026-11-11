@@ -9,10 +9,10 @@ export const DAILY_XP = 100, STAR_COINS = 30; // XP on the first clear of a day,
 // Stars, as bits like the scenarios: 1 clear, 2 within par, 4 guide off.
 export interface Daily { firstDay: string; stars: Record<string, number>; chalk: { charges: number; lastGrantDay: string; armed: boolean } }
 
-// A day runs 04:00 to 04:00 local. Local fields, not minus 4 h of real time, so a DST night still turns at 04:00.
+// A day runs 04:00 to 04:00 local. Local fields only, never a made local time (it may not exist on a DST night).
 export function dayKey(d: Date) {
-  const t = new Date(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours() - 4, d.getMinutes());
-  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return d.getHours() < 4 ? addDays(k, -1) : k;
 }
 // Day keys step in UTC, where every day is 24 h, so DST can't skip or repeat one.
 const ms = (k: string) => Date.parse(`${k}T00:00:00Z`);
