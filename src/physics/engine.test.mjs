@@ -1,10 +1,10 @@
 // Run: npm test   (checks the engine against known pool behaviour; physics/engine.test.js in the project files is a copy)
 import assert from 'node:assert';
 import * as EngineAll from './engine.ts';
-const { P, CUE, step, strike, predict, simulate, rack, jumpRuling } = EngineAll;
+const { P, CUE, step, strike, predict, simulate, rack, breakSpot, jumpRuling } = EngineAll;
 const { R, L, W } = P, D = 180 / Math.PI, Rc = R * Math.sqrt(1 - P.nose ** 2); // Rc: ball centre to the cushion nose at contact
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
-const SQUIRT = CUE.squirt; CUE.squirt = 0; // isolate table physics from cue deflection
+const SQUIRT = CUE.squirt, TILT = CUE.minElev; CUE.squirt = 0; CUE.minElev = 0; // isolate table physics from cue deflection and from the tilt of the cue
 
 function run(B, maxT = 60, each) {
   const ev = [], all = [];
@@ -139,13 +139,17 @@ const shot = (gap, speed, a, b, offY = 0) => {
   const c = simulate(B, s, CUE, 100); assert(!c.settled && c.steps <= 101, 'simulate stops at the cap');
   console.log('bot simulate ok'); }
 // 14. Racks: 15 balls for 8-ball, a 9-ball diamond with the 1 on the foot spot and the 9 in the middle; both break cleanly.
+// The rack is not perfect: every ball is a little off its spot (at most 0.1 mm each way), by the same pattern every time.
 { for (const [game, n] of [[8, 15], [9, 9]]) {
-    const S = rack(game); assert(S.length === n && new Set(S.map(s => s[0])).size === n, game + '-ball rack size');
-    assert(S[0][0] === 1 && Math.abs(S[0][1] - 0.75 * L) < 1e-12 && Math.abs(S[0][2] - W / 2) < 1e-12, 'the 1 sits on the foot spot');
+    const S = rack(game), T = rack(game, undefined, 0), off = S.map((s, i) => Math.hypot(s[1] - T[i][1], s[2] - T[i][2])); // T: the perfect rack
+    assert(S.length === n && new Set(S.map(s => s[0])).size === n, game + '-ball rack size');
+    assert(T[0][0] === 1 && Math.abs(T[0][1] - 0.75 * L) < 1e-12 && Math.abs(T[0][2] - W / 2) < 1e-12, 'the 1 sits on the foot spot');
+    assert(Math.min(...off) > 0 && Math.max(...off) < 1.42e-4 && Math.max(...off) > 5e-5, `each ball is off its spot by 0.14 mm at most, got ${Math.min(...off) * 1e3} to ${Math.max(...off) * 1e3} mm`);
+    assert.deepStrictEqual(rack(game), S, 'the rack is the same every time');
     for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) assert(Math.hypot(S[i][1] - S[j][1], S[i][2] - S[j][2]) > 2 * R, 'racked balls overlap');
     const B = [mk(L / 4, W / 2), ...S.map(s => mk(s[1], s[2]))], r = simulate(B, { ang: 0, speed: CUE.breakSpeed, a: 0, b: 0.1 }, CUE, 60000);
     assert(r.settled && r.balls.every(b => Number.isFinite(b.x + b.y)), game + '-ball break settles'); }
-  const nine = rack(9), mid = nine.find(s => s[0] === 9), xs = nine.map(s => s[1]);
+  const nine = rack(9, undefined, 0), mid = nine.find(s => s[0] === 9), xs = nine.map(s => s[1]);
   assert(Math.abs(mid[2] - W / 2) < 1e-12 && Math.abs(mid[1] - (Math.min(...xs) + Math.max(...xs)) / 2) < 1e-12, 'the 9 is in the middle of the diamond');
   console.log('racks ok (8-ball and 9-ball)'); }
 // 15. Calibration against measured tables: roll distance and lag time for the cloth speed (Jewett: speed = 2 t^2,
@@ -339,7 +343,44 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   assert(worst < 5e-5, `second landing jumps by ${worst * 1e3} mm between drop heights 0.02 mm apart`);
   console.log(`landing ok (second landing moves smoothly with the drop height, largest jump ${(worst * 1e3).toFixed(3)} mm)`); }
 
-// 29. The aim guide's cost cap. A hit into the rack sets every ball moving; with a budget the guide stops soon after
+// 29. Swerve. The cue is never level (CUE.minElev, 3 degrees: the butt must clear the rail), so side spin is partly about
+// the line of travel and the cloth bends the path back toward the aim line, by atan(a sin(elev) / (cos(elev) + b)) once
+// the ball rolls (Coriolis): early on a slow shot, late on a fast one, not at all without side spin. The ball stays on
+// the cloth at every normal power. On a full break it hops a few millimetres and lands before the rack (Dr. Dave: with
+// a firm break "the CB will always be airborne or hopping on the way to the rack").
+{ CUE.squirt = SQUIRT; CUE.minElev = TILT;
+  const go = (speed, a, b) => { const c = mk(0.2, W / 2); strike(c, { ang: 0, speed, a, b });
+    const r = { leave: a * SQUIRT, hop: c.vz, apex: 0, shift: 0, land: 0 }, ev = []; // leave: the direction the squirt alone gives
+    while (c.x < 1.9 && step([c], ev)) { if (c.z > r.apex) r.apex = c.z; if (!r.shift && c.x >= 1.2) r.shift = c.y - W / 2; if (!r.land && ev.length) r.land = ev[0].x - 0.2; }
+    r.end = Math.atan2(c.vy, c.vx); return r; };
+  for (const [a, b] of [[0.5, 0], [0.25, 0], [0.35, -0.35], [0.35, 0.35], [-0.5, 0]]) { const r = go(2, a, b), want = -Math.atan(a * Math.sin(TILT) / (Math.cos(TILT) + b));
+    assert(Math.abs(r.end - r.leave - want) < 2e-4, `side spin ${a}, ${b}: the path should bend ${want * D} deg, bent ${(r.end - r.leave) * D}`);
+    assert(Math.abs(r.end) < Math.abs(r.leave) + 1e-9 && r.apex === 0, 'the bend is back toward the aim line and the ball stays down'); }
+  const slow = go(1, 0.5, 0), fast = go(CUE.maxSpeed, 0.5, 0), bend = (fast.end - fast.leave) * D, none = go(CUE.maxSpeed, 0, -0.5);
+  assert(slow.shift < 0.6 * fast.shift && fast.shift < Math.tan(fast.leave), 'a slow shot bends early, a fast one late');
+  assert(none.end === 0 && none.shift === 0 && none.hop === 0 && fast.hop === 0, 'no bend without side spin, no hop at full power');
+  const brk = go(CUE.breakSpeed, 0, 0);
+  assert(brk.apex > 0.001 && brk.apex < 0.008 && brk.land > 0.3 && brk.land < 0.9, `a full break should hop a few mm and land before the rack: ${brk.apex * 1e3} mm, ${brk.land} m`);
+  CUE.squirt = 0; CUE.minElev = 0;
+  console.log(`swerve ok (full side spin leaves at ${(fast.leave * D).toFixed(2)} deg and bends ${bend.toFixed(2)}; 1 m on, ${(slow.shift * 1e3).toFixed(0)} mm off the aim line slow, ${(fast.shift * 1e3).toFixed(0)} fast; full break hops ${(brk.apex * 1e3).toFixed(1)} mm, lands after ${brk.land.toFixed(2)} m)`); }
+
+// 30. The break spot: on the head string, clear of the side cushion, and from it the break pots at a believable rate.
+// 120 breaks a game with the real cue, power 75 to 100%, aimed within half a degree of the head ball. The floors are
+// well under the measured rates (35% of 8-ball breaks and 77% of 9-ball breaks pot a ball with no foul), so they catch
+// a break that has stopped working, not a small change.
+{ CUE.squirt = SQUIRT; CUE.minElev = TILT;
+  const [x, y] = breakSpot(), rate = [], N = 120;
+  assert(x === L / 4 && y > W / 2 + 0.3 && y < W - 3 * R, 'the break spot is on the head string, to one side, clear of the cushion');
+  for (const [game, floor] of [[8, 0.2], [9, 0.55]]) { let good = 0;
+    for (let k = 0; k < N; k++) { const r = simulate([mk(x, y), ...rack(game).map(s => mk(s[1], s[2]))],
+        { ang: Math.atan2(W / 2 - y, 0.75 * L - x) + ((k * 0.6180339887498949) % 1 - 0.5) * Math.PI / 180, speed: CUE.breakSpeed * (0.75 + 0.25 * (k + 0.5) / N), a: 0, b: 0 }, CUE, 60000);
+      assert(r.settled && !r.off.length, 'a break from the spot settles and keeps every ball on the table');
+      if (r.potted.length && !r.scratch) good++; }
+    rate.push(good / N); assert(good / N > floor, `${game}-ball: ${good} of ${N} breaks from the spot pot a ball with no foul`); }
+  CUE.squirt = 0; CUE.minElev = 0;
+  console.log(`break spot ok (${rate.map((r, i) => `${Math.round(r * 100)}% of ${8 + i}-ball breaks pot a ball with no foul`).join(', ')})`); }
+
+// 31. The aim guide's cost cap. A hit into the rack sets every ball moving; with a budget the guide stops soon after
 // first contact, is the same up to there, and a plain two-ball shot (which costs little) is not cut short at all.
 { const T = () => [mk(L / 4, W / 2), ...EngineAll.rack(8).map(([, x, y]) => mk(x, y))], s = { ang: 0, speed: 6, a: 0, b: 0 };
   const whole = predict(T(), s, 0.4), capped = predict(T(), s, 0.4, undefined, 25000, 3200);
