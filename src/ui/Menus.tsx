@@ -1,12 +1,13 @@
-// The screens around a match: home, the pass and play setup, settings, cues, learn and scenarios (screens spec,
+// The screens around a match: home, the pass and play setup, settings, cues, learn, scenarios and the Daily Table (screens spec,
 // s-home, s-passplay, s-prefs, s-learn).
 // shortcut: only what works today is on them. Quick match, practice, career and the other settings of
 // the spec come with the work that makes them play.
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LESSON_PAY, LESSONS, SOLO_RUN } from '../learn/lessons';
 import { keep, profile } from '../progress';
+import { addMonths, type Daily, monthGrid, streak, weekday } from '../daily/daily';
 import { isOpen, par, SCENARIOS, starCount, type Stars, totalStars } from '../scenarios/scenarios';
 import { CUE_IDS, CUES, type CueId, type CueInfo, specLine, specs } from '../progress/cues';
 import { masteryLevel, masteryOf, STATS, statsOf, tunable, tuneDown, tuneUp, upCost, used, points } from '../progress/mastery';
@@ -15,10 +16,11 @@ import { NAME_MAX, RACES, Settings } from '../settings/settings';
 import { C, CLOTHS } from '../theme';
 import { Btn } from './Btn';
 
-export type Screen = 'home' | 'pass' | 'settings' | 'cues' | 'learn' | 'scenarios';
+export type Screen = 'home' | 'pass' | 'settings' | 'cues' | 'learn' | 'scenarios' | 'calendar';
 interface Props { set: Settings; change: (s: Partial<Settings>) => void; go: (to: Screen | 'match') => void }
 interface LearnProps { done: string[]; learn: (lesson: number) => void }
 interface ScenarioProps { stars: Stars; play: (scenario: number) => void }
+interface DailyProps { daily: Daily; today: string; day: string; playDay: (day: string) => void }
 
 // A setting: its name, an optional line on what it does, and one button for each value.
 function Row<T>({ label, note, value, pick, options }: { label: string; note?: string; value: T; pick: (v: T) => void; options: [string, T][] }) {
@@ -48,15 +50,19 @@ function Page({ title, back, children }: { title: string; back?: () => void; chi
   );
 }
 
-export function Menus({ screen, set, change, go, done, learn, stars, play }: Props & LearnProps & ScenarioProps & { screen: Screen }) {
+export function Menus({ screen, set, change, go, done, learn, stars, play, daily, today, day, playDay }: Props & LearnProps & ScenarioProps & DailyProps & { screen: Screen }) {
   if (screen === 'pass') return <PassPlay set={set} change={change} go={go} />;
   if (screen === 'settings') return <SettingsPage set={set} change={change} go={go} />;
   if (screen === 'cues') return <Cues go={go} />;
   if (screen === 'learn') return <Learn go={go} done={done} learn={learn} />;
   if (screen === 'scenarios') return <Scenarios go={go} stars={stars} play={play} />;
-  const next = LESSONS.find(l => !done.includes(l.id));
+  if (screen === 'calendar') return <Calendar go={go} daily={daily} today={today} day={day} playDay={playDay} />;
+  const next = LESSONS.find(l => !done.includes(l.id)), run = streak(daily.stars, today).current, k = starCount(daily.stars[today]);
   return (
     <Page title="Pool">
+      <Btn label={`Daily Table\n${dateOf(today)} · ${THEMES[weekday(today)]} · ${'★'.repeat(k)}${'☆'.repeat(3 - k)}${run ? ` · run ${run}` : ''}`}
+        name={`Daily Table, ${dateOf(today)}, ${THEMES[weekday(today)]}, ${k} of 3 stars${run ? `, run of ${run} days` : ''}`} onPress={() => go('calendar')} />
+      <Text maxFontSizeMultiplier={1.3} style={styles.note}>{`Fresh Chalk: ${daily.chalk.charges} · will double a win against the computer`}</Text>
       <Btn label={'Pass and play\nTwo players, one phone'} name="Pass and play" onPress={() => go('pass')} />
       <Btn label={`Learn\n${next ? `Next: ${next.title}` : 'Every lesson passed'}`} name="Learn" onPress={() => go('learn')} />
       <Btn label={`Scenarios\n${totalStars(stars)} of ${3 * SCENARIOS.length} stars`} name="Scenarios" onPress={() => go('scenarios')} />
@@ -116,6 +122,52 @@ function Scenarios({ go, stars, play }: Pick<Props, 'go'> & ScenarioProps) {
           })}
         </View>
       ))}
+    </Page>
+  );
+}
+
+// The Daily Table's weekday themes, Sunday first, as THEME in daily/daily.ts.
+const THEMES = ['Trick shot', 'Pots', 'Cut shots', 'Banks', 'Position', 'Combos', 'Kicks and safeties'];
+const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const monthName = (k: string) => MONTHS[+k.slice(5, 7) - 1];
+const dateOf = (k: string) => `${DAYS[weekday(k)].slice(0, 3)} ${+k.slice(8, 10)} ${monthName(k).slice(0, 3)}`; // Wed 11 Nov
+
+// A month of daily tables. Every day from the first one opened to today plays at full pay; the grid is Monday first.
+// It opens on the month of day, the day last played, so coming back from a table keeps its month.
+function Calendar({ go, daily, today, day, playDay }: Pick<Props, 'go'> & DailyProps) {
+  const [month, setMonth] = useState(day.slice(0, 7)), { current, best } = streak(daily.stars, today);
+  const cells = monthGrid(month), weeks = Array.from({ length: cells.length / 7 }, (_, w) => cells.slice(7 * w, 7 * w + 7));
+  return (
+    <Page title="Daily Table" back={() => go('home')}>
+      <Text maxFontSizeMultiplier={1.3} style={styles.label}>{`Run ${current} · best ${best}`}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={styles.note}>One table a day, the same for everyone. Any day on the calendar can be played for its stars.</Text>
+      <Btn label={`Play today\n${dateOf(today)} · ${THEMES[weekday(today)]}`} name={`Play today, ${THEMES[weekday(today)]}`} onPress={() => playDay(today)} />
+      <View style={styles.top}>
+        <Btn label="‹" name="Previous month" off={month <= daily.firstDay.slice(0, 7)} onPress={() => setMonth(addMonths(month, -1))} />
+        <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={[styles.label, styles.month]}>{`${monthName(month)} ${month.slice(0, 4)}`}</Text>
+        <Btn label="›" name="Next month" off={month >= today.slice(0, 7)} onPress={() => setMonth(addMonths(month, 1))} />
+      </View>
+      <View style={styles.grid}>
+        <View style={styles.week} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <Text key={i} maxFontSizeMultiplier={1.3} style={[styles.note, styles.cell]}>{d}</Text>)}
+        </View>
+        {weeks.map((w, i) => (
+          <View key={i} style={styles.week}>
+            {w.map((k, j) => {
+              if (!k) return <View key={j} style={styles.cell} />;
+              const open = k >= daily.firstDay && k <= today, n = starCount(daily.stars[k]);
+              return (
+                <Pressable key={k} disabled={!open} onPress={() => playDay(k)} accessibilityRole="button" accessibilityState={{ disabled: !open }}
+                  accessibilityLabel={`${DAYS[weekday(k)]} ${+k.slice(8, 10)} ${monthName(k)}${open ? `, ${n} of 3 stars` : ''}${k === today ? ', today' : ''}`}
+                  style={({ pressed }) => [styles.cell, styles.day, k === today && styles.today, { opacity: open ? (pressed ? 0.6 : 1) : 0.3 }]}>
+                  <Text maxFontSizeMultiplier={1.2} style={styles.label}>{+k.slice(8, 10)}</Text>
+                  <Text maxFontSizeMultiplier={1.2} style={styles.stars}>{n ? `${'★'.repeat(n)}${'☆'.repeat(3 - n)}` : ' '}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ))}
+      </View>
     </Page>
   );
 }
@@ -209,5 +261,12 @@ const styles = StyleSheet.create({
   field: { gap: 6 },
   bar: { height: 4, marginTop: 4, borderRadius: 2, backgroundColor: C.chalk + '26' },
   fill: { height: 4, borderRadius: 2, backgroundColor: C.accent },
+  month: { flex: 1, textAlign: 'center' },
+  grid: { gap: 4 },
+  week: { flexDirection: 'row', gap: 4 },
+  cell: { flex: 1, textAlign: 'center' },
+  day: { minHeight: 48, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: C.chalk + '66', borderRadius: 6 },
+  today: { borderColor: C.accent, backgroundColor: C.accent + '33' },
+  stars: { color: C.chalk, fontSize: 11, lineHeight: 14 },
   input: { color: C.chalk, fontSize: 16, minHeight: 44, paddingHorizontal: 12, borderWidth: 1, borderColor: C.chalk + '66', borderRadius: 6 },
 });
