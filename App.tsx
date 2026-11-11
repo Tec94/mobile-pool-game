@@ -70,12 +70,13 @@ function Root() {
   const pass = (id: string) => {
     if (done.includes(id)) return;
     const now = LESSONS.map(l => l.id).filter(k => k === id || done.includes(k));
-    setDone(now); saveDone(now); award(LESSON_PAY);
+    setDone(now); if (saveDone(now)) award(LESSON_PAY);
     if (now.length >= PENCIL_AT) unlockCue('pencil');
   };
   const change = (p: Partial<Settings>) => setSet(s => ({ ...s, ...p }));
   const first = useRef(true);
   useEffect(() => { if (first.current) first.current = false; else saveSettings(set); }, [set]);
+  useEffect(() => { if (done.length >= PENCIL_AT) unlockCue('pencil'); }, []); // also at launch: lessons passed before cues existed still count
   useEffect(() => { ScreenOrientation.lockAsync(LOCKS[set.orient]).catch(() => {}); }, [set.orient]);
   useEffect(() => { // Android back: from a menu page to home
     const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (screen === 'pass' || screen === 'settings' || screen === 'learn') { go('home'); return true; } return false; });
@@ -148,7 +149,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the
   // rack is over. In a lesson: the shot plays itself, or the verdict card is up.
   const shut = () => { const t = table.current; return moving.current || !!t.rec || !!t.rules.choice || t.rules.phase === 'over' || (!!L && (les.current.stage === 'watch' || !!les.current.said)); };
-  const watching = () => !!L && les.current.stage === 'watch' && !moving.current && !table.current.rec; // the reference shot is lined up: its guide shows
+  const watching = () => !!L && les.current.stage === 'watch' && !les.current.said && !moving.current && !table.current.rec; // the reference shot is lined up: its guide shows
   // Put a ruling on the table: a new rack, or the balls the rules spot and the cue ball in hand.
   const apply = useRef((s: State) => {});
   apply.current = (s: State) => {
@@ -258,17 +259,18 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
   // A lesson: the table is set again for every shot. Guided sets the reference spin; watch lines up the reference shot
   // and plays it after a moment.
   const reset = (to: Stage) => {
+    const was = les.current.stage; // a try keeps the aim of the last try (the balls go back where they were); after watch it starts fresh
     table.current = newLesson(L!); moving.current = false; setSaid(null); les.current = { ...les.current, stage: to, said: null }; setStage(to);
     tip.set(to === 'solo' ? LEVEL : L!.ref.tip);
-    shot.set(to === 'watch' ? { aim: L!.ref.ang, power: L!.ref.power, fine: false, locked: true } : { aim: nearest(table.current.B), power: 0, fine: false, locked: false });
+    shot.set(to === 'watch' ? { aim: L!.ref.ang, power: L!.ref.power, fine: false, locked: true } : { aim: was === 'watch' ? nearest(table.current.B) : shot.get().aim, power: 0, fine: false, locked: false });
     paint(); redraw();
   };
   useEffect(() => { if (L) reset('watch'); }, []);
   useEffect(() => {
-    if (!L || stage !== 'watch' || said) return;
-    const id = setTimeout(() => { const t = table.current; t.rec = newLessonRec(); strike(t.B[0], shotOf(L.ref.power)); moving.current = true; shot.set({ power: 0 }); }, 1200);
+    if (!L || stage !== 'watch' || said || paused) return;
+    const id = setTimeout(() => { const t = table.current; t.rec = newLessonRec(); strike(t.B[0], { ang: L.ref.ang, speed: L.ref.power * CUE.maxSpeed, ...shotTip(L.ref.tip) }); tip.set(LEVEL); moving.current = true; shot.set({ power: 0 }); }, 1200);
     return () => clearTimeout(id);
-  }, [stage, said]);
+  }, [stage, said, paused]);
   const ended = useRef((r: LessonRec) => {});
   ended.current = r => {
     const v = verdict(L!, r, table.current.B[0]), { stage: st, run: k } = les.current;
@@ -342,7 +344,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
       {/* The shot controls sit inside the safe area where shotLayout puts them. */}
       <PowerRail store={shot} box={lay.rail} onStrike={fire} />
       <AimDial store={shot} box={lay.dial} />
-      <View style={[styles.at, lay.spin]}><TipButton store={tip} onPress={() => { setSheet(!sheet); setTools(false); }} /></View>
+      {!(L && stage === 'watch') && <View style={[styles.at, lay.spin]}><TipButton store={tip} onPress={() => { setSheet(!sheet); setTools(false); }} /></View>}
       {!L && <View style={[styles.at, lay.tools]}><Btn label="•••" name="Table tools" onPress={() => { setTools(!tools); setSheet(false); }} /></View>}
       {/* shortcut: the test buttons (Rack, Demo), behind one button. */}
       {tools && (
