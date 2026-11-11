@@ -200,3 +200,18 @@ const heads = (from, G, X, T, slide = 0) => { const e = rollsOff(from, G, X, sli
   assert(exotic > 20 && only > 0, `tables with a carom or billiard ${exotic}, with no direct pot ${only}`);
   ok('Hustler plays caroms off a close helper only, with the flair; Rookie and Regular never play caroms or billiards');
 }
+{ // The Rival's dials: a whole rating is its tier, a fraction lies on the line between two, past the ends along the end pair.
+  for (let k = 1; k <= 6; k++) assert.deepStrictEqual(S.aiParams(k), S.TIERS[k - 1], `aiParams(${k}) is ${S.TIERS[k - 1].name}`);
+  const near = (a, b, msg) => assert(Math.abs(a - b) < 1e-9, `${msg}: ${a} vs ${b}`);
+  near(S.aiParams(3.4).sigma, 0.33, '3.4 aims between Hustler and Shark'); near(S.aiParams(0.5).sigma, 0.855, '0.5 aims past Rookie');
+  near(S.aiParams(6.5).sigma, 0.165, '6.5 aims past Legend');
+  near(S.aiParams(2.5).planShare, 0.25, 'planning fades in: half way from Regular (0) to Hustler (0.5)'); near(S.aiParams(3.5).planShare, 0.75, 'and on to Shark (1)');
+  const lo = S.aiParams(0.5), hi = S.aiParams(6.5);
+  assert(lo.flair >= 0 && lo.budget >= 1 && lo.wPos === 0 && hi.wPos === 1 && hi.wLeave === 1 && hi.temp > 0 && hi.tipErr > 0, 'past the ends the dials stay in range');
+  const rnd = S.rng(3), up = Array.from({ length: 400 }, () => S.aiParams(3.25, rnd).safetyAngles.length === 3).filter(Boolean).length;
+  assert(up > 70 && up < 130, `whole settings come from Shark a quarter of the time (${up} of 400)`);
+  assert.strictEqual(S.aiParams(3.4).name, 'Hustler', 'no draw: the nearer row');
+  const r2 = S.rng(5), planned = Array.from({ length: 400 }, () => { const t = S.aiParams(2.5, r2); return t.depth ? t.planShare : 0; }).reduce((a, b) => a + b) / 400;
+  near(planned, 0.25, 'turns planned at 2.5 = the share alone, not share x the depth draw');
+  ok('aiParams: a rating on the tier scale gives the dials, a whole one its tier');
+}

@@ -10,7 +10,7 @@ const babel = require('@babel/core'), preset = require.resolve('babel-preset-exp
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 
 globalThis.__DEV__ = false;
-const done = {}, FILES = ['physics/engine', 'rules/rules', 'ai/shot-ai', 'ai/aim', 'ai/turn', 'progress/pay', 'progress/cues'];
+const done = {}, FILES = ['physics/engine', 'rules/rules', 'ai/shot-ai', 'ai/aim', 'ai/turn', 'progress/pay', 'progress/cues', 'shot/aim'];
 function load(name) { // a compiled file as a CommonJS module; the other files of FILES come compiled too
   if (done[name]) return done[name].exports;
   const file = path.join(root, 'src', name + '.ts'), m = done[name] = { exports: {} };
@@ -32,12 +32,13 @@ const walk = (f, at) => {
   });
 };
 walk(turn.think, 'think');
+walk(load('shot/aim').aimGuide, 'aimGuide'); // the aim guide runs there too (src/shot/far.ts)
 for (const k of FILES.slice(0, 4)) for (const [name, f] of Object.entries(load(k))) if (typeof f === 'function') walk(f, `${k}.${name}`);
 assert.deepStrictEqual(bad, [], 'every function think() reaches is a worklet with all it captures defined');
 assert(seen.size > 50, `${seen.size} worklets`);
 ok(`the worklets plugin compiles think() and ${seen.size - 1} more worklets, none of them broken`);
 
-// A rack on the compiled code, which is also what the JS thread runs: think() for both seats, to the end.
+// A rack on the compiled code, which is also what the JS thread runs: think() for both seats, to the end, at a rating between tiers (the Rival's aiParams).
 const E = load('physics/engine'), Ru = load('rules/rules');
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true }), [bx, by] = E.breakSpot();
 let s = Ru.newGame(8, 0, true), B = [mk(bx - 1e-3, by), ...E.rack(8).map(([, x, y]) => mk(x, y))], shots = 0;
@@ -45,7 +46,7 @@ const ids = [0, ...E.rack(8).map(([id]) => id)];
 while (s.phase !== 'over' && shots < 150 && !(s.phase === 'break' && shots)) { // a rack started over ends the check too
   if (s.choice) { s = Ru.choose(s, turn.choiceFor(s)); continue; }
   shots++;
-  const m = turn.think(B.map(b => ({ ...b })), ids, s, 1, shots, 0);
+  const m = turn.think(B.map(b => ({ ...b })), ids, s, 2.5, shots, 0);
   if (m.at) Ru.moveCue(B, m.at[0], m.at[1], s.hand); if (m.call >= 0) s = Ru.setCall(s, m.call);
   const r = Ru.newRec(), ev = []; E.strike(B[0], m.shot);
   for (let k = 0; k < 60000 && (ev.length = 0, E.step(B, ev)); k++) Ru.record(r, ev, B, ids);

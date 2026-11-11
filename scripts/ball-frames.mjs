@@ -9,7 +9,7 @@ import { drawCue, drawDial, drawRail, shotLayout } from '../src/render/cue.ts';
 import { drawMarks } from '../src/render/marks.ts';
 import { drawAim, drawTable, toScreen } from '../src/render/table.ts';
 import { drawSide, drawTip, drawTipBall, LEVEL, shotTip, SIDE } from '../src/render/tip.ts';
-import { aimGuide, guideFor } from '../src/shot/aim.ts';
+import { aimGuide } from '../src/shot/aim.ts';
 import { CUES } from '../src/progress/cues.ts';
 import { C, CLOTHS } from '../src/theme.ts';
 
@@ -43,7 +43,7 @@ function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, c
   for (let f = 0; f < n; f++) {
     const p = typeof at === 'function' ? at(B) : at, o = w ? toScreen(v, p[0], p[1]) : { x: W / 2, y: H / 2 };
     c.save(); c.translate(f * (cw + 4), 0); c.clipRect(Skia.XYWHRect(0, 0, cw, ch), 1, true); c.scale(dpr, dpr); c.translate(cw / 2 / dpr - o.x, ch / 2 / dpr - o.y);
-    drawTable(Skia, c, v, CLOTHS[cloth]); if (aim) { const g = aimGuide(B, aim, guideFor(CUES.house.aim)); drawAim(Skia, c, v, g.path, g.ghost, g.lands, g.lost, g.ob); if (pull !== undefined) drawCue(Skia, c, v, B[0].x, B[0].y, aim.ang, pull); } // as App.tsx does
+    drawTable(Skia, c, v, CLOTHS[cloth]); if (aim) { const g = aimGuide(B, aim, CUES.house.aim); drawAim(Skia, c, v, g.path, g.ghost, g.lands, g.lost, g.ob); if (pull !== undefined) drawCue(Skia, c, v, B[0].x, B[0].y, aim.ang, pull); } // as App.tsx does
     if (marks) drawMarks(Skia, c, v, { hand: false, x: B[0].x, y: B[0].y, call: -1, ask: false, ms: 500 + f * 300, ...marks });
     drawBalls(kit, c, B, ids, look, v);
     if (!w) { // the whole window: the shot controls where the app puts them (the tools button is its outline)
@@ -91,12 +91,13 @@ for (const [name, t, speed, ang, B] of [['jump', { x: 0, y: 0, elev: 40 }, 3.2, 
   ['masse', { x: 0.8, y: 0, elev: 65 }, 3.5, 0.12, [ball(0.6, mid), ball(1.0, mid), ball(1.4, mid - 0.03)]], ['lost', { x: 0, y: 0, elev: 42 }, 4.5, Math.PI, [ball(0.3, mid)]]])
   strip('aim-' + name, { B, ids: [0, 8, 4].slice(0, B.length), shots: [], n: 1, w: 1.9, h: 0.5, at: [0.75, mid], aim: { ang, speed, ...shotTip(t) } });
 // 13. the tip and cue angle control at 3 px per pt: the ring with the cue ball, the side picture and the control bar
-// button, for a level cue, the Jump 40 preset with draw, and the Massé 65 preset with right side; then the smaller landscape ring
+// button, for a level cue, a 40 degree jump with draw, and a 65 degree massé with right side; then the smaller landscape
+// ring. The top row has the blended zone colours, the bottom row the one-colour ring.
 { const tips = [{ x: 0, y: 0, elev: 0 }, { x: 0, y: -0.7, elev: 40 }, { x: 0.8, y: 0.2, elev: 65 }], dpr = PHONE.dpr, cell = 190 + 6 + SIDE.w + 6 + 48 + 12;
-  const surface = CanvasKit.MakeSurface(cell * 4 * dpr, 190 * dpr), sk = surface.getCanvas(), c = new JsiSkCanvas(CanvasKit, sk);
+  const surface = CanvasKit.MakeSurface(cell * 4 * dpr, 2 * 190 * dpr), sk = surface.getCanvas(), c = new JsiSkCanvas(CanvasKit, sk);
   c.drawColor(Skia.Color(C.panel)); c.scale(dpr, dpr);
-  [...tips, tips[2]].forEach((t, i) => { const D = i < 3 ? 190 : 150;
-    c.save(); c.translate(i * cell, 0); drawTip(Skia, c, D, t);
+  for (const blend of [true, false]) [...tips, tips[2]].forEach((t, i) => { const D = i < 3 ? 190 : 150;
+    c.save(); c.translate(i * cell, blend ? 0 : 190); drawTip(Skia, c, D, t, blend);
     c.translate(D + 6, (D - SIDE.h) / 2); drawSide(Skia, c, t.elev, CLOTHS[0].felt);
     c.translate(SIDE.w + 6, 0); drawTipBall(Skia, c, 24, 24, 24, t); c.restore(); });
   writeFileSync(`${out}/tip-control.png`, surface.makeImageSnapshot().encodeToBytes()); console.log('tip-control'); }

@@ -8,7 +8,7 @@ import { BALLS, C } from '../theme.ts';
 // x, y = tip offset as a part of the miscue limit (right and up are positive); elev = cue elevation in whole degrees.
 export interface Tip { x: number; y: number; elev: number }
 export const LEVEL: Tip = { x: 0, y: 0, elev: 0 };
-export const MAX_ELEV = 80, NOTCHES = [15, 44, 60], PRESETS: [string, number][] = [['Level', 0], ['Jump 40°', 40], ['Massé 65°', 65]];
+export const MAX_ELEV = 80, NOTCHES = [15, 44, 60];
 export const SIDE = { w: 104, h: 84 }; // size of the side picture
 
 export const shotTip = (t: Tip, cue = CUE) => ({ a: t.x * cue.tipLimit, b: t.y * cue.tipLimit, elev: t.elev * Math.PI / 180 });
@@ -68,12 +68,24 @@ export function drawTipBall(api: typeof Skia, canvas: SkCanvas, cx: number, cy: 
   }
   canvas.drawCircle(cx + t.x * REACH * r, cy - t.y * REACH * r, marks ? 11 : Math.max(4, 0.21 * r), fill(api, BALLS[2]));
 }
-// The whole control in a square of side D: the elevation ring in four zones with the bead, and the cue ball inside.
-export function drawTip(api: typeof Skia, canvas: SkCanvas, D: number, t: Tip) {
+// Zone colours for the blended ring: level, jump, hop fades, massé. Each one blends into the next over BLEND degrees.
+export const ZONE_HUES = [C.chalk, BALLS[1], BALLS[3], BALLS[4]], BLEND = 4;
+// The whole control in a square of side D: the elevation ring with the bead, and the cue ball inside. The ring is one
+// stroke with flat ends, so no zone overlaps the next. It is bright from level up to the bead.
+// blend = the four zones in their own colours, blended at the edges; false = one colour, the player learns the angles.
+export function drawTip(api: typeof Skia, canvas: SkCanvas, D: number, t: Tip, blend = true) {
   const k = D / U, c = D / 2, r = RING * k, oval = api.XYWHRect(c - r, c - r, 2 * r, 2 * r), a = ang(t.elev) * Math.PI / 180;
-  // Zones are told apart by the gaps; the one in use is bright.
-  [0, ...NOTCHES].forEach((from, i) => { const to = NOTCHES[i] ?? MAX_ELEV, on = t.elev >= from && (t.elev < to || to === MAX_ELEV);
-    canvas.drawArc(oval, ang(from + 0.6), (to - from - 1.2) * 1.5, false, line(api, C.chalk, 9 * k, on ? 1 : 0.22)); });
+  const arc = (to: number, alpha: number) => {
+    const p = line(api, C.chalk, 9 * k, alpha); p.setStrokeCap(0); // butt
+    if (blend) {
+      const edges = [0, ...NOTCHES, MAX_ELEV], stops: number[] = [], hues: string[] = [];
+      ZONE_HUES.forEach((h, i) => { for (const e of [edges[i] + (i ? BLEND : 0), edges[i + 1] - (i < 3 ? BLEND : 0)]) { stops.push(e / MAX_ELEV); hues.push(h); } });
+      p.setShader(api.Shader.MakeSweepGradient(c, c, hues.map(h => api.Color(h)), stops, 0, null, 0, ang(0), ang(MAX_ELEV))); // 0 = TileMode.Clamp
+    }
+    if (to > 0) canvas.drawArc(oval, ang(0), to * 1.5, false, p);
+  };
+  arc(MAX_ELEV, blend ? 0.55 : 0.22);
+  arc(t.elev, 1);
   drawTipBall(api, canvas, c, c, PAD * D, t, true);
   const bx = c + r * Math.cos(a), by = c + r * Math.sin(a);
   canvas.drawCircle(bx, by, 12 * k, fill(api, C.ink)); canvas.drawCircle(bx, by, 12 * k, line(api, C.chalk, 4 * k));

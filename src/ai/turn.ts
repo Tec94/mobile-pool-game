@@ -5,8 +5,8 @@
 import { type Ball, CUE, HOLES, P, type Shot } from '../physics/engine.ts';
 import { canCall, legalSpot, onEight, type Hand, type Rec, type State } from '../rules/rules.ts';
 import { aiShot } from './aim.ts';
-import { chooseGroup, type Cand, enumerate, makeProb, NINE, type Obj, type Pick, rng, SIGMA_REF, SOLIDS, STRIPES, TIERS } from './shot-ai.ts';
-import { type Pay, shotPay, type ShotType as PayType } from '../progress/pay.ts';
+import { aiParams, chooseGroup, type Cand, enumerate, makeProb, NINE, type Obj, type Pick, rng, SIGMA_REF, SOLIDS, STRIPES } from './shot-ai.ts';
+import { type Pay, shotPay, type ShotType as PayType, type Vs } from '../progress/pay.ts';
 
 // The AI's turn. at = where it puts the cue ball in hand (null = where it lies); call = the pocket it calls (-1 none);
 // safety = it played a safety, for safetiesInRow.
@@ -70,9 +70,9 @@ export function callFor(s: State, pick: Pick, B: Ball[], ids: number[]) {
 }
 
 // The AI's whole turn, it being player s.turn. B is changed (the cue ball in hand goes to its spot): pass a copy.
-// tier = index into TIERS. safeties = safetiesInRow for aiShot (see nextSafeties).
-export function think(B: Ball[], ids: number[], s: State, tier: number, seed: number, safeties: number): Move {
-  const rnd = rng(seed), T = TIERS[tier];
+// level = the AI's rating on the tier scale (aiParams: TIERS index + 1, or the Rival's). safeties = safetiesInRow for aiShot (see nextSafeties).
+export function think(B: Ball[], ids: number[], s: State, level: number, seed: number, safeties: number): Move {
+  const rnd = rng(seed), T = aiParams(level, rnd);
   if (s.phase === 'break') return { shot: breakShot(B, ids, rnd), at: null, call: -1, safety: false };
   // open table: the group it would pick from where the cue ball lies now. By value: on the runtime its SOLIDS is a copy
   const g = groupsOf(s, s.turn) ?? (chooseGroup({ x: B[0].x * 1000, y: B[0].y * 1000 }, mm(B, ids), T)[0] === 1 ? [SOLIDS, STRIPES] : [STRIPES, SOLIDS]);
@@ -112,16 +112,16 @@ export function candsFor(B: Ball[], ids: number[], s: State): Cand[] {
 
 // The human's pots on one shot against the AI (progress/pay.ts): each pot is matched to a candidate the picker found
 // before the strike (same ball, same pocket) for its pRef; none = a fluke. before/after = the State around judge();
-// run = pots in a row this visit before the shot; tier = TIERS index. Returns the pay, the run after the shot, and the
+// run = pots in a row this visit before the shot; vs = the opponent (pay.ts). Returns the pay, the run after the shot, and the
 // shooter's own balls potted (for matchPay; the 8 and a foul do not count).
-export function potPay(cands: Cand[], r: Rec, before: State, after: State, run: number, tier: number): { pay: Pay; run: number; own: number } {
+export function potPay(cands: Cand[], r: Rec, before: State, after: State, run: number, vs: Vs): { pay: Pay; run: number; own: number } {
   const pay = { xp: 0, coins: 0 }, foul = after.note.startsWith('Foul'), me = before.turn;
   const mine = (id: number) => before.game === 9 || after.solids < 0 || id === 8 || (id < 8) === (after.solids === me);
   const pots = r.pots.filter(p => p.id);
   for (const p of pots) {
     // shortcut: a carom or a billiard pays as a fluke, grade them once pay.ts has those types
     const c = cands.find((k): k is Cand & { type: PayType } => k.ball === p.id && holeOf(k) === p.pocket && k.type !== 'carom' && k.type !== 'billiard');
-    const g = shotPay({ pRef: c ? makeProb(c.tol, SIGMA_REF) : null, type: c?.type, run, brk: before.phase === 'break', hand: !!before.hand, foul, theirs: !mine(p.id), tier: tier + 1 });
+    const g = shotPay({ pRef: c ? makeProb(c.tol, SIGMA_REF) : null, type: c?.type, run, brk: before.phase === 'break', hand: !!before.hand, foul, theirs: !mine(p.id), ...vs });
     pay.xp += g.xp; pay.coins += g.coins;
   }
   return { pay, run: after.turn === me && !foul ? run + pots.length : 0, own: foul ? 0 : pots.filter(p => p.id !== 8 && mine(p.id)).length };
