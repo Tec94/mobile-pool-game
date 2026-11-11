@@ -77,11 +77,12 @@ export function dailyClear(had: number, bits: number) {
   return { bits: had | add, n, pay: { xp: add & 1 ? DAILY_XP : 0, coins: STAR_COINS * n } as Pay };
 }
 
-// One charge for every day since the last grant, opened or not, up to the cap. Nothing to grant (the same day, or a
-// clock moved back) returns the same state, so the caller can skip the save.
+// One charge for every day since the last grant, opened or not, up to the cap. The same day returns the same state, so
+// the caller can skip the save. A clock moved back takes no charge but moves the grant day back, or a clock once set
+// years ahead would stop the grants for years.
 export function grantChalk(s: Daily, today: string): Daily {
   const n = daysBetween(s.chalk.lastGrantDay, today);
-  return n > 0 ? { ...s, chalk: { ...s.chalk, charges: Math.min(CHALK_CAP, s.chalk.charges + n), lastGrantDay: today } } : s;
+  return n ? { ...s, chalk: { ...s.chalk, charges: Math.min(CHALK_CAP, s.chalk.charges + Math.max(0, n)), lastGrantDay: today } } : s;
 }
 export const armChalk = (s: Daily, on: boolean): Daily =>
   s.chalk.armed === on || (on && s.chalk.charges < 1) ? s : { ...s, chalk: { ...s.chalk, armed: on } };

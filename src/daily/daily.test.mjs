@@ -82,7 +82,10 @@ import { addDays, addMonths, armChalk, chalkResult, dailyClear, dailyPick, dayKe
   assert.strictEqual(grantChalk(g, addDays(today, 3)).chalk.charges, 4, 'one a day, opened or not');
   const full = { ...g, chalk: { ...g.chalk, charges: 7 } }, next = grantChalk(full, addDays(today, 1));
   assert.strictEqual(next.chalk.lastGrantDay, addDays(today, 1), 'a full day still moves the grant day');
-  assert.strictEqual(grantChalk(next, today), next, 'clock back: no grant, nothing taken');
+  assert.deepStrictEqual(grantChalk(next, today).chalk, { ...next.chalk, lastGrantDay: today }, 'clock back: no grant, nothing taken');
+  const back = grantChalk({ ...g, chalk: { ...g.chalk, lastGrantDay: '2030-01-01' } }, today); // the clock was set years ahead, then fixed
+  assert.deepStrictEqual(back.chalk, g.chalk, 'a grant day in the future comes back to today');
+  assert.strictEqual(grantChalk(back, addDays(today, 1)).chalk.charges, 2, 'and grants start again the next day');
   assert.strictEqual(armChalk(fresh, true), fresh, 'no charge, cannot arm');
   const armed = armChalk(g, true);
   assert.strictEqual(armed.chalk.armed, true, 'arm');
