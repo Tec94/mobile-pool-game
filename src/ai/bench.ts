@@ -1,6 +1,7 @@
-// Think-time bench for the AI, callable from the app (hold Demo in the tools panel) and from Node (scripts/ai-bench.mjs).
-// The first tier timed warms up the JIT and the caches, so it runs once more, uncounted, before the timed tiers start,
-// so the first tier does not pay for the warm-up.
+// How long the AI takes to pick a shot, per tier, on `n` seeded random full 8-ball tables (7 balls a group, AI on solids),
+// from the app (hold Demo in the tools panel) or Node (scripts/ai-bench.mjs). It runs on the calling thread, so on the
+// phone it blocks the JS thread for the whole run. pick = the geometric search (decide), aim = the aim correction and
+// the rollouts on the engine (refine). One uncounted table runs first, so the first tier does not pay for the warm-up.
 import { type Ball, simulate } from '../physics/engine.ts';
 import { aiShot } from './aim.ts';
 import { NINE, randomLayout, rng, SOLIDS, STRIPES, type Tier, TIERS } from './shot-ai.ts';
