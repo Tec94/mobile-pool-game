@@ -28,7 +28,7 @@ const radio = name => p.getByRole('radio', { name, exact: true });
 const daily = (charges, lastGrantDay = TODAY, armed = false) => ({ firstDay: '2026-12-01', stars: {}, chalk: { charges, lastGrantDay, armed } });
 const settings = { aiGame: 9, aiRace: 1, tier: 0, game: 9, race: 1 };
 const homeLine = async () => (await text()).match(/Fresh Chalk: .*/)?.[0];
-const chalkRow = async () => (await text()).match(/Fresh Chalk\s+Doubles[^\n]*/)?.[0];
+const chalkRow = async () => (await text()).match(/Fresh Chalk\s+\d+ left[^\n]*/)?.[0];
 
 // 1. The home line and the grant: one a day, capped at 7.
 for (const [seed, want] of [[daily(0), 0], [daily(2), 2], [daily(2, '2026-12-20'), 3], [daily(5, '2026-12-18'), 7]]) {
@@ -45,7 +45,7 @@ check(!(await chalkRow()) && !/Fresh Chalk/.test(await text()), 'quick match set
 await shot('02-setup-0-charges');
 await store({ 'daily.json': daily(2), 'settings.json': settings }); await reload();
 await btn('Quick match').click(); await p.getByText('Rack them up').waitFor();
-check(/Doubles the match pay of your next win, and stays on through a loss\. 2 left/.test(await text()), 'setup with 2 charges: row shown, "2 left"', await chalkRow());
+check(/2 left\. Doubles the match pay of your next win, and stays on through a loss/.test(await text()), 'setup with 2 charges: row shown, "2 left"', await chalkRow());
 check(await radio('Off').last().getAttribute('aria-checked') === 'true', 'row starts Off');
 await shot('03-setup-2-charges-off');
 await radio('On').last().click();

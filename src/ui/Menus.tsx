@@ -66,7 +66,7 @@ export function Menus({ screen, set, change, go, done, learn, stars, play, daily
       <Btn label={'Quick match\n8-ball or 9-ball against the AI'} name="Quick match" onPress={() => go('quick')} />
       <Btn label={`Daily Table\n${dateOf(today)} · ${THEMES[weekday(today)]} · ${'★'.repeat(k)}${'☆'.repeat(3 - k)}${run ? ` · run ${run}` : ''}`}
         name={`Daily Table, ${dateOf(today)}, ${THEMES[weekday(today)]}, ${k} of 3 stars${run ? `, run of ${run} days` : ''}`} onPress={() => go('calendar')} />
-      <Text maxFontSizeMultiplier={1.3} style={styles.note}>{`Fresh Chalk: ${daily.chalk.charges} · doubles the match pay of a quick match win`}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={styles.note}>{`Fresh Chalk: ${daily.chalk.charges}${daily.chalk.armed ? ', one armed' : ''} · doubles the match pay of a quick match win`}</Text>
       <Btn label={'Pass and play\nTwo players, one phone'} name="Pass and play" onPress={() => go('pass')} />
       <Btn label={`Learn\n${next ? `Next: ${next.title}` : 'Every lesson passed'}`} name="Learn" onPress={() => go('learn')} />
       <Btn label={`Scenarios\n${totalStars(stars)} of ${3 * SCENARIOS.length} stars`} name="Scenarios" onPress={() => go('scenarios')} />
@@ -103,7 +103,7 @@ function QuickMatch({ set, change, go, daily, arm }: Props & Pick<DailyProps, 'd
       <Row<Settings['aiGame']> label="Game" note="9-ball: hit the lowest ball first. Potting the 9 wins" value={set.aiGame} pick={aiGame => change({ aiGame })} options={[['8-ball', 8], ['9-ball', 9]]} />
       <Row label="Opponent" value={set.tier} pick={tier => change({ tier })} options={TIERS.map((t, i) => [t.name, i])} />
       <Row label="Race to" note="Frames to win. The break alternates" value={set.aiRace} pick={aiRace => change({ aiRace })} options={RACES.map(r => [String(r), r])} />
-      {charges > 0 && <Row label="Fresh Chalk" note={`Doubles the match pay of your next win, and stays on through a loss. ${charges} left`} value={armed} pick={arm} options={[['Off', false], ['On', true]]} />}
+      {charges > 0 && <Row label="Fresh Chalk" note={`${charges} left. Doubles the match pay of your next win, and stays on through a loss`} value={armed} pick={arm} options={[['Off', false], ['On', true]]} />}
       <Btn label="Rack them up" onPress={() => go('ai')} />
     </Page>
   );
