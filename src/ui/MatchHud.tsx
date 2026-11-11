@@ -28,10 +28,11 @@ export function MatchHud({ rules, names, push, view, pad, calm, wait, pause, chi
   const say = <Banner rules={rules} push={push} calm={calm} wait={wait} style={view.land ? { flex: 1 } : { position: 'absolute', top: view.oy - RAIL * view.s + 4, left: view.ox, width: P.W * view.s, paddingHorizontal: 0.12 * view.s }} />;
   return (
     <>
-      {/* Landscape: the rail starts under the HUD, so the row spans the window and sits symmetric about the table. */}
+      {/* Landscape: the rail starts under the HUD, so the row spans the window; a spacer the size of the pause button
+          keeps the plates and the banner centred on the table when no push out button is there. */}
       <View style={[styles.hud, { top: pad.top + TOP, left: Math.max(pad.left, 8), right: Math.max(pad.right, 8) }]}>
         <View style={styles.row} accessibilityLiveRegion="polite">
-          {pause}<PlateView p={a} land={view.land} />{view.land && say}<PlateView p={b} land={view.land} />{children}
+          {pause}<PlateView p={a} land={view.land} />{view.land && say}<PlateView p={b} land={view.land} />{children || (view.land && <View style={styles.even} />)}
         </View>
       </View>
       {nine.length > 0 && (
@@ -113,6 +114,7 @@ export function Results({ rules, title, kind = 'Pass and play', children }: { ru
 
 const styles = StyleSheet.create({
   hud: { position: 'absolute', gap: 6 },
+  even: { width: 56 }, // the width of the pause button (Btn minWidth)
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, height: PLATE },
   plate: { flex: 1, height: PLATE, paddingHorizontal: 10, justifyContent: 'center', gap: 3, borderRadius: 6, borderWidth: 1, borderColor: LINE, overflow: 'hidden' },
   name: { color: C.chalk, fontSize: 14, lineHeight: 17, fontWeight: '600' },
