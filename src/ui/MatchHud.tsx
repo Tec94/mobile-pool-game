@@ -1,7 +1,7 @@
 // The match HUD (screens spec: player plates, the 9-ball strip, the banner) and the results card. What they show comes
 // from src/ui/hud.ts; this file only draws it.
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
 import type { EdgeInsets } from 'react-native-safe-area-context';
 import { P } from '../physics/engine';
@@ -18,12 +18,12 @@ const TOP = 4, PLATE = 44, STRIP = 24;
 export const hudHeight = (game: number) => TOP + PLATE + 8 + (game === 9 ? STRIP : 0);
 
 // The plates row sits above the table and out of the control column in landscape. The push out button, when the rules
-// offer one, and the pause button come in as children at the end of the row.
-export function MatchHud({ rules, names, push, view, pad, calm, children }: { rules: State; names: string[]; push: boolean; view: TableView; pad: EdgeInsets; calm: boolean; children?: ReactNode }) {
+// offer one, and the pause button come in as children at the end of the row. wait = what the AI is doing, for the banner.
+export function MatchHud({ rules, names, push, view, pad, calm, wait, children }: { rules: State; names: string[]; push: boolean; view: TableView; pad: EdgeInsets; calm: boolean; wait?: string; children?: ReactNode }) {
   const [a, b] = plates(rules, names), nine = strip(rules), next = nine.find(q => q.next);
   // Landscape: the banner sits between the plates, above the table, where it covers no pocket. Portrait: over the
   // foot rail, between the corner pockets.
-  const say = <Banner rules={rules} push={push} calm={calm} style={view.land ? { flex: 1 } : { position: 'absolute', top: view.oy - RAIL * view.s + 4, left: view.ox, width: P.W * view.s, paddingHorizontal: 0.12 * view.s }} />;
+  const say = <Banner rules={rules} push={push} calm={calm} wait={wait} style={view.land ? { flex: 1 } : { position: 'absolute', top: view.oy - RAIL * view.s + 4, left: view.ox, width: P.W * view.s, paddingHorizontal: 0.12 * view.s }} />;
   return (
     <>
       <View style={[styles.hud, { top: pad.top + TOP, left: Math.max(pad.left, 8), right: Math.max(pad.right, 8) + (view.land ? BAR : 0) }]}>
@@ -73,8 +73,8 @@ function Pip({ id, gone, size, style, children }: { id: number; gone: boolean; s
 
 // The ruling on the last shot for a moment (a foul a little longer, in red), then only what the player still has to do
 // (drag the cue ball in hand, call the 8, push out on), which stays until it is done.
-function Banner({ rules, push, calm, style }: { rules: State; push: boolean; calm: boolean; style: ViewStyle }) {
-  const { note, foul, hint } = banner(rules, push), [shown, setShown] = useState({ n: 0, old: true }), last = useRef<{ note: string; balls: number[] } | null>(null);
+function Banner({ rules, push, calm, wait, style }: { rules: State; push: boolean; calm: boolean; wait?: string; style: ViewStyle }) {
+  const { note, foul, hint } = banner(rules, push, wait), [shown, setShown] = useState({ n: 0, old: true }), last = useRef<{ note: string; balls: number[] } | null>(null);
   useEffect(() => { // a new shot (its balls) or a new ruling pops the note; anything else ends it
     if (!fresh(last.current, note, rules.balls)) { setShown(s => (s.old ? s : { ...s, old: true })); return; }
     last.current = { note, balls: rules.balls };
@@ -95,15 +95,15 @@ function Banner({ rules, push, calm, style }: { rules: State; push: boolean; cal
 }
 
 // The end of the rack: who won and why. The score, the pay and the buttons come in as children.
-export function Results({ rules, title, children }: { rules: State; title: string; children: ReactNode }) {
+export function Results({ rules, title, kind = 'Pass and play', children }: { rules: State; title: string; kind?: string; children: ReactNode }) {
   return (
     <View style={styles.sheet} pointerEvents="box-none">
-      <View style={styles.card} accessibilityViewIsModal>
-        <Text maxFontSizeMultiplier={1.3} style={styles.eyebrow}>Pass and play · {rules.game}-ball</Text>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.card} accessibilityViewIsModal>
+        <Text maxFontSizeMultiplier={1.3} style={styles.eyebrow}>{kind} · {rules.game}-ball</Text>
         <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.title}>{title}</Text>
         {!!rules.note && <Text maxFontSizeMultiplier={1.3} style={styles.why}>{rules.note}</Text>}
         {children}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -123,6 +123,7 @@ const styles = StyleSheet.create({
   banner: { maxWidth: '100%', paddingVertical: 4, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: LINE, backgroundColor: '#000b' },
   bannerText: { color: C.chalk, fontSize: 13, lineHeight: 16, fontWeight: '600', textAlign: 'center' },
   sheet: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  scroll: { flexGrow: 0, maxWidth: '100%', borderRadius: 10 }, // a long card (quick match pay) scrolls on a short landscape phone
   card: { width: 300, maxWidth: '100%', padding: 20, gap: 10, borderRadius: 10, borderWidth: 1, borderColor: LINE, backgroundColor: C.ground + 'F2', alignItems: 'center' },
   eyebrow: { color: C.chalk + 'B3', fontSize: 11, fontWeight: '600', letterSpacing: 0.9, textTransform: 'uppercase' },
   title: { color: C.chalk, fontSize: 24, fontWeight: '800', textAlign: 'center' },

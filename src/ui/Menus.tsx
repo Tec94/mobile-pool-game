@@ -1,6 +1,6 @@
-// The screens around a match: home, the pass and play setup, settings, cues, learn, scenarios and the Daily Table (screens spec,
-// s-home, s-passplay, s-prefs, s-learn).
-// shortcut: only what works today is on them. Quick match, practice, career and the other settings of
+// The screens around a match: home, the pass and play and quick match setups, settings, cues, learn, scenarios and the
+// Daily Table (screens spec, s-home, s-passplay, s-prefs, s-learn, the quick match sheet).
+// shortcut: only what works today is on them. The Rival, practice, career and the other settings of
 // the spec come with the work that makes them play.
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -13,11 +13,13 @@ import { CUE_IDS, CUES, type CueId, type CueInfo, specLine, specs } from '../pro
 import { masteryLevel, masteryOf, STATS, statsOf, tunable, tuneDown, tuneUp, upCost, used, points } from '../progress/mastery';
 import { buy, FEATS, featCount, type FeatId, levelOf, PACKS, select, type Profile } from '../progress/profile';
 import { NAME_MAX, RACES, Settings } from '../settings/settings';
+import { TIERS } from '../ai/shot-ai';
 import { C, CLOTHS } from '../theme';
 import { Btn } from './Btn';
 
-export type Screen = 'home' | 'pass' | 'settings' | 'cues' | 'learn' | 'scenarios' | 'calendar';
-interface Props { set: Settings; change: (s: Partial<Settings>) => void; go: (to: Screen | 'match') => void }
+export type Screen = 'home' | 'pass' | 'quick' | 'settings' | 'cues' | 'learn' | 'scenarios' | 'calendar';
+// match = pass and play, ai = quick match against the AI
+interface Props { set: Settings; change: (s: Partial<Settings>) => void; go: (to: Screen | 'match' | 'ai') => void }
 interface LearnProps { done: string[]; learn: (lesson: number) => void }
 interface ScenarioProps { stars: Stars; play: (scenario: number) => void }
 interface DailyProps { daily: Daily; today: string; day: string; playDay: (day: string) => void }
@@ -52,6 +54,7 @@ function Page({ title, back, children }: { title: string; back?: () => void; chi
 
 export function Menus({ screen, set, change, go, done, learn, stars, play, daily, today, day, playDay }: Props & LearnProps & ScenarioProps & DailyProps & { screen: Screen }) {
   if (screen === 'pass') return <PassPlay set={set} change={change} go={go} />;
+  if (screen === 'quick') return <QuickMatch set={set} change={change} go={go} />;
   if (screen === 'settings') return <SettingsPage set={set} change={change} go={go} />;
   if (screen === 'cues') return <Cues go={go} />;
   if (screen === 'learn') return <Learn go={go} done={done} learn={learn} />;
@@ -60,6 +63,7 @@ export function Menus({ screen, set, change, go, done, learn, stars, play, daily
   const next = LESSONS.find(l => !done.includes(l.id)), run = streak(daily.stars, today).current, k = starCount(daily.stars[today]);
   return (
     <Page title="Pool">
+      <Btn label={'Quick match\n8-ball or 9-ball against the AI'} name="Quick match" onPress={() => go('quick')} />
       <Btn label={`Daily Table\n${dateOf(today)} · ${THEMES[weekday(today)]} · ${'★'.repeat(k)}${'☆'.repeat(3 - k)}${run ? ` · run ${run}` : ''}`}
         name={`Daily Table, ${dateOf(today)}, ${THEMES[weekday(today)]}, ${k} of 3 stars${run ? `, run of ${run} days` : ''}`} onPress={() => go('calendar')} />
       <Text maxFontSizeMultiplier={1.3} style={styles.note}>{`Fresh Chalk: ${daily.chalk.charges} · will double a win against the computer`}</Text>
@@ -87,6 +91,18 @@ function PassPlay({ set, change, go }: Props) {
       <Row<Settings['game']> label="Game" value={set.game} pick={game => change({ game })} options={[['8-ball', 8], ['9-ball', 9]]} />
       <Row label="Race to" note="Frames to win. The break alternates" value={set.race} pick={race => change({ race })} options={RACES.map(r => [String(r), r])} />
       <Btn label="Rack them up" onPress={start} />
+    </Page>
+  );
+}
+
+// The opponent is an AI tier; the setup is kept for next time, as pass and play keeps its own.
+function QuickMatch({ set, change, go }: Props) {
+  return (
+    <Page title="Quick match" back={() => go('home')}>
+      <Row<Settings['aiGame']> label="Game" note="9-ball: hit the lowest ball first. Potting the 9 wins" value={set.aiGame} pick={aiGame => change({ aiGame })} options={[['8-ball', 8], ['9-ball', 9]]} />
+      <Row label="Opponent" value={set.tier} pick={tier => change({ tier })} options={TIERS.map((t, i) => [t.name, i])} />
+      <Row label="Race to" note="Frames to win. The break alternates" value={set.aiRace} pick={aiRace => change({ aiRace })} options={RACES.map(r => [String(r), r])} />
+      <Btn label="Rack them up" onPress={() => go('ai')} />
     </Page>
   );
 }
@@ -257,7 +273,7 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, minWidth: 160, gap: 2 },
   label: { color: C.chalk, fontSize: 15, fontWeight: '600' },
   note: { color: C.chalk, fontSize: 13, lineHeight: 17, opacity: 0.75 },
-  seg: { flexDirection: 'row', gap: 6 },
+  seg: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, flexShrink: 1, maxWidth: '100%' }, // six AI tiers wrap on a phone
   field: { gap: 6 },
   bar: { height: 4, marginTop: 4, borderRadius: 2, backgroundColor: C.chalk + '26' },
   fill: { height: 4, borderRadius: 2, backgroundColor: C.accent },

@@ -1,3 +1,4 @@
+'worklet'; // every function here also runs on the AI's worklet runtime (src/ai/think.ts): define a function before its callers
 // Pool physics engine. This file is the source. The lab page (physics/pool-physics-lab.html in the project files, the
 // <script id="engine"> block) is a copy with the types stripped: change this file first, then copy it there. Pure TS: no React, no DOM.
 export type Game=8|9;
@@ -80,6 +81,16 @@ export function rack(game:Game,g=2*P.R+3e-4,play=(g-2*P.R)/3){
 // here pots a ball with no foul on 35% of 8-ball breaks and 62% of 9-ball breaks; from the middle of the head string, 27% and 48%.
 export const breakSpot=():[number,number]=>[P.L/4,P.W-0.11];
 
+// A ball meets the slate at downward speed -vz: it rebounds at e times that, and cloth friction acts on the slipping
+// contact point for the length of the impact (impulse mu * normal impulse, capped at the no-slip value).
+function bounce(b:Ball,e:number,mu:number){
+  // The cloth soaks up a fixed amount of energy, so the hop grows smoothly from zero at e*vn = hopMin (no cliff
+  // where one notch of power suddenly adds a 50 ms flight).
+  const R=P.R,vn=-(b.vz??0),u2=e*e*vn*vn-P.hopMin*P.hopMin,up=u2>0?Math.sqrt(u2):0;
+  const ux=b.vx-R*b.wy,uy=b.vy+R*b.wx,us=hyp(ux,uy);
+  if(us>1e-9){const k=Math.min(mu*(vn+up),us/3.5),cx=ux/us*k,cy=uy/us*k;b.vx-=cx;b.vy-=cy;b.wx-=2.5/R*cy;b.wy+=2.5/R*cx;}
+  b.z=0;b.vz=up;
+}
 // Cue strike. s={ang,speed,a,b}: a = tip offset right, b = tip offset up, in ball radii.
 // elev = cue elevation in radians, never flatter than cue.minElev. The cue's impulse runs down its own axis, so with elevation:
 //  - forward speed is speed*cos(elev) and the ball is driven into the slate at speed*sin(elev), which bounces it up (jump);
@@ -97,16 +108,6 @@ export function strike(b:Ball,s:Shot,cue:Cue=CUE){
   // with g = 16cos^8(elev), a smooth version of min(1,g). 30 degrees gives a long low hop, about 42 the highest, and
   // from 60 up the ball stays on the cloth at any power (masse).
   if(se>0){b.vz=-v*se;const g=16*ce**8;bounce(b,P.lift*g/Math.sqrt(Math.sqrt(1+g**4)),P.mus*P.grip);}
-}
-// A ball meets the slate at downward speed -vz: it rebounds at e times that, and cloth friction acts on the slipping
-// contact point for the length of the impact (impulse mu * normal impulse, capped at the no-slip value).
-function bounce(b:Ball,e:number,mu:number){
-  // The cloth soaks up a fixed amount of energy, so the hop grows smoothly from zero at e*vn = hopMin (no cliff
-  // where one notch of power suddenly adds a 50 ms flight).
-  const R=P.R,vn=-(b.vz??0),u2=e*e*vn*vn-P.hopMin*P.hopMin,up=u2>0?Math.sqrt(u2):0;
-  const ux=b.vx-R*b.wy,uy=b.vy+R*b.wx,us=hyp(ux,uy);
-  if(us>1e-9){const k=Math.min(mu*(vn+up),us/3.5),cx=ux/us*k,cy=uy/us*k;b.vx-=cx;b.vy-=cy;b.wx-=2.5/R*cy;b.wy+=2.5/R*cx;}
-  b.z=0;b.vz=up;
 }
 
 const cutOf=(a:Ball,nx:number,ny:number)=>Math.acos(Math.max(-1,Math.min(1,(a.vx*nx+a.vy*ny)/(hyp(a.vx,a.vy)||1))));
