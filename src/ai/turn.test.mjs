@@ -27,12 +27,12 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, true), phase: 'play', turn: 1, 
   assert(shots.some(c => c.type === 'direct' && c.cut < 0.01), 'a straight-in pot from there');
   const k = placeCue(B, ids, 'kitchen', [1]); assert(!k || (k[0] < P.L / 4 && legalSpot(B, k[0], k[1], 'kitchen')), 'in the kitchen, behind the head string or nothing');
   eq(placeCue(B, ids, 'any', []), null, 'no legal ball: no spot');
-  const T = [mk(0.3, 0.3), mk(1.1, 0.56), mk(1.6, 0.9), mk(0.4, 1.0)], m = think(T.map(b => ({ ...b })), [0, 1, 10, 8], play8({ hand: 'any', balls: [1, 10, 8] }), 1, 1, 0);
+  const T = [mk(0.3, 0.3), mk(1.1, 0.56), mk(1.6, 0.9), mk(0.4, 1.0)], m = think(T.map(b => ({ ...b })), [0, 1, 10, 8], play8({ hand: 'any', balls: [1, 10, 8] }), 2, 1, 0);
   assert(m.at && Math.hypot(m.at[0] - 1.6, m.at[1] - 0.9) < 0.2 + 2 * P.R, `stripes: it places behind the 10 (${m.at})`);
   // In the kitchen, stripes: the 10 lies behind the head string, the 12 below it. Every shot must go at the 12.
   const K = [mk(0.2, 0.3), mk(0.4, 0.9), mk(1.8, 0.4), mk(2.2, 1.0)], kid = [0, 10, 12, 8];
   for (let seed = 1; seed <= 5; seed++) {
-    const C = K.map(b => ({ ...b })), m = think(C, kid, play8({ hand: 'kitchen', balls: [10, 12, 8] }), 3, seed, 0), r = newRec(), ev = [];
+    const C = K.map(b => ({ ...b })), m = think(C, kid, play8({ hand: 'kitchen', balls: [10, 12, 8] }), 4, seed, 0), r = newRec(), ev = [];
     C[0].x = m.at?.[0] ?? C[0].x; C[0].y = m.at?.[1] ?? C[0].y; strike(C[0], m.shot);
     for (let i = 0; i < 20000 && r.first < 0 && step(C, (ev.length = 0, ev)); i++) record(r, ev, C, kid);
     assert(r.first !== 10, `seed ${seed}: not the 10 behind the line`);
@@ -41,7 +41,7 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, true), phase: 'play', turn: 1, 
 }
 { const { B, ids } = racked(8), s = breakShot(B, ids, rng(1)), o = B[ids.indexOf(1)];
   assert(Math.abs(s.ang - Math.atan2(o.y - B[0].y, o.x - B[0].x)) < 0.006 && s.speed > 10, 'hard, at the 1');
-  const m = think(B.map(b => ({ ...b })), ids, newGame(8, 1), 0, 1, 0); eq([m.at, m.call, m.safety], [null, -1, false], 'the break: no placing, no call');
+  const m = think(B.map(b => ({ ...b })), ids, newGame(8, 1), 1, 1, 0); eq([m.at, m.call, m.safety], [null, -1, false], 'the break: no placing, no call');
   ok('the AI breaks hard at the apex ball');
 }
 { // Calls: a pot names the pocket of its path; on the 8 a safety still calls the pocket nearest the 8.
@@ -67,10 +67,10 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, true), phase: 'play', turn: 1, 
 { // Pay for the human (player 0, solids) at tier Regular: a pot matched to its candidate, a fluke, a foul, their ball.
   const s = { ...play8(), turn: 0 }, cands = enumerate({ x: 600, y: 560 }, [{ id: 1, x: 1100, y: 560 }], [1]), c = cands.find(k => k.type === 'direct');
   const after = judge(s, rec(1, [[1, holeOf(c)]], { direct: true }));
-  let r = potPay(cands, rec(1, [[1, holeOf(c)]]), s, after, 0, 1); assert(r.pay.xp > 0 && r.run === 1 && r.own === 1, 'a pot pays, counts as own and the run goes on');
-  eq(potPay([], rec(1, [[1, holeOf(c)]]), s, after, 0, 1).pay, { xp: 9, coins: 4 }, 'no candidate: a fluke, Routine x0.9');
-  const foul = judge(s, rec(1, [[1, 0], [0, 1]])); eq(potPay(cands, rec(1, [[1, 0], [0, 1]]), s, foul, 2, 1), { pay: { xp: 0, coins: 0 }, run: 0, own: 0 }, 'a foul pays nothing and ends the run');
-  eq(potPay(cands, rec(9, [[9, 0]]), s, judge(s, rec(1, [[9, 0]])), 0, 1).pay, { xp: 0, coins: 0 }, 'their ball pays nothing');
+  let r = potPay(cands, rec(1, [[1, holeOf(c)]]), s, after, 0, { tier: 2 }); assert(r.pay.xp > 0 && r.run === 1 && r.own === 1, 'a pot pays, counts as own and the run goes on');
+  eq(potPay([], rec(1, [[1, holeOf(c)]]), s, after, 0, { tier: 2 }).pay, { xp: 9, coins: 4 }, 'no candidate: a fluke, Routine x0.9');
+  const foul = judge(s, rec(1, [[1, 0], [0, 1]])); eq(potPay(cands, rec(1, [[1, 0], [0, 1]]), s, foul, 2, { tier: 2 }), { pay: { xp: 0, coins: 0 }, run: 0, own: 0 }, 'a foul pays nothing and ends the run');
+  eq(potPay(cands, rec(9, [[9, 0]]), s, judge(s, rec(1, [[9, 0]])), 0, { tier: 2 }).pay, { xp: 0, coins: 0 }, 'their ball pays nothing');
   const T = [mk(0.6, 0.56), mk(1.1, 0.56), mk(1.6, 0.9)], ids = [0, 1, 10];
   eq([...new Set(candsFor(T, ids, s).map(k => k.ball))], [1], 'solids: candidates for the 1 only');
   eq([...new Set(candsFor(T, ids, { ...s, solids: -1 }).map(k => k.ball))].sort(), [1, 10], 'open table: any ball');
@@ -95,7 +95,7 @@ function playRack(game, tiers, seed, cap = 150) {
   }
   return { shots, winner: s.winner, note: s.note };
 }
-for (const [game, tiers, seed] of [[8, [1, 1], 10], [8, [0, 2], 20], [9, [1, 1], 30], [9, [0, 2], 40]]) {
+for (const [game, tiers, seed] of [[8, [2, 2], 10], [8, [1, 3], 20], [9, [2, 2], 30], [9, [1, 3], 40], [8, [3.4, 0.5], 50]]) {
   const r = playRack(game, tiers, seed);
   assert(r.winner === 0 || r.winner === 1, 'the rack has a winner');
   ok(`${game}-ball, tiers ${tiers}: rack over in ${r.shots} shots (${r.note})`);
