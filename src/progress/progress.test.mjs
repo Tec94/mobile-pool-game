@@ -25,9 +25,9 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(stick('rocket', true), h, 'matched: House Cue stats, perks off'); eq(stick('wizard', true).squirt, CUE.squirt, 'matched Wizard squirts');
   eq(Object.keys(CUES).length, 17, '17 cues'); eq(CUES.house.aim, 5, 'House Cue Aim 5');
   ok('cue stats give the engine cue');
-  eq(specLine(specs('house')), 'Power: 3.88 m/s top shot, 10.3 m/s break\nSpin: tip up to 10.5 mm off centre\nAim: guide 25 cm past contact', 'House Cue in real units');
+  eq(specLine(specs('house')), 'Power: 3.88 m/s top shot, 10.3 m/s break\nSpin: tip up to 10.5 mm off centre\nAim: guide 32 cm past contact', 'House Cue in real units');
   eq(specs('rocket').shot.toFixed(2) + ' ' + specs('rocket').brk.toFixed(1), '4.95 12.0', 'Rocket: Liftoff in the shot speed');
-  eq([specs('twig').guideCm, specs('periscope').guideCm], [10, 60], 'Aim 1 Short 10 cm, Aim 9 Long 60 cm');
+  eq([specs('twig').guideCm, specs('periscope').guideCm], [10, 54], 'Aim 1: 10 cm, Aim 9: 54 cm');
   ok('cue stats in real units');
 }
 
@@ -155,7 +155,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(upCost(lvl(5000, 1e4, 'rocket'), 'rocket', 'power'), null, 'no stat above 10'); eq(upCost(lvl(5000, 1e4, 'golden'), 'golden', 'spin'), 300, 'Golden 9 takes +1');
   eq(upCost(lvl(5000, 1e4, 'rod', ['house']), 'rod', 'spin'), null, 'a cue not owned');
   const t = statsOf('broomstick', { xp: 0, power: 2, spin: 0, aim: 2, paid: 2 }); eq(stick('broomstick', false, t).maxSpeed, stick('crowbar').maxSpeed, 'tuned Power 6 hits like a Power 6 cue');
-  eq(stick('broomstick', true, t), stick('house'), 'matched ignores tuning'); eq(specs('house', { power: 3, spin: 3, aim: 7 }).guideCm, 60, 'tuned Aim 7: Long guide');
+  eq(stick('broomstick', true, t), stick('house'), 'matched ignores tuning'); eq(specs('house', { power: 3, spin: 3, aim: 6 }).guideCm, 38, 'tuned Aim 6: one point longer than Aim 5');
   ok('tuning: points, coins, caps, free moves');
 }
 { const m = readMastery({ house: { xp: 1000, power: 1, spin: 1, aim: 0, paid: 2 }, twig: { xp: 50, power: 1, paid: 1 }, rocket: { xp: 5000, power: 1, paid: 1 }, bogus: { xp: 5 }, broomstick: { xp: 300, power: 1, spin: 1, paid: 2 }, noodle: 'x' });
