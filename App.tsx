@@ -267,8 +267,9 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
     const rest = () => setTimeout(() => { if (!on) live.current.setActive(false); }, 300);
     let timer = rest(); on = false;
     let was = performance.now();
+    let dead = false;
     const tick = (t: number) => {
-      raf = 0;
+      raf = 0; if (dead) return;
       const { B, ids, look, rules: s, rec, push: pushOut } = table.current;
       if (stale.current) { // one guide a frame, however many touches came. While a shot can be made the guide and the cue stick are always there: for the pull on the rail, or for a firm shot without one
         stale.current = false; redo.current = true;
@@ -312,11 +313,11 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         if (s.hand && !s.choice && !map.current.calm) scheduleOnUI(setMarks, mark.current()); // the ring round the cue ball in hand pulses
       }
       const n = table.current, pulse = n.rules.hand && !n.rules.choice && !map.current.calm; // the table now: a ruling may have racked a new one
-      if (stale.current || redo.current || moving.current || n.look.fx.length || n.rec || on || pulse) raf = requestAnimationFrame(tick);
+      if ((stale.current || redo.current || moving.current || n.look.fx.length || n.rec || on || pulse) && !raf) raf = requestAnimationFrame(tick); // !raf: a wake inside this turn already asked for the next
     };
-    wake.current = () => { if (!raf) { was = performance.now(); raf = requestAnimationFrame(tick); } };
+    wake.current = () => { if (!raf && !dead) { was = performance.now(); raf = requestAnimationFrame(tick); } };
     raf = requestAnimationFrame(tick);
-    return () => { cancelAnimationFrame(raf); raf = -1; clearTimeout(timer); }; // -1: a late wake does not start it again
+    return () => { cancelAnimationFrame(raf); dead = true; clearTimeout(timer); }; // dead: a late wake does not start it again
   }, []);
 
   useEffect(() => {
