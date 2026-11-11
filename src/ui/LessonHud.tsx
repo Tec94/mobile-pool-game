@@ -14,8 +14,8 @@ const STEP: Record<Stage, string> = { watch: 'Watch', guided: 'Guided', solo: 'S
 // A scenario names itself and its tries in head and line.
 export function LessonHud({ lesson, n, stage, run, land, pad, head, line: said, children }: { lesson: Lesson; n: number; stage: Stage; run: number; land: boolean; pad: EdgeInsets; head?: string; line?: string; children?: ReactNode }) {
   const { tip, power } = lesson.ref;
-  const line = said ?? stage === 'guided' ? `${spinLabel(tip)}${tip.elev ? ` · ${zoneLabel(tip)} ${tip.elev}°` : ''} · power about ${Math.round(power * 100)}%`
-    : stage === 'solo' ? `${run} of ${SOLO_RUN} in a row. No help with spin and power.` : 'Watch the spin and the power.';
+  const line = said ?? (stage === 'guided' ? `${spinLabel(tip)}${tip.elev ? ` · ${zoneLabel(tip)} ${tip.elev}°` : ''} · power about ${Math.round(power * 100)}%`
+    : stage === 'solo' ? `${run} of ${SOLO_RUN} in a row. No help with spin and power.` : 'Watch the spin and the power.');
   return (
     <View style={[styles.hud, { top: pad.top + 4, left: Math.max(pad.left, 8), right: Math.max(pad.right, 8) + (land ? BAR : 0) }]}>
       <View style={styles.text} accessible accessibilityLiveRegion="polite">
