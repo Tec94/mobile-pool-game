@@ -10,13 +10,15 @@ export interface View { land: boolean; s: number; ox: number; oy: number; dpr?: 
 
 export interface Inset { top: number; right: number; bottom: number; left: number }
 export const BAR = 64; // screen units kept for the controls: under the table in portrait, beside it in landscape, where a phone has room to spare
+const EDGE = 8; // screen units of ground kept around the table where the safe area gives less: the frame never meets the glass
 
 // The largest table that fits the window inside the safe area (notch, home indicator) and beside the controls, centred
 // in that room. Portrait stands the table up with the head string at the bottom.
 export function fit(w: number, h: number, pad: Inset = { top: 0, right: 0, bottom: 0, left: 0 }): View {
   const land = w > h, tw = (land ? P.L : P.W) + 2 * RAIL, th = (land ? P.W : P.L) + 2 * RAIL;
-  const aw = w - pad.left - pad.right - (land ? BAR : 0), ah = h - pad.top - pad.bottom - (land ? 0 : BAR), s = Math.min(aw / tw, ah / th);
-  return { land, s, ox: pad.left + (aw - tw * s) / 2 + RAIL * s, oy: pad.top + (ah - th * s) / 2 + RAIL * s };
+  const [t, r, b, l] = [pad.top, pad.right, pad.bottom, pad.left].map(p => Math.max(p, EDGE));
+  const aw = w - l - r - (land ? BAR : 0), ah = h - t - b - (land ? 0 : BAR), s = Math.min(aw / tw, ah / th);
+  return { land, s, ox: l + (aw - tw * s) / 2 + RAIL * s, oy: t + (ah - th * s) / 2 + RAIL * s };
 }
 export const toScreen = (v: View, x: number, y: number) => (v.land ? { x: v.ox + x * v.s, y: v.oy + (P.W - y) * v.s } : { x: v.ox + (P.W - y) * v.s, y: v.oy + (P.L - x) * v.s });
 export const toTable = (v: View, px: number, py: number) => (v.land ? { x: (px - v.ox) / v.s, y: P.W - (py - v.oy) / v.s } : { x: P.L - (py - v.oy) / v.s, y: P.W - (px - v.ox) / v.s });
