@@ -28,7 +28,7 @@ import { thinkAsync } from './src/ai/think';
 import { candsFor, choiceFor, type Move, nextSafeties, potPay, type Safeties, safetiesArg, softMove, think } from './src/ai/turn';
 import { type Cand, TIERS } from './src/ai/shot-ai';
 import { matchPay, type Pay } from './src/progress/pay';
-import { aimGuide, DRAG, guideFor, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
+import { aimGuide, DRAG, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { award, keep, ownStats, PASS_PLAY, profile, unlockCue } from './src/progress';
 import { clear, clearFeats, isOpen, par, SCENARIOS, type Scenario, starCount, starsFor } from './src/scenarios/scenarios';
 import { dailyClear, dailyPick, dayKey, grantChalk } from './src/daily/daily';
@@ -50,7 +50,7 @@ const GRAB = 36; // px: a touch this near the cue ball in hand drags it. The bal
 // ball keeps its distance from the finger and stays in view.
 const GUIDE_WORK = 3200; // ball-steps the aim guide may follow after first contact: one update stays inside a frame, even into the rack
 // Pass and play is a matched game: both players on House Cue stats with the perks off, whatever cues the phone owns.
-const MATCH_CUE = 'house', STICK = stick(MATCH_CUE, true), GUIDE_LEVEL = guideFor(CUES[MATCH_CUE].aim); // one cue for the shot and its guide
+const MATCH_CUE = 'house', STICK = stick(MATCH_CUE, true), GUIDE_AIM = CUES[MATCH_CUE].aim; // one cue for the shot and its guide
 const THINK_MS = 800; // the AI takes at least this long, so a fast tier does not shoot the moment the table stops
 const STILL = 1e9; // ms: a picture that stays on screen until the next one comes (the table at rest, the last frame of a shot)
 // Sample shots, played from a fresh rack so the spin, jump and masse animation can be seen without aiming one.
@@ -246,7 +246,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       if (stale.current) { // one guide a frame, however many touches came. While a shot can be made the guide and the cue stick are always there: for the pull on the rail, or for a firm shot without one
         const rec = Skia.PictureRecorder(), c = rec.beginRecording(), { aim, power } = shot.get();
         if (!shut() || watching()) {
-          const g = aimGuide(B, shotOf(previewPower(power)), S || vs ? guideFor(mine.aim) : L ? 3 : GUIDE_LEVEL, GUIDE_WORK, cue); // lessons use the full guide
+          const g = aimGuide(B, shotOf(previewPower(power)), S || vs ? mine.aim : L ? 10 : GUIDE_AIM, GUIDE_WORK, cue); // lessons use the full guide
           if (!(S && les.current.guideOff)) { peeked.current = true; drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob); } drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power);
         }
         guide.value = rec.finishRecordingAsPicture(); stale.current = false;

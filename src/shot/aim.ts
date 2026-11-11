@@ -33,12 +33,10 @@ export function release(hist: number[][], now: number, power: number) {
 }
 export const railLabel = (power: number, pulling: boolean) => (power >= 0.05 ? Math.round(power * 100) + '%' : pulling ? 'Cancel' : 'Pull');
 export const previewPower = (pull: number) => (pull > 0.05 ? pull : 0.7); // the guide shows the pull, or a firm shot when there is none
-// Guide levels Off, Short, Medium, Long, Full: metres of path shown after the first contact.
-export const GUIDE = [0, 0.1, 0.25, 0.6, 2];
-// The level comes from the Aim stat of the cue: 1-2 Short, 3-6 Medium, 7 and up Long.
-// shortcut: Off and Full are never chosen and Off still draws the whole line to the first contact; the settings
-// screen and the cue shop decide what they show.
-export const guideFor = (aimStat: number) => (aimStat <= 2 ? 1 : aimStat <= 6 ? 2 : 3);
+// The guide's length past the first contact grows with every Aim point (Jack: no point may do nothing): 10 cm at Aim 1
+// to 60 cm at Aim 10, metres. 0 = Off; the line to the first contact is always drawn.
+export const guideLen = (aim: number) => (aim <= 0 ? 0 : 0.1 + (Math.min(10, aim) - 1) * 0.5 / 9);
+export const LONG = 7; // from this Aim the cue ball's path after contact shows too
 // The angle from the cue ball to the nearest object ball, or `keep` when the table has none.
 export function nearest(B: Ball[], keep = 0) {
   let best = Infinity, ang = keep;
@@ -47,20 +45,20 @@ export function nearest(B: Ball[], keep = 0) {
 }
 // What drawAim needs for a shot: the cue ball's path, the object ball's path, the ghost ball at the first contact,
 // the touchdowns of a jump, and `lost` when the cue ball leaves the table before it meets anything.
-// The cue ball's path after the first contact is shown only at Long and Full.
+// aim = the Aim stat of the cue (lessons pass 10). The cue ball's path after the first contact shows only from LONG.
 // budget = the limit on the work after the first contact (see predict), so one guide stays inside a frame.
 // stick = the engine cue that will strike, so the guide squirts as the shot will.
-export function aimGuide(B: Ball[], shot: Shot, level: number, budget?: number, stick?: Cue) {
-  const g = predict(B, shot, GUIDE[level], stick, undefined, budget), k = g.split < 0 ? g.cue.length : g.split + 1;
+export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, stick?: Cue) {
+  const L = guideLen(aim), g = predict(B, shot, L, stick, undefined, budget), k = g.split < 0 ? g.cue.length : g.split + 1;
   // predict runs until both balls have gone the length, so the faster one overshoots it: cut each path to the length.
   const clip = (p: number[][], len: number) => {
     const out = p.slice(0, 1);
     for (let i = 1; i < p.length && len > 0; i++) { const a = p[i - 1], b = p[i], d = Math.hypot(b[0] - a[0], b[1] - a[1]), t = d > len ? len / d : 1; out.push(a.map((v, j) => v + (b[j] - v) * t)); len -= d; }
     return out;
   };
-  // A kick: the cue ball meets a cushion first. Below Long the line stops there, so the ring goes there too and no
+  // A kick: the cue ball meets a cushion first. Below LONG the line stops there, so the ring goes there too and no
   // object ball path hangs loose beyond it.
-  const q = g.cue[k - 1], kick = level < 3 && g.split >= 0 && !!g.hit && Math.hypot(q[0] - g.hit.x, q[1] - g.hit.y) > 1e-6;
+  const q = g.cue[k - 1], kick = aim < LONG && g.split >= 0 && !!g.hit && Math.hypot(q[0] - g.hit.x, q[1] - g.hit.y) > 1e-6;
   if (kick) return { path: g.cue.slice(0, k), ob: [], ghost: [q[0], q[1]], lands: g.lands, lost: false };
-  return { path: [...g.cue.slice(0, k), ...(level < 3 ? [] : clip(g.cue.slice(k - 1), GUIDE[level]).slice(1))], ob: clip(g.ob, GUIDE[level]), ghost: g.hit && [g.hit.x, g.hit.y], lands: g.lands, lost: g.scratch && g.split < 0 };
+  return { path: [...g.cue.slice(0, k), ...(aim < LONG ? [] : clip(g.cue.slice(k - 1), L).slice(1))], ob: clip(g.ob, L), ghost: g.hit && [g.hit.x, g.hit.y], lands: g.lands, lost: g.scratch && g.split < 0 };
 }
