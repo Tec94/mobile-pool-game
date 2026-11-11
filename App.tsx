@@ -22,7 +22,7 @@ import { LEVEL, shotTip } from './src/render/tip';
 import { canCall, choose, handCue, judge, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { aimGuide, DRAG, guideFor, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { award, PASS_PLAY } from './src/progress';
-import { levelOf } from './src/progress/profile';
+import { levelNote } from './src/progress/profile';
 import { CUES, stick } from './src/progress/cues';
 import { loadSettings, saveSettings } from './src/settings/save';
 import type { Settings } from './src/settings/settings';
@@ -309,13 +309,9 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
   );
 }
 
-// The player's level after the award: a level-up and its coins, then the XP into the level.
-function Gained({ profile, from, to, bonus }: ReturnType<typeof award>) {
-  const { level, into, need } = levelOf(profile.xp);
-  return <>
-    {to > from && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.pay]}>{`Level ${to}! +${bonus} coins`}</Text>}
-    <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{need ? `Level ${level} · ${into}/${need} XP` : `Level ${level}`}</Text>
-  </>;
+// The player's level after the award, on one line (levelNote): yellow for a level-up, like the pay.
+function Gained(g: ReturnType<typeof award>) {
+  return <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, g.to > g.from && styles.pay]}>{levelNote(g)}</Text>;
 }
 
 const styles = StyleSheet.create({

@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { CUE } from '../physics/engine.ts';
 import { CUES, stick } from './cues.ts';
 import { matchPay, safetyPay, shotPay } from './pay.ts';
-import { buy, feat, featCount, gain, levelOf, NEW, opens, PACKS, readProfile, select, unlock, VENUES } from './profile.ts';
+import { buy, feat, featCount, gain, levelNote, levelOf, NEW, opens, PACKS, readProfile, select, unlock, VENUES } from './profile.ts';
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 
@@ -68,6 +68,11 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(gain(at19, { xp: 1100, coins: 0 }).profile.owned, ['house', 'twig'], 'level 20 gives the Twig');
   eq(gain({ ...at19, owned: ['house', 'twig'] }, { xp: 1100, coins: 0 }).profile.owned, ['house', 'twig'], 'once');
   eq(gain(NEW, { xp: 0, coins: 0 }).profile === NEW, false, 'the old profile is not changed'); eq(NEW.xp, 0, 'NEW stays new');
+  eq(levelNote(gain(NEW, { xp: 40, coins: 0 })), 'Level 1 · 40/200 XP', 'no level-up: the level and the XP into it');
+  eq(levelNote(gain({ ...NEW, xp: 190 }, { xp: 40, coins: 0 })), 'Level 2! +70 coins · 30/250 XP', 'a level-up on the same line');
+  eq(levelNote(gain(at19, { xp: 1100, coins: 0 })), 'Level 20! +250 coins · Twig unlocked', 'level 20 says the Twig is unlocked');
+  eq(levelNote(gain({ ...NEW, xp: 68500 }, { xp: 100, coins: 0 })), 'Level 50! +550 coins', 'the cap has no XP to go');
+  eq(levelNote(gain({ ...NEW, xp: 68600 }, { xp: 40, coins: 0 })), 'Level 50', 'nor after it');
   ok('pay and level-ups');
 }
 { const rich = { ...NEW, coins: 1000 };

@@ -41,6 +41,14 @@ export function gain(p: Profile, pay: Pay) {
   return { profile: to >= 20 ? unlock(next, 'twig') : next, from, to, bonus };
 }
 
+// The level line of the results card, one line so a level-up makes the card no taller: the level and the XP into
+// it, or the level-up with its coins and the Twig at level 20.
+export function levelNote({ profile, from, to, bonus }: ReturnType<typeof gain>) {
+  const { level, into, need } = levelOf(profile.xp), xp = need ? `${into}/${need} XP` : '';
+  if (to === from) return [`Level ${level}`, xp].filter(Boolean).join(' · ');
+  return [`Level ${to}! +${bonus} coins`, from < 20 && to >= 20 ? 'Twig unlocked' : xp].filter(Boolean).join(' · ');
+}
+
 // A cue with a price that is not owned, for at most the coins there are. Anything else leaves the profile as it is.
 export function buy(p: Profile, id: CueId): Profile {
   const price = (CUES[id] as CueInfo).price;
