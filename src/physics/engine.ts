@@ -264,7 +264,7 @@ export function step(B:Ball[],ev?:Ev[]):boolean{
 // The aim line is the real simulation run ahead on a copy of the table, so it is exact.
 // len = metres of path shown after the cue ball's first contact (Infinity = to rest).
 export function predict(B:Ball[],shot:Shot,len:number,stick?:Cue,maxSteps=25000){
-  const S=B.map(b=>({...b})),ev:Ev[]=[],c=S[0],cue:number[][]=[[c.x,c.y]],ob:number[][]=[];
+  const S=B.map(b=>({...b})),ev:Ev[]=[],c=S[0],cue:number[][]=[[c.x,c.y,0]],ob:number[][]=[];
   strike(c,shot,stick);
   let split=-1,hit:Ev|null=null,o:Ball|null=null,cl=0,ol=0,scratch=false,apex=0;const lands:number[][]=[];
   const add=(arr:number[][],b:Ball,count:boolean)=>{const q=arr[arr.length-1],d=q?hyp(b.x-q[0],b.y-q[1]):0;arr.push([b.x,b.y,b.z||0]);return count?d:0;};
@@ -276,8 +276,8 @@ export function predict(B:Ball[],shot:Shot,len:number,stick?:Cue,maxSteps=25000)
       if(e.t==='land'){if(e.a===0&&split<0)lands.push([e.x,e.y]);continue;}
       if(e.a===0||e.b===0){
         if(e.t==='pocket'||e.t==='off')scratch=true;
-        else if(split<0){cl+=0;cue.push([e.x,e.y]);split=cue.length-1;}
-        if(e.t==='bb'&&!hit){hit=e;o=S[e.b!];ob.push([o.x,o.y]);}
+        else if(split<0){cue.push([e.x,e.y,c.z||0]);split=cue.length-1;}
+        if(e.t==='bb'&&!hit){hit=e;o=S[e.b!];ob.push([o.x,o.y,0]);}
         ce=true;
       }
       if(o&&(S[e.a]===o||(e.b!==undefined&&S[e.b]===o)))oe=true;

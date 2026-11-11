@@ -242,6 +242,7 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   const p = predict(T(), sh, Infinity), B = T(), ev = []; strike(B[0], sh); let land = null, hit = null;
   for (let i = 0; i < 9000 && !hit; i++) { ev.length = 0; step(B, ev); for (const q of ev) { if (q.t === 'land' && !land) land = q; if (q.t === 'bb') hit = q; } }
   assert(p.lands.length && p.lands[0][0] === land.x && p.hit.b === hit.b && p.apex > 0.06, 'aim line shows the real landing and hit');
+  assert([...p.cue, ...p.ob].every(q => q.length === 3) && Math.max(...p.cue.map(q => q[2])) > 0.06, 'every path point is [x, y, z]');
   let s = 7; const rnd = () => (s = s * 16807 % 2147483647) / 2147483647; let offs = 0;
   for (let k = 0; k < 300; k++) { const B = [mk(0.3 + rnd() * 1.6, 0.2 + rnd() * 0.7)];
     for (let j = 0; j < 9; j++) { let q; do q = mk(0.1 + rnd() * 2, 0.1 + rnd() * 0.9); while (B.some(o => Math.hypot(o.x - q.x, o.y - q.y) < 2 * R + 1e-3)); B.push(q); }
