@@ -4,7 +4,7 @@
 // With the cue ball in hand, drag it; tap a pocket to call it. The cue ball button opens the tip and cue angle sheet
 // (spin, jump, masse). A lesson (src/learn) plays on the same screen with its own table, goal and steps.
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { BackHandler, PanResponder, PixelRatio, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, BackHandler, PanResponder, PixelRatio, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Canvas, Picture, Skia, type SkPicture } from '@shopify/react-native-skia';
 import { useFrameCallback, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnUI } from 'react-native-worklets';
@@ -13,6 +13,7 @@ import * as Haptics from 'expo-haptics';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ball, breakSpot, CUE, HOLES, P, rack, Shot, strike } from './src/physics/engine';
+import { benchAI } from './src/ai/bench';
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
 import { drawMarks } from './src/render/marks';
 import { newPace, nextFrame, type Pace, refresh, type Slot, spent } from './src/render/pace';
@@ -22,8 +23,10 @@ import { LEVEL, shotTip } from './src/render/tip';
 import { type Lesson, LESSON_PAY, LESSONS, lessonTable, type LessonRec, newLessonRec, noteLesson, PENCIL_AT, SOLO_RUN, type Stage, verdict } from './src/learn/lessons';
 import { loadDone, saveDone } from './src/learn/save';
 import { canCall, choose, handCue, judge, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
-import { aimGuide, DRAG, guideFor, HOUSE_CUE, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
+import { aimGuide, DRAG, guideFor, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { award, PASS_PLAY, unlockCue } from './src/progress';
+import { levelNote } from './src/progress/profile';
+import { CUES, stick } from './src/progress/cues';
 import { loadSettings, saveSettings } from './src/settings/save';
 import type { Settings } from './src/settings/settings';
 import { BALLS, C, CLOTHS } from './src/theme';
@@ -37,6 +40,8 @@ import { TipButton, TipSheet, tipStore } from './src/ui/TipControl';
 const GRAB = 36; // px: a touch this near the cue ball in hand drags it. The ball is smaller than a fingertip, so the
 // ball keeps its distance from the finger and stays in view.
 const GUIDE_WORK = 3200; // ball-steps the aim guide may follow after first contact: one update stays inside a frame, even into the rack
+// Pass and play is a matched game: both players on House Cue stats with the perks off, whatever cues the phone owns.
+const MATCH_CUE = 'house', STICK = stick(MATCH_CUE, true), GUIDE_LEVEL = guideFor(CUES[MATCH_CUE].aim); // one cue for the shot and its guide
 const STILL = 1e9; // ms: a picture that stays on screen until the next one comes (the table at rest, the last frame of a shot)
 // Sample shots, played from a fresh rack so the spin, jump and masse animation can be seen without aiming one.
 const DEMOS: [string, Partial<Shot>][] = [['Draw', { speed: 2.5, b: -0.45 }], ['Side', { speed: 1.2, a: 0.45 }], ['Jump', { speed: 4.2, elev: 0.7 }], ['Massé', { speed: 3.5, a: 0.4, elev: 1.19 }]];
@@ -80,7 +85,7 @@ function Root() {
   useEffect(() => { if (done.length >= PENCIL_AT) unlockCue('pencil'); }, []); // also at launch: lessons passed before cues existed still count
   useEffect(() => { ScreenOrientation.lockAsync(LOCKS[set.orient]).catch(() => {}); }, [set.orient]);
   useEffect(() => { // Android back: from a menu page to home
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (screen === 'pass' || screen === 'settings' || screen === 'learn') { go('home'); return true; } return false; });
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (screen !== 'home' && screen !== 'match' && screen !== 'lesson') { go('home'); return true; } return false; });
     return () => sub.remove();
   }, [screen]);
   return <>
@@ -107,6 +112,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
   const felt = useMemo(() => { const rec = Skia.PictureRecorder(); drawTable(Skia, rec.beginRecording(), view, CLOTHS[cloth]); return rec.finishRecordingAsPicture(); }, [...where, cloth]);
 
   const score = useRef<[number, number]>([0, 0]), [paused, setPaused] = useState(false); // score = frames won
+  const gained = useRef<ReturnType<typeof award> | null>(null); // the award of the match, for the results card
   useEffect(() => { const sub = BackHandler.addEventListener('hardwareBackPress', () => { setPaused(p => !p); return true; }); return () => sub.remove(); }, []); // Android back opens and closes the pause card
   const rules = table.current.rules, [, redraw] = useReducer((n: number) => n + 1, 0); // the rules live with the table; redraw shows a change
   const shot = useRef(shotStore(nearest(table.current.B))).current; // the held aim and the power on the rail
@@ -146,7 +152,9 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
   const paint = (again = true) => { const { B, look } = table.current; look.last.set(B.flatMap(b => [b.x, b.y])); pace.current = null; if (again) stale.current = true; scheduleOnUI(still, draw.current()); };
   useEffect(() => { touch.current = null; paint(); }, where); // a drag measured in the old layout ends when the window turns
   useEffect(() => { const again = () => { stale.current = true; }, off = [shot.sub(again), tip.sub(again)]; return () => off.forEach(f => f()); }, []);
-  const shotOf = (power: number): Shot => ({ ang: shot.get().aim, speed: Math.max(0.05, power * (table.current.rules.phase === 'break' ? CUE.breakSpeed : CUE.maxSpeed)), ...shotTip(tip.get()) });
+  // A lesson plays with the engine's own cue, the one its reference shots are tuned on (src/learn/lessons.test.mjs).
+  const cue = L ? CUE : STICK;
+  const shotOf = (power: number): Shot => ({ ang: shot.get().aim, speed: Math.max(0.05, power * (table.current.rules.phase === 'break' ? cue.breakSpeed : cue.maxSpeed)), ...shotTip(tip.get(), cue) });
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the
   // rack is over. In a lesson: the shot plays itself, or the verdict card is up.
   const shut = () => { const t = table.current; return moving.current || !!t.rec || !!t.rules.choice || t.rules.phase === 'over' || (!!L && (les.current.stage === 'watch' || !!les.current.said)); };
@@ -155,7 +163,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
   const apply = useRef((s: State) => {});
   apply.current = (s: State) => {
     const t = table.current;
-    if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++; if (score.current[s.winner] === race) award(PASS_PLAY); }
+    if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++; if (score.current[s.winner] === race) gained.current = award(PASS_PLAY); }
     if (s.phase === 'break') { table.current = newTable(s); moving.current = false; }
     else { for (const id of s.spot) spotBall(t.B, t.ids.indexOf(id)); if (s.hand) handCue(t.B, s.hand); Object.assign(t, { rules: s, rec: null, push: false }); }
     paint(); redraw();
@@ -173,7 +181,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
       if (stale.current) { // one guide a frame, however many touches came. While a shot can be made the guide and the cue stick are always there: for the pull on the rail, or for a firm shot without one
         const rec = Skia.PictureRecorder(), c = rec.beginRecording(), { aim, power } = shot.get();
         if (!shut() || watching()) {
-          const g = aimGuide(B, shotOf(previewPower(power)), L ? 3 : guideFor(HOUSE_CUE.aim), GUIDE_WORK); // lessons use the full guide
+          const g = aimGuide(B, shotOf(previewPower(power)), L ? 3 : GUIDE_LEVEL, GUIDE_WORK, cue); // lessons use the full guide
           drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob); drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power);
         }
         guide.value = rec.finishRecordingAsPicture(); stale.current = false;
@@ -225,7 +233,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
     const t = table.current;
     if (shut() || (onEight(t.rules) && t.rules.call < 0)) { shot.set({ power: 0 }); return; } // the 8 needs its pocket called first: the HUD asks for it
     Haptics.impactAsync(power > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
-    t.rec = L ? newLessonRec() : newRec(); strike(t.B[0], shotOf(power)); moving.current = true;
+    t.rec = L ? newLessonRec() : newRec(); strike(t.B[0], shotOf(power), cue); moving.current = true;
     tip.set(LEVEL); setSheet(false); setTools(false); shot.set({ power: 0, fine: false, locked: true });
   };
   // Where the finger is about the cue ball: its angle in the table frame and its distance on the screen.
@@ -338,6 +346,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
           {race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} ${score.current[0]} – ${score.current[1]} ${names[1]}`}</Text>}
           {!won && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[1 - rules.breaker]} breaks`}</Text>}
           {won && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.pay]}>{`+${PASS_PLAY.xp} XP · +${PASS_PLAY.coins} coins`}</Text>}
+          {won && gained.current && <Gained {...gained.current} />}
           <Btn label={won ? 'Rematch' : 'Next rack'} onPress={() => rerack()} />
           {won && <Btn label="Menu" onPress={onQuit} />}
         </Results>
@@ -351,7 +360,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
       {tools && (
         <View onStartShouldSetResponder={() => true} style={[styles.tools, view.land ? { left: lay.tools.left + lay.tools.width + 12, bottom: height - lay.tools.top - lay.tools.height } : { left: lay.tools.left, bottom: height - lay.dial.top + 8 }]}>
           <Btn label="Rack" onPress={() => rerack()} onLongPress={() => setHud(!hud)} />
-          <Btn label={'Demo\n' + DEMOS[demo][0]} onPress={() => { // a fresh rack, and the demo shot is its break
+          <Btn label={'Demo\n' + DEMOS[demo][0]} onLongPress={() => Alert.alert('AI think time', benchAI())} onPress={() => { // hold: time the AI (blocks the JS thread a few seconds); tap: a fresh rack, and the demo shot is its break
             rerack(); const t = table.current; t.B[0].y = P.W / 2; // the demo shots go straight down the middle
             t.rec = newRec(); strike(t.B[0], { ang: 0, speed: 1, a: 0, b: 0, ...DEMOS[demo][1] });
             paint(); moving.current = true; shot.set({ power: 0, locked: true }); setDemo((demo + 1) % DEMOS.length);
@@ -374,6 +383,11 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
       )}
     </View>
   );
+}
+
+// The player's level after the award, on one line (levelNote): yellow for a level-up, like the pay.
+function Gained(g: ReturnType<typeof award>) {
+  return <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, g.to > g.from && styles.pay]}>{levelNote(g)}</Text>;
 }
 
 const styles = StyleSheet.create({

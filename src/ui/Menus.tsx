@@ -1,16 +1,19 @@
-// The screens around a match: home, the pass and play setup, settings and learn (screens spec, s-home, s-passplay,
-// s-prefs, s-learn).
-// shortcut: only what works today is on them. Quick match, practice, career, cues and the other settings of
+// The screens around a match: home, the pass and play setup, settings, cues and learn (screens spec, s-home,
+// s-passplay, s-prefs, s-learn).
+// shortcut: only what works today is on them. Quick match, practice, career and the other settings of
 // the spec come with the work that makes them play.
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LESSON_PAY, LESSONS, SOLO_RUN } from '../learn/lessons';
+import { keep, profile } from '../progress';
+import { CUE_IDS, CUES, type CueId, type CueInfo } from '../progress/cues';
+import { buy, FEATS, featCount, type FeatId, levelOf, select, type Profile } from '../progress/profile';
 import { NAME_MAX, RACES, Settings } from '../settings/settings';
 import { C, CLOTHS } from '../theme';
 import { Btn } from './Btn';
 
-export type Screen = 'home' | 'pass' | 'settings' | 'learn';
+export type Screen = 'home' | 'pass' | 'settings' | 'cues' | 'learn';
 interface Props { set: Settings; change: (s: Partial<Settings>) => void; go: (to: Screen | 'match') => void }
 interface LearnProps { done: string[]; learn: (lesson: number) => void }
 
@@ -45,12 +48,14 @@ function Page({ title, back, children }: { title: string; back?: () => void; chi
 export function Menus({ screen, set, change, go, done, learn }: Props & LearnProps & { screen: Screen }) {
   if (screen === 'pass') return <PassPlay set={set} change={change} go={go} />;
   if (screen === 'settings') return <SettingsPage set={set} change={change} go={go} />;
+  if (screen === 'cues') return <Cues go={go} />;
   if (screen === 'learn') return <Learn go={go} done={done} learn={learn} />;
   const next = LESSONS.find(l => !done.includes(l.id));
   return (
     <Page title="Pool">
       <Btn label={'Pass and play\nTwo players, one phone'} name="Pass and play" onPress={() => go('pass')} />
       <Btn label={`Learn\n${next ? `Next: ${next.title}` : 'Every lesson passed'}`} name="Learn" onPress={() => go('learn')} />
+      <Btn label="Cues" onPress={() => go('cues')} />
       <Btn label="Settings" onPress={() => go('settings')} />
     </Page>
   );
@@ -99,6 +104,44 @@ function SettingsPage({ set, change, go }: Props) {
   );
 }
 
+// The cue rack: level, XP and coins, then each cue with its stats, perk and how to get it. Owned cues can be picked.
+// shortcut: pass and play stays on House Cue stats, so the pick only counts once a mode with own cues lands.
+function Cues({ go }: Pick<Props, 'go'>) {
+  const [p, setP] = useState(profile), { level, into, need } = levelOf(p.xp);
+  const put = (next: Profile) => { if (next !== p) { keep(next); setP(next); } };
+  return (
+    <Page title="Cues" back={() => go('home')}>
+      <Text maxFontSizeMultiplier={1.3} style={styles.label}>{`Level ${level} · ${need ? `${need - into} XP to level ${level + 1}` : 'top level'} · ${p.coins} coins`}</Text>
+      <Text maxFontSizeMultiplier={1.3} style={styles.note}>Pass and play is a matched game: both players use House Cue stats.</Text>
+      {/* The Use buttons are radios: one group for the cue in use. */}
+      <View style={styles.body} accessibilityRole="radiogroup" accessibilityLabel="Cue in use">
+        {CUE_IDS.map(id => <CueRow key={id} id={id} p={p} put={put} />)}
+      </View>
+    </Page>
+  );
+}
+
+function CueRow({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => void }) {
+  const c: CueInfo = CUES[id], owned = p.owned.includes(id), f = c.feat as FeatId | undefined, feat = f && FEATS[f], done = f ? featCount(p, f) : 0;
+  return (
+    <View style={styles.row}>
+      <View style={styles.rowText}>
+        <Text maxFontSizeMultiplier={1.3} style={styles.label}>{c.name}</Text>
+        <Text maxFontSizeMultiplier={1.3} style={styles.note}>{`Power ${c.power} · Spin ${c.spin} · Aim ${c.aim}`}</Text>
+        {c.perk && <Text maxFontSizeMultiplier={1.3} style={styles.note}>{c.perk}</Text>}
+        {!owned && feat && <>
+          <Text maxFontSizeMultiplier={1.3} style={styles.note}>{`${feat.name} ${done}/${feat.count}`}</Text>
+          <View style={styles.bar}><View style={[styles.fill, { width: `${100 * done / feat.count}%` }]} /></View>
+        </>}
+        {!owned && c.level && <Text maxFontSizeMultiplier={1.3} style={styles.note}>{`Reach level ${c.level}`}</Text>}
+        {!owned && c.get && <Text maxFontSizeMultiplier={1.3} style={styles.note}>{c.get}</Text>}
+      </View>
+      {owned ? <Btn label={p.cue === id ? 'In use' : 'Use'} name={`Use ${c.name}`} on={p.cue === id} onPress={() => put(select(p, id))} />
+        : c.price !== undefined && <Btn label={`${c.price} coins`} name={`Buy ${c.name} for ${c.price} coins`} off={p.coins < c.price} onPress={() => put(buy(p, id))} />}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: C.ground },
   body: { gap: 12, width: '100%', maxWidth: 560, alignSelf: 'center' },
@@ -110,5 +153,7 @@ const styles = StyleSheet.create({
   note: { color: C.chalk, fontSize: 13, lineHeight: 17, opacity: 0.75 },
   seg: { flexDirection: 'row', gap: 6 },
   field: { gap: 6 },
+  bar: { height: 4, marginTop: 4, borderRadius: 2, backgroundColor: C.chalk + '26' },
+  fill: { height: 4, borderRadius: 2, backgroundColor: C.accent },
   input: { color: C.chalk, fontSize: 16, minHeight: 44, paddingHorizontal: 12, borderWidth: 1, borderColor: C.chalk + '66', borderRadius: 6 },
 });
