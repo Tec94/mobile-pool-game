@@ -1,5 +1,5 @@
-// The screens around a match: home, the pass and play setup, settings, cues and learn (screens spec, s-home,
-// s-passplay, s-prefs, s-learn).
+// The screens around a match: home, the pass and play setup, settings, cues, learn and scenarios (screens spec,
+// s-home, s-passplay, s-prefs, s-learn).
 // shortcut: only what works today is on them. Quick match, practice, career and the other settings of
 // the spec come with the work that makes them play.
 import { useState } from 'react';
@@ -7,15 +7,17 @@ import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LESSON_PAY, LESSONS, SOLO_RUN } from '../learn/lessons';
 import { keep, profile } from '../progress';
+import { isOpen, par, SCENARIOS, starCount, type Stars, totalStars } from '../scenarios/scenarios';
 import { CUE_IDS, CUES, type CueId, type CueInfo } from '../progress/cues';
-import { buy, FEATS, featCount, type FeatId, levelOf, select, type Profile } from '../progress/profile';
+import { buy, FEATS, featCount, type FeatId, levelOf, PACKS, select, type Profile } from '../progress/profile';
 import { NAME_MAX, RACES, Settings } from '../settings/settings';
 import { C, CLOTHS } from '../theme';
 import { Btn } from './Btn';
 
-export type Screen = 'home' | 'pass' | 'settings' | 'cues' | 'learn';
+export type Screen = 'home' | 'pass' | 'settings' | 'cues' | 'learn' | 'scenarios';
 interface Props { set: Settings; change: (s: Partial<Settings>) => void; go: (to: Screen | 'match') => void }
 interface LearnProps { done: string[]; learn: (lesson: number) => void }
+interface ScenarioProps { stars: Stars; play: (scenario: number) => void }
 
 // A setting: its name, an optional line on what it does, and one button for each value.
 function Row<T>({ label, note, value, pick, options }: { label: string; note?: string; value: T; pick: (v: T) => void; options: [string, T][] }) {
@@ -45,16 +47,18 @@ function Page({ title, back, children }: { title: string; back?: () => void; chi
   );
 }
 
-export function Menus({ screen, set, change, go, done, learn }: Props & LearnProps & { screen: Screen }) {
+export function Menus({ screen, set, change, go, done, learn, stars, play }: Props & LearnProps & ScenarioProps & { screen: Screen }) {
   if (screen === 'pass') return <PassPlay set={set} change={change} go={go} />;
   if (screen === 'settings') return <SettingsPage set={set} change={change} go={go} />;
   if (screen === 'cues') return <Cues go={go} />;
   if (screen === 'learn') return <Learn go={go} done={done} learn={learn} />;
+  if (screen === 'scenarios') return <Scenarios go={go} stars={stars} play={play} />;
   const next = LESSONS.find(l => !done.includes(l.id));
   return (
     <Page title="Pool">
       <Btn label={'Pass and play\nTwo players, one phone'} name="Pass and play" onPress={() => go('pass')} />
       <Btn label={`Learn\n${next ? `Next: ${next.title}` : 'Every lesson passed'}`} name="Learn" onPress={() => go('learn')} />
+      <Btn label={`Scenarios\n${totalStars(stars)} of ${3 * SCENARIOS.length} stars`} name="Scenarios" onPress={() => go('scenarios')} />
       <Btn label="Cues" onPress={() => go('cues')} />
       <Btn label="Settings" onPress={() => go('settings')} />
     </Page>
@@ -90,6 +94,27 @@ function Learn({ go, done, learn }: Pick<Props, 'go'> & LearnProps) {
         const passed = done.includes(l.id);
         return <Btn key={l.id} label={`${passed ? '✓' : i + 1}  ${l.title}\n${passed ? 'Done · replay any time' : i === next ? 'Suggested next' : 'Open'}`} name={`Lesson ${i + 1}, ${l.title}, ${passed ? 'done' : 'open'}`} onPress={() => learn(i)} />;
       })}
+    </Page>
+  );
+}
+
+// The packs in level order. A pack opens at its level; in it a clear opens the next two tables.
+function Scenarios({ go, stars, play }: Pick<Props, 'go'> & ScenarioProps) {
+  const { xp } = profile(), { level } = levelOf(xp);
+  return (
+    <Page title="Scenarios" back={() => go('home')}>
+      <Text maxFontSizeMultiplier={1.3} style={styles.note}>Stars: clear it, clear it within par tries, clear it with the aim guide off. Each new star pays 30 coins and XP; harder tables pay more.</Text>
+      {PACKS.map(([name, at], p) => (
+        <View key={name} style={styles.body}>
+          <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.label}>{level >= at ? name : `${name} · opens at level ${at}`}</Text>
+          {level >= at && SCENARIOS.map((s, i) => {
+            if (s.pack !== p) return null;
+            const k = starCount(stars[s.id]), open = isOpen(i, stars, xp);
+            return <Btn key={s.id} off={!open} label={`${s.title}  ${'★'.repeat(k)}${'☆'.repeat(3 - k)}\n${open ? `Par ${par(s)} · ${s.say}` : 'Clear one of the two before'}`}
+              name={`${s.title}, ${k} of 3 stars, ${open ? 'open' : 'locked'}`} onPress={() => play(i)} />;
+          })}
+        </View>
+      ))}
     </Page>
   );
 }
