@@ -67,11 +67,12 @@ function Root() {
   const [done, setDone] = useState(loadDone), [lesson, setLesson] = useState(0);
   const learn = (i: number) => { setLesson(i); go('lesson'); };
   // A lesson passed for the first time pays once and counts toward the Giant Pencil.
-  const pass = (id: string) => {
-    if (done.includes(id)) return;
+  const pass = (id: string) => { // true = paid
+    if (done.includes(id)) return false;
     const now = LESSONS.map(l => l.id).filter(k => k === id || done.includes(k));
-    setDone(now); if (saveDone(now)) award(LESSON_PAY);
+    setDone(now); const saved = saveDone(now); if (saved) award(LESSON_PAY);
     if (now.length >= PENCIL_AT) unlockCue('pencil');
+    return saved;
   };
   const change = (p: Partial<Settings>) => setSet(s => ({ ...s, ...p }));
   const first = useRef(true);
@@ -91,7 +92,7 @@ function Root() {
 }
 
 // A match, or with `lesson` a lesson. fresh = the lesson has not been passed before; onPass = it was just passed.
-function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Settings; onQuit: () => void; lesson?: number; fresh?: boolean; onPass?: (id: string) => void; onNext?: () => void }) {
+function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Settings; onQuit: () => void; lesson?: number; fresh?: boolean; onPass?: (id: string) => boolean; onNext?: () => void }) {
   const { width, height } = useWindowDimensions();
   const pad = useSafeAreaInsets(), calm = useReducedMotion();
   const L: Lesson | undefined = LESSONS[n];
@@ -279,7 +280,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
     if (st === 'watch') out = { title: 'That is the shot', say: L!.how, ok: true };
     else if (st === 'solo') {
       const now = v.ok ? k + 1 : 0; setRun(now);
-      if (now >= SOLO_RUN) { out = { title: 'Lesson passed', say: fresh ? `+${LESSON_PAY.xp} XP, first time.` : 'Replays are free practice.', ok: true }; onPass?.(L!.id); }
+      if (now >= SOLO_RUN) { const paid = onPass?.(L!.id); out = { title: 'Lesson passed', say: paid ? `+${LESSON_PAY.xp} XP, first time.` : fresh ? 'The pass could not be saved, so it pays nothing yet.' : 'Replays are free practice.', ok: true }; }
       else if (v.ok) out.title = `${now} of ${SOLO_RUN} in a row`;
       else if (k) out.say += ' The run starts again.';
     }
