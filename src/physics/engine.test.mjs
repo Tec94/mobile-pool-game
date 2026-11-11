@@ -149,7 +149,7 @@ const shot = (gap, speed, a, b, offY = 0) => {
   console.log('racks ok (8-ball and 9-ball)'); }
 // 15. Calibration against measured tables: roll distance and lag time for the cloth speed (Jewett: speed = 2 t^2,
 // new tournament cloth 100 to 130), side spin decay 5 to 15 rad/s^2 (Dr. Dave), a rolling ball square into a rail
-// leaves at about 0.818 of its speed (Mathavan 2010).
+// leaves at 0.82 of its speed (pool cushions measure 0.6 to 0.9, Dr. Dave; check 27 tests the rail against real tables).
 { const roll = v => ({ ...mk(0.2, W / 2), vx: v, wy: v / R });
   const b = roll(0.5), r = run([b]), a = P.mur * P.g;
   assert(Math.abs(b.x - 0.2 - 0.25 / (2 * a)) < 0.005 && Math.abs(r.t - 0.5 / a) < 0.02, 'rolling ball stops where v^2/(2 mu g) says');
@@ -309,4 +309,19 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
       dir = Math.atan2(b.vy, b.vx); lo = Math.min(lo, dir); hi = Math.max(hi, dir); }
     assert(hi - lo < 1e-6, `pocket point: the direction after the clip changes by ${(hi - lo) * D} deg with the step phase at ${v} m/s`); }
   console.log(`pocket point ok (${n} clips, same direction at every step phase: ${(dir * D).toFixed(1)} deg)`); }
+
+// 27. Cloth and cushions together, against real-table figures. These are quoted for a 9 ft table, so the check sets one.
+// (a) Bob Jewett (AzBilliards 2023): a ball needs 2, 4.2, 7.9 and 14.5 ft/s and about 20 mph to travel 1, 2, 3, 4 and 5
+//     table lengths. (b) Dr. Dave: on a kick straight across the table, 1/3, 2/3 and all of the maximum side spin move
+//     the ball about 1, 2 and 3 diamonds along the rail it comes back to.
+{ EngineAll.setTable(2.54, 1.27); const len = [], dia = [], mr = CUE.massRatio;
+  for (const [v, n] of [[0.61, 1], [1.28, 2], [2.41, 3], [4.42, 4], [8.9, 5]]) { const b = { ...mk(R + 1e-4, P.W / 2), vx: v, wy: v / R }; let d = 0, px = b.x;
+    while (step([b])) { d += Math.abs(b.x - px); px = b.x; }
+    len.push(d / (P.L - 2 * R)); assert(Math.abs(len[n - 1] / n - 1) < 0.08, `${v} m/s should travel ${n} table lengths, went ${len[n - 1]}`); }
+  for (const k of [1, 2, 3]) { const off = k / 6, c = mk(0.3 * P.L, R + 1e-4), ev = []; // ball speed 2.2 m/s at each offset
+    strike(c, { ang: Math.PI / 2, speed: 2.2 * (1 + mr + 2.5 * off * off) / (1 + mr), a: off, b: 0 });
+    while (ev.filter(e => e.t === 'rail').length < 2 && step([c], ev));
+    dia.push(Math.abs(c.x - 0.3 * P.L) / (P.L / 8)); assert(Math.abs(dia[k - 1] - k) < 0.25, `${k}/3 side spin should move the kick ${k} diamonds, moved ${dia[k - 1]}`); }
+  EngineAll.setTable(L, W);
+  console.log(`9 ft table ok (1 to 5 lengths: ${len.map(x => x.toFixed(2)).join(', ')}; side spin kick: ${dia.map(x => x.toFixed(2)).join(', ')} diamonds)`); }
 console.log('all checks passed');

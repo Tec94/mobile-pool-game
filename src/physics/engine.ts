@@ -14,8 +14,10 @@ export const P={R:0.028575,L:2.2352,W:1.1176,g:9.81,
   mur:0.008,  // rolling resistance: new tournament cloth, table speed 125 (a lag takes 7.4 s per length)
   musp:0.0117,// spin-in-place friction: side spin dies at 10 rad/s^2 (measured range 5 to 15)
   eb:0.95,    // ball-ball restitution
-  ec:0.875,   // cushion restitution: a rolling ball square into a rail leaves at 0.82 of its speed (measured 0.818)
-  muc:0.36,   // ball-cushion friction (rubber wraps the ball, so higher than cloth)
+  ec:0.875,   // cushion restitution: a rolling ball square into a rail leaves at 0.82 of its speed, and at half once it rolls again.
+              // With the cloth this gives Bob Jewett's speeds for 1 to 5 table lengths on a 9 ft table (test 27)
+  muc:0.36,   // ball-cushion friction: how far side spin moves the rebound. 0.36 gives Dr. Dave's rule that 1/3, 2/3 and
+              // full side spin move a kick straight across the table 1, 2 and 3 diamonds (test 27)
   nose:0.27,  // cushion nose height: sin of contact angle (nose at 63.5% of ball diameter)
   et:0.5,     // ball-slate restitution: a ball landing from a hop keeps half its vertical speed
   lift:0.6,   // rebound of the cue strike itself at jump angles (feel knob: jump height and reach; 0.6 clears a ball from about 65% power)
