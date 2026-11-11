@@ -1,3 +1,4 @@
+'worklet'; // every function here also runs on the AI's worklet runtime (src/ai/think.ts): define a function before its callers
 // Shot picker for the AI opponent: a typed port of the ai-progression prototype (shot-ai.js). Pure: no React, no engine
 // calls. Units: mm and radians, origin at a corner of the playing field, x along the length (the engine's axes, x1000).
 // shortcut: geometry only. Cue-ball travel is a rule of thumb (tangent line, plus or minus follow/draw, straight rolls with

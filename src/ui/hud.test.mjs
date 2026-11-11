@@ -39,6 +39,9 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, false), phase: 'play', hand: fa
 { // banner
   const foul = judge(play8({ balls: [1, 2, 3, 9, 10, 8] }), rec(1, [], { railAfter: false }));
   eq(banner(foul, false), { note: 'Foul: no rail after contact.', foul: true, hint: 'Ball in hand: drag the cue ball.' }, 'a foul is red and ball in hand stays as the hint');
+  eq(banner(foul, false, 'Rookie is thinking…'), { note: 'Foul: no rail after contact.', foul: true, hint: 'Rookie is thinking…' }, 'the AI thinks: its wait replaces the hint, the ruling stays');
+  eq(banner({ ...foul, hand: 'any' }, false, '').hint, '', 'the AI\'s turn, not thinking: no hint for the human');
+  eq(banner({ ...foul, choice: [{ label: 'Shoot' }] }, false, 'x').hint, 'x', 'and shows over a decision the AI makes');
   eq(banner(newGame(8), false).hint, 'Ball in hand behind the line: drag the cue ball.', 'the break: in hand behind the head string');
   eq(banner(play8({ note: 'Solids.' }), false), { note: 'Solids.', foul: false, hint: '' }, 'a ruling that is not a foul');
   const eight = play8({ solids: 0, balls: [8, 9] });

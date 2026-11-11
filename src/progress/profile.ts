@@ -1,5 +1,6 @@
 // The player's progress: total XP (the level comes from it), coins, cues and feat counts (progression design).
 import { CUE_IDS, CUES, type CueId, type CueInfo } from './cues.ts';
+import { type Mastery, readMastery } from './mastery.ts';
 import type { Pay } from './pay.ts';
 
 export const FEATS = {
@@ -19,8 +20,8 @@ export const FEATS = {
 export type FeatId = keyof typeof FEATS;
 
 // feats: progress from play and from scenarios apart, since scenarios may give at most half of a count.
-export interface Profile { xp: number; coins: number; owned: CueId[]; cue: CueId; feats: Partial<Record<FeatId, { play: number; scen: number }>> }
-export const NEW: Profile = { xp: 0, coins: 0, owned: ['house'], cue: 'house', feats: {} };
+export interface Profile { xp: number; coins: number; owned: CueId[]; cue: CueId; feats: Partial<Record<FeatId, { play: number; scen: number }>>; mastery: Partial<Record<CueId, Mastery>> }
+export const NEW: Profile = { xp: 0, coins: 0, owned: ['house'], cue: 'house', feats: {}, mastery: {} };
 // Give a cue (Learn, a boss, a feat, a level). An owned cue returns the same profile, so the caller can skip the save.
 export const unlock = (p: Profile, id: CueId): Profile => (p.owned.includes(id) ? p : { ...p, owned: [...p.owned, id] });
 export const MAX_LEVEL = 50;
@@ -81,11 +82,11 @@ export const opens = (gates: [string, number][], n: number) => gates.filter(g =>
 export function readProfile(text: string | null): Profile {
   let o: any = null;
   try { o = JSON.parse(text ?? 'null'); } catch {}
-  if (!o || typeof o !== 'object') return { ...NEW, owned: [...NEW.owned] };
+  if (!o || typeof o !== 'object') return { ...NEW, owned: [...NEW.owned], mastery: {} };
   const num = (v: unknown) => (typeof v === 'number' && v >= 0 ? Math.min(1e9, Math.floor(v)) : 0);
   const xp = num(o.xp), twig = levelOf(xp).level >= 20; // the Twig comes with level 20, even if the save lost it
   const owned = CUE_IDS.filter(id => id === 'house' || (id === 'twig' && twig) || (Array.isArray(o.owned) && o.owned.includes(id)));
   const feats: Profile['feats'] = {};
   for (const id of Object.keys(FEATS) as FeatId[]) { const f = o.feats?.[id]; if (f && typeof f === 'object') feats[id] = { play: num(f.play), scen: num(f.scen) }; }
-  return { xp, coins: num(o.coins), owned, cue: owned.includes(o.cue) ? o.cue : 'house', feats };
+  return { xp, coins: num(o.coins), owned, cue: owned.includes(o.cue) ? o.cue : 'house', feats, mastery: readMastery(o.mastery) };
 }
