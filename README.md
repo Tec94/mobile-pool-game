@@ -79,8 +79,30 @@ the phone and pick your PC's server. JS and TS changes then reload live. Only re
 ### Signing
 
 xtool signs with a development certificate from your paid account, so the install lasts as long as the profile (a
-year) instead of the 7 days a free Apple ID gets. TestFlight and App Store builds need distribution signing on the Mac
-runner instead; that is a later step.
+year) instead of the 7 days a free Apple ID gets. TestFlight and App Store builds use EAS instead (next section).
 
 GitHub minutes: macOS builds are free on a public repo. On a private repo the free 2,000 minutes count 10x on macOS,
 so about 200 macOS minutes, roughly 8 to 12 builds a month.
+
+## Release to TestFlight and the App Store (EAS)
+
+EAS (Expo's build service, free plan: 15 iOS builds a month) builds on Expo's Macs, makes and stores the distribution
+certificate and provisioning profile, and uploads to App Store Connect. It runs from Windows, no Mac needed.
+
+One time, in PowerShell in the repo:
+```
+npx eas-cli@latest login            # free account at expo.dev
+npx eas-cli@latest init             # links the project; commit the projectId it adds to app.json
+```
+
+Each release:
+```
+npx eas-cli@latest build -p ios --profile production --auto-submit
+```
+The first run asks for your Apple ID and 2FA code, then offers to create the App ID, distribution certificate and
+provisioning profile, and the App Store Connect app if it doesn't exist: say yes to each. The build number goes up by
+itself (`eas.json`). The build reaches TestFlight about 10 to 30 min after the upload. Bump `version` in `app.json`
+for each new App Store version.
+
+Store answers: no encryption beyond Apple's (`usesNonExemptEncryption: false`), no data collected
+(privacy policy: [PRIVACY.md](PRIVACY.md)).
