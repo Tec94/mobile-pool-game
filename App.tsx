@@ -48,14 +48,16 @@ export default function App() {
     drawBalls(kit, rec.beginRecording(), B, ids, look, view);
     picture.set(rec.finishRecordingAsPicture());
   };
-  useEffect(() => paint.current(), [width, height, calm]);
+  useEffect(() => paint.current(), [width, height]);
 
   useEffect(() => {
-    let raf = 0, last = 0;
+    let raf = 0, last = 0, owed = 0;
     const tick = (t: number) => {
       const { B, look } = table.current;
       if (moving.current || look.fx.length) { // effects (a ball falling into a pocket) outlive the last moving ball
-        moving.current = advance(B, look, Math.min(50, Math.round(t - last) || 16), moving.current); // real time, capped after a stall
+        owed = Math.min(50, owed + (last ? t - last : 16)); // real time, capped after a stall; the part of a millisecond left over carries on
+        const ms = Math.floor(owed); owed -= ms;
+        moving.current = advance(B, look, ms, moving.current);
         paint.current();
       }
       last = t; raf = requestAnimationFrame(tick);
