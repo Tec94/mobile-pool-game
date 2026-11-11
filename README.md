@@ -27,13 +27,20 @@ Apple developer account and install it over USB. So GitHub's macOS runner builds
 1. Settings > Privacy & Security > Developer Mode: turn it on and restart. (The switch only appears after the first
    install attempt on some iOS versions; if it isn't there, do the install below, then come back.)
 
-**Windows** (PowerShell as administrator)
-1. `wsl --install -d Ubuntu` and restart if asked.
-2. `winget install usbipd` (USB passthrough to WSL).
+**Windows** (PowerShell)
+1. `wsl --install -d Ubuntu` (as administrator) and restart if asked.
+2. Install the **Apple Devices** app (`winget install 9NP83LWLPZ9K --source msstore`) and Python
+   (`winget install Python.Python.3.13`, so `python.exe` is on PATH). Open Apple Devices once with the iPhone plugged in
+   and unlocked, and tap **Trust** on the phone.
 3. `winget install GitHub.cli`, then `gh auth login`.
 
+Do not use usbipd to pass the phone into WSL: xtool hangs at `[Connecting] 100%` that way
+([xtool#19](https://github.com/xtool-org/xtool/issues/19)). If the phone was bound before, run
+`usbipd unbind --busid <BUSID>` as administrator.
+
 **WSL** (open Ubuntu)
-1. `sudo apt-get update && sudo apt-get install -y usbmuxd unzip`
+1. `sudo apt-get update && sudo apt-get install -y unzip git`, then clone this repo:
+   `git clone https://github.com/Tec94/mobile-pool-game && cd mobile-pool-game`
 2. Install xtool:
    ```
    curl -fL "https://github.com/xtool-org/xtool/releases/latest/download/xtool-$(uname -m).AppImage" -o xtool
@@ -50,20 +57,18 @@ Apple developer account and install it over USB. So GitHub's macOS runner builds
 1. Build: GitHub > Actions > **iOS build** > Run workflow > Release (about 15 to 25 min). Or from a terminal:
    `gh workflow run ios.yml -f configuration=Release`
 2. Plug the iPhone in by USB, unlock it, and tap **Trust** if asked.
-3. Attach it to WSL (PowerShell as administrator):
+3. WSL terminal 1, in the repo, leave it running (connects xtool to the phone through Apple Devices):
    ```
-   usbipd list                          # find the BUSID of "Apple Mobile Device"
-   usbipd bind --busid <BUSID>          # first time only
-   usbipd attach --wsl --busid <BUSID>
+   sudo sh scripts/usbmux-relay/relay.sh
    ```
-4. In WSL:
+4. WSL terminal 2, in the repo:
    ```
-   sudo usbmuxd                         # once per WSL start
    xtool devices                        # your iPhone should be listed
-   gh run download -n Pool-Release-ipa -R Tec94/mobile-pool-game
-   xtool install Pool.ipa
+   rm -f Pool.ipa && gh run download -n Pool-Release-ipa -R Tec94/mobile-pool-game
+   xtool install Pool.ipa               # about 10 min
    ```
-5. If iOS says "Untrusted Developer": Settings > General > VPN & Device Management > your Apple ID > Trust.
+5. Tap Pool on the phone. (`xtool launch` can't find it: xtool re-signs the app under its own bundle ID.)
+   If iOS says "Untrusted Developer": Settings > General > VPN & Device Management > your Apple ID > Trust.
 
 ### Fast loop for code changes (Debug build)
 
