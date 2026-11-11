@@ -28,4 +28,7 @@ jobs:
           mkdir Payload && cp -R "build/Build/Products/${{ inputs.configuration }}-iphoneos/Pool.app" Payload/
           zip -qry Pool.ipa Payload
       - uses: actions/upload-artifact@v4
-        with: { name: Pool-${{ inputs.configuration }}-ipa, path: Pool.ipa, retention-days: 14 }
+        with:
+          name: Pool-${{ inputs.configuration }}-ipa
+          path: Pool.ipa
+          retention-days: 14
