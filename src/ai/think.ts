@@ -9,6 +9,7 @@ import type { Ball } from '../physics/engine';
 import type { State } from '../rules/rules';
 import { type Move, think } from './turn';
 
+// A dropped think (pause, new ruling, leaving) still runs to completion on the serial runtime: there is no cancel API.
 let rt: WorkletRuntime | null | undefined; // undefined = not made yet, null = cannot be made here
 const runtime = () => { if (rt === undefined) { try { rt = Platform.OS === 'web' ? null : createWorkletRuntime({ name: 'ai' }); } catch { rt = null; } } return rt; };
 
