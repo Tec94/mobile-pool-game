@@ -1,7 +1,7 @@
 // Run: npm test   (the progression model: levels, pay, cues, feats, gates and the saved profile)
 import assert from 'node:assert';
 import { CUE } from '../physics/engine.ts';
-import { CUES, stick } from './cues.ts';
+import { CUES, specLine, specs, stick } from './cues.ts';
 import { matchPay, safetyPay, shotPay } from './pay.ts';
 import { buy, feat, featCount, gain, levelNote, levelOf, NEW, opens, PACKS, readProfile, select, unlock, VENUES } from './profile.ts';
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
@@ -24,6 +24,10 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(stick('rocket', true), h, 'matched: House Cue stats, perks off'); eq(stick('wizard', true).squirt, CUE.squirt, 'matched Wizard squirts');
   eq(Object.keys(CUES).length, 17, '17 cues'); eq(CUES.house.aim, 5, 'House Cue Aim 5');
   ok('cue stats give the engine cue');
+  eq(specLine(specs('house')), 'Power: 3.88 m/s top shot, 10.3 m/s break\nSpin: tip up to 10.5 mm off centre\nAim: guide 25 cm past contact', 'House Cue in real units');
+  eq(specs('rocket').shot.toFixed(2) + ' ' + specs('rocket').brk.toFixed(1), '4.95 12.0', 'Rocket: Liftoff in the shot speed');
+  eq([specs('twig').guideCm, specs('periscope').guideCm], [10, 60], 'Aim 1 Short 10 cm, Aim 9 Long 60 cm');
+  ok('cue stats in real units');
 }
 
 { const pay = (pRef, more = {}) => shotPay({ pRef, ...more });

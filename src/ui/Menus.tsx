@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LESSON_PAY, LESSONS, SOLO_RUN } from '../learn/lessons';
 import { keep, profile } from '../progress';
 import { isOpen, par, SCENARIOS, starCount, type Stars, totalStars } from '../scenarios/scenarios';
-import { CUE_IDS, CUES, type CueId, type CueInfo } from '../progress/cues';
+import { CUE_IDS, CUES, type CueId, type CueInfo, specLine, specs } from '../progress/cues';
 import { buy, FEATS, featCount, type FeatId, levelOf, PACKS, select, type Profile } from '../progress/profile';
 import { NAME_MAX, RACES, Settings } from '../settings/settings';
 import { C, CLOTHS } from '../theme';
@@ -152,7 +152,7 @@ function CueRow({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => vo
     <View style={styles.row}>
       <View style={styles.rowText}>
         <Text maxFontSizeMultiplier={1.3} style={styles.label}>{c.name}</Text>
-        <Text maxFontSizeMultiplier={1.3} style={styles.note}>{`Power ${c.power} · Spin ${c.spin} · Aim ${c.aim}`}</Text>
+        <Text maxFontSizeMultiplier={1.3} style={styles.note}>{specLine(specs(id))}</Text>
         {c.perk && <Text maxFontSizeMultiplier={1.3} style={styles.note}>{c.perk}</Text>}
         {!owned && feat && <>
           <Text maxFontSizeMultiplier={1.3} style={styles.note}>{`${feat.name} ${done}/${feat.count}`}</Text>
