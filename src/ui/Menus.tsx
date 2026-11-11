@@ -93,7 +93,10 @@ function Cues({ go }: Pick<Props, 'go'>) {
     <Page title="Cues" back={() => go('home')}>
       <Text maxFontSizeMultiplier={1.3} style={styles.label}>{`Level ${level} · ${need ? `${need - into} XP to level ${level + 1}` : 'top level'} · ${p.coins} coins`}</Text>
       <Text maxFontSizeMultiplier={1.3} style={styles.note}>Pass and play is a matched game: both players use House Cue stats.</Text>
-      {CUE_IDS.map(id => <CueRow key={id} id={id} p={p} put={put} />)}
+      {/* The Use buttons are radios: one group for the cue in use. */}
+      <View style={styles.body} accessibilityRole="radiogroup" accessibilityLabel="Cue in use">
+        {CUE_IDS.map(id => <CueRow key={id} id={id} p={p} put={put} />)}
+      </View>
     </Page>
   );
 }
