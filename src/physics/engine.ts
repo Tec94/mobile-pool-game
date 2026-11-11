@@ -230,6 +230,8 @@ export function step(B:Ball[],ev?:Ev[]):boolean{
   // first, at the instant it met it, so a clip of a pocket point does not depend on where the steps fall.
   for(let i=0;i<B.length;i++){const b=B[i];if(!b.on||!(b.vx||b.vy))continue;
     const m=R+(Math.abs(b.vx)+Math.abs(b.vy))*h;if(b.x>m&&b.x<L-m&&b.y>m&&b.y<W-m)continue;
+    // The nose touches the ball above its centre, so the centre comes closer to the nose line than one radius: Rc = 0.963 R.
+    const Rc=R*Math.sqrt(1-P.nose*P.nose);
     if((b.z??0)>P.railH){ // above the cushion: no rail or pocket can stop it, and once past the nose line it has left the table
       if(b.x<0||b.x>L||b.y<0||b.y>W){b.on=false;b.vx=b.vy=b.wx=b.wy=b.wz=b.z=b.vz=0;if(ev)ev.push({t:'off',a:i,x:b.x,y:b.y});}
       continue;}
@@ -242,11 +244,11 @@ export function step(B:Ball[],ev?:Ev[]):boolean{
       for(const s of SEGS){
         const qx=b.x-s[0],qy=b.y-s[1],sd=qx*s[4]+qy*s[5],sg=sd<0?-1:1,a=sg*sd;if(a>=m)continue; // too far from its line to have met it
         const vn=sg*(b.vx*s[4]+b.vy*s[5]);
-        if(a<R&&vn<0){ // the face: the ball is into it and still going in. It counts if the ball came in between the two ends
-          const t=Math.min(win,(R-a)/-vn),u=((qx-b.vx*t)*(s[2]-s[0])+(qy-b.vy*t)*(s[3]-s[1]))*s[6];
+        if(a<Rc&&vn<0){ // the face: the ball is into it and still going in. It counts if the ball came in between the two ends
+          const t=Math.min(win,(Rc-a)/-vn),u=((qx-b.vx*t)*(s[2]-s[0])+(qy-b.vy*t)*(s[3]-s[1]))*s[6];
           if(t>tb&&u>=-1e-9&&u<=1+1e-9){tb=t;nx=sg*s[4];ny=sg*s[5];pot=false;}}
         // the point at the start of the segment: every pocket point starts a jaw, and the far end of a jaw is inside the hole
-        const t=since(qx,qy,0,b.vx,b.vy,0,R,win);
+        const t=since(qx,qy,0,b.vx,b.vy,0,Rc,win);
         if(t>tb){const px=qx-b.vx*t,py=qy-b.vy*t,d=hyp(px,py);if(d>0){tb=t;nx=px/d;ny=py/d;pot=false;}}
       }
       if(tb<0||pot)break;

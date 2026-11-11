@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import * as EngineAll from './engine.ts';
 const { P, CUE, step, strike, predict, simulate, rack, jumpRuling } = EngineAll;
-const { R, L, W } = P, D = 180 / Math.PI;
+const { R, L, W } = P, D = 180 / Math.PI, Rc = R * Math.sqrt(1 - P.nose ** 2); // Rc: ball centre to the cushion nose at contact
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 const SQUIRT = CUE.squirt; CUE.squirt = 0; // isolate table physics from cue deflection
 
@@ -157,8 +157,10 @@ const shot = (gap, speed, a, b, offY = 0) => {
   assert(1 / P.mur >= 100 && 1 / P.mur <= 130, 'table speed is in the new tournament cloth range');
   const s = roll(1); s.wz = 50; for (let i = 0; i < 1000; i++) step([s]);
   assert(50 - s.wz > 5 && 50 - s.wz < 15, 'side spin decays at 5 to 15 rad/s^2');
-  const c = roll(1); c.x = L - 0.2; let vin = 0; while (c.vx > 0) { vin = c.vx; step([c]); }
+  const c = roll(1), ev = []; c.x = L - 0.2; let vin = 0; while (c.vx > 0) { vin = c.vx; step([c], ev); }
   assert(Math.abs(-c.vx / vin - 0.818) < 0.02, 'rail rebound ratio ' + (-c.vx / vin));
+  // The nose is above the ball's centre (63.5% of the diameter), so the centre stops 0.963 R short of the nose line.
+  assert(Math.abs(Rc / R - 0.963) < 5e-4 && Math.abs(ev[0].x - (L - Rc)) < 1e-9, 'the ball meets the cushion nose at 0.963 R');
   console.log(`calibration ok (table speed ${(1 / P.mur).toFixed(0)}, spin decay ${(50 - s.wz).toFixed(1)} rad/s^2, rail rebound ${(-c.vx / vin).toFixed(3)})`); }
 
 // ---- Cue elevation: jump and masse (maths: https://claude.ai/artifact/TVh3RwdDyQP2htw8iHVYFd) ----
@@ -261,7 +263,7 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
 
 // 23. Pockets do not play wider at speed, and a cue's massRatio sets what spin costs. Effective size = width of the
 // band of rolling-ball paths, straight at a corner pocket, that drop. The band that touches nothing is the mouth less
-// one ball, 2.32 in. Dr. Dave's geometric model of the same pocket (TP 3.6: mouth 4.59 in, 142 degree facings; BD Dec
+// one ball at nose height, 2.40 in. Dr. Dave's geometric model of the same pocket (TP 3.6: mouth 4.59 in, 142 degree facings; BD Dec
 // 2004) gives 3.05 in slow and 2.75 in fast. Ours is tighter: the cushion grip that the rails are calibrated with also
 // slows and turns a ball that clips a pocket point. Not tuned to the model, because no measured pocket data was found.
 { const size = v => { let n = 0; const q = Math.SQRT1_2;
@@ -270,7 +272,7 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
       if (!b.on && Math.hypot(b.x, b.y) < 0.15) n++; }
     return n * 0.001 / 0.0254; };
   const slow = size(1), fast = size(4.5);
-  assert(fast > 2.32 && fast <= slow && slow < 3.05, `corner pocket size ${slow} in slow, ${fast} in fast`);
+  assert(fast > 2.40 && fast <= slow && slow < 3.05, `corner pocket size ${slow} in slow, ${fast} in fast`);
   const v = m => { const c = mk(1, 0.5); strike(c, { ang: 0, speed: 3, a: 0, b: -0.5 }, { ...CUE, massRatio: m }); return c.vx; };
   assert(Math.abs(v(0.316) / 3 - 0.678) < 0.002 && Math.abs(v(2.28) / 3 - 0.84) < 0.002, 'massRatio 2.28 halves the speed cost of full spin');
   console.log(`pocket size ok (corner, straight in: ${slow.toFixed(2)} in at 1 m/s, ${fast.toFixed(2)} in at 4.5 m/s), per-cue massRatio ok`); }
@@ -302,12 +304,12 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
 
 // 26. A clip of a pocket point does not depend on where the steps fall. The same line of travel (6 mm into the far
 // point of the side pocket), started at 20 different fractions of a step, leaves the point in the same direction.
-{ const px = L / 2 + EngineAll.POCKET.sc, a = -25 / D, dx = Math.cos(a), dy = Math.sin(a), off = R - 0.006; let n = 0, dir = 0;
+{ const px = L / 2 + EngineAll.POCKET.sc, a = -25 / D, dx = Math.cos(a), dy = Math.sin(a), off = Rc - 0.006; let n = 0, dir = 0;
   for (const v of [1, 4.5, 8]) { let lo = 9, hi = -9;
     for (let ph = 0; ph < 20; ph++, n++) { const back = 0.4 + ph * v * P.h / 20, ev = [];
       const b = { ...mk(px - dx * back - dy * off, -dy * back + dx * off), vx: v * dx, vy: v * dy, wx: -v * dy / R, wy: v * dx / R };
       for (let i = 0; i < 3000 && !ev.length; i++) step([b], ev);
-      assert(ev[0].t === 'rail' && Math.abs(Math.hypot(ev[0].x - px, ev[0].y) - R) < 1e-9, 'the ball meets the point at one ball radius');
+      assert(ev[0].t === 'rail' && Math.abs(Math.hypot(ev[0].x - px, ev[0].y) - Rc) < 1e-9, 'the ball meets the point at the contact distance');
       dir = Math.atan2(b.vy, b.vx); lo = Math.min(lo, dir); hi = Math.max(hi, dir); }
     assert(hi - lo < 1e-6, `pocket point: the direction after the clip changes by ${(hi - lo) * D} deg with the step phase at ${v} m/s`); }
   console.log(`pocket point ok (${n} clips, same direction at every step phase: ${(dir * D).toFixed(1)} deg)`); }
