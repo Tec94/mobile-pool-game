@@ -6,40 +6,46 @@ import Animated from 'react-native-reanimated';
 import type { EdgeInsets } from 'react-native-safe-area-context';
 import { P } from '../physics/engine';
 import type { State } from '../rules/rules';
-import { BAR, RAIL, type View as TableView } from '../render/table';
+import { RAIL, type View as TableView } from '../render/table';
 import { BALLS, C } from '../theme';
 import { banner, fresh, type Plate, plates, strip } from './hud';
 
 const RED = BALLS[2]; // fouls reuse the three-ball red (Quiet Slate)
 const LINE = C.chalk + '66'; // chalk hairline at 40%: 3:1 on the ground
 const POP = { animationName: { from: { opacity: 0, transform: [{ scale: 0.95 }] } }, animationDuration: '200ms', animationTimingFunction: 'ease-out' } as const; // a new ruling pops in
-const TOP = 4, PLATE = 44, STRIP = 24;
+const TOP = 4, PLATE = 44, STRIP = 24, STRIP_PIP = 18;
 // Screen units the HUD takes above the table: the plates, and in 9-ball the strip of balls under them.
 export const hudHeight = (game: number) => TOP + PLATE + 8 + (game === 9 ? STRIP : 0);
 
-// The plates row sits above the table and out of the control column in landscape. The push out button, when the rules
-// offer one, and the pause button come in as children at the end of the row. wait = what the AI is doing, for the banner.
-export function MatchHud({ rules, names, push, view, pad, calm, wait, children }: { rules: State; names: string[]; push: boolean; view: TableView; pad: EdgeInsets; calm: boolean; wait?: string; children?: ReactNode }) {
+// The plates row sits above the table. The pause button comes in as `pause` at the start of the row (top left); the push
+// out button, when the rules offer one, comes in as a child at the end. wait = what the AI is doing, for the banner.
+export function MatchHud({ rules, names, push, view, pad, calm, wait, pause, children }: { rules: State; names: string[]; push: boolean; view: TableView; pad: EdgeInsets; calm: boolean; wait?: string; pause: ReactNode; children?: ReactNode }) {
   const [a, b] = plates(rules, names), nine = strip(rules), next = nine.find(q => q.next);
   // Landscape: the banner sits between the plates, above the table, where it covers no pocket. Portrait: over the
   // foot rail, between the corner pockets.
+  // 9-ball: both players share the balls, so the strip sits under the seam of the two plates. Landscape: that is the
+  // middle of the table. Portrait: the seam, measured, as the pause button and the rail shift it off the table's middle.
+  const [seam, setSeam] = useState(0), left = Math.max(pad.left, 8), wide = 9 * STRIP_PIP + 8 * 5;
+  const mid = !view.land && seam ? left + seam - 4 : view.ox + (view.land ? P.L : P.W) * view.s / 2; // 4 = half the row gap
   const say = <Banner rules={rules} push={push} calm={calm} wait={wait} style={view.land ? { flex: 1 } : { position: 'absolute', top: view.oy - RAIL * view.s + 4, left: view.ox, width: P.W * view.s, paddingHorizontal: 0.12 * view.s }} />;
   return (
     <>
-      <View style={[styles.hud, { top: pad.top + TOP, left: Math.max(pad.left, 8), right: Math.max(pad.right, 8) + (view.land ? BAR : 0) }]}>
+      {/* Landscape: the rail starts under the HUD, so the row spans the window; a spacer the size of the pause button
+          keeps the plates and the banner centred on the table when no push out button is there. */}
+      <View style={[styles.hud, { top: pad.top + TOP, left, right: Math.max(pad.right, 8) }]}>
         <View style={styles.row} accessibilityLiveRegion="polite">
-          <PlateView p={a} land={view.land} />{view.land && say}<PlateView p={b} land={view.land} />{children}
+          {pause}<PlateView p={a} land={view.land} />{view.land && say}<PlateView p={b} land={view.land} onX={setSeam} />{children || (view.land && <View style={styles.even} />)}
         </View>
-        {nine.length > 0 && (
-          <View style={styles.nine} accessible accessibilityLabel={`${next ? `Ball ${next.id} to hit. ` : ''}Potted: ${nine.filter(q => q.gone).map(q => q.id).join(', ') || 'none'}`}>
-            {nine.map(q => (
-              <Pip key={q.id} id={q.id} gone={q.gone} size={18} style={q.next ? styles.next : undefined}>
-                <Text maxFontSizeMultiplier={1} style={[styles.num, { color: q.gone ? C.chalk + '80' : q.id === 8 ? C.white : C.ink }]}>{q.id}</Text>
-              </Pip>
-            ))}
-          </View>
-        )}
       </View>
+      {nine.length > 0 && (
+        <View style={[styles.nine, { top: pad.top + TOP + PLATE + 6, left: mid - wide / 2, width: wide }]} accessible accessibilityLabel={`${next ? `Ball ${next.id} to hit. ` : ''}Potted: ${nine.filter(q => q.gone).map(q => q.id).join(', ') || 'none'}`}>
+          {nine.map(q => (
+            <Pip key={q.id} id={q.id} gone={q.gone} size={STRIP_PIP} style={q.next ? styles.next : undefined}>
+              <Text maxFontSizeMultiplier={1} style={[styles.num, { color: q.gone ? C.chalk + '80' : q.id === 8 ? C.white : C.ink }]}>{q.id}</Text>
+            </Pip>
+          ))}
+        </View>
+      )}
       {!view.land && say}
     </>
   );
@@ -47,9 +53,9 @@ export function MatchHud({ rules, names, push, view, pad, calm, wait, children }
 
 // Line 1 the name; line 2 the group's pips (hollow once potted), or Open / Break / On the 8, or the 9-ball foul warning.
 // The player to shoot is at full strength with a chalk underline.
-function PlateView({ p, land }: { p: Plate; land: boolean }) {
+function PlateView({ p, land, onX }: { p: Plate; land: boolean; onX?: (x: number) => void }) {
   return (
-    <View accessible accessibilityLabel={p.label} style={[styles.plate, land && { maxWidth: 200 }, !p.on && { opacity: 0.6 }]}>
+    <View onLayout={onX && (e => onX(e.nativeEvent.layout.x))} accessible accessibilityLabel={p.label} style={[styles.plate, land && { maxWidth: 200 }, !p.on && { opacity: 0.6 }]}>
       <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.name}>{p.name}</Text>
       <View style={styles.l2}>
         {p.pips.map(q => <Pip key={q.id} id={q.id} gone={q.gone} size={8} />)}
@@ -110,6 +116,7 @@ export function Results({ rules, title, kind = 'Pass and play', children }: { ru
 
 const styles = StyleSheet.create({
   hud: { position: 'absolute', gap: 6 },
+  even: { width: 56 }, // the width of the pause button (Btn minWidth)
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, height: PLATE },
   plate: { flex: 1, height: PLATE, paddingHorizontal: 10, justifyContent: 'center', gap: 3, borderRadius: 6, borderWidth: 1, borderColor: LINE, overflow: 'hidden' },
   name: { color: C.chalk, fontSize: 14, lineHeight: 17, fontWeight: '600' },
@@ -117,7 +124,7 @@ const styles = StyleSheet.create({
   l2Text: { color: C.chalk + 'B3', fontSize: 12, lineHeight: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
   under: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: C.chalk },
   eight: { borderWidth: 1, borderColor: LINE }, // the 7 and 8 keep an edge on the dark ground (a border: outline needs a style on web)
-  nine: { flexDirection: 'row', justifyContent: 'center', gap: 5, height: 18 },
+  nine: { position: 'absolute', flexDirection: 'row', justifyContent: 'center', gap: 5, height: STRIP_PIP },
   num: { fontSize: 10, lineHeight: 18, fontWeight: '700', fontVariant: ['tabular-nums'] },
   next: { borderWidth: 2, borderColor: C.chalk }, // inside the box: the pip keeps its size
   banner: { maxWidth: '100%', paddingVertical: 4, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: LINE, backgroundColor: '#000b' },

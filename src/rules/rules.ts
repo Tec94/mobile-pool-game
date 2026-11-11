@@ -71,6 +71,13 @@ export function record(r: Rec, ev: Ev[], B: Ball[], ids: number[]) {
 const own = (s: State, p: Player) => (s.solids < 0 ? [] : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === p)));
 // 9-ball: the ball that must be hit first.
 export const lowest = (s: State) => Math.min(...s.balls);
+// The cue ball may hit ball id first on this shot (3.3): 9-ball the lowest ball; 8-ball on the break any ball, on an
+// open table any ball but the 8, else the shooter's group, and the 8 once the group is down.
+export function legalFirst(s: State, id: number) {
+  if (s.game === 9) return id === lowest(s);
+  const mine = own(s, s.turn);
+  return s.phase === 'break' || (s.solids < 0 ? id !== 8 : mine.length ? mine.includes(id) : id === 8);
+}
 export const onEight = (s: State) => s.game === 8 && s.phase === 'play' && s.solids >= 0 && !own(s, s.turn).length;
 // The shooter may name a pocket; on the 8 they must (4.8c makes an uncalled pocket a loss, so the screen insists).
 export const canCall = (s: State) => s.game === 8 && s.phase === 'play' && (s.callAll || onEight(s));
@@ -81,7 +88,7 @@ export function judge(s: State, r: Rec, push = false): State {
   const me = s.turn, opp = (1 - me) as Player, brk = s.phase === 'break', G = s.game;
   const pots = r.pots.filter(p => p.id), scratch = pots.length < r.pots.length || r.off.includes(0);
   const gone = (id: number) => pots.some(p => p.id === id) || r.off.includes(id);
-  const mine = own(s, me), legal = (id: number) => (G === 9 ? id === lowest(s) : brk || (s.solids < 0 ? id !== 8 : mine.length ? mine.includes(id) : id === 8));
+  const mine = own(s, me), legal = (id: number) => legalFirst(s, id);
   // 3.1, 3.5, 3.3, 3.2, 3.11, 3.3, and the 9-ball break (5.3b). A push out suspends 3.2 and 3.3.
   const foul = scratch ? 'scratch' : r.off.length ? 'ball off the table' : push ? ''
     : r.first < 0 ? 'no ball hit' : !legal(r.first) ? 'wrong ball first'

@@ -1,7 +1,7 @@
 // Run: npm test   (checks the rules against the WPA Rules of Play, 2026-10-21; rule numbers are that edition's)
 import assert from 'node:assert';
 import { P, rack, step, strike } from '../physics/engine.ts';
-import { canCall, choose, handCue, judge, legalSpot, lowest, moveCue, newGame, newRec, onEight, record, setCall, spotBall } from './rules.ts';
+import { canCall, choose, handCue, judge, legalFirst, legalSpot, lowest, moveCue, newGame, newRec, onEight, record, setCall, spotBall } from './rules.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
@@ -140,5 +140,13 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
   assert(B[3].on && B[3].y === P.W / 2 && B[3].x > B[1].x && Math.abs(B[3].x - B[1].x - 2 * P.R) < 1e-3, '1.5 a spotted ball goes behind a ball on the foot spot, touching it');
   B[1].on = false; spotBall(B, 3); eq(B[3].x, 0.75 * P.L, 'and on the foot spot when it is free');
   ok('cue ball in hand and spotting follow 1.5 and 1.6');
+}
+{ // 3.3: the ball the aim guide may show as a legal first hit
+  eq([1, 8, 15].map(id => legalFirst(newGame(8), id)), [true, true, true], 'the break: any ball');
+  eq([1, 8, 15].map(id => legalFirst(open8(), id)), [true, false, true], 'an open table: any ball but the 8');
+  eq([1, 8, 15].map(id => legalFirst(solids1(), id)), [true, false, false], 'solids: only a solid');
+  const nine = { ...newGame(9), phase: 'play', balls: [2, 5, 9] };
+  eq([2, 5, 9].map(id => legalFirst(nine, id)), [true, false, false], '9-ball: only the lowest ball');
+  ok('legalFirst follows 3.3 and the 9-ball rule');
 }
 console.log(`\n${n} checks passed`);
