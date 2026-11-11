@@ -4,3 +4,5 @@ export interface Pay { xp: number; coins: number }
 export const PASS_PLAY: Pay = { xp: 40, coins: 20 };
 // shortcut: nothing is kept yet; the progression work adds the pay to the save here.
 export function award(_pay: Pay) {}
+// shortcut: the progression work owns cues; until it lands a cue unlocked here is not kept.
+export function unlockCue(_id: string) {}
