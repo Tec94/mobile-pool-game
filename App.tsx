@@ -2,7 +2,6 @@
 // the table to aim, turn the dial to aim finely, pull the rail down and let go to shoot. The table never fires a shot.
 // With the cue ball in hand, drag it; tap a pocket to call it. The cue ball button opens the tip and cue angle sheet
 // (spin, jump, masse).
-// shortcut: the line of text above the table stands in for the designed HUD.
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { PanResponder, PixelRatio, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Canvas, Picture, Skia, type SkPicture } from '@shopify/react-native-skia';
@@ -18,13 +17,13 @@ import { newPace, nextFrame, type Pace, refresh, type Slot, spent } from './src/
 import { drawCue, shotLayout } from './src/render/cue';
 import { BAR, drawAim, drawTable, onTable, toScreen, toTable } from './src/render/table';
 import { LEVEL, shotTip } from './src/render/tip';
-import { canCall, choose, handCue, judge, lowest, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
+import { canCall, choose, handCue, judge, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { aimGuide, DRAG, guideFor, HOUSE_CUE, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { C, CLOTHS } from './src/theme';
+import { hudHeight, MatchHud, Results } from './src/ui/MatchHud';
 import { AimDial, PowerRail, shotStore } from './src/ui/ShotControls';
 import { TipButton, TipSheet, tipStore } from './src/ui/TipControl';
 
-const HUD = 40; // screen units kept above the table for whose turn it is and the last ruling
 const GRAB = 36; // px: a touch this near the cue ball in hand drags it. The ball is smaller than a fingertip, so the
 // ball keeps its distance from the finger and stays in view.
 // Game button: the discipline, and for 8-ball whether shots are called the WPA way or only the pocket of the 8 is.
@@ -50,6 +49,7 @@ export default function App() {
 function Game() {
   const { width, height } = useWindowDimensions();
   const pad = useSafeAreaInsets(), calm = useReducedMotion();
+  const table = useRef(newTable(newGame(8))), HUD = hudHeight(table.current.rules.game); // screen units kept above the table for the HUD
   const lay = shotLayout(width, height, { ...pad, top: pad.top + HUD }), view = { ...lay.view, dpr: PixelRatio.get(), calm }, where = [view.land, view.s, view.ox, view.oy];
   const [cloth, setCloth] = useState(0); // shortcut: not saved between launches, save it when the settings screen exists
   const map = useRef(view); map.current = view; // the pan responder is created once, so it reads the latest mapping
@@ -57,7 +57,6 @@ function Game() {
   const felt = useMemo(() => { const rec = Skia.PictureRecorder(); drawTable(Skia, rec.beginRecording(), view, CLOTHS[cloth]); return rec.finishRecordingAsPicture(); }, [...where, cloth]);
 
   const [mode, setMode] = useState(0);
-  const table = useRef(newTable(newGame(8)));
   const rules = table.current.rules, [, redraw] = useReducer((n: number) => n + 1, 0); // the rules live with the table; redraw shows a change
   const shot = useRef(shotStore(nearest(table.current.B))).current; // the held aim and the power on the rail
   const stale = useRef(true); // the guide must be drawn again: the aim, the power, the tip or the table changed
@@ -206,10 +205,6 @@ function Game() {
   // A new rack. The break alternates after a finished rack (WPA 1.3); a rack started over keeps its breaker.
   const over = rules.phase === 'over';
   const rerack = (m: number, breaker = over ? 1 - rules.breaker : rules.breaker) => apply.current(newGame(MODES[m][1], breaker as 0 | 1, MODES[m][2]));
-  const group = rules.solids < 0 ? 'Open table' : (rules.solids === rules.turn ? 'Solids' : 'Stripes') + (onEight(rules) ? ', on the 8' : '');
-  const who = over ? `Player ${rules.winner + 1} wins` : `Player ${rules.turn + 1} · ${rules.phase === 'break' ? 'Break' : rules.game === 8 ? group : `Ball ${lowest(rules)}${rules.fouls[rules.turn] === 2 ? ' · on 2 fouls' : ''}`}`;
-  const hint = [rules.note, rules.hand === 'kitchen' ? 'Ball in hand behind the line: drag the cue ball.' : rules.hand ? 'Ball in hand: drag the cue ball.' : '',
-    canCall(rules) && rules.call < 0 ? (onEight(rules) ? 'Tap a pocket to call the 8.' : !rules.hand && !rules.note ? 'Tap a pocket to call a bank or a combination.' : '') : '', table.current.push ? 'Push out: no ball or rail needed.' : ''].filter(Boolean).join(' ');
 
   return (
     <View style={styles.root} {...pan.panHandlers}>
@@ -223,24 +218,21 @@ function Game() {
         <Picture picture={picture} />
       </Canvas>
       {hud && <Text pointerEvents="none" style={[styles.rates, { top: pad.top + HUD, left: pad.left + 8 }]}>{rates}</Text>}
-      {/* Whose turn, what they are on, and the last ruling: one strip above the table, read out when it changes. */}
-      <View style={[styles.hud, { top: pad.top, left: Math.max(pad.left, 8), right: Math.max(pad.right, 8) + (view.land ? BAR : 0) }]}>
-        <View style={styles.hudText} accessible accessibilityLiveRegion="polite">
-          <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.who}>{who}</Text>
-          <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={styles.note}>{hint}</Text>
-        </View>
+      {/* The player plates, the 9-ball strip and the banner with the last ruling (src/ui/MatchHud.tsx). */}
+      <MatchHud rules={rules} push={table.current.push} view={view} pad={pad} calm={calm}>
         {rules.push && !rules.choice && <Btn label={table.current.push ? 'Push out: on' : 'Push out'} onPress={() => { if (!table.current.rec) { table.current.push = !table.current.push; redraw(); } }} />}
-      </View>
-      {/* A decision the rules hand to a player, or the end of the rack: a card over the table, and play waits for it. */}
-      {(rules.choice || over) && (
+      </MatchHud>
+      {/* A decision the rules hand to a player: a card over the table, and play waits for it. */}
+      {rules.choice && (
         <View style={styles.sheet} pointerEvents="box-none">
           <View style={styles.card} accessibilityViewIsModal>
-            <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>{over ? `Player ${rules.winner + 1} wins` : `Player ${rules.turn + 1}, your call`}</Text>
+            <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>{`Player ${rules.turn + 1}, your call`}</Text>
             {!!rules.note && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{rules.note}</Text>}
-            {over ? <Btn label="New rack" onPress={() => rerack(mode)} /> : rules.choice!.map((o, i) => <Btn key={o.label} label={o.label} onPress={() => apply.current(choose(rules, i))} />)}
+            {rules.choice.map((o, i) => <Btn key={o.label} label={o.label} onPress={() => apply.current(choose(rules, i))} />)}
           </View>
         </View>
       )}
+      {over && <Results rules={rules}><Btn label="Rematch" onPress={() => rerack(mode)} /></Results>}
       {/* The shot controls sit inside the safe area where shotLayout puts them. */}
       <PowerRail store={shot} box={lay.rail} onStrike={fire} />
       <AimDial store={shot} box={lay.dial} />
@@ -283,10 +275,6 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.ground },
   at: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
   tools: { position: 'absolute', flexDirection: 'row', gap: 8, padding: 8, backgroundColor: C.panel, borderColor: C.chalk + '40', borderWidth: 1, borderRadius: 12 },
-  hud: { position: 'absolute', height: HUD, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  hudText: { flex: 1, justifyContent: 'center' },
-  who: { color: C.chalk, fontSize: 15, lineHeight: 18, fontWeight: '700' },
-  note: { color: C.chalk, fontSize: 13, lineHeight: 16, opacity: 0.85 },
   sheet: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 24 },
   card: { maxWidth: 320, alignSelf: 'center', padding: 16, gap: 10, borderRadius: 10, borderWidth: 1, borderColor: C.chalk + '66', backgroundColor: C.ground + 'F2' },
   cardTitle: { color: C.chalk, fontSize: 18, fontWeight: '800', textAlign: 'center' },
