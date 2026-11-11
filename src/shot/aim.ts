@@ -39,7 +39,6 @@ export const GUIDE = [0, 0.1, 0.25, 0.6, 2];
 // shortcut: Off and Full are never chosen and Off still draws the whole line to the first contact; the settings
 // screen and the cue shop decide what they show.
 export const guideFor = (aimStat: number) => (aimStat <= 2 ? 1 : aimStat <= 6 ? 2 : 3);
-export const HOUSE_CUE = { aim: 5 }; // shortcut: the only cue until cues exist
 // The angle from the cue ball to the nearest object ball, or `keep` when the table has none.
 export function nearest(B: Ball[], keep = 0) {
   let best = Infinity, ang = keep;
