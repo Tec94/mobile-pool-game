@@ -3,18 +3,21 @@
 // this screen proves Skia, the engine and the ball animation on the phone.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, PixelRatio, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
-import Animated, { useReducedMotion, useSharedValue } from 'react-native-reanimated';
+import { Canvas, Picture, Skia, type SkPicture } from '@shopify/react-native-skia';
+import Animated, { useFrameCallback, useReducedMotion, useSharedValue } from 'react-native-reanimated';
+import { scheduleOnUI } from 'react-native-worklets';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ball, CUE, P, predict, rack, Shot, strike } from './src/physics/engine';
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
+import { newPace, nextFrame, type Pace, refresh, type Slot, spent } from './src/render/pace';
 import { BAR, drawAim, drawTable, fit, toTable } from './src/render/table';
 import { C, CLOTHS } from './src/theme';
 
 const MAX_DRAG = 160; // px of pull-back for full power
 const GUIDE_WORK = 3200; // ball-steps the aim guide may follow after first contact: one update stays inside a frame, even into the rack
+const STILL = 1e9; // ms: a picture that stays on screen until the next one comes (the table at rest, the last frame of a shot)
 // Shots the screen has no controls for yet, played from a fresh rack so the spin, jump and masse animation can be seen.
 const DEMOS: [string, Partial<Shot>][] = [['Draw', { speed: 2.5, b: -0.45 }], ['Side', { speed: 1.2, a: 0.45 }], ['Jump', { speed: 4.2, elev: 0.7 }], ['Massé', { speed: 3.5, a: 0.4, elev: 1.19 }]];
 const kit = makeKit(Skia);
@@ -47,16 +50,35 @@ function Game() {
   // The balls and the aim guide are Skia pictures, recorded on the JS thread and handed to the canvas through shared
   // values, so a frame of play or of aiming never re-renders React.
   const picture = useSharedValue(EMPTY), guide = useSharedValue(EMPTY);
-  const paint = useRef(() => {});
-  paint.current = () => {
+  const draw = useRef(() => EMPTY);
+  draw.current = () => {
     const rec = Skia.PictureRecorder(), { B, ids, look } = table.current;
     drawBalls(kit, rec.beginRecording(), B, ids, look, view);
-    picture.set(rec.finishRecordingAsPicture());
+    return rec.finishRecordingAsPicture();
   };
-  useEffect(() => paint.current(), where);
+  // Frames of play wait in queue and the UI thread shows one on each display refresh (see src/render/pace.ts).
+  const queue = useSharedValue<Slot<SkPicture>[]>([]), left = useSharedValue(STILL);
+  const seen = useSharedValue([0, 0, 0, 0, 1000 / 60]); // counts for the readout (refreshes, frames shown, refreshes with no frame ready, frames skipped), then the shortest refresh interval in ms
+  const beat = useFrameCallback(f => {
+    'worklet';
+    const dt = f.timeSincePreviousFrame ?? 0, r = refresh(queue.value, left.value, dt), s = seen.value;
+    left.value = r.left;
+    if (r.show) { queue.value = r.rest; picture.value = r.show; }
+    seen.value = [s[0] + 1, s[1] + (r.show ? 1 : 0), s[2] + (r.dry ? 1 : 0), s[3] + r.skipped, dt > 4 ? Math.min(s[4], dt) : s[4]];
+  }, false);
+  const live = useRef(beat); live.current = beat;
+  const push = (pic: SkPicture, ms: number, first: boolean) => { 'worklet'; queue.value = first ? [{ pic, ms }] : [...queue.value, { pic, ms }]; if (first) left.value = 0; };
+  const still = (pic: SkPicture) => { 'worklet'; queue.value = []; left.value = STILL; picture.value = pic; };
+  const pace = useRef<Pace | null>(null), rate = useRef(0); // rate = the frame time a phone too slow for the display fell back to
+  // The table as it is now, shown at once in place of any frames that wait. Play that goes on starts its frames again.
+  const paint = () => { pace.current = null; scheduleOnUI(still, draw.current()); };
+  useEffect(paint, where);
 
   useEffect(() => {
-    let raf = 0, last = 0, owed = 0;
+    let raf = 0, on = true; // on = the UI thread's frame callback runs. It stops between shots: it keeps the display at full rate
+    live.current.setActive(true); // a short run at launch measures the display's refresh interval for the first shot
+    const rest = () => setTimeout(() => { if (!on) live.current.setActive(false); }, 300);
+    let timer = rest(); on = false;
     const tick = (t: number) => {
       const { B, look } = table.current;
       if (want.current) { // one aim guide a frame, for the newest touch
@@ -64,16 +86,23 @@ function Game() {
         const rec = Skia.PictureRecorder(); drawAim(Skia, rec.beginRecording(), map.current, cue, hit && [hit.x, hit.y]);
         guide.value = rec.finishRecordingAsPicture(); setPull(Math.round(pull * 100)); want.current = null;
       }
-      if (moving.current || look.fx.length) { // effects (a ball falling into a pocket) outlive the last moving ball
-        owed = Math.min(50, owed + (last ? t - last : 16)); // real time, capped after a stall; the part of a millisecond left over carries on
-        const ms = Math.floor(owed); owed -= ms;
-        moving.current = advance(B, look, ms, moving.current);
-        paint.current();
-      }
-      last = t; raf = requestAnimationFrame(tick);
+      const busy = () => moving.current || look.fx.length > 0; // effects (a ball falling into a pocket) outlive the last moving ball
+      if (busy()) {
+        let p = pace.current;
+        const first = !p;
+        if (!p) p = pace.current = newPace(Math.max(rate.current, seen.value[4] < 12 ? 1000 / 120 : 1000 / 60));
+        if (!on) { on = true; clearTimeout(timer); live.current.setActive(true); }
+        for (let n = 0, ms; n < 4 && busy() && (ms = nextFrame(p, t)); n++) { // at most 4 frames a turn, so a late JS thread still answers touches
+          const t0 = performance.now();
+          moving.current = advance(B, look, ms, moving.current);
+          scheduleOnUI(push, draw.current(), busy() ? p.frame : STILL, first && !n);
+          spent(p, performance.now() - t0); rate.current = p.frame;
+        }
+      } else if (on) { on = false; pace.current = null; timer = rest(); }
+      raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => { cancelAnimationFrame(raf); clearTimeout(timer); };
   }, []);
 
   const shotFrom = (dx: number, dy: number): { shot: Shot; pull: number } => {
@@ -110,11 +139,11 @@ function Game() {
       {/* Controls sit inside the safe area: a row under the table in portrait, a column beside it in landscape. */}
       <View style={[styles.bar, view.land ? { top: pad.top, bottom: pad.bottom, right: pad.right, width: BAR, flexDirection: 'column' } : { left: pad.left, right: pad.right, bottom: pad.bottom, height: BAR, flexDirection: 'row' }]}>
         {pull !== null && <Text maxFontSizeMultiplier={1.3} style={[styles.power, view.land ? { top: 8 } : { left: 16 }]}>{pull}%</Text>}
-        <Btn label="Rack" onPress={() => { table.current = newTable(); moving.current = false; paint.current(); }} />
+        <Btn label="Rack" onPress={() => { table.current = newTable(); moving.current = false; paint(); }} />
         <Btn label={'Demo\n' + DEMOS[demo][0]} onPress={() => {
           table.current = newTable(); table.current.broken = true;
           strike(table.current.B[0], { ang: 0, speed: 1, a: 0, b: 0, ...DEMOS[demo][1] });
-          moving.current = true; setDemo((demo + 1) % DEMOS.length);
+          paint(); moving.current = true; setDemo((demo + 1) % DEMOS.length);
         }} />
         <Btn label={'Felt\n' + CLOTHS[cloth].name} onPress={() => setCloth((cloth + 1) % CLOTHS.length)} />
       </View>
