@@ -1,17 +1,19 @@
-// Two players pass the phone: 8-ball or 9-ball under the WPA rules (src/rules), with the shot controls. Drag or tap on
+// The menus (src/ui/Menus.tsx) and the match. In the match two players pass the phone: 8-ball or 9-ball under the WPA
+// rules (src/rules), with the shot controls. Drag or tap on
 // the table to aim, turn the dial to aim finely, pull the rail down and let go to shoot. The table never fires a shot.
 // With the cue ball in hand, drag it; tap a pocket to call it. The cue ball button opens the tip and cue angle sheet
 // (spin, jump, masse).
 // shortcut: the line of text above the table stands in for the designed HUD.
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { PanResponder, PixelRatio, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { BackHandler, PanResponder, PixelRatio, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Canvas, Picture, Skia, type SkPicture } from '@shopify/react-native-skia';
-import Animated, { useFrameCallback, useReducedMotion, useSharedValue } from 'react-native-reanimated';
+import { useFrameCallback, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnUI } from 'react-native-worklets';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ball, breakSpot, CUE, Game as Discipline, HOLES, P, rack, Shot, strike } from './src/physics/engine';
+import { Ball, breakSpot, CUE, HOLES, P, rack, Shot, strike } from './src/physics/engine';
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
 import { drawMarks } from './src/render/marks';
 import { newPace, nextFrame, type Pace, refresh, type Slot, spent } from './src/render/pace';
@@ -20,15 +22,18 @@ import { BAR, drawAim, drawTable, onTable, toScreen, toTable } from './src/rende
 import { LEVEL, shotTip } from './src/render/tip';
 import { canCall, choose, handCue, judge, lowest, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { aimGuide, DRAG, guideFor, HOUSE_CUE, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
-import { C, CLOTHS } from './src/theme';
+import { award, PASS_PLAY } from './src/progress';
+import { loadSettings, saveSettings } from './src/settings/save';
+import type { Settings } from './src/settings/settings';
+import { BALLS, C, CLOTHS } from './src/theme';
+import { Btn } from './src/ui/Btn';
+import { Menus, type Screen } from './src/ui/Menus';
 import { AimDial, PowerRail, shotStore } from './src/ui/ShotControls';
 import { TipButton, TipSheet, tipStore } from './src/ui/TipControl';
 
-const HUD = 40; // screen units kept above the table for whose turn it is and the last ruling
+const HUD = 44; // screen units kept above the table for whose turn it is and the last ruling
 const GRAB = 36; // px: a touch this near the cue ball in hand drags it. The ball is smaller than a fingertip, so the
 // ball keeps its distance from the finger and stays in view.
-// Game button: the discipline, and for 8-ball whether shots are called the WPA way or only the pocket of the 8 is.
-const MODES: [string, Discipline, boolean][] = [['8-ball', 8, true], ['8-ball\ncall 8 only', 8, false], ['9-ball', 9, true]];
 const GUIDE_WORK = 3200; // ball-steps the aim guide may follow after first contact: one update stays inside a frame, even into the rack
 const STILL = 1e9; // ms: a picture that stays on screen until the next one comes (the table at rest, the last frame of a shot)
 // Sample shots, played from a fresh rack so the spin, jump and masse animation can be seen without aiming one.
@@ -44,20 +49,40 @@ const newTable = (rules: State) => {
 };
 
 export default function App() {
-  return <SafeAreaProvider initialMetrics={initialWindowMetrics}><Game /></SafeAreaProvider>;
+  return <SafeAreaProvider initialMetrics={initialWindowMetrics}><Root /></SafeAreaProvider>;
 }
 
-function Game() {
+const LOCKS = [ScreenOrientation.OrientationLock.DEFAULT, ScreenOrientation.OrientationLock.PORTRAIT_UP, ScreenOrientation.OrientationLock.LANDSCAPE];
+
+// The screen on show and the settings. A match reads its setup when it starts.
+function Root() {
+  const [set, setSet] = useState(loadSettings), [screen, go] = useState<Screen | 'match'>('home');
+  const change = (p: Partial<Settings>) => setSet(s => ({ ...s, ...p }));
+  const first = useRef(true);
+  useEffect(() => { if (first.current) first.current = false; else saveSettings(set); }, [set]);
+  useEffect(() => { ScreenOrientation.lockAsync(LOCKS[set.orient]).catch(() => {}); }, [set.orient]);
+  useEffect(() => { // Android back: from a menu page to home
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (screen === 'pass' || screen === 'settings') { go('home'); return true; } return false; });
+    return () => sub.remove();
+  }, [screen]);
+  return <>
+    <StatusBar style="light" />
+    {screen === 'match' ? <Game set={set} onQuit={() => go('home')} /> : <Menus screen={screen} set={set} change={change} go={go} />}
+  </>;
+}
+
+function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
   const { width, height } = useWindowDimensions();
   const pad = useSafeAreaInsets(), calm = useReducedMotion();
   const lay = shotLayout(width, height, { ...pad, top: pad.top + HUD }), view = { ...lay.view, dpr: PixelRatio.get(), calm }, where = [view.land, view.s, view.ox, view.oy];
-  const [cloth, setCloth] = useState(0); // shortcut: not saved between launches, save it when the settings screen exists
+  const { cloth, names, race } = set;
   const map = useRef(view); map.current = view; // the pan responder is created once, so it reads the latest mapping
   // The table never changes during play: one picture, drawn again only when the window does.
   const felt = useMemo(() => { const rec = Skia.PictureRecorder(); drawTable(Skia, rec.beginRecording(), view, CLOTHS[cloth]); return rec.finishRecordingAsPicture(); }, [...where, cloth]);
 
-  const [mode, setMode] = useState(0);
-  const table = useRef(newTable(newGame(8)));
+  const table = useRef(newTable(newGame(set.game, 0, set.callAll)));
+  const score = useRef<[number, number]>([0, 0]), [paused, setPaused] = useState(false); // score = frames won
+  useEffect(() => { const sub = BackHandler.addEventListener('hardwareBackPress', () => { setPaused(p => !p); return true; }); return () => sub.remove(); }, []); // Android back opens and closes the pause card
   const rules = table.current.rules, [, redraw] = useReducer((n: number) => n + 1, 0); // the rules live with the table; redraw shows a change
   const shot = useRef(shotStore(nearest(table.current.B))).current; // the held aim and the power on the rail
   const stale = useRef(true); // the guide must be drawn again: the aim, the power, the tip or the table changed
@@ -103,6 +128,7 @@ function Game() {
   const apply = useRef((s: State) => {});
   apply.current = (s: State) => {
     const t = table.current;
+    if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++; if (score.current[s.winner] === race) award(PASS_PLAY); }
     if (s.phase === 'break') { table.current = newTable(s); moving.current = false; }
     else { for (const id of s.spot) spotBall(t.B, t.ids.indexOf(id)); if (s.hand) handCue(t.B, s.hand); Object.assign(t, { rules: s, rec: null, push: false }); }
     paint(); redraw();
@@ -205,15 +231,15 @@ function Game() {
 
   // A new rack. The break alternates after a finished rack (WPA 1.3); a rack started over keeps its breaker.
   const over = rules.phase === 'over';
-  const rerack = (m: number, breaker = over ? 1 - rules.breaker : rules.breaker) => apply.current(newGame(MODES[m][1], breaker as 0 | 1, MODES[m][2]));
+  const win = rules.winner === -1 ? 0 : rules.winner, won = over && score.current[win] >= race; // the match is over
+  const rerack = (breaker = over ? 1 - rules.breaker : rules.breaker) => { if (won) score.current = [0, 0]; apply.current(newGame(set.game, breaker as 0 | 1, set.callAll)); };
   const group = rules.solids < 0 ? 'Open table' : (rules.solids === rules.turn ? 'Solids' : 'Stripes') + (onEight(rules) ? ', on the 8' : '');
-  const who = over ? `Player ${rules.winner + 1} wins` : `Player ${rules.turn + 1} · ${rules.phase === 'break' ? 'Break' : rules.game === 8 ? group : `Ball ${lowest(rules)}${rules.fouls[rules.turn] === 2 ? ' · on 2 fouls' : ''}`}`;
+  const who = over ? `${names[win]} wins` : `${names[rules.turn]} · ${rules.phase === 'break' ? 'Break' : rules.game === 8 ? group : `Ball ${lowest(rules)}${rules.fouls[rules.turn] === 2 ? ' · on 2 fouls' : ''}`}`;
   const hint = [rules.note, rules.hand === 'kitchen' ? 'Ball in hand behind the line: drag the cue ball.' : rules.hand ? 'Ball in hand: drag the cue ball.' : '',
     canCall(rules) && rules.call < 0 ? (onEight(rules) ? 'Tap a pocket to call the 8.' : !rules.hand && !rules.note ? 'Tap a pocket to call a bank or a combination.' : '') : '', table.current.push ? 'Push out: no ball or rail needed.' : ''].filter(Boolean).join(' ');
 
   return (
     <View style={styles.root} {...pan.panHandlers}>
-      <StatusBar style="light" />
       {/* The table has its own canvas: it is most of the drawing work and it does not change during play. */}
       <Canvas style={StyleSheet.absoluteFill}>
         <Picture picture={felt} />
@@ -225,6 +251,7 @@ function Game() {
       {hud && <Text pointerEvents="none" style={[styles.rates, { top: pad.top + HUD, left: pad.left + 8 }]}>{rates}</Text>}
       {/* Whose turn, what they are on, and the last ruling: one strip above the table, read out when it changes. */}
       <View style={[styles.hud, { top: pad.top, left: Math.max(pad.left, 8), right: Math.max(pad.right, 8) + (view.land ? BAR : 0) }]}>
+        <Btn label="II" name="Pause" onPress={() => { setPaused(true); setTools(false); setSheet(false); }} />
         <View style={styles.hudText} accessible accessibilityLiveRegion="polite">
           <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.who}>{who}</Text>
           <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={styles.note}>{hint}</Text>
@@ -232,12 +259,18 @@ function Game() {
         {rules.push && !rules.choice && <Btn label={table.current.push ? 'Push out: on' : 'Push out'} onPress={() => { if (!table.current.rec) { table.current.push = !table.current.push; redraw(); } }} />}
       </View>
       {/* A decision the rules hand to a player, or the end of the rack: a card over the table, and play waits for it. */}
-      {(rules.choice || over) && (
+      {(rules.choice || over) && !paused && (
         <View style={styles.sheet} pointerEvents="box-none">
           <View style={styles.card} accessibilityViewIsModal>
-            <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>{over ? `Player ${rules.winner + 1} wins` : `Player ${rules.turn + 1}, your call`}</Text>
+            <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>{over ? `${names[win]} wins${race > 1 ? won ? ' the match' : ' the frame' : ''}` : `${names[rules.turn]}, your call`}</Text>
             {!!rules.note && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{rules.note}</Text>}
-            {over ? <Btn label="New rack" onPress={() => rerack(mode)} /> : rules.choice!.map((o, i) => <Btn key={o.label} label={o.label} onPress={() => apply.current(choose(rules, i))} />)}
+            {over && race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} ${score.current[0]} – ${score.current[1]} ${names[1]}`}</Text>}
+            {over && !won && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[1 - rules.breaker]} breaks`}</Text>}
+            {won && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.pay]}>{`+${PASS_PLAY.xp} XP · +${PASS_PLAY.coins} coins`}</Text>}
+            {over ? <>
+              <Btn label={won ? 'Rematch' : 'Next rack'} onPress={() => rerack()} />
+              {won && <Btn label="Menu" onPress={onQuit} />}
+            </> : rules.choice!.map((o, i) => <Btn key={o.label} label={o.label} onPress={() => apply.current(choose(rules, i))} />)}
           </View>
         </View>
       )}
@@ -246,36 +279,32 @@ function Game() {
       <AimDial store={shot} box={lay.dial} />
       <View style={[styles.at, lay.spin]}><TipButton store={tip} onPress={() => { setSheet(!sheet); setTools(false); }} /></View>
       <View style={[styles.at, lay.tools]}><Btn label="•••" name="Table tools" onPress={() => { setTools(!tools); setSheet(false); }} /></View>
-      {/* shortcut: the smoke-test buttons, behind one button until the menus exist. */}
+      {/* shortcut: the test buttons (Rack, Demo), behind one button. */}
       {tools && (
         <View onStartShouldSetResponder={() => true} style={[styles.tools, view.land ? { left: lay.tools.left + lay.tools.width + 12, bottom: height - lay.tools.top - lay.tools.height } : { left: lay.tools.left, bottom: height - lay.dial.top + 8 }]}>
-          <Btn label="Rack" onPress={() => rerack(mode)} onLongPress={() => setHud(!hud)} />
-          <Btn label={'Game\n' + MODES[mode][0]} onPress={() => { const m = (mode + 1) % MODES.length; setMode(m); rerack(m, 0); }} />
+          <Btn label="Rack" onPress={() => rerack()} onLongPress={() => setHud(!hud)} />
           <Btn label={'Demo\n' + DEMOS[demo][0]} onPress={() => { // a fresh rack, and the demo shot is its break
-            rerack(mode); const t = table.current; t.B[0].y = P.W / 2; // the demo shots go straight down the middle
+            rerack(); const t = table.current; t.B[0].y = P.W / 2; // the demo shots go straight down the middle
             t.rec = newRec(); strike(t.B[0], { ang: 0, speed: 1, a: 0, b: 0, ...DEMOS[demo][1] });
             paint(); moving.current = true; shot.set({ power: 0, locked: true }); setDemo((demo + 1) % DEMOS.length);
           }} />
-          <Btn label={'Felt\n' + CLOTHS[cloth].name} onPress={() => setCloth((cloth + 1) % CLOTHS.length)} />
         </View>
       )}
       {/* The sheet stops short of the rail, so a shot can be pulled while it is open. */}
       {sheet && <TipSheet store={tip} land={view.land} calm={calm} felt={CLOTHS[cloth].felt} onDone={() => setSheet(false)} width={view.land ? 300 : lay.rail.left - 8 - lay.tools.left}
         style={view.land ? { right: width - lay.rail.left + 8, bottom: Math.max(pad.bottom, 8) } : { left: lay.tools.left, bottom: height - lay.dial.top + 8 }} />}
+      {/* Paused: drawn last, so the card and its ground take every touch and no control or aim works behind them. Leaving ends the match. */}
+      {paused && (
+        <View style={[styles.sheet, styles.dim]} onStartShouldSetResponder={() => true}>
+          <View style={styles.card} accessibilityViewIsModal>
+            <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>Paused</Text>
+            {race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} ${score.current[0]} – ${score.current[1]} ${names[1]} · race to ${race}`}</Text>}
+            <Btn label="Resume" onPress={() => setPaused(false)} />
+            <Btn label="Leave match" onPress={onQuit} />
+          </View>
+        </View>
+      )}
     </View>
-  );
-}
-
-// Chrome button: hairline outline, a 44 pt target, and a 3% press that follows the finger down (no bounce). Its label
-// grows with the system text size only as far as the control bar has room for.
-function Btn({ label, name, onPress, onLongPress }: { label: string; name?: string; onPress: () => void; onLongPress?: () => void }) {
-  const [down, setDown] = useState(false);
-  return (
-    <Pressable onPress={onPress} onLongPress={onLongPress} onPressIn={() => setDown(true)} onPressOut={() => setDown(false)} pressRetentionOffset={16} accessibilityRole="button" accessibilityLabel={name ?? label.replace('\n', ' ')}>
-      <Animated.View style={{ ...styles.btn, transform: [{ scale: down ? 0.97 : 1 }], transitionProperty: 'transform', transitionDuration: '120ms', transitionTimingFunction: 'ease-out' }}>
-        <Text maxFontSizeMultiplier={1.3} style={styles.btnText}>{label}</Text>
-      </Animated.View>
-    </Pressable>
   );
 }
 
@@ -291,7 +320,7 @@ const styles = StyleSheet.create({
   card: { maxWidth: 320, alignSelf: 'center', padding: 16, gap: 10, borderRadius: 10, borderWidth: 1, borderColor: C.chalk + '66', backgroundColor: C.ground + 'F2' },
   cardTitle: { color: C.chalk, fontSize: 18, fontWeight: '800', textAlign: 'center' },
   cardNote: { color: C.chalk, fontSize: 14, lineHeight: 19, textAlign: 'center' },
+  dim: { backgroundColor: C.ground + '99' },
+  pay: { color: BALLS[0], fontWeight: '700' }, // one-ball yellow is for coins and XP
   rates: { position: 'absolute', color: C.chalk, fontSize: 10, lineHeight: 13, fontVariant: ['tabular-nums'] },
-  btn: { minWidth: 56, minHeight: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', borderColor: C.chalk + '66', borderWidth: 1, borderRadius: 6 }, // outline at 40%: 3:1 on the ground
-  btnText: { color: C.chalk, fontSize: 13, lineHeight: 16, textAlign: 'center' },
 });
