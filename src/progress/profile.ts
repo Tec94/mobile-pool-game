@@ -55,8 +55,9 @@ export function featCount(p: Profile, id: FeatId) {
 export function feat(p: Profile, id: FeatId, n = 1, scen = false): Profile {
   const f = p.feats[id] ?? { play: 0, scen: 0 }, F: { count: number; cue?: CueId; coins?: number } = FEATS[id];
   const next = { ...p, feats: { ...p.feats, [id]: scen ? { ...f, scen: f.scen + n } : { ...f, play: f.play + n } } };
-  if (featCount(p, id) >= F.count || featCount(next, id) < F.count) return next;
-  return F.cue ? give(next, F.cue) : { ...next, coins: next.coins + (F.coins ?? 0) };
+  if (featCount(next, id) < F.count) return next;
+  if (F.cue) return give(next, F.cue); // give is once, and puts back a cue a damaged save lost
+  return featCount(p, id) >= F.count ? next : { ...next, coins: next.coins + (F.coins ?? 0) };
 }
 
 // What opens at a level (scenario packs) or a number of stars (venues).
@@ -65,14 +66,16 @@ export const VENUES: [string, number][] = [['Garage', 0], ['Corner Bar', 8], ['S
 export const opens = (gates: [string, number][], n: number) => gates.filter(g => n >= g[1]).map(g => g[0]);
 
 // The profile from the saved text, like readSettings: a value that is missing, of the wrong type or out of range takes
-// its default, unknown cues and feats are dropped, House Cue is always owned and the selected cue is an owned one.
+// its default, unknown cues and feats are dropped, House Cue is always owned, level 20 owns the Twig and the selected
+// cue is an owned one.
 export function readProfile(text: string | null): Profile {
   let o: any = null;
   try { o = JSON.parse(text ?? 'null'); } catch {}
   if (!o || typeof o !== 'object') return { ...NEW, owned: [...NEW.owned] };
   const num = (v: unknown) => (typeof v === 'number' && v >= 0 ? Math.min(1e9, Math.floor(v)) : 0);
-  const owned = CUE_IDS.filter(id => id === 'house' || (Array.isArray(o.owned) && o.owned.includes(id)));
+  const xp = num(o.xp), twig = levelOf(xp).level >= 20; // the Twig comes with level 20, even if the save lost it
+  const owned = CUE_IDS.filter(id => id === 'house' || (id === 'twig' && twig) || (Array.isArray(o.owned) && o.owned.includes(id)));
   const feats: Profile['feats'] = {};
   for (const id of Object.keys(FEATS) as FeatId[]) { const f = o.feats?.[id]; if (f && typeof f === 'object') feats[id] = { play: num(f.play), scen: num(f.scen) }; }
-  return { xp: num(o.xp), coins: num(o.coins), owned, cue: owned.includes(o.cue) ? o.cue : 'house', feats };
+  return { xp, coins: num(o.coins), owned, cue: owned.includes(o.cue) ? o.cue : 'house', feats };
 }

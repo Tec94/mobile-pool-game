@@ -87,6 +87,10 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   p = feat(NEW, 'kick', 15, true); eq([featCount(p, 'kick'), p.owned], [7, ['house']], 'scenarios give at most half of Kick Start (7 of 15)');
   p = feat(p, 'kick', 8); eq(p.owned, ['house', 'periscope'], 'play makes up the rest');
   eq(featCount(feat(NEW, 'giant', 1, true), 'giant'), 0, 'Giant Killer cannot come from a scenario');
+  const lost = { ...NEW, feats: { bank: { play: 50, scen: 0 } } };
+  eq(feat(lost, 'bank').owned, ['house', 'crowbar'], 'a count reached with its cue missing gives the cue');
+  eq(feat(feat(lost, 'bank'), 'bank').owned, ['house', 'crowbar'], 'still once');
+  eq(feat({ ...NEW, coins: 300, feats: { long: { play: 25, scen: 0 } } }, 'long').coins, 300, 'coins are not paid again');
   ok('feats');
 }
 
@@ -110,5 +114,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(readProfile(JSON.stringify({ owned: 'house', cue: 'twig' })).cue, 'house', 'a selected cue that is not owned: House Cue');
   eq(readProfile(JSON.stringify({ xp: 1e300, coins: Infinity })).xp, 1e9, 'numbers are clamped');
   eq(readProfile('{"coins": 1e999}').coins, 1e9, 'even past what JSON can hold');
+  eq(readProfile(JSON.stringify({ xp: 12350 })).owned, ['house', 'twig'], 'level 20 owns the Twig');
+  eq(readProfile(JSON.stringify({ xp: 12349 })).owned, ['house'], 'level 19 does not');
   ok('bad values in a save');
 }
