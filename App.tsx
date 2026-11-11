@@ -2,7 +2,8 @@
 // rules (src/rules), with the shot controls. Drag or tap on
 // the table to aim, turn the dial to aim finely, pull the rail down and let go to shoot. The table never fires a shot.
 // With the cue ball in hand, drag it; tap a pocket to call it. The cue ball button opens the tip and cue angle sheet
-// (spin, jump, masse). A lesson (src/learn) plays on the same screen with its own table, goal and steps.
+// (spin, jump, masse). A lesson (src/learn) plays on the same screen with its own table, goal and steps, and so does a
+// scenario (src/scenarios): a lesson table played solo with tries, stars and the player's own cue.
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Alert, BackHandler, PanResponder, PixelRatio, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Canvas, Picture, Skia, type SkPicture } from '@shopify/react-native-skia';
@@ -24,7 +25,9 @@ import { type Lesson, LESSON_PAY, LESSONS, lessonTable, type LessonRec, newLesso
 import { loadDone, saveDone } from './src/learn/save';
 import { canCall, choose, handCue, judge, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { aimGuide, DRAG, guideFor, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
-import { award, PASS_PLAY, unlockCue } from './src/progress';
+import { award, keep, PASS_PLAY, profile, unlockCue } from './src/progress';
+import { clear, clearFeats, isOpen, par, SCENARIOS, type Scenario, starCount } from './src/scenarios/scenarios';
+import { loadStars, saveStars } from './src/scenarios/save';
 import { levelNote } from './src/progress/profile';
 import { CUES, stick } from './src/progress/cues';
 import { loadSettings, saveSettings } from './src/settings/save';
@@ -68,9 +71,21 @@ const LOCKS = [ScreenOrientation.OrientationLock.DEFAULT, ScreenOrientation.Orie
 
 // The screen on show and the settings. A match reads its setup when it starts.
 function Root() {
-  const [set, setSet] = useState(loadSettings), [screen, go] = useState<Screen | 'match' | 'lesson'>('home');
+  const [set, setSet] = useState(loadSettings), [screen, go] = useState<Screen | 'match' | 'lesson' | 'scenario'>('home');
   const [done, setDone] = useState(loadDone), [lesson, setLesson] = useState(0);
   const learn = (i: number) => { setLesson(i); go('lesson'); };
+  const [stars, setStars] = useState(loadStars), [scen, setScen] = useState(0);
+  const play = (i: number) => { setScen(i); go('scenario'); };
+  // A scenario cleared: its new stars pay once, and only when saved; a first clear also counts toward the feats.
+  const cleared = (i: number, tries: number, guideOff: boolean): Clear => {
+    const s = SCENARIOS[i], had = stars[s.id] ?? 0, c = clear(s, had, tries, guideOff, profile().cue);
+    if (!c.n) return { ...c, saved: true };
+    const now = { ...stars, [s.id]: c.bits }; setStars(now);
+    if (!saveStars(now)) return { ...c, saved: false };
+    if (!had) keep(clearFeats(profile(), s));
+    return { ...c, saved: true, gained: award(c.pay) };
+  };
+  const nextScen = SCENARIOS[scen + 1]?.pack === SCENARIOS[scen].pack && isOpen(scen + 1, stars, profile().xp);
   // A lesson passed for the first time pays once and counts toward the Giant Pencil.
   const pass = (id: string) => { // true = paid
     if (done.includes(id)) return false;
@@ -85,26 +100,31 @@ function Root() {
   useEffect(() => { if (done.length >= PENCIL_AT) unlockCue('pencil'); }, []); // also at launch: lessons passed before cues existed still count
   useEffect(() => { ScreenOrientation.lockAsync(LOCKS[set.orient]).catch(() => {}); }, [set.orient]);
   useEffect(() => { // Android back: from a menu page to home
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (screen !== 'home' && screen !== 'match' && screen !== 'lesson') { go('home'); return true; } return false; });
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (screen !== 'home' && screen !== 'match' && screen !== 'lesson' && screen !== 'scenario') { go('home'); return true; } return false; });
     return () => sub.remove();
   }, [screen]);
   return <>
     <StatusBar style="light" />
     {screen === 'match' ? <Game set={set} onQuit={() => go('home')} />
       : screen === 'lesson' ? <Game key={lesson} set={set} lesson={lesson} fresh={!done.includes(LESSONS[lesson].id)} onPass={pass} onNext={() => setLesson(lesson + 1)} onQuit={() => go('learn')} />
-      : <Menus screen={screen} set={set} change={change} go={go} done={done} learn={learn} />}
+      : screen === 'scenario' ? <Game key={`s${scen}`} set={set} scen={scen} onClear={cleared} onNext={nextScen ? () => setScen(scen + 1) : undefined} onQuit={() => go('scenarios')} />
+      : <Menus screen={screen} set={set} change={change} go={go} done={done} learn={learn} stars={stars} play={play} />}
   </>;
 }
 
-// A match, or with `lesson` a lesson. fresh = the lesson has not been passed before; onPass = it was just passed.
-function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Settings; onQuit: () => void; lesson?: number; fresh?: boolean; onPass?: (id: string) => boolean; onNext?: () => void }) {
+type Clear = ReturnType<typeof clear> & { saved: boolean; gained?: ReturnType<typeof award> };
+// A match, a lesson (lesson), or a scenario (scen). fresh = the lesson has not been passed before; onPass = it was just
+// passed; onClear = the scenario was just cleared, with its tries and whether the guide was off.
+function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext, scen = -1, onClear }: { set: Settings; onQuit: () => void; lesson?: number; fresh?: boolean; onPass?: (id: string) => boolean; onNext?: () => void; scen?: number; onClear?: (i: number, tries: number, guideOff: boolean) => Clear }) {
   const { width, height } = useWindowDimensions();
   const pad = useSafeAreaInsets(), calm = useReducedMotion();
-  const L: Lesson | undefined = LESSONS[n];
+  const S: Scenario | undefined = SCENARIOS[scen], L: Lesson | undefined = S ?? LESSONS[n];
   const table = useRef(L ? newLesson(L) : newTable(newGame(set.game, 0, set.callAll))), HUD = L ? LESSON_HUD : hudHeight(table.current.rules.game); // screen units kept above the table for the HUD
   // The lesson's step, the passes in a row in the solo step, and the verdict on the last shot (a card over the table).
   const [stage, setStage] = useState<Stage>('watch'), [run, setRun] = useState(0), [said, setSaid] = useState<{ title: string; say: string; ok: boolean } | null>(null);
-  const les = useRef({ stage, run, said }); les.current = { stage, run, said };
+  // A scenario counts its tries; the third star wants a clear with the aim guide off.
+  const [tries, setTries] = useState(1), [guideOff, setGuideOff] = useState(false);
+  const les = useRef({ stage, run, said, tries, guideOff }); les.current = { stage, run, said, tries, guideOff };
   const lay = shotLayout(width, height, { ...pad, top: pad.top + HUD }), view = { ...lay.view, dpr: PixelRatio.get(), calm }, where = [view.land, view.s, view.ox, view.oy];
   const { cloth, names, race } = set;
   const map = useRef(view); map.current = view; // the pan responder is created once, so it reads the latest mapping
@@ -153,7 +173,8 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
   useEffect(() => { touch.current = null; paint(); }, where); // a drag measured in the old layout ends when the window turns
   useEffect(() => { const again = () => { stale.current = true; }, off = [shot.sub(again), tip.sub(again)]; return () => off.forEach(f => f()); }, []);
   // A lesson plays with the engine's own cue, the one its reference shots are tuned on (src/learn/lessons.test.mjs).
-  const cue = L ? CUE : STICK;
+  // A scenario plays with the player's own cue and its aim guide (stick stats count in challenges).
+  const own = useMemo(() => profile().cue, []), cue = useMemo(() => (S ? stick(own, false) : L ? CUE : STICK), []);
   const shotOf = (power: number): Shot => ({ ang: shot.get().aim, speed: Math.max(0.05, power * (table.current.rules.phase === 'break' ? cue.breakSpeed : cue.maxSpeed)), ...shotTip(tip.get(), cue) });
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the
   // rack is over. In a lesson: the shot plays itself, or the verdict card is up.
@@ -181,8 +202,8 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
       if (stale.current) { // one guide a frame, however many touches came. While a shot can be made the guide and the cue stick are always there: for the pull on the rail, or for a firm shot without one
         const rec = Skia.PictureRecorder(), c = rec.beginRecording(), { aim, power } = shot.get();
         if (!shut() || watching()) {
-          const g = aimGuide(B, shotOf(previewPower(power)), L ? 3 : GUIDE_LEVEL, GUIDE_WORK, cue); // lessons use the full guide
-          drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob); drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power);
+          const g = aimGuide(B, shotOf(previewPower(power)), S ? guideFor(CUES[own].aim) : L ? 3 : GUIDE_LEVEL, GUIDE_WORK, cue); // lessons use the full guide
+          if (!(S && les.current.guideOff)) drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob); drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power);
         }
         guide.value = rec.finishRecordingAsPicture(); stale.current = false;
       }
@@ -274,7 +295,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
     shot.set(to === 'watch' ? { aim: L!.ref.ang, power: L!.ref.power, fine: false, locked: true } : { aim: was === 'watch' ? nearest(table.current.B) : shot.get().aim, power: 0, fine: false, locked: false });
     paint(); redraw();
   };
-  useEffect(() => { if (L) reset('watch'); }, []);
+  useEffect(() => { if (L) reset(S ? 'solo' : 'watch'); }, []);
   useEffect(() => {
     if (!L || stage !== 'watch' || said || paused) return;
     const id = setTimeout(() => { const t = table.current; t.rec = newLessonRec(); strike(t.B[0], { ang: L.ref.ang, speed: L.ref.power * CUE.maxSpeed, ...shotTip(L.ref.tip) }); tip.set(LEVEL); moving.current = true; shot.set({ power: 0 }); }, 1200);
@@ -285,6 +306,16 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
     const v = verdict(L!, r, table.current.B[0]), { stage: st, run: k } = les.current;
     if (st !== 'watch') Haptics.notificationAsync(v.ok ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning);
     let out = { title: v.ok ? 'Nice' : 'Not this time', say: v.say, ok: v.ok };
+    if (S) { // a miss is one more try; a clear says its stars, its pay and the star still to get
+      if (!v.ok) setTries(les.current.tries + 1);
+      else {
+        const c = onClear!(scen, les.current.tries, les.current.guideOff), k = starCount(c.bits);
+        const left = !(c.bits & 2) ? `Next star: clear it within ${par(S)} tries.` : !(c.bits & 4) ? 'Next star: clear it with the guide off.' : '';
+        const pay = !c.n ? 'No new stars.' : c.saved ? `+${c.pay.xp} XP · +${c.pay.coins} coins${c.gained ? ` · ${levelNote(c.gained)}` : ''}` : 'The stars could not be saved, so they pay nothing yet.';
+        out = { title: `${'★'.repeat(k)}${'☆'.repeat(3 - k)}  Cleared`, say: [pay, left].filter(Boolean).join('\n'), ok: true };
+      }
+      les.current = { ...les.current, said: out }; setSaid(out); paint(); redraw(); return;
+    }
     if (st === 'watch') out = { title: 'That is the shot', say: L!.how, ok: true };
     else if (st === 'solo') {
       const now = v.ok ? k + 1 : 0; setRun(now);
@@ -311,7 +342,10 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
         <Picture picture={picture} />
       </Canvas>
       {hud && <Text pointerEvents="none" style={[styles.rates, { top: pad.top + HUD, left: pad.left + 8 }]}>{rates}</Text>}
-      {L && <LessonHud lesson={L} n={n} stage={stage} run={run} land={view.land} pad={pad}><Btn label="II" name="Pause" onPress={() => { setPaused(true); setSheet(false); }} /></LessonHud>}
+      {L && <LessonHud lesson={L} n={n} stage={stage} run={run} land={view.land} pad={pad} head={S && `${S.title} · par ${par(S)}`} line={S && `Try ${tries}${guideOff ? ' · guide off' : ''}`}>
+        {S && <Btn label={guideOff ? 'Guide off' : 'Guide on'} name="Aim guide" on={!guideOff} onPress={() => { setGuideOff(!guideOff); les.current.guideOff = !guideOff; stale.current = true; }} />}
+        <Btn label="II" name="Pause" onPress={() => { setPaused(true); setSheet(false); }} />
+      </LessonHud>}
       {/* The player plates, the 9-ball strip and the banner with the last ruling (src/ui/MatchHud.tsx). */}
       {!L && <MatchHud rules={rules} names={names} push={table.current.push} view={view} pad={pad} calm={calm}>
         {rules.push && !rules.choice && <Btn label={table.current.push ? 'Push out: on' : 'Push out'} onPress={() => { if (!table.current.rec) { table.current.push = !table.current.push; redraw(); } }} />}
@@ -323,7 +357,9 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>{said.title}</Text>
             <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, said.say.startsWith('+') && styles.pay]}>{said.say}</Text>
-            {stage === 'watch' ? <><Btn label="Try it" onPress={() => reset('guided')} /><Btn label="Watch again" onPress={() => reset('watch')} /></>
+            {S ? said.ok ? <>{onNext && <Btn label="Next scenario" onPress={onNext} />}<Btn label="Play again" onPress={() => { setTries(1); les.current.tries = 1; reset('solo'); }} /><Btn label="Back to Scenarios" onPress={onQuit} /></>
+              : <Btn label="Retry" onPress={() => reset('solo')} />
+              : stage === 'watch' ? <><Btn label="Try it" onPress={() => reset('guided')} /><Btn label="Watch again" onPress={() => reset('watch')} /></>
               : run >= SOLO_RUN ? <>{onNext && n + 1 < LESSONS.length && <Btn label="Next lesson" onPress={onNext} />}<Btn label="Back to Learn" onPress={onQuit} /></>
               : stage === 'guided' ? <>{said.ok && <Btn label="Next: solo" onPress={() => { setRun(0); reset('solo'); }} />}<Btn label={said.ok ? 'Again' : 'Retry'} onPress={() => reset('guided')} /><Btn label="Watch again" onPress={() => reset('watch')} /></>
               : <Btn label={said.ok ? 'Next shot' : 'Retry'} onPress={() => reset('solo')} />}
@@ -377,7 +413,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext }: { set: Set
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>Paused</Text>
             {!L && race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} ${score.current[0]} – ${score.current[1]} ${names[1]} · race to ${race}`}</Text>}
             <Btn label="Resume" onPress={() => setPaused(false)} />
-            <Btn label={L ? 'Leave lesson' : 'Leave match'} onPress={onQuit} />
+            <Btn label={S ? 'Leave scenario' : L ? 'Leave lesson' : 'Leave match'} onPress={onQuit} />
           </View>
         </View>
       )}
