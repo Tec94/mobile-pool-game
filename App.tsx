@@ -22,6 +22,7 @@ import { LEVEL, shotTip } from './src/render/tip';
 import { canCall, choose, handCue, judge, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { aimGuide, DRAG, guideFor, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { award, PASS_PLAY } from './src/progress';
+import { levelOf } from './src/progress/profile';
 import { CUES, stick } from './src/progress/cues';
 import { loadSettings, saveSettings } from './src/settings/save';
 import type { Settings } from './src/settings/settings';
@@ -84,6 +85,7 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
   const felt = useMemo(() => { const rec = Skia.PictureRecorder(); drawTable(Skia, rec.beginRecording(), view, CLOTHS[cloth]); return rec.finishRecordingAsPicture(); }, [...where, cloth]);
 
   const score = useRef<[number, number]>([0, 0]), [paused, setPaused] = useState(false); // score = frames won
+  const gained = useRef<ReturnType<typeof award> | null>(null); // the award of the match, for the results card
   useEffect(() => { const sub = BackHandler.addEventListener('hardwareBackPress', () => { setPaused(p => !p); return true; }); return () => sub.remove(); }, []); // Android back opens and closes the pause card
   const rules = table.current.rules, [, redraw] = useReducer((n: number) => n + 1, 0); // the rules live with the table; redraw shows a change
   const shot = useRef(shotStore(nearest(table.current.B))).current; // the held aim and the power on the rail
@@ -130,7 +132,7 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
   const apply = useRef((s: State) => {});
   apply.current = (s: State) => {
     const t = table.current;
-    if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++; if (score.current[s.winner] === race) award(PASS_PLAY); }
+    if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++; if (score.current[s.winner] === race) gained.current = award(PASS_PLAY); }
     if (s.phase === 'break') { table.current = newTable(s); moving.current = false; }
     else { for (const id of s.spot) spotBall(t.B, t.ids.indexOf(id)); if (s.hand) handCue(t.B, s.hand); Object.assign(t, { rules: s, rec: null, push: false }); }
     paint(); redraw();
@@ -268,6 +270,7 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
           {race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} ${score.current[0]} – ${score.current[1]} ${names[1]}`}</Text>}
           {!won && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[1 - rules.breaker]} breaks`}</Text>}
           {won && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.pay]}>{`+${PASS_PLAY.xp} XP · +${PASS_PLAY.coins} coins`}</Text>}
+          {won && gained.current && <Gained {...gained.current} />}
           <Btn label={won ? 'Rematch' : 'Next rack'} onPress={() => rerack()} />
           {won && <Btn label="Menu" onPress={onQuit} />}
         </Results>
@@ -304,6 +307,15 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
       )}
     </View>
   );
+}
+
+// The player's level after the award: a level-up and its coins, then the XP into the level.
+function Gained({ profile, from, to, bonus }: ReturnType<typeof award>) {
+  const { level, into, need } = levelOf(profile.xp);
+  return <>
+    {to > from && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.pay]}>{`Level ${to}! +${bonus} coins`}</Text>}
+    <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{need ? `Level ${level} · ${into}/${need} XP` : `Level ${level}`}</Text>
+  </>;
 }
 
 const styles = StyleSheet.create({
