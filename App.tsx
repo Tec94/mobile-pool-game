@@ -11,7 +11,7 @@ import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from 'react
 import { Ball, CUE, P, predict, rack, Shot, strike } from './src/physics/engine';
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
 import { BAR, drawTable, fit, toScreen, toTable } from './src/render/table';
-import { C } from './src/theme';
+import { C, CLOTHS } from './src/theme';
 
 const MAX_DRAG = 160; // px of pull-back for full power
 // Shots the screen has no controls for yet, played from a fresh rack so the spin, jump and masse animation can be seen.
@@ -33,9 +33,10 @@ function Game() {
   const { width, height } = useWindowDimensions();
   const pad = useSafeAreaInsets(), calm = useReducedMotion();
   const view = { ...fit(width, height, pad), dpr: PixelRatio.get(), calm }, where = [view.land, view.s, view.ox, view.oy];
+  const [cloth, setCloth] = useState(0); // shortcut: not saved between launches, save it when the settings screen exists
   const map = useRef(view); map.current = view; // the pan responder is created once, so it reads the latest mapping
   // The table never changes during play: one picture, drawn again only when the window does.
-  const felt = useMemo(() => { const rec = Skia.PictureRecorder(); drawTable(Skia, rec.beginRecording(), view); return rec.finishRecordingAsPicture(); }, where);
+  const felt = useMemo(() => { const rec = Skia.PictureRecorder(); drawTable(Skia, rec.beginRecording(), view, CLOTHS[cloth]); return rec.finishRecordingAsPicture(); }, [...where, cloth]);
 
   const table = useRef(newTable());
   const [aim, setAim] = useState<{ path: number[][]; pull: number } | null>(null);
@@ -110,6 +111,7 @@ function Game() {
           strike(table.current.B[0], { ang: 0, speed: 1, a: 0, b: 0, ...DEMOS[demo][1] });
           moving.current = true; setDemo((demo + 1) % DEMOS.length);
         }} />
+        <Btn label={'Felt\n' + CLOTHS[cloth].name} onPress={() => setCloth((cloth + 1) % CLOTHS.length)} />
       </View>
     </View>
   );

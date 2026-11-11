@@ -1,7 +1,7 @@
 // The table and where it sits on the screen. The app and scripts/ball-frames.mjs both draw it with drawTable.
 import type { Skia, SkCanvas } from '@shopify/react-native-skia';
 import { HOLES, P, POCKET } from '../physics/engine.ts';
-import { C } from '../theme.ts';
+import { C, CLOTHS } from '../theme.ts';
 
 export const RAIL = 0.14; // m from the cushion nose to the outside of the frame; the WPA pockets sit up to 0.125 m into it
 
@@ -23,20 +23,20 @@ export const toTable = (v: View, px: number, py: number) => (v.land ? { x: (px -
 
 // Quiet Slate table, drawn in table metres under one transform so landscape and portrait share every line below.
 // Line weights and dot sizes are the approved prototype's, scaled to a real table.
-export function drawTable(api: typeof Skia, canvas: SkCanvas, v: View) {
+export function drawTable(api: typeof Skia, canvas: SkCanvas, v: View, cloth = CLOTHS[0]) {
   const { L, W } = P, { cc, sc, deep, ca, sa } = POCKET, cj = deep / Math.tan(ca), sj = deep * Math.tan(sa);
   const paint = (hex: string, a = 1, w = 0) => { const p = api.Paint(); p.setAntiAlias(true); p.setColor(api.Color(hex)); p.setAlphaf(a); if (w) { p.setStyle(1); p.setStrokeWidth(w); } return p; }; // 1 = PaintStyle.Stroke
   const frame = api.RRectXY(api.XYWHRect(-RAIL, -RAIL, L + 2 * RAIL, W + 2 * RAIL), 0.12, 0.12);
   canvas.save();
   canvas.concat(v.land ? [v.s, 0, v.ox, 0, -v.s, v.oy + W * v.s, 0, 0, 1] : [0, -v.s, v.ox + W * v.s, -v.s, 0, v.oy + L * v.s, 0, 0, 1]);
   canvas.drawRRect(frame, paint(C.frame));
-  canvas.drawRect(api.XYWHRect(-deep, -deep, L + 2 * deep, W + 2 * deep), paint(C.felt)); // the cloth runs under the cushions and onto the pocket shelves
+  canvas.drawRect(api.XYWHRect(-deep, -deep, L + 2 * deep, W + 2 * deep), paint(cloth.felt)); // the cloth runs under the cushions and onto the pocket shelves
   const mark = paint(C.chalk, 0.3, Math.max(1 / v.s, 0.0045)); // chalk hairline, never thinner than one screen unit
   canvas.drawLine(L / 4, 0, L / 4, W, mark); // head string
   canvas.drawCircle(0.75 * L, W / 2, 0.01, paint(C.chalk, 0.3)); // foot spot
   // Cushions, cut at the WPA facing angles (the same numbers as SEGS in the engine). The hairline runs along the nose
   // and the facings, where felt meets cushion at 1.37:1.
-  const cushion = paint(C.cushion), ends = [(q: number, far: number) => q, (q: number, far: number) => far - q];
+  const cushion = paint(cloth.cushion), ends = [(q: number, far: number) => q, (q: number, far: number) => far - q];
   const cut = (pts: number[][]) => { const p = api.Path.Polygon(pts.map(([x, y]) => ({ x, y })), false); canvas.drawPath(p, cushion); canvas.drawPath(p, mark); };
   for (const fx of ends) {
     const X = (x: number) => fx(x, L);
