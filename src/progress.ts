@@ -1,6 +1,6 @@
 // The player's progress for the app: the profile, loaded once, and the pay of a finished match. The model is in src/progress/.
 import { gain, unlock, type Profile } from './progress/profile';
-import { CUES, type CueId } from './progress/cues';
+import type { CueId } from './progress/cues';
 import { cueGain, masteryNote, masteryOf, statsOf } from './progress/mastery';
 import { loadProfile, saveProfile } from './progress/save';
 import type { Pay } from './progress/pay';
@@ -15,7 +15,7 @@ export function keep(p: Profile) { me = p; saveProfile(p); }
 export function award(pay: Pay, cue?: CueId) {
   const g = gain(profile(), pay), m = cue ? cueGain(g.profile, cue, pay.xp) : null;
   keep(m ? m.profile : g.profile);
-  return { ...g, mastery: m && cue ? masteryNote(CUES[cue].name, m) : '' };
+  return { ...g, mastery: m && cue ? masteryNote(cue, m) : '' };
 }
 // The player's own cue as it plays now, with its tuning.
 export const ownStats = (id: CueId) => statsOf(id, masteryOf(profile(), id));

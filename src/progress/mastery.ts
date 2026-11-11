@@ -52,9 +52,12 @@ export function cueGain(p: Profile, id: CueId, xp: number) {
   const m = masteryOf(p, id), from = masteryLevel(m.xp).level, to = masteryLevel(m.xp + xp).level;
   return { profile: xp > 0 ? { ...p, mastery: { ...p.mastery, [id]: { ...m, xp: m.xp + xp } } } : p, from, to };
 }
-// The results card line of a mastery level-up, or nothing.
-export const masteryNote = (name: string, { from, to }: { from: number; to: number }) =>
-  to > from ? `${name} mastery ${to}${to === 5 ? ', mastered' : ''}: tuning point earned` : '';
+// The results card line of a mastery level-up, or nothing. The Twig earns no points, so its line names none.
+export function masteryNote(id: CueId, { from, to }: { from: number; to: number }) {
+  if (to <= from) return '';
+  const head = `${CUES[id].name} mastery ${to}${to === 5 ? ', mastered' : ''}`, n = to - from;
+  return tunable(id) ? `${head}: ${n > 1 ? `${n} tuning points` : 'tuning point'} earned` : head;
+}
 
 // Mastery from the saved text, like readProfile: numbers out of range are fixed, and points that do not fit the level
 // or the paid steps, or break a cap, are taken off (the cue XP and the paid steps stay).
@@ -63,7 +66,7 @@ export function readMastery(o: any): Profile['mastery'] {
   for (const id of CUE_IDS) {
     const r = o?.[id];
     if (!r || typeof r !== 'object') continue;
-    const m: Mastery = { xp: num(r.xp, 1e9), power: num(r.power, MAX_TUNE), spin: num(r.spin, MAX_TUNE), aim: num(r.aim, MAX_TUNE), paid: num(r.paid, STEP_COINS.length) };
+    const xp = num(r.xp, 1e9), m: Mastery = { xp, power: num(r.power, MAX_TUNE), spin: num(r.spin, MAX_TUNE), aim: num(r.aim, MAX_TUNE), paid: Math.min(num(r.paid, STEP_COINS.length), masteryLevel(xp).level - 1) }; // no paid step past the level's points
     const fits = tunable(id) && used(m) <= Math.min(points(m), m.paid) && STATS.every(s => CUES[id][s] + m[s] <= 10);
     out[id] = fits ? m : { ...NONE, xp: m.xp, paid: m.paid };
   }

@@ -136,8 +136,9 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
 { eq([0, 299, 300, 999, 1000, 2500, 4999, 5000, 1e6].map(x => masteryLevel(x).level), [1, 1, 2, 2, 3, 4, 4, 5, 5], 'mastery levels at 300, 1,000, 2,500, 5,000 cue XP');
   eq(masteryLevel(400), { level: 2, into: 100, need: 700 }, 'cue XP into a level'); eq(masteryLevel(5000).need, 0, 'level 5 is the top');
   const g = cueGain(NEW, 'house', 320); eq([g.from, g.to, masteryOf(g.profile, 'house').xp], [1, 2, 320], 'cue XP adds up');
-  eq(masteryNote('House Cue', g), 'House Cue mastery 2: tuning point earned', 'a level-up line'); eq(masteryNote('X', { from: 4, to: 5 }), 'X mastery 5, mastered: tuning point earned', 'mastered');
-  eq(masteryNote('X', { from: 2, to: 2 }), '', 'no level-up, no line'); eq(cueGain(NEW, 'house', 0).profile, NEW, 'no XP, same profile');
+  eq(masteryNote('house', g), 'House Cue mastery 2: tuning point earned', 'a level-up line'); eq(masteryNote('rod', { from: 4, to: 5 }), 'Fishing Rod mastery 5, mastered: tuning point earned', 'mastered');
+  eq(masteryNote('house', { from: 1, to: 3 }), 'House Cue mastery 3: 2 tuning points earned', 'two levels at once');
+  eq(masteryNote('twig', { from: 1, to: 2 }), 'Twig mastery 2', 'the Twig earns no point'); eq(masteryNote('house', { from: 2, to: 2 }), '', 'no level-up, no line'); eq(cueGain(NEW, 'house', 0).profile, NEW, 'no XP, same profile');
   ok('cue mastery: XP and levels');
 }
 { const lvl = (xp, coins = 10000, id = 'house', owned = ['house', id]) => ({ ...NEW, coins, owned, mastery: { [id]: { ...masteryOf(NEW, id), xp } } });
@@ -158,10 +159,11 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   ok('tuning: points, coins, caps, free moves');
 }
 { const m = readMastery({ house: { xp: 1000, power: 1, spin: 1, aim: 0, paid: 2 }, twig: { xp: 50, power: 1, paid: 1 }, rocket: { xp: 5000, power: 1, paid: 1 }, bogus: { xp: 5 }, broomstick: { xp: 300, power: 1, spin: 1, paid: 2 }, noodle: 'x' });
-  eq(m.house, { xp: 1000, power: 1, spin: 1, aim: 0, paid: 2 }, 'a good record stays'); eq(m.twig, { xp: 50, power: 0, spin: 0, aim: 0, paid: 1 }, 'the Twig loses points');
+  eq(m.house, { xp: 1000, power: 1, spin: 1, aim: 0, paid: 2 }, 'a good record stays'); eq(m.twig, { xp: 50, power: 0, spin: 0, aim: 0, paid: 0 }, 'the Twig loses points');
   eq(m.rocket.power, 0, 'past 10: points off'); eq(m.broomstick, { xp: 300, power: 0, spin: 0, aim: 0, paid: 2 }, 'more points than the level: points off, XP and paid kept');
   eq(['bogus', 'noodle'].map(k => k in m), [false, false], 'unknown cues and bad records dropped');
-  eq(readMastery({ house: { xp: -5, power: 9, paid: 99 } }).house, { xp: 0, power: 0, spin: 0, aim: 0, paid: 4 }, 'out of range numbers fixed');
+  eq(readMastery({ house: { xp: -5, power: 9, paid: 99 } }).house, { xp: 0, power: 0, spin: 0, aim: 0, paid: 0 }, 'out of range numbers fixed');
+  eq(readMastery({ house: { xp: 1000, paid: 4 } }).house.paid, 2, 'no more paid steps than the level has points');
   eq(readProfile(JSON.stringify({ mastery: { house: { xp: 300, power: 1, paid: 1 } } })).mastery.house.power, 1, 'mastery is read with the profile');
   eq(readProfile(null).mastery, {}, 'no save: no mastery');
   ok('a saved mastery is read defensively');
