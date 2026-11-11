@@ -1,5 +1,5 @@
 // Device smoke test: the real engine on a Quiet Slate table. Pull back from anywhere to aim and shoot.
-// shortcut: no spin or elevation controls, rules or HUD yet;
+// shortcut: no spin or elevation controls, rules or HUD yet (the Demo button plays spin, jump and masse shots);
 // this screen proves Skia, the engine and the ball animation on the phone.
 import { useEffect, useRef, useState } from 'react';
 import { PanResponder, PixelRatio, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -13,6 +13,8 @@ import { C } from './src/theme';
 
 const RAIL = 0.14; // m from the cushion nose to the outside of the frame; the WPA pockets sit up to 0.125 m into it
 const MAX_DRAG = 160; // px of pull-back for full power
+// Shots the screen has no controls for yet, played from a fresh rack so the spin, jump and masse animation can be seen.
+const DEMOS: [string, Partial<Shot>][] = [['Draw', { speed: 2.5, b: -0.45 }], ['Side', { speed: 1.2, a: 0.45 }], ['Jump', { speed: 4.2, elev: 0.7 }], ['Massé', { speed: 3.5, a: 0.4, elev: 1.19 }]];
 const kit = makeKit(Skia, matchFont({ fontFamily: Platform.select({ ios: 'Helvetica Neue', default: 'sans-serif' }), fontSize: 10, fontWeight: 'bold' }));
 const EMPTY = (() => { const rec = Skia.PictureRecorder(); rec.beginRecording(); return rec.finishRecordingAsPicture(); })();
 
@@ -35,6 +37,7 @@ export default function App() {
 
   const table = useRef(newTable());
   const [aim, setAim] = useState<{ path: number[][]; pull: number } | null>(null);
+  const [demo, setDemo] = useState(0);
   const moving = useRef(false);
   // The balls are one Skia picture, recorded here each frame and handed to the canvas through a shared value, so a
   // frame of play never re-renders React.
@@ -104,6 +107,13 @@ export default function App() {
       <View style={styles.btns}>
         <Pressable style={styles.btn} onPress={() => { table.current = newTable(); moving.current = false; paint.current(); }}>
           <Text style={styles.btnText}>Rack</Text>
+        </Pressable>
+        <Pressable style={styles.btn} onPress={() => {
+          table.current = newTable(); table.current.broken = true;
+          strike(table.current.B[0], { ang: 0, speed: 1, a: 0, b: 0, ...DEMOS[demo][1] });
+          moving.current = true; setDemo((demo + 1) % DEMOS.length);
+        }}>
+          <Text style={styles.btnText}>Demo: {DEMOS[demo][0]}</Text>
         </Pressable>
       </View>
     </View>
