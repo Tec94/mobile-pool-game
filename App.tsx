@@ -5,7 +5,7 @@
 // (spin, jump, masse). A lesson (src/learn) plays on the same screen with its own table, goal and steps, and so does a
 // scenario (src/scenarios): a lesson table played solo with tries, stars and the player's own cue.
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { Alert, BackHandler, PanResponder, PixelRatio, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, AppState, BackHandler, PanResponder, PixelRatio, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Canvas, Picture, Skia, type SkPicture } from '@shopify/react-native-skia';
 import { useFrameCallback, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnUI } from 'react-native-worklets';
@@ -89,9 +89,17 @@ function Root() {
     if (!had) keep(clearFeats(profile(), s));
     return { ...c, saved: true, gained: award(c.pay) };
   };
-  // The Daily Table. shortcut: today is read at launch, so the app must reopen to see a new day after 04:00.
-  const [today] = useState(() => dayKey(new Date())), [day, setDay] = useState(today);
+  // The Daily Table. today is read at launch and again each time the app comes back, which a phone does for days.
+  const [today, setToday] = useState(() => dayKey(new Date())), [day, setDay] = useState(today);
   const [daily, setDaily] = useState(() => { const { daily: d, damaged } = loadDaily(today), g = grantChalk(d, today); if (g !== d && !damaged) saveDaily(g); return g; });
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', a => {
+      if (a !== 'active') return;
+      const k = dayKey(new Date()), g = grantChalk(daily, k);
+      setToday(k); if (g !== daily) { saveDaily(g); setDaily(g); }
+    });
+    return () => sub.remove();
+  }, [daily]);
   const playDay = (k: string) => { setDay(k); go('daily'); };
   const dayScen = SCENARIOS[dailyPick(day, SCENARIOS)];
   const dayCleared = (tries: number, guideOff: boolean): Clear => { // like cleared: pay only what was saved
