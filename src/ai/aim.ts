@@ -103,12 +103,15 @@ const DRAW = -(CUE.tipLimit - 0.05);
 // and long and short rolls; later points fill in between.
 const GRID: [number, number][] = [[1, DRAW], [1, TIP], [1.6, DRAW], [1.6, 0], [0.7, 0], [1.3, TIP], [2.2, DRAW], [0.7, TIP],
   [1.3, DRAW], [1.6, TIP], [0.5, 0], [2.2, 0], [1.3, 0], [0.85, DRAW], [0.85, 0], [1, 0], [2.6, DRAW], [0.6, DRAW]];
+// ms clock; a worklet runtime may have no performance, so Date.now there
+const now = typeof performance === 'undefined' ? Date.now : () => performance.now();
+const THINK = 2500; // ms: past this from the start of aiShot, refine runs no more rollouts and keeps the best so far
 // The shot in hand on the engine, a few full-table simulations per call of the search it returns (more(n) runs n more and
 // returns the best so far): steer the aim until the right ball is hit first and ball k drops in the middle of the pocket
 // (secant on err), then try other speeds and tip heights, and keep the rollout that best pots k without a scratch, hits
 // first legally, sends a ball to a rail and leaves the best next shot (nextP) where the cue ball really stops; a safety,
-// with its planned spin, stops nearest the planned spot. leave (with its planned spin) and G in mm.
-function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number, first: number, pk: Pt | null, G: Pt, leave: Pt & { spin: number }, shot: Shot) {
+// with its planned spin, stops nearest the planned spot. leave (with its planned spin) and G in mm. end = the deadline (now()).
+function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number, first: number, pk: Pt | null, G: Pt, leave: Pt & { spin: number }, shot: Shot, end: number) {
   const g = { x: G.x / 1000, y: G.y / 1000 }, to = pk && { x: pk.x / 1000, y: pk.y / 1000 };
   let best: Roll | null = null, sims = 0, r0: Roll | null = null, i = 0, gi = 0;
   const slope = [0, 0]; // d err / d aim, before the right first hit and after it
@@ -128,7 +131,7 @@ function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number
     sims += n;
     if (!r0) r0 = run(shot);
     // aim: secant on err, with a slope for each thing err measures
-    for (; i < 8 && sims >= 1 && !done(r0); i++) {
+    for (; i < 8 && sims >= 1 && now() < end && !done(r0); i++) {
       const x = next(r0);
       if (x === r0.shot.ang) { i = 8; break; } // err is flat at zero: the cue ball is blocked on its way to G
       const r1 = run({ ...shot, ang: x });
@@ -136,7 +139,7 @@ function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number
       r0 = r1;
     }
     // speed and tip, from the best aim so far, with one aim step at each if the ball missed
-    for (; gi < grid.length && sims >= 1 && best!.score <= 14.9875; gi++) { // stop: all four goals met, a near-certain next shot (or the leave)
+    for (; gi < grid.length && sims >= 1 && now() < end && best!.score <= 14.9875; gi++) { // stop: all four goals met, a near-certain next shot (or the leave)
       const [m, b] = grid[gi];
       if (m === 1 && b === shot.b) continue;
       const r = run({ ...shot, ang: best!.shot.ang, speed: Math.min(CUE.maxSpeed, Math.max(0.5, shot.speed * m)), b });
@@ -149,9 +152,9 @@ function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number
 // The AI's turn on the engine table. B and ids as rules.ts has them (ball i is number ids[i], ball 0 the cue ball), in
 // metres. Returns the Shot for strike(), the pick (picker units, mm) and the ms spent picking and correcting the aim.
 export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: number[], tier: Tier, rnd: () => number, safetiesInRow = 0): { shot: Shot; aim: Shot; pick: Pick; ms: [number, number] } {
-  const t0 = performance.now(), mm = (b: Ball, i: number): Obj => ({ id: ids[i], x: b.x * 1000, y: b.y * 1000 });
+  const t0 = now(), mm = (b: Ball, i: number): Obj => ({ id: ids[i], x: b.x * 1000, y: b.y * 1000 });
   const cue = mm(B[0], 0), balls = B.map(mm).filter((_, i) => i && B[i].on), { pick, ranked } = decide(cue, balls, group, oppGroup, tier, rnd, safetiesInRow);
-  const t1 = performance.now();
+  const t1 = now();
   if (pick.type === 'foul') { // no pot or safety reaches a legal ball: hit the nearest one softly, through whatever is in the way
     const legal = legalFor(balls, group), near = balls.filter((o) => legal.includes(o.id)).reduce<Obj | null>((a, o) => (!a || dist(o, cue) < dist(a, cue) ? o : a), null);
     const shot = { ang: near ? Math.atan2(near.y - cue.y, near.x - cue.x) : 0, speed: SOFT, a: 0, b: 0 }; // no legal ball at all: the rack is over
@@ -166,7 +169,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   const runs = cands.map((c) => {
     const lv = (c.leave ??= { spin: 0, power: 700, x: c.G.x, y: c.G.y, path: [c.G], travelled: 0, scratch: false }), b = TIP * lv.spin, speed = speedFor(c.paths, lv.power, c.v, c.u, b, 1 - 1.5 * tier.speedErr / 100);
     const first = ids.indexOf(c.type === 'safety' ? c.ball : c.first), start = { ang: correctAim(B[0], B[first], c, speed, 0, b) ?? c.aim, speed, a: 0, b };
-    return { c, more: sims < 2 ? null : refine(B, ids, group, tier, ids.indexOf(c.ball), first, c.type === 'safety' ? null : POCKETS[c.pocket], c.G, lv, start), v: -Infinity, shot: start };
+    return { c, more: sims < 2 ? null : refine(B, ids, group, tier, ids.indexOf(c.ball), first, c.type === 'safety' ? null : POCKETS[c.pocket], c.G, lv, start, t0 + THINK), v: -Infinity, shot: start };
   });
   const score = (x: (typeof runs)[number], n: number) => {
     const r = x.more!(n), c = x.c;
@@ -179,7 +182,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
     if (sims > 0 && cands.length > 1) score(top, sims);
   }
   const won = runs.reduce((a, x) => (x.v > a.v ? x : a)), aim = won.shot, played = won.c;
-  const t2 = performance.now(), g = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd()); // Box-Muller
+  const t2 = now(), g = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd()); // Box-Muller
   const tip = (x: number) => Math.max(-CUE.tipLimit, Math.min(CUE.tipLimit, x + g() * tier.tipErr)); // tipErr is in ball radii, as a and b are
   // side tip error squirts the cue ball off line (strike() adds a * squirt), so the aim itself scatters by the rest of sigma
   const rad = tier.sigma * Math.PI / 180, aimSd = Math.sqrt(Math.max(0, rad * rad - (tier.tipErr * CUE.squirt) ** 2));
