@@ -160,7 +160,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
 }
 { const m = readMastery({ house: { xp: 1000, power: 1, spin: 1, aim: 0, paid: 2 }, twig: { xp: 50, power: 1, paid: 1 }, rocket: { xp: 5000, power: 1, paid: 1 }, bogus: { xp: 5 }, broomstick: { xp: 300, power: 1, spin: 1, paid: 2 }, noodle: 'x' });
   eq(m.house, { xp: 1000, power: 1, spin: 1, aim: 0, paid: 2 }, 'a good record stays'); eq(m.twig, { xp: 50, power: 0, spin: 0, aim: 0, paid: 0 }, 'the Twig loses points');
-  eq(m.rocket.power, 0, 'past 10: points off'); eq(m.broomstick, { xp: 300, power: 0, spin: 0, aim: 0, paid: 2 }, 'more points than the level: points off, XP and paid kept');
+  eq(m.rocket.power, 0, 'past 10: points off'); eq(m.broomstick, { xp: 300, power: 0, spin: 0, aim: 0, paid: 1 }, 'more points than the level: points off, XP kept, paid at most the points');
   eq(['bogus', 'noodle'].map(k => k in m), [false, false], 'unknown cues and bad records dropped');
   eq(readMastery({ house: { xp: -5, power: 9, paid: 99 } }).house, { xp: 0, power: 0, spin: 0, aim: 0, paid: 0 }, 'out of range numbers fixed');
   eq(readMastery({ house: { xp: 1000, paid: 4 } }).house.paid, 2, 'no more paid steps than the level has points');
