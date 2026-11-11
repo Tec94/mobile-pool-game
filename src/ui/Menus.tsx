@@ -7,7 +7,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LESSON_PAY, LESSONS, SOLO_RUN } from '../learn/lessons';
 import { keep, profile } from '../progress';
-import { addMonths, type Daily, monthGrid, streak } from '../daily/daily';
+import { addMonths, type Daily, monthGrid, streak, weekday } from '../daily/daily';
 import { isOpen, par, SCENARIOS, starCount, type Stars, totalStars } from '../scenarios/scenarios';
 import { CUE_IDS, CUES, type CueId, type CueInfo, specLine, specs } from '../progress/cues';
 import { masteryLevel, masteryOf, STATS, statsOf, tunable, tuneDown, tuneUp, upCost, used, points } from '../progress/mastery';
@@ -129,7 +129,6 @@ function Scenarios({ go, stars, play }: Pick<Props, 'go'> & ScenarioProps) {
 // The Daily Table's weekday themes, Sunday first, as THEME in daily/daily.ts.
 const THEMES = ['Trick shot', 'Pots', 'Cut shots', 'Banks', 'Position', 'Combos', 'Kicks and safeties'];
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const weekday = (k: string) => new Date(`${k}T00:00:00Z`).getUTCDay();
 const monthName = (k: string) => MONTHS[+k.slice(5, 7) - 1];
 const dateOf = (k: string) => `${DAYS[weekday(k)].slice(0, 3)} ${+k.slice(8, 10)} ${monthName(k).slice(0, 3)}`; // Wed 11 Nov
 
