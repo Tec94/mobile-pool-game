@@ -171,13 +171,15 @@ function leaves(G: Pt, v: Pt, u: Pt, balls: Obj[], ignore: number[], powers = PO
 // planShare = share of turns that are planned at all; it sets Hustler half way between Regular and Shark.
 // budget = engine time for the shot in hand, in full-table simulations (aim.ts refine()); tries = pots it is split over.
 // Measured on the engine (npm run bench:visit): budget past about 20 a shot and depth 2 add no balls a visit; aim error
-// (sigma) moves it most, Legend at 0.15 degrees runs 4.8 balls against 4.1 at 0.19.
+// (sigma) moves it most, Legend at 0.15 degrees runs 4.8 balls against 4.1 at 0.19. Shark's budget of 12 (not 17) and
+// Pro's wLeave of 0.6 (not 0.9: fewer safeties) set Shark, Pro and Legend apart: at 300 tables 2.76, 3.66, 4.04 balls in
+// 8-ball and 0.83, 1.05, 1.40 in 9-ball, against 2.88, 3.47, 4.04 and 0.88, 0.86, 1.40. tries 2, 3 or 4 changed nothing.
 export const TIERS: Tier[] = [
   { name: 'Rookie',  sigma: 0.71, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1 },
   { name: 'Regular', sigma: 0.42, types: ['direct', 'bank'],                  flair: 0.03, temp: 0.08, depth: 0, wPos: 0,   posErr: 0.16, speedErr: 12, tipErr: 0.08, ctrl: 1, wLeave: 0, safetyAngles: [], budget: 2 },
   { name: 'Hustler', sigma: 0.35, types: ['direct', 'bank', 'combo'],         flair: 0.05, temp: 0.08, depth: 1, planShare: 0.5, wPos: 0.5, posErr: 0.11, speedErr: 8, tipErr: 0.06, ctrl: 1, wLeave: 0.3, safetyAngles: [0], budget: 9 },
-  { name: 'Shark',   sigma: 0.30, types: ['direct', 'bank', 'combo', 'kick'], flair: 0.05, temp: 0.04, depth: 1, tries: 2, wPos: 0.8, posErr: 0.10, speedErr: 7, tipErr: 0.055, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-30, 0, 30], budget: 17 },
-  { name: 'Pro',     sigma: 0.24, types: ['direct', 'bank', 'combo', 'kick'], flair: 0.04, temp: 0.02, depth: 1, tries: 3, wPos: 0.9, posErr: 0.08, speedErr: 5, tipErr: 0.04, ctrl: 1, wLeave: 0.9, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 24 },
+  { name: 'Shark',   sigma: 0.30, types: ['direct', 'bank', 'combo', 'kick'], flair: 0.05, temp: 0.04, depth: 1, tries: 2, wPos: 0.8, posErr: 0.10, speedErr: 7, tipErr: 0.055, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-30, 0, 30], budget: 12 },
+  { name: 'Pro',     sigma: 0.24, types: ['direct', 'bank', 'combo', 'kick'], flair: 0.04, temp: 0.02, depth: 1, tries: 3, wPos: 0.9, posErr: 0.08, speedErr: 5, tipErr: 0.04, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 24 },
   { name: 'Legend',  sigma: 0.19, types: ['direct', 'bank', 'combo', 'kick'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1,   posErr: 0.07, speedErr: 3.5, tipErr: 0.03, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 33 },
 ];
 // 9-ball: pass NINE as the group for both sides. The lowest ball must be hit first, any ball may drop, the 9 wins.
