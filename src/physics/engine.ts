@@ -1,5 +1,5 @@
-// Pool physics engine, ported from physics/pool-physics-lab.html (the <script id="engine"> block, 2026-11-11, WPA pockets).
-// Kept line-for-line close to the lab so changes there can be diffed across. Pure TS: no React, no DOM.
+// Pool physics engine. This file is the source. The lab page (physics/pool-physics-lab.html in the project files, the
+// <script id="engine"> block) is a copy with the types stripped: change this file first, then copy it there. Pure TS: no React, no DOM.
 export type Game=8|9;
 export interface Ball{x:number;y:number;vx:number;vy:number;wx:number;wy:number;wz:number;on:boolean;z?:number;vz?:number}
 export interface Shot{ang:number;speed:number;a:number;b:number;elev?:number}

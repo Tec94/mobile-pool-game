@@ -1,4 +1,4 @@
-// Run: npm test   (checks the engine against known pool behaviour; ported from physics/engine.test.js)
+// Run: npm test   (checks the engine against known pool behaviour; physics/engine.test.js in the project files is a copy)
 import assert from 'node:assert';
 import * as EngineAll from './engine.ts';
 const { P, CUE, step, strike, predict, simulate, rack, jumpRuling } = EngineAll;
