@@ -25,7 +25,7 @@ interface Rail { k: 'x' | 'y'; v: number }
 // Margin kept after one cushion, measured on the engine (critique/probe5.js C, H). The window itself is 0.91 (bank) and 1.05 (kick)
 // of the mirror geometry, but the rebound angle moves with speed, so under a tier's own speed error 0.76 to 0.87 is what it pots at.
 export const RAIL_FACTOR = 0.8;
-export const SIGMA_REF = 0.30 * Math.PI / 180; // "average player" aim error with a long aim line, used for rewards
+export const SIGMA_REF = 0.30 * Math.PI / 180; // "average player" aim error with a long aim line, used to price the reply of the opponent
 // Pocket model measured on the engine's WPA pockets (critique/probe5.js A). x, y = centre of the window a ball must
 // pass through (the middle of the mouth, not the corner of the field). A ball arriving at angle alpha off the pocket's
 // axis has a window m*cos(alpha) - c wide. back = distance from that point to the hole centre, for drawing only.
@@ -276,15 +276,6 @@ export function decide(cue: Pt, balls: Obj[], group: number[], oppGroup: number[
     pick.leave = pool[Math.floor(rnd() * pool.length)];
   }
   return { ranked, pick };
-}
-
-// Reward side of the same model: how hard was this shot for an average player?
-export const BANDS: [string, number, number][] = [['Routine', 0.80, 1], ['Solid', 0.55, 1.5], ['Tough', 0.30, 2.5], ['Brutal', 0.12, 4], ['Outrageous', 0, 6]];
-const TYPE_BONUS: Record<ShotType, number> = { direct: 1, bank: 1.25, kick: 1.5, combo: 1.25 };
-export function reward(shot: Cand) {
-  const pRef = makeProb(shot.tol, SIGMA_REF);
-  const [band, , mult] = BANDS.find((b) => pRef >= b[1])!;
-  return { pRef, band, mult, xp: Math.round(10 * mult * TYPE_BONUS[shot.type]), coins: Math.round(4 * mult * TYPE_BONUS[shot.type]) };
 }
 
 export function rng(seed: number) { // mulberry32
