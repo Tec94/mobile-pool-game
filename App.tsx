@@ -25,7 +25,7 @@ import { type Lesson, LESSON_PAY, LESSONS, lessonTable, type LessonRec, newLesso
 import { loadDone, saveDone } from './src/learn/save';
 import { canCall, choose, handCue, judge, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { thinkAsync } from './src/ai/think';
-import { candsFor, choiceFor, type Move, nextSafeties, potPay, type Safeties, safetiesArg, think } from './src/ai/turn';
+import { candsFor, choiceFor, type Move, nextSafeties, potPay, type Safeties, safetiesArg, softMove, think } from './src/ai/turn';
 import { type Cand, TIERS } from './src/ai/shot-ai';
 import { matchPay, type Pay } from './src/progress/pay';
 import { aimGuide, DRAG, guideFor, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
@@ -325,7 +325,12 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       const args = [t.B, t.ids, s, ai, seed.current++, safetiesArg(safe.current)] as const;
       thinkAsync(...args).then(m => then(() => play(m)), e => { // the runtime failed: think on the JS thread rather than stall the match
         if (__DEV__) console.warn('AI think failed off the JS thread', e);
-        then(() => play(think(args[0].map(b => ({ ...b })), [...args[1]], s, ai, args[4], args[5])));
+        then(() => {
+          let m: Move;
+          try { m = think(args[0].map(b => ({ ...b })), [...args[1]], s, ai, args[4], args[5]); }
+          catch (e2) { if (__DEV__) console.warn('AI think failed', e2); m = softMove(t.B, t.ids, s); }
+          play(m);
+        });
       });
     }
     return () => { live = false; clearTimeout(wait); setThinking(false); };

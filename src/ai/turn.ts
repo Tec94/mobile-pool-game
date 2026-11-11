@@ -87,6 +87,14 @@ export function think(B: Ball[], ids: number[], s: State, tier: number, seed: nu
   return { shot, at: s.hand ? [B[0].x, B[0].y] : null, call: callFor(s, pick, B, ids), safety: pick.type === 'safety' };
 }
 
+// The AI's move when think() itself fails: a soft hit at the nearest legal ball (as aiShot's 'foul' pick), so the match goes on.
+export function softMove(B: Ball[], ids: number[], s: State): Move {
+  const c = B[0], g = groupsOf(s, s.turn);
+  let ang = 0, d = Infinity;
+  for (const id of legalIds(s, g && g[0])) { const b = B[ids.indexOf(id)], e = b && b.on ? Math.hypot(b.x - c.x, b.y - c.y) : Infinity; if (e < d) { d = e; ang = Math.atan2(b.y - c.y, b.x - c.x); } }
+  return { shot: { ang, speed: 1, a: 0, b: 0 }, at: null, call: callFor(s, { type: 'foul' }, B, ids), safety: false }; // 1 m/s: aim.ts SOFT
+}
+
 // A decision the rules give the AI: take ball in hand when an option gives it, else the first option (shoot on after
 // a push out, play the table as it lies, spot the 8 and play on). shortcut: a fixed rule, no look at the table.
 export const choiceFor = (s: State) => Math.max(0, s.choice?.findIndex(o => o.hand) ?? 0);

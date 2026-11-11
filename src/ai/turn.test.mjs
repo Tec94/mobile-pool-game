@@ -3,7 +3,7 @@
 import assert from 'node:assert';
 import { breakSpot, HOLES, P, rack, step, strike } from '../physics/engine.ts';
 import { choose, handCue, judge, legalSpot, moveCue, newGame, newRec, record, setCall, spotBall } from '../rules/rules.ts';
-import { breakShot, callFor, candsFor, choiceFor, groupsOf, holeOf, nextSafeties, placeCue, potPay, safetiesArg, think } from './turn.ts';
+import { breakShot, callFor, candsFor, choiceFor, groupsOf, holeOf, nextSafeties, placeCue, potPay, safetiesArg, softMove, think } from './turn.ts';
 import { enumerate, NINE, rng, SOLIDS, STRIPES, TIERS } from './shot-ai.ts';
 import { TIER_COUNT } from '../settings/settings.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
@@ -51,6 +51,11 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, true), phase: 'play', turn: 1, 
   const on8 = play8({ callAll: false, balls: [8, 1] }); eq(callFor(on8, { type: 'safety' }, B, ids), 3, 'on the 8: the pocket nearest the 8');
   eq(holeOf({ paths: [[{ x: HOLES[4][0] * 1000, y: 8 }]] }), 4, 'side pocket');
   ok('the AI calls its pocket');
+}
+{ // stripes: the 1 is nearer, the 10 is the nearest legal ball
+  const B = [mk(1, 0.6), mk(1.2, 0.6), mk(1, 1.0), mk(2, 0.3)], m = softMove(B, [0, 1, 10, 8], play8({ balls: [1, 10, 8] }));
+  assert(Math.abs(m.shot.ang - Math.PI / 2) < 1e-9 && m.shot.speed === 1 && m.at === null, `soft, at the 10 (${m.shot.ang})`);
+  ok('a soft shot at the nearest legal ball when think fails');
 }
 { eq(choiceFor({ choice: [{ label: 'Shoot' }, { label: 'Pass it back', turn: 0 }] }), 0, 'push out: shoot');
   eq(choiceFor({ choice: [{ label: 'Play it as it lies' }, { label: 'Ball in hand behind the line', hand: 'kitchen' }] }), 1, 'take ball in hand');
