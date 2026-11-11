@@ -28,7 +28,9 @@ export const P={R:0.028575,L:2.2352,W:1.1176,g:9.81,
 // Stick stats hook: these are the numbers a cue would change.
 // maxSpeed is a real power shot (Dr. Dave: 3.2 to 4.5 m/s), so normal play uses the whole power slider; breakSpeed is the
 // cap for the opening shot only (real 11 to 13). massRatio = ball mass / cue mass (6 oz ball, 19 oz cue).
-export const CUE: Cue={maxSpeed:4.5,breakSpeed:12,squirt:0.035,tipLimit:0.5,maxElev:1.4,massRatio:0.316};
+// squirt = radians the cue ball leaves off the aim line per ball radius of side offset, away from the offset. Measured
+// at the miscue limit (Dr. Dave): 2.5 degrees for a standard shaft (0.087, the default), 1.8 for a low-deflection one (0.063).
+export const CUE: Cue={maxSpeed:4.5,breakSpeed:12,squirt:0.087,tipLimit:0.5,maxElev:1.4,massRatio:0.316};
 // sqrt is exactly rounded on every JS engine and Math.hypot is not (and is slow), so the engine uses this.
 const hyp=(x:number,y:number,z=0)=>Math.sqrt(x*x+y*y+z*z);
 

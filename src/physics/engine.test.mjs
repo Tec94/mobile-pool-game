@@ -4,7 +4,7 @@ import * as EngineAll from './engine.ts';
 const { P, CUE, step, strike, predict, simulate, rack, jumpRuling } = EngineAll;
 const { R, L, W } = P, D = 180 / Math.PI;
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
-CUE.squirt = 0; // isolate table physics from cue deflection
+const SQUIRT = CUE.squirt; CUE.squirt = 0; // isolate table physics from cue deflection
 
 function run(B, maxT = 60, each) {
   const ev = [], all = [];
@@ -115,6 +115,7 @@ const shot = (gap, speed, a, b, offY = 0) => {
 { const B = [mk(1, 0.5)]; B[0].wz = 100; assert(step(B) === false && B[0].wz === 0, 'spin must not leak into the next shot');
   const b = mk(0, 0); strike(b, { ang: 0, speed: 2, a: 0.5, b: 0 }, { squirt: 0.1 });
   assert(Math.abs(Math.atan2(b.vy, b.vx) - 0.05) < 1e-12, 'strike uses the cue it is given');
+  assert(SQUIRT * 0.5 * D >= 1.8 && SQUIRT * 0.5 * D <= 2.5, 'the standard cue squirts 1.8 to 2.5 degrees at full side spin (measured range)');
   console.log('rest state and per-shot cue ok'); }
 
 // 12. Fuzz: 300 random tables and shots (some with balls frozen together or on a rail). Energy never rises in any
@@ -202,7 +203,7 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   console.log(`masse final direction ok (${n} shots, worst ${worst.toFixed(3)} deg off Coriolis)`); }
 
 // 19. Masse round a blocker: the straight line is blocked, the curved shot reaches the hidden ball with no rail.
-{ const T = () => cueAt(0.45, 0.3, mk(0.85, 0.3), mk(1.3, 0.3)); CUE.squirt = 0.035;
+{ const T = () => cueAt(0.45, 0.3, mk(0.85, 0.3), mk(1.3, 0.3)); CUE.squirt = SQUIRT;
   assert(simulate(T(), { ang: 0, speed: 4.05, a: 0, b: 0 }).first === 1, 'straight line is blocked');
   for (const a of [0.35, 0.4, 0.45]) { const B = T(), ev = []; strike(B[0], { ang: 0.4, speed: 4.05, a, b: 0, elev: el(60) }); let hit = null, rail = false, top = 0;
     for (let i = 0; i < 12000 && !hit; i++) { ev.length = 0; if (!step(B, ev)) break; top = Math.max(top, B[0].z); for (const q of ev) { if (q.t === 'rail') rail = true; if (q.t === 'bb') hit = q; } }
