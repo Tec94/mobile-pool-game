@@ -159,11 +159,12 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   }
   // Pro and Legend refine their best few pots (tier.tries) on the engine and play the one worth most with the leave it
   // really gets: its chance times one plus the next shot's. Each gets a few rollouts, then the best of them the rest of
-  // the budget. A safety maps like a pot: its ball, its leave, its line.
+  // the budget. A safety maps like a pot: its ball, its leave, its line. A ranked pot with no leave (a combo) gets the
+  // default one it is played with, so pick.leave is there for every pot, as decide() says.
   const cands = pick.type === 'safety' ? [pick] : [pick, ...ranked.filter((c) => c !== pick)].slice(0, tier.tries ?? 1);
   let sims = Math.floor(tier.budget - 0.3 * cands.length); // an aim correction costs about 0.3 of a full simulation
   const runs = cands.map((c) => {
-    const lv = c.leave ?? { spin: 0, power: 700, x: c.G.x, y: c.G.y }, b = TIP * lv.spin, speed = speedFor(c.paths, lv.power, c.v, c.u, b, 1 - 1.5 * tier.speedErr / 100);
+    const lv = (c.leave ??= { spin: 0, power: 700, x: c.G.x, y: c.G.y, path: [c.G], travelled: 0, scratch: false }), b = TIP * lv.spin, speed = speedFor(c.paths, lv.power, c.v, c.u, b, 1 - 1.5 * tier.speedErr / 100);
     const first = ids.indexOf(c.type === 'safety' ? c.ball : c.first), start = { ang: correctAim(B[0], B[first], c, speed, 0, b) ?? c.aim, speed, a: 0, b };
     return { c, more: sims < 2 ? null : refine(B, ids, group, tier, ids.indexOf(c.ball), first, c.type === 'safety' ? null : POCKETS[c.pocket], c.G, lv, start), v: -Infinity, shot: start };
   });
