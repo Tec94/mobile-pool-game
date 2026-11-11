@@ -1,17 +1,17 @@
 // Device smoke test: the real engine on a Quiet Slate table. Pull back from anywhere to aim and shoot.
 // shortcut: no spin or elevation controls, rules or HUD yet (the Demo button plays spin, jump and masse shots);
 // this screen proves Skia, the engine and the ball animation on the phone.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, PixelRatio, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { Canvas, Circle, Line, matchFont, Picture, Rect, Skia, vec } from '@shopify/react-native-skia';
+import { Canvas, Line, matchFont, Picture, Skia, vec } from '@shopify/react-native-skia';
 import { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
-import { Ball, CUE, HOLES, P, predict, rack, SEGS, Shot, strike } from './src/physics/engine';
-import { advance, drawBalls, makeKit, newLook, toScreen, View as TableView } from './src/render/balls';
+import { Ball, CUE, P, predict, rack, Shot, strike } from './src/physics/engine';
+import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
+import { drawTable, fit, toScreen, toTable } from './src/render/table';
 import { C } from './src/theme';
 
-const RAIL = 0.14; // m from the cushion nose to the outside of the frame; the WPA pockets sit up to 0.125 m into it
 const MAX_DRAG = 160; // px of pull-back for full power
 // Shots the screen has no controls for yet, played from a fresh rack so the spin, jump and masse animation can be seen.
 const DEMOS: [string, Partial<Shot>][] = [['Draw', { speed: 2.5, b: -0.45 }], ['Side', { speed: 1.2, a: 0.45 }], ['Jump', { speed: 4.2, elev: 0.7 }], ['Massé', { speed: 3.5, a: 0.4, elev: 1.19 }]];
@@ -26,14 +26,11 @@ const newTable = () => {
 
 export default function App() {
   const { width, height } = useWindowDimensions();
-  const land = width > height;
-  // Table metres -> screen px. Portrait stands the table up with the head string at the bottom.
-  const s = land ? Math.min(width / (P.L + 2 * RAIL), (height - 60) / (P.W + 2 * RAIL)) : Math.min(width / (P.W + 2 * RAIL), (height - 60) / (P.L + 2 * RAIL));
-  const PAD = RAIL * s, calm = useReducedMotion();
-  const view: TableView = { land, s, pad: PAD, dpr: PixelRatio.get(), calm };
-  const toS = (x: number, y: number) => toScreen(view, x, y);
-  const toT = (px: number, py: number) => (land ? { x: (px - PAD) / s, y: P.W - (py - PAD) / s } : { x: P.L - (py - PAD) / s, y: P.W - (px - PAD) / s });
-  const map = useRef({ toT }); map.current.toT = toT; // the pan responder is created once, so it reads the latest mapping
+  const calm = useReducedMotion();
+  const view = { ...fit(width, height), dpr: PixelRatio.get(), calm };
+  const map = useRef(view); map.current = view; // the pan responder is created once, so it reads the latest mapping
+  // The table never changes during play: one picture, drawn again only when the window does.
+  const felt = useMemo(() => { const rec = Skia.PictureRecorder(); drawTable(Skia, rec.beginRecording(), view); return rec.finishRecordingAsPicture(); }, [width, height]);
 
   const table = useRef(newTable());
   const [aim, setAim] = useState<{ path: number[][]; pull: number } | null>(null);
@@ -68,7 +65,7 @@ export default function App() {
 
   const shotFrom = (dx: number, dy: number): { shot: Shot; pull: number } => {
     const pull = Math.min(1, Math.hypot(dx, dy) / MAX_DRAG);
-    const a = map.current.toT(0, 0), b = map.current.toT(-dx, -dy); // aim opposite the pull
+    const a = toTable(map.current, 0, 0), b = toTable(map.current, -dx, -dy); // aim opposite the pull
     const max = table.current.broken ? CUE.maxSpeed : CUE.breakSpeed;
     return { shot: { ang: Math.atan2(b.y - a.y, b.x - a.x), speed: Math.max(0.05, pull * max), a: 0, b: 0 }, pull };
   };
@@ -89,19 +86,13 @@ export default function App() {
     },
   })).current;
 
-  const tl = toS(0, P.W), br = toS(P.L, 0);
-  const box = { x: Math.min(tl.x, br.x), y: Math.min(tl.y, br.y), w: Math.abs(br.x - tl.x), h: Math.abs(br.y - tl.y) };
-  const seg = (x: number, y: number) => { const p = toS(x, y); return vec(p.x, p.y); };
+  const seg = (x: number, y: number) => { const p = toScreen(view, x, y); return vec(p.x, p.y); };
 
   return (
     <View style={styles.root} {...pan.panHandlers}>
       <StatusBar style="light" />
       <Canvas style={StyleSheet.absoluteFill}>
-        <Rect x={box.x - PAD} y={box.y - PAD} width={box.w + 2 * PAD} height={box.h + 2 * PAD} color={C.frame} />
-        <Rect x={box.x - 0.05 * s} y={box.y - 0.05 * s} width={box.w + 0.1 * s} height={box.h + 0.1 * s} color={C.cushion} />
-        <Rect x={box.x} y={box.y} width={box.w} height={box.h} color={C.felt} />
-        {HOLES.map(([x, y, rad], i) => { const p = toS(x, y); return <Circle key={'h' + i} cx={p.x} cy={p.y} r={rad * s} color={C.pocket} />; })}
-        {SEGS.map(([x1, y1, x2, y2], i) => <Line key={'s' + i} p1={seg(x1, y1)} p2={seg(x2, y2)} color={C.chalk} strokeWidth={1} opacity={0.5} />)}
+        <Picture picture={felt} />
         {aim && aim.path.slice(1).map((q, i) => <Line key={'a' + i} p1={seg(aim.path[i][0], aim.path[i][1])} p2={seg(q[0], q[1])} color={C.chalk} strokeWidth={1.5} />)}
         <Picture picture={picture} />
       </Canvas>

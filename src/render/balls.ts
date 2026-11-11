@@ -5,6 +5,7 @@
 import type { Skia, SkCanvas, SkFont, SkPaint, SkRuntimeEffect } from '@shopify/react-native-skia';
 import { type Ball, type Ev, HOLES, P, step } from '../physics/engine.ts';
 import { BALLS, C } from '../theme.ts';
+import { toScreen, type View } from './table.ts';
 
 const DROP = 220, OFF = 350, RING = 240; // ms: fall into a pocket, flight off the table, landing ring
 const LAND_MIN = 0.3; // m/s: softer touchdowns (the last bounces of a hop) leave no ring
@@ -49,10 +50,6 @@ export function advance(B: Ball[], look: Look, ms: number, run: boolean): boolea
   look.fx = fx.filter(f => f.age < (f.t === 'pocket' ? DROP : f.t === 'off' ? OFF : RING));
   return run;
 }
-
-// Table metres -> screen px. Portrait stands the table up with the head string at the bottom.
-export interface View { land: boolean; s: number; pad: number; dpr?: number; calm?: boolean } // calm = reduced motion
-export const toScreen = (v: View, x: number, y: number) => (v.land ? { x: v.pad + x * v.s, y: v.pad + (P.W - y) * v.s } : { x: v.pad + (P.W - y) * v.s, y: v.pad + (P.L - x) * v.s });
 
 // The ball surface: n is the point under this pixel in the ball's own frame. A stripe is a band around the ball's
 // y axis, the number spots sit on its z axis, and the cue ball carries six small spots so its spin can be read.

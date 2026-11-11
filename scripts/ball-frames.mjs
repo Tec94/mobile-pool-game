@@ -2,9 +2,9 @@
 // Run: node scripts/ball-frames.mjs [outDir] [fontFile]   Each strip is one scenario at the phone's real pixel size.
 import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { CUE, HOLES, P, rack, SEGS, strike } from '../src/physics/engine.ts';
-import { advance, drawBalls, makeKit, newLook, toScreen } from '../src/render/balls.ts';
-import { C } from '../src/theme.ts';
+import { CUE, P, rack, strike } from '../src/physics/engine.ts';
+import { advance, drawBalls, makeKit, newLook } from '../src/render/balls.ts';
+import { drawTable, RAIL, toScreen } from '../src/render/table.ts';
 
 const require = createRequire(import.meta.url);
 const out = process.argv[2] || 'ball-frames', fontFile = process.argv[3] || '/usr/share/fonts/opentype/inter/Inter-ExtraBold.otf';
@@ -15,22 +15,12 @@ const kit = makeKit(Skia, Skia.Font(Skia.Typeface.MakeFreeTypeFaceFromData(Skia.
 mkdirSync(out, { recursive: true });
 CUE.squirt = 0;
 
-const DPR = 3, S = 335 * DPR, RAIL = 0.14; // an iPhone in landscape: 335 pt per metre at 3 px per pt
+const DPR = 3, S = 335 * DPR; // an iPhone in landscape: 335 pt per metre at 3 px per pt
 const ball = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
-const paint = (hex, a = 1, w = 0) => { const p = Skia.Paint(); p.setAntiAlias(true); p.setColor(Skia.Color(hex)); p.setAlphaf(a); if (w) { p.setStyle(1); p.setStrokeWidth(w); } return p; };
-
-function table(canvas, v) {
-  const a = toScreen(v, 0, P.W), b = toScreen(v, P.L, 0), x = Math.min(a.x, b.x), y = Math.min(a.y, b.y), w = Math.abs(b.x - a.x), h = Math.abs(b.y - a.y), pad = v.pad;
-  canvas.drawRect(Skia.XYWHRect(x - pad, y - pad, w + 2 * pad, h + 2 * pad), paint(C.frame));
-  canvas.drawRect(Skia.XYWHRect(x - 0.05 * v.s, y - 0.05 * v.s, w + 0.1 * v.s, h + 0.1 * v.s), paint(C.cushion));
-  canvas.drawRect(Skia.XYWHRect(x, y, w, h), paint(C.felt));
-  for (const [hx, hy, r] of HOLES) { const p = toScreen(v, hx, hy); canvas.drawCircle(p.x, p.y, r * v.s, paint(C.pocket)); }
-  for (const [x1, y1, x2, y2] of SEGS) { const p = toScreen(v, x1, y1), q = toScreen(v, x2, y2); canvas.drawLine(p.x, p.y, q.x, q.y, paint(C.chalk, 0.5, 1)); }
-}
 
 // One scenario: n cells, each `every` frames (16 ms each) apart, showing w x h metres centred on at(B) or a fixed point.
 function strip(name, { B, ids, shots, n, every = 1, w, h, at, land = true, calm = false, skip = 0 }) {
-  const v = { land, s: S, pad: RAIL * S, dpr: DPR, calm }, look = newLook(B), cw = Math.round((land ? w : h) * S), ch = Math.round((land ? h : w) * S);
+  const v = { land, s: S, ox: RAIL * S, oy: RAIL * S, dpr: DPR, calm }, look = newLook(B), cw = Math.round((land ? w : h) * S), ch = Math.round((land ? h : w) * S);
   const surface = CanvasKit.MakeSurface(n * cw + (n - 1) * 4, ch);
   const sk = surface.getCanvas(), c = new (require('@shopify/react-native-skia/lib/commonjs/skia/web/JsiSkCanvas').JsiSkCanvas)(CanvasKit, sk);
   sk.clear(CanvasKit.Color(16, 31, 28, 1));
@@ -40,7 +30,7 @@ function strip(name, { B, ids, shots, n, every = 1, w, h, at, land = true, calm 
   for (let f = 0; f < n; f++) {
     const p = typeof at === 'function' ? at(B) : at, o = toScreen(v, p[0], p[1]);
     c.save(); c.translate(f * (cw + 4), 0); c.clipRect(Skia.XYWHRect(0, 0, cw, ch), 1, true); c.translate(cw / 2 - o.x, ch / 2 - o.y);
-    table(c, v); drawBalls(kit, c, B, ids, look, v); c.restore();
+    drawTable(Skia, c, v); drawBalls(kit, c, B, ids, look, v); c.restore();
     for (let k = 0; k < every; k++) run = advance(B, look, 16, run);
   }
   writeFileSync(`${out}/${name}.png`, surface.makeImageSnapshot().encodeToBytes());
