@@ -101,7 +101,7 @@ export function TipSheet({ store, land, calm, felt, blend, onDone, width, style 
         <View style={{ width: SIDE.w, alignItems: 'center' }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <Canvas style={{ width: SIDE.w, height: SIDE.h }}><Picture picture={side} /></Canvas>
           <Text maxFontSizeMultiplier={1.3} style={styles.deg}>{t.elev}°</Text>
-          <Text maxFontSizeMultiplier={1.3} style={styles.zone}>{zoneLabel(t)}</Text>
+          <Text maxFontSizeMultiplier={1.3} style={styles.zone}>{blend ? zoneLabel(t) : ''}</Text>{/* one colour: the player learns the zones */}
         </View>
       </View>
       <Text maxFontSizeMultiplier={1.3} style={styles.label} accessibilityLiveRegion="polite">{spinLabel(t)}</Text>
