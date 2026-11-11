@@ -10,16 +10,16 @@ import { P } from '../physics/engine.ts';
 export const W = P.L * 1000, H = P.W * 1000, R = P.R * 1000;
 export interface Pt { x: number; y: number }
 export interface Obj extends Pt { id: number } // a ball on the table: its number and where it is
-export type ShotType = 'direct' | 'bank' | 'kick' | 'combo';
+export type ShotType = 'direct' | 'bank' | 'kick' | 'combo' | 'carom' | 'billiard';
 // A way to pot. G = cue-ball position at contact, v = its direction there, u = where the first ball leaves, first = that
-// ball's id, tol = the striker's angular tolerance (radians), paths = polylines for drawing.
+// ball's id, via = a combo's first ball or a carom's helper ball, tol = the striker's angular tolerance (radians), paths = polylines for drawing.
 export interface Cand { type: ShotType; ball: number; pocket: number; aim: number; tol: number; cut: number; paths: Pt[][]; G: Pt; v: Pt; u: Pt; first: number; via?: number }
 export interface Leave extends Pt { spin: number; power: number; path: Pt[]; travelled: number; scratch: boolean }
 export interface Planned extends Cand { p: number; score: number; value: number; leave?: Leave; next?: Planned }
 // G, v and u are kept on a safety (the prototype dropped them) so the engine glue maps it like a pot.
 export interface Safety { type: 'safety'; ball: number; aim: number; paths: Pt[][]; leave: Leave; oppBest: number; hooked: boolean; G: Pt; v: Pt; u: Pt }
 export type Pick = Planned | Safety | { type: 'foul' };
-export interface Tier { name: string; sigma: number; types: ShotType[]; flair: number; temp: number; depth: number; planShare?: number; wPos: number; posErr: number; speedErr: number; tipErr: number; ctrl: number; wLeave: number; rack?: boolean; safetyAngles: number[]; budget: number; tries?: number }
+export interface Tier { name: string; sigma: number; types: ShotType[]; flair: number; temp: number; depth: number; planShare?: number; wPos: number; posErr: number; speedErr: number; tipErr: number; ctrl: number; wLeave: number; rack?: boolean; safetyAngles: number[]; budget: number; tries?: number; caromGap: number }
 interface Pocket extends Pt { ax: [number, number]; m: number; c: number; back: number }
 interface Rail { k: 'x' | 'y'; v: number }
 
@@ -41,7 +41,7 @@ export const POCKETS: Pocket[] = [
 const RAILS: Rail[] = [{ k: 'y', v: R }, { k: 'y', v: H - R }, { k: 'x', v: R }, { k: 'x', v: W - R }];
 
 export const sub = (a: Pt, b: Pt): Pt => ({ x: a.x - b.x, y: a.y - b.y });
-const len = (a: Pt) => Math.hypot(a.x, a.y);
+const len = (a: Pt) => Math.sqrt(a.x * a.x + a.y * a.y); // not Math.hypot: enumerate() runs this hot, and hypot is several times slower
 export const norm = (a: Pt): Pt => { const l = len(a); return { x: a.x / l, y: a.y / l }; };
 const dot = (a: Pt, b: Pt) => a.x * b.x + a.y * b.y;
 export const dist = (a: Pt, b: Pt) => len(sub(a, b));
@@ -86,6 +86,42 @@ export function strike(from: Pt, B: Pt, u: Pt, objTol: number) {
   return { G, v, cut: Math.acos(Math.min(1, c)), tol: objTol * 2 * R * c / dist(G, from) };
 }
 type Strike = NonNullable<ReturnType<typeof strike>>;
+const SLIDE = 150; // mm a struck object ball travels before it rolls, for kiss(): fitted on the engine (120 to 200 drop alike)
+const spot = (X: Pt, b: number) => ({ G: { x: X.x + 2 * R * Math.cos(b), y: X.y + 2 * R * Math.sin(b) }, n: { x: -Math.cos(b), y: -Math.sin(b) } });
+// A rolling ball does not leave a ball it kisses on the tangent line: it bends forward, to tan(t) = sin c cos c /
+// (sin^2 c + 2/5 f) off its own line for a cut c, where f is the share of natural roll it has (1: rolling, at most
+// atan(sqrt(10) / 4.8) = 33.4 degrees off the tangent line; 0: stun, the tangent line, 90 degrees - c).
+const bend = (c: number, f: number) => Math.atan2(Math.sin(c) * Math.cos(c), Math.sin(c) ** 2 + 0.4 * f);
+// Kiss: the spots 2R from ball X where a ball coming from `from` meets X and leaves straight toward T, and the line of
+// centres n there (from the spot to X). slide = mm the ball travels before it rolls: it starts stunned and its roll grows
+// as travel / slide (0: rolling from the start). Secant on the spot's angle about X from each stun spot (Thales: a right
+// angle between X and T), so one spot each side of X at most. shortcut: the roll grows with travel alone, though a hard
+// shot slides further, and the curve from the tangent line onto the bent line is left out (it grows with speed); refine()
+// corrects both on the engine. Fitted there (SLIDE): Legend's noise-free caroms the picker rates p >= 0.8 drop 87 of 103
+// (13 of 96 when taken as rolling). Model speed if a tier with no engine time ever plays kisses.
+function kiss(from: Pt, X: Pt, T: Pt, slide: number) {
+  const d = dist(X, T), e = dist(from, X), a = Math.atan2(T.y - X.y, T.x - X.x);
+  // fast way out (enumerate() runs this often): T must be about ahead, as far as the spot can be off X seen from both ends
+  const ahead = Math.acos(Math.max(-1, Math.min(1, dot(sub(X, from), sub(T, X)) / (d * e))));
+  if (d <= 2 * R || ahead > 0.583 + Math.asin(Math.min(1, 2 * R / e)) + Math.asin(2 * R / d)) return [];
+  const miss = (b: number) => {
+    const { G, n } = spot(X, b), v = norm(sub(G, from)), side = Math.sign(v.x * n.y - v.y * n.x);
+    const off = Math.atan2(T.y - G.y, T.x - G.x) - Math.atan2(v.y, v.x) + side * bend(Math.acos(Math.max(-1, Math.min(1, dot(v, n)))), Math.min(1, dist(G, from) / slide));
+    return Math.atan2(Math.sin(off), Math.cos(off));
+  };
+  let prev = NaN; // both starts can converge on the same spot: keep it once
+  return [a + Math.acos(2 * R / d), a - Math.acos(2 * R / d)].flatMap((b) => {
+    let b0 = b, f0 = miss(b0), b1 = b + 0.01;
+    for (let i = 0; i < 8 && Math.abs(f0) > 1e-4; i++) {
+      const f1 = miss(b1);
+      if (f1 === f0) break;
+      [b0, f0, b1] = [b1, f1, b1 - f1 * (b1 - b0) / (f1 - f0)];
+    }
+    if (!(Math.abs(f0) <= 1e-3) || Math.abs(Math.atan2(Math.sin(b0 - prev), Math.cos(b0 - prev))) < 0.01) return [];
+    prev = b0;
+    return [spot(X, b0)];
+  });
+}
 // Every way to send ball B into pocket pk: straight, or off one cushion (bank).
 function routes(B: Obj, pk: Pocket, balls: Obj[]) {
   const out: { u: Pt; objTol: number; path: Pt[]; bank: boolean }[] = [];
@@ -104,7 +140,7 @@ function routes(B: Obj, pk: Pocket, balls: Obj[]) {
 
 // All candidate pots for the cue ball against `legal` object balls. Each has an aim angle and a tolerance.
 // legalIds = balls the cue ball may hit first. potIds = balls that may be potted (9-ball: any ball, through the lowest).
-export function enumerate(cue: Pt, balls: Obj[], legalIds: number[], potIds = legalIds) {
+export function enumerate(cue: Pt, balls: Obj[], legalIds: number[], potIds = legalIds, kisses = true) {
   const shots: Cand[] = [], legal = balls.filter((b) => legalIds.includes(b.id)), targets = balls.filter((b) => potIds.includes(b.id));
   const add = (type: ShotType, ball: number, pocket: number, st: Strike, aimDir: Pt, paths: Pt[][], u: Pt, first: number, extra = {}) =>
     shots.push({ type, ball, pocket, aim: Math.atan2(aimDir.y, aimDir.x), tol: st.tol, cut: st.cut, paths, G: st.G, v: st.v, u, first, ...extra });
@@ -128,8 +164,34 @@ export function enumerate(cue: Pt, balls: Obj[], legalIds: number[], potIds = le
         if (!first || !clear(cue, first.G, balls, [A.id])) continue;
         add('combo', B.id, pi, first, first.v, [[cue, first.G], [A, mid.G], r.path], mid.v, A.id, { via: A.id });
       }
+      // billiard: the cue ball rolls into A at GA and bends off it into B's ghost ball (straight pots of B only); aim.ts
+      // strikes it at natural roll, so it rolls from the start
+      const GB = { x: B.x - 2 * R * r.u.x, y: B.y - 2 * R * r.u.y };
+      for (const A of kisses ? legal : []) for (const { G: GA, n } of A.id === B.id ? [] : kiss(cue, A, GB, 0)) {
+        const mid = strike(GA, B, r.u, r.objTol);
+        if (!mid || !clear(GA, mid.G, balls, [A.id, B.id])) continue;
+        const first = strike(cue, A, n, mid.tol);
+        if (!first || !clear(cue, GA, balls, [A.id])) continue;
+        add('billiard', B.id, pi, first, first.v, [[cue, GA, mid.G], r.path], n, A.id);
+      }
     }
   });
+  // carom: cue -> O, which rolls into helper ball H at G2 and bends off it into the pocket. The kiss is a cut on H whose
+  // tolerance is O's. Never off the 8 while it may not drop: the kiss pushes it along n, often toward a pocket.
+  for (const O of kisses ? legal.filter((b) => potIds.includes(b.id)) : []) for (const H of balls) {
+    if (H.id === O.id || (H.id === 8 && !potIds.includes(8))) continue;
+    POCKETS.forEach((pk, pi) => {
+      for (const { G: G2, n } of kiss(O, H, pk, SLIDE)) {
+        const t = norm(sub(pk, G2)), s = slack(pk, t);
+        if (!s) continue;
+        const mid = strike(O, H, n, Math.atan(s / dist(G2, pk)));
+        if (!mid || !clear(O, G2, balls, [O.id, H.id]) || !clear(G2, pk, balls, [O.id, H.id])) continue;
+        const first = strike(cue, O, mid.v, mid.tol);
+        if (!first || !clear(cue, first.G, balls, [O.id])) continue;
+        add('carom', O.id, pi, first, first.v, [[cue, first.G], [O, G2, pk]], mid.v, O.id, { via: H.id });
+      }
+    });
+  }
   return shots;
 }
 
@@ -170,18 +232,19 @@ function leaves(G: Pt, v: Pt, u: Pt, balls: Obj[], ignore: number[], powers = PO
 // wLeave = how much the tier cares what a miss (or a safety) leaves the opponent.
 // ctrl (depth 0 only): 0 = cue ball ends up anywhere, 1 = at least avoids the scratch.
 // planShare = share of turns that are planned at all; it sets Hustler half way between Regular and Shark.
+// caromGap = widest gap (mm, between the ball surfaces) between the potted ball and the helper it is kissed off.
 // budget = engine time for the shot in hand, in full-table simulations (aim.ts refine()); tries = pots it is split over.
 // Measured on the engine (npm run bench:visit): budget past about 20 a shot and depth 2 add no balls a visit; aim error
 // (sigma) moves it most, Legend at 0.15 degrees runs 4.8 balls against 4.1 at 0.19. Shark's budget of 12 (not 17) and
 // Pro's wLeave of 0.6 (not 0.9: fewer safeties) set Shark, Pro and Legend apart: at 300 tables 2.76, 3.66, 4.04 balls in
 // 8-ball and 0.83, 1.05, 1.40 in 9-ball, against 2.88, 3.47, 4.04 and 0.88, 0.86, 1.40. tries 2, 3 or 4 changed nothing.
 export const TIERS: Tier[] = [
-  { name: 'Rookie',  sigma: 0.71, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1 },
-  { name: 'Regular', sigma: 0.42, types: ['direct', 'bank'],                  flair: 0.03, temp: 0.08, depth: 0, wPos: 0,   posErr: 0.16, speedErr: 12, tipErr: 0.08, ctrl: 1, wLeave: 0, safetyAngles: [], budget: 2 },
-  { name: 'Hustler', sigma: 0.35, types: ['direct', 'bank', 'combo'],         flair: 0.05, temp: 0.08, depth: 1, planShare: 0.5, wPos: 0.5, posErr: 0.11, speedErr: 8, tipErr: 0.06, ctrl: 1, wLeave: 0.3, safetyAngles: [0], budget: 9 },
-  { name: 'Shark',   sigma: 0.30, types: ['direct', 'bank', 'combo', 'kick'], flair: 0.05, temp: 0.04, depth: 1, tries: 2, wPos: 0.8, posErr: 0.10, speedErr: 7, tipErr: 0.055, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-30, 0, 30], budget: 12 },
-  { name: 'Pro',     sigma: 0.24, types: ['direct', 'bank', 'combo', 'kick'], flair: 0.04, temp: 0.02, depth: 1, tries: 3, wPos: 0.9, posErr: 0.08, speedErr: 5, tipErr: 0.04, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 24 },
-  { name: 'Legend',  sigma: 0.19, types: ['direct', 'bank', 'combo', 'kick'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1,   posErr: 0.07, speedErr: 3.5, tipErr: 0.03, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 33 },
+  { name: 'Rookie',  sigma: 0.71, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1, caromGap: 0 },
+  { name: 'Regular', sigma: 0.42, types: ['direct', 'bank'],                  flair: 0.03, temp: 0.08, depth: 0, wPos: 0,   posErr: 0.16, speedErr: 12, tipErr: 0.08, ctrl: 1, wLeave: 0, safetyAngles: [], budget: 2, caromGap: 0 },
+  { name: 'Hustler', sigma: 0.35, types: ['direct', 'bank', 'combo', 'carom'], flair: 0.05, temp: 0.08, depth: 1, planShare: 0.5, wPos: 0.5, posErr: 0.11, speedErr: 8, tipErr: 0.06, ctrl: 1, wLeave: 0.3, safetyAngles: [0], budget: 9, caromGap: 60 },
+  { name: 'Shark',   sigma: 0.30, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.05, temp: 0.04, depth: 1, tries: 2, wPos: 0.8, posErr: 0.10, speedErr: 7, tipErr: 0.055, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-30, 0, 30], budget: 12, caromGap: 10000 },
+  { name: 'Pro',     sigma: 0.24, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.04, temp: 0.02, depth: 1, tries: 3, wPos: 0.9, posErr: 0.08, speedErr: 5, tipErr: 0.04, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 24, caromGap: 10000 },
+  { name: 'Legend',  sigma: 0.19, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1,   posErr: 0.07, speedErr: 3.5, tipErr: 0.03, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 33, caromGap: 10000 },
 ];
 // The AI for a rating s on the tier scale (1 Rookie .. 6 Legend; the Rival plays 0.5 to 6.5): numeric dials on the line
 // through the two nearest rows, past 1 and 6 along the end pair's slope. Whole settings come from the upper row with
@@ -220,23 +283,30 @@ const R_REF = 0.75, RACK = 4, HOOK = 0.2; // reference player's pot rate per fur
 const REPLY = 2, WIN = 3; // a reply is worth about 2 balls to the opponent; potting the 8 is worth 3
 const need = (balls: Obj[], group: number[]) => (nine(group) ? balls.length : balls.filter((b) => group.includes(b.id)).length + 1);
 const replyCost = (tier: Tier, balls: Obj[], oppGroup: number[]) => REPLY + (tier.rack ? RACK * Math.pow(R_REF, need(balls, oppGroup) - 1) : 0);
-const oppBest = (cue: Pt, balls: Obj[], oppGroup: number[]) => Math.max(0, ...enumerate(cue, balls, legalFor(balls, oppGroup), potFor(balls, oppGroup)).map((s) => potProb(s, SIGMA_REF)));
-export function plan(cue: Pt, balls: Obj[], group: number[], tier: Tier, depth: number, width: number, oppGroup?: number[]): Planned[] {
+const oppBest = (cue: Pt, balls: Obj[], oppGroup: number[]) => Math.max(0, ...enumerate(cue, balls, legalFor(balls, oppGroup), potFor(balls, oppGroup), false).map((s) => potProb(s, SIGMA_REF)));
+// The tier plays this shot: its type is in the repertoire, and a carom's helper ball is close enough.
+export function plays(tier: Tier, s: Cand, balls: Obj[]) {
+  const at = (id?: number) => balls.find((b) => b.id === id)!;
+  return tier.types.includes(s.type) && (s.type !== 'carom' || dist(at(s.via), at(s.ball)) - 2 * R <= tier.caromGap);
+}
+export function plan(cue: Pt, balls: Obj[], group: number[], tier: Tier, depth: number, width: number, oppGroup?: number[], kisses = true): Planned[] {
   const sigma = tier.sigma * Math.PI / 180, win = winBall(group);
-  let cands = enumerate(cue, balls, legalFor(balls, group), potFor(balls, group));
-  const inRepertoire = cands.filter((s) => tier.types.includes(s.type));
-  if (inRepertoire.length) cands = inRepertoire; // outside the repertoire only when nothing else exists
+  let cands = enumerate(cue, balls, legalFor(balls, group), potFor(balls, group), kisses);
+  const inRepertoire = cands.filter((s) => plays(tier, s, balls));
+  // outside the repertoire only when nothing else exists, and never a carom or a billiard
+  cands = inRepertoire.length ? inRepertoire : cands.filter((s) => s.type !== 'carom' && s.type !== 'billiard');
   const shots: Planned[] = cands.map((s) => {
     const p = potProb(s, sigma);
-    return { ...s, p, value: 0, score: p * (s.ball === win ? WIN : 1) * (1 + (s.type === 'bank' || s.type === 'combo' ? tier.flair : 0)) };
+    return { ...s, p, value: 0, score: p * (s.ball === win ? WIN : 1) * (1 + (s.type === 'direct' || s.type === 'kick' ? 0 : tier.flair)) };
   }).sort((a, b) => b.score - a.score).slice(0, width);
   for (const s of shots) {
     s.value = s.score;
-    if (depth && s.type !== 'combo') { // a combo moves a second ball, so the table after it is unknown here
+    if (depth && s.type !== 'combo' && s.type !== 'carom' && s.type !== 'billiard') { // these move a second ball, so the table after them is unknown here
       const after = balls.filter((b) => b.id !== s.ball);
       s.value = -Infinity;
       for (const lv of leaves(s.G, s.v, s.u, balls, [s.first, s.ball], oppGroup ? POWERS : [300, 1300])) {
-        const sub = lv.scratch ? null : plan({ x: lv.x, y: lv.y }, after, group, tier, depth - 1, Math.max(1, width - 2));
+        // the next shot is priced without caroms and billiards: they took half of decide()'s time and are rarely the best
+        const sub = lv.scratch ? null : plan({ x: lv.x, y: lv.y }, after, group, tier, depth - 1, Math.max(1, width - 2), undefined, false);
         const value = lv.scratch ? -s.p * (s.ball === win ? WIN : 0.5) : s.score * (1 + tier.wPos * (sub![0] ? sub![0].value : 0));
         if (value > s.value) Object.assign(s, { value, leave: lv, next: sub && sub[0] });
       }
@@ -270,7 +340,7 @@ export function safety(cue: Pt, balls: Obj[], group: number[], oppGroup: number[
         if (lv.scratch || obj.scratch || dist(lv, obj) < 2 * R) continue;
         if (lv.path.length < 3 && obj.path.length < 3) continue; // legal hit: a ball must reach a cushion after contact
         const table = balls.map((b) => (b.id === B.id ? { ...b, x: obj.x, y: obj.y } : b));
-        const replies = enumerate(lv, table, legalFor(table, oppGroup), potFor(table, oppGroup));
+        const replies = enumerate(lv, table, legalFor(table, oppGroup), potFor(table, oppGroup), false);
         opts.push({ type: 'safety', ball: B.id, aim: Math.atan2(v.y, v.x), paths: [[cue, G], obj.path], leave: lv, G, v, u,
           oppBest: Math.max(0, ...replies.map((s) => potProb(s, SIGMA_REF))), hooked: !replies.some((s) => s.type === 'direct') });
       }

@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { CUE, P, simulate, step, strike } from '../physics/engine.ts';
 import { aiShot, correctAim } from './aim.ts';
 import { visit } from './bench.ts';
-import { enumerate, SOLIDS, STRIPES, TIERS, randomLayout, rng } from './shot-ai.ts';
+import { enumerate, potProb, SOLIDS, STRIPES, TIERS, randomLayout, rng } from './shot-ai.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 // Direction the object ball leaves in, measured on the engine, independent of aim.ts.
@@ -19,7 +19,10 @@ const off = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
 const picksOf = (type, n, base = TIERS[5]) => {
   const tier = { ...base, depth: 0, types: [type] }, rnd = rng(42), out = [];
   for (let i = 0; i < 400 && out.length < n; i++) {
-    const { B, ids } = table(randomLayout(rnd, 7)), r = aiShot(B, ids, SOLIDS, STRIPES, tier, rnd);
+    const L = randomLayout(rnd, 7);
+    // no fair shot of the type here (the pick would be a safety): skip the costly aiShot
+    if (!enumerate(L.cue, L.balls, SOLIDS).some((c) => c.type === type && potProb(c, tier.sigma * Math.PI / 180) > 0.5)) continue;
+    const { B, ids } = table(L), r = aiShot(B, ids, SOLIDS, STRIPES, tier, rnd);
     if (r.pick.type === type) out.push({ ...r, B, ids, sim: simulate(B, r.aim) });
   }
   return out;
@@ -116,6 +119,14 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   const p = picksOf('combo', 6), made = p.filter(potted).length;
   assert(made >= 4, `combos potted ${made}/${p.length}`);
   ok('Legend\'s combos pot on the engine');
+}
+{ // Caroms and billiards: the ball rolls into the kiss and bends forward off it, and refine() runs the shot to the pocket.
+  // Legend's drop when struck without noise: of 40 of each, 38 caroms and 34 billiards (these first 6: 6 and 5).
+  for (const type of ['carom', 'billiard']) {
+    const p = picksOf(type, 6), made = p.filter(potted).length;
+    assert(p.length === 6 && made >= 4, `${type}s potted ${made}/${p.length}`);
+  }
+  ok('Legend\'s caroms and billiards pot on the engine');
 }
 { // Leave on the engine: a stun or a follow on this straight pot rolls the cue ball to the side cushion, where the 9 and
   // the 10 hide the 2. Scored by where the cue ball really stops, the pot draws back to a direct shot on the 2.

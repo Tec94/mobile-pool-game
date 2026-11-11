@@ -2,7 +2,7 @@
 // The AI's shot on the real engine: correct the picker's ghost-ball aim for throw, squirt and swerve, refine aim, speed
 // and tip with noise-free rollouts within the tier's budget, and turn a pick into an engine Shot with the tier's strike noise. Port of the ai-progression prototype (engine-aim.js) plus the glue.
 import { type Ball, CUE, type Ev, P, type Shot, step, strike } from '../physics/engine.ts';
-import { decide, dist, enumerate, legalFor, nine, type Obj, type Pick, POCKETS, potFor, potProb, type Pt, type Tier, winBall } from './shot-ai.ts';
+import { decide, dist, enumerate, legalFor, nine, type Obj, type Pick, plays, POCKETS, potFor, potProb, type Pt, type Tier, winBall } from './shot-ai.ts';
 
 // Direction the object ball actually leaves in, for a given strike. Stops at first contact.
 function departure(cue: Ball, obj: Ball, shot: Shot) {
@@ -48,6 +48,7 @@ export function correctAim(cue: Ball, obj: Ball, s: { aim: number; u: Pt }, spee
 // engine time, plays this speed as it is.
 const SOFT = 1; // m/s: a hooked AI's shot at its nearest ball
 const K = 2 * P.mur * P.g, OBJ = 5 / 7 * (1 + P.eb) / 2, TIP = 0.3, RAIL = 0.3; // TIP: tip offset, ball radii, for full draw or follow
+const ROLL = 0.4; // tip offset of a natural roll: a billiard's cue ball rolls from the start, as the picker plans it
 // speed squared a ball needs at the start of `path` (mm polyline, its inner corners are cushions) to arrive with `end`
 const need = (path: Pt[], end: number) => path.reduceRight((e, q, i) => (i ? (i < path.length - 1 ? e / RAIL : e) + K * dist(path[i - 1], q) / 1000 : e), end);
 function speedFor(paths: Pt[][], power: number, v: Pt, u: Pt, b: number, slow: number) {
@@ -95,8 +96,8 @@ function nextP(B: Ball[], S: Ball[], ids: number[], group: number[], tier: Tier)
   S.forEach((b, i) => i && b.on && balls.push({ id: ids[i], x: b.x * 1000, y: b.y * 1000 }));
   if (w > 0 && B[w].on && !S[w].on) return nine(group) || !balls.some((b) => group.includes(b.id)) ? 1 : -1;
   const legal = legalFor(balls, group), all = enumerate({ x: S[0].x * 1000, y: S[0].y * 1000 }, balls, legal, potFor(balls, group));
-  const mine = all.filter((c) => tier.types.includes(c.type));
-  return Math.max(0, ...(mine.length ? mine : all).map((c) => potProb(c, tier.sigma * Math.PI / 180)));
+  const mine = all.filter((c) => plays(tier, c, balls));
+  return Math.max(0, ...(mine.length ? mine : all.filter((c) => c.type !== 'carom' && c.type !== 'billiard')).map((c) => potProb(c, tier.sigma * Math.PI / 180)));
 }
 type Roll = ReturnType<typeof rollout> & { shot: Shot; score: number; next: number };
 const SPEEDS = [1, 1.3, 0.8, 1.7, 0.65, 2.2, 0.5]; // a safety's speeds, tried in this order, times the starting speed
@@ -169,7 +170,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   const cands = pick.type === 'safety' ? [pick] : [pick, ...ranked.filter((c) => c !== pick)].slice(0, tier.tries ?? 1);
   let sims = Math.floor(tier.budget - 0.3 * cands.length); // an aim correction costs about 0.3 of a full simulation
   const runs = cands.map((c) => {
-    const lv = (c.leave ??= { spin: 0, power: 700, x: c.G.x, y: c.G.y, path: [c.G], travelled: 0, scratch: false }), b = TIP * lv.spin, speed = speedFor(c.paths, lv.power, c.v, c.u, b, 1 - 1.5 * tier.speedErr / 100);
+    const lv = (c.leave ??= { spin: 0, power: 700, x: c.G.x, y: c.G.y, path: [c.G], travelled: 0, scratch: false }), b = c.type === 'billiard' ? ROLL : TIP * lv.spin, speed = speedFor(c.paths, lv.power, c.v, c.u, b, 1 - 1.5 * tier.speedErr / 100);
     const first = ids.indexOf(c.type === 'safety' ? c.ball : c.first), start = { ang: correctAim(B[0], B[first], c, speed, 0, b) ?? c.aim, speed, a: 0, b };
     return { c, more: sims < 2 ? null : refine(B, ids, group, tier, ids.indexOf(c.ball), first, c.type === 'safety' ? null : POCKETS[c.pocket], c.G, lv, start, t0 + THINK), v: -Infinity, shot: start };
   });
