@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { CUE, P, predict, rack, strike } from '../src/physics/engine.ts';
 import { advance, drawBalls, makeKit, newLook } from '../src/render/balls.ts';
+import { drawMarks } from '../src/render/marks.ts';
 import { drawAim, drawTable, fit, toScreen } from '../src/render/table.ts';
 import { drawSide, drawTip, drawTipBall, shotTip, SIDE } from '../src/render/tip.ts';
 import { C, CLOTHS } from '../src/theme.ts';
@@ -25,7 +26,8 @@ const ball = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 
 // One scenario: n cells, each `every` frames (16 ms each) apart, showing w x h metres centred on at(B) or a fixed point.
 // w = 0 shows the whole phone window instead. aim = a shot to draw the aim guide for, as the app does while the player aims.
-function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, calm = false, skip = 0, cloth = 0, aim }) {
+// marks = what the rules show (cue ball in hand, called pocket), as the app draws it under the balls.
+function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, calm = false, skip = 0, cloth = 0, aim, marks }) {
   const { dpr } = PHONE, W = land ? PHONE.h : PHONE.w, H = land ? PHONE.w : PHONE.h, v = { ...fit(W, H, SAFE[land ? 'land' : 'port']), dpr, calm }, look = newLook(B);
   const cw = Math.round(w ? (land ? w : h) * v.s * dpr : W * dpr), ch = Math.round(w ? (land ? h : w) * v.s * dpr : H * dpr);
   const surface = CanvasKit.MakeSurface(n * cw + (n - 1) * 4, ch);
@@ -38,6 +40,7 @@ function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, c
     const p = typeof at === 'function' ? at(B) : at, o = w ? toScreen(v, p[0], p[1]) : { x: W / 2, y: H / 2 };
     c.save(); c.translate(f * (cw + 4), 0); c.clipRect(Skia.XYWHRect(0, 0, cw, ch), 1, true); c.scale(dpr, dpr); c.translate(cw / 2 / dpr - o.x, ch / 2 / dpr - o.y);
     drawTable(Skia, c, v, CLOTHS[cloth]); if (aim) { const g = predict(B, aim, 0.4); drawAim(Skia, c, v, g.cue, g.hit && [g.hit.x, g.hit.y], g.lands, g.scratch && g.split < 0); } // as App.tsx does
+    if (marks) drawMarks(Skia, c, v, { hand: false, x: B[0].x, y: B[0].y, call: -1, ask: false, ms: 500 + f * 300, ...marks });
     drawBalls(kit, c, B, ids, look, v); c.restore();
     for (let k = 0; k < every; k++) run = advance(B, look, 16, run);
   }
@@ -87,7 +90,13 @@ for (const [name, t, speed, ang, B] of [['jump', { x: 0, y: 0, elev: 40 }, 3.2, 
     c.translate(D + 6, (D - SIDE.h) / 2); drawSide(Skia, c, t.elev, CLOTHS[0].felt);
     c.translate(SIDE.w + 6, 0); drawTipBall(Skia, c, 24, 24, 24, t); c.restore(); });
   writeFileSync(`${out}/tip-control.png`, surface.makeImageSnapshot().encodeToBytes()); console.log('tip-control'); }
-// 14. the app icon, written to assets/: the 8 ball as the app draws it, on the cloth under the lamp. `felt` off leaves
+// 14. what the rules show: the cue ball in hand above the head string before the break (whole window, both ways up),
+// the pulse of the ring, and the pockets asking for a call on the 8 with one called
+for (const land of [true, false]) { const B = [ball(P.L / 4 - 0.001, mid)], ids = [0]; for (const [id, x, y] of rack(8)) { ids.push(id); B.push(ball(x, y)); }
+  strip('hand-' + (land ? 'land' : 'port'), { B, ids, shots: [], n: 1, land, marks: { hand: 'kitchen' } }); }
+strip('hand-pulse', { B: [ball(1.2, mid), ball(1.3, mid + 0.03)], ids: [0, 6], shots: [], n: 5, w: 0.3, h: 0.24, at: [1.2, mid], marks: { hand: 'any' } });
+strip('call', { B: [ball(0.5, 0.35), ball(0.25, 0.2)], ids: [0, 8], shots: [], n: 1, w: 0.9, h: 0.75, at: [0.3, 0.2], marks: { ask: true, call: 0 } });
+// 15. the app icon, written to assets/: the 8 ball as the app draws it, on the cloth under the lamp. `felt` off leaves
 // the ball alone on a clear ground, for the Android adaptive icon and the launch screen.
 function icon(file, n, k, felt) {
   const surface = CanvasKit.MakeSurface(n, n), sk = surface.getCanvas(), c = new JsiSkCanvas(CanvasKit, sk), r = n * k, B = [ball(0, 0)];
