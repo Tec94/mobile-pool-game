@@ -1,6 +1,6 @@
 // Run: npm test   (checks the shot controls: what a touch does to the aim and the power, and what the guide shows)
 import assert from 'node:assert';
-import { P } from '../physics/engine.ts';
+import { CUE, P, predict } from '../physics/engine.ts';
 import { shotLayout } from '../render/cue.ts';
 import { RAIL } from '../render/table.ts';
 import { aimGuide, dialTurn, guideFor, nearest, nudge, powerTick, previewPower, pullPower, railLabel, release, SENS, swing, tapAim } from './aim.ts';
@@ -63,6 +63,13 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
   const g = aimGuide(B, { ang: Math.atan2(-0.27, 0.3), speed: 2, a: 0, b: 0 }, 2), end = g.path[g.path.length - 1];
   assert(end[1] < P.R + 1e-3, 'the line ends at the cushion'); assert(g.ghost && Math.hypot(g.ghost[0] - end[0], g.ghost[1] - end[1]) < 1e-9, 'the ring is on the end of the line'); assert(g.ob.length === 0, 'no object ball path');
   ok('a kick shot shows the ring at the cushion');
+}
+{ // The guide uses the cue that strikes: with side spin a cue of no squirt meets the ball elsewhere than the default cue.
+  const B = [mk(0.5, mid), mk(1.5, mid)], shot = { ang: 0, speed: 2, a: 0.3, b: 0 }, hex = { ...CUE, squirt: 0 };
+  const plain = aimGuide(B, shot, 2).ghost, g = aimGuide(B, shot, 2, undefined, hex).ghost, h = predict(B, shot, 0.25, hex).hit;
+  near(Math.hypot(g[0] - h.x, g[1] - h.y), 0, 1e-12, 'the ghost is where that cue meets the ball');
+  assert(Math.abs(g[1] - plain[1]) > 1e-3, 'and not where the default cue does');
+  ok('the guide takes the engine cue');
 }
 { // The layout: on an iPhone and a small Android window, both ways up, every control is a 44 pt target inside the safe
   // area, and no control touches another or the table.

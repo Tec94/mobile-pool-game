@@ -12,7 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ball, breakSpot, CUE, HOLES, P, rack, Shot, strike } from './src/physics/engine';
+import { Ball, breakSpot, HOLES, P, rack, Shot, strike } from './src/physics/engine';
 import { benchAI } from './src/ai/bench';
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
 import { drawMarks } from './src/render/marks';
@@ -21,8 +21,10 @@ import { drawCue, shotLayout } from './src/render/cue';
 import { BAR, drawAim, drawTable, onTable, toScreen, toTable } from './src/render/table';
 import { LEVEL, shotTip } from './src/render/tip';
 import { canCall, choose, handCue, judge, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
-import { aimGuide, DRAG, guideFor, HOUSE_CUE, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
+import { aimGuide, DRAG, guideFor, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { award, PASS_PLAY } from './src/progress';
+import { levelNote } from './src/progress/profile';
+import { CUES, stick } from './src/progress/cues';
 import { loadSettings, saveSettings } from './src/settings/save';
 import type { Settings } from './src/settings/settings';
 import { BALLS, C, CLOTHS } from './src/theme';
@@ -35,6 +37,8 @@ import { TipButton, TipSheet, tipStore } from './src/ui/TipControl';
 const GRAB = 36; // px: a touch this near the cue ball in hand drags it. The ball is smaller than a fingertip, so the
 // ball keeps its distance from the finger and stays in view.
 const GUIDE_WORK = 3200; // ball-steps the aim guide may follow after first contact: one update stays inside a frame, even into the rack
+// Pass and play is a matched game: both players on House Cue stats with the perks off, whatever cues the phone owns.
+const MATCH_CUE = 'house', STICK = stick(MATCH_CUE, true), GUIDE_LEVEL = guideFor(CUES[MATCH_CUE].aim); // one cue for the shot and its guide
 const STILL = 1e9; // ms: a picture that stays on screen until the next one comes (the table at rest, the last frame of a shot)
 // Sample shots, played from a fresh rack so the spin, jump and masse animation can be seen without aiming one.
 const DEMOS: [string, Partial<Shot>][] = [['Draw', { speed: 2.5, b: -0.45 }], ['Side', { speed: 1.2, a: 0.45 }], ['Jump', { speed: 4.2, elev: 0.7 }], ['Massé', { speed: 3.5, a: 0.4, elev: 1.19 }]];
@@ -62,7 +66,7 @@ function Root() {
   useEffect(() => { if (first.current) first.current = false; else saveSettings(set); }, [set]);
   useEffect(() => { ScreenOrientation.lockAsync(LOCKS[set.orient]).catch(() => {}); }, [set.orient]);
   useEffect(() => { // Android back: from a menu page to home
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (screen === 'pass' || screen === 'settings') { go('home'); return true; } return false; });
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (screen !== 'home' && screen !== 'match') { go('home'); return true; } return false; });
     return () => sub.remove();
   }, [screen]);
   return <>
@@ -82,6 +86,7 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
   const felt = useMemo(() => { const rec = Skia.PictureRecorder(); drawTable(Skia, rec.beginRecording(), view, CLOTHS[cloth]); return rec.finishRecordingAsPicture(); }, [...where, cloth]);
 
   const score = useRef<[number, number]>([0, 0]), [paused, setPaused] = useState(false); // score = frames won
+  const gained = useRef<ReturnType<typeof award> | null>(null); // the award of the match, for the results card
   useEffect(() => { const sub = BackHandler.addEventListener('hardwareBackPress', () => { setPaused(p => !p); return true; }); return () => sub.remove(); }, []); // Android back opens and closes the pause card
   const rules = table.current.rules, [, redraw] = useReducer((n: number) => n + 1, 0); // the rules live with the table; redraw shows a change
   const shot = useRef(shotStore(nearest(table.current.B))).current; // the held aim and the power on the rail
@@ -121,14 +126,14 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
   const paint = (again = true) => { const { B, look } = table.current; look.last.set(B.flatMap(b => [b.x, b.y])); pace.current = null; if (again) stale.current = true; scheduleOnUI(still, draw.current()); };
   useEffect(() => { touch.current = null; paint(); }, where); // a drag measured in the old layout ends when the window turns
   useEffect(() => { const again = () => { stale.current = true; }, off = [shot.sub(again), tip.sub(again)]; return () => off.forEach(f => f()); }, []);
-  const shotOf = (power: number): Shot => ({ ang: shot.get().aim, speed: Math.max(0.05, power * (table.current.rules.phase === 'break' ? CUE.breakSpeed : CUE.maxSpeed)), ...shotTip(tip.get()) });
+  const shotOf = (power: number): Shot => ({ ang: shot.get().aim, speed: Math.max(0.05, power * (table.current.rules.phase === 'break' ? STICK.breakSpeed : STICK.maxSpeed)), ...shotTip(tip.get(), STICK) });
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the rack is over.
   const shut = () => { const t = table.current; return moving.current || !!t.rec || !!t.rules.choice || t.rules.phase === 'over'; };
   // Put a ruling on the table: a new rack, or the balls the rules spot and the cue ball in hand.
   const apply = useRef((s: State) => {});
   apply.current = (s: State) => {
     const t = table.current;
-    if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++; if (score.current[s.winner] === race) award(PASS_PLAY); }
+    if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++; if (score.current[s.winner] === race) gained.current = award(PASS_PLAY); }
     if (s.phase === 'break') { table.current = newTable(s); moving.current = false; }
     else { for (const id of s.spot) spotBall(t.B, t.ids.indexOf(id)); if (s.hand) handCue(t.B, s.hand); Object.assign(t, { rules: s, rec: null, push: false }); }
     paint(); redraw();
@@ -146,7 +151,7 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
       if (stale.current) { // one guide a frame, however many touches came. While a shot can be made the guide and the cue stick are always there: for the pull on the rail, or for a firm shot without one
         const rec = Skia.PictureRecorder(), c = rec.beginRecording(), { aim, power } = shot.get();
         if (!shut()) {
-          const g = aimGuide(B, shotOf(previewPower(power)), guideFor(HOUSE_CUE.aim), GUIDE_WORK);
+          const g = aimGuide(B, shotOf(previewPower(power)), GUIDE_LEVEL, GUIDE_WORK, STICK);
           drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob); drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power);
         }
         guide.value = rec.finishRecordingAsPicture(); stale.current = false;
@@ -197,7 +202,7 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
     const t = table.current;
     if (shut() || (onEight(t.rules) && t.rules.call < 0)) { shot.set({ power: 0 }); return; } // the 8 needs its pocket called first: the HUD asks for it
     Haptics.impactAsync(power > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
-    t.rec = newRec(); strike(t.B[0], shotOf(power)); moving.current = true;
+    t.rec = newRec(); strike(t.B[0], shotOf(power), STICK); moving.current = true;
     tip.set(LEVEL); setSheet(false); setTools(false); shot.set({ power: 0, fine: false, locked: true });
   };
   // Where the finger is about the cue ball: its angle in the table frame and its distance on the screen.
@@ -266,6 +271,7 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
           {race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} ${score.current[0]} – ${score.current[1]} ${names[1]}`}</Text>}
           {!won && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[1 - rules.breaker]} breaks`}</Text>}
           {won && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.pay]}>{`+${PASS_PLAY.xp} XP · +${PASS_PLAY.coins} coins`}</Text>}
+          {won && gained.current && <Gained {...gained.current} />}
           <Btn label={won ? 'Rematch' : 'Next rack'} onPress={() => rerack()} />
           {won && <Btn label="Menu" onPress={onQuit} />}
         </Results>
@@ -302,6 +308,11 @@ function Game({ set, onQuit }: { set: Settings; onQuit: () => void }) {
       )}
     </View>
   );
+}
+
+// The player's level after the award, on one line (levelNote): yellow for a level-up, like the pay.
+function Gained(g: ReturnType<typeof award>) {
+  return <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, g.to > g.from && styles.pay]}>{levelNote(g)}</Text>;
 }
 
 const styles = StyleSheet.create({
