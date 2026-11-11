@@ -25,7 +25,7 @@ import { type Lesson, LESSON_PAY, LESSONS, lessonTable, type LessonRec, newLesso
 import { loadDone, saveDone } from './src/learn/save';
 import { canCall, choose, handCue, judge, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { aimGuide, DRAG, guideFor, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
-import { award, keep, PASS_PLAY, profile, unlockCue } from './src/progress';
+import { award, keep, ownStats, PASS_PLAY, profile, unlockCue } from './src/progress';
 import { clear, clearFeats, isOpen, par, SCENARIOS, type Scenario, starCount } from './src/scenarios/scenarios';
 import { loadStars, saveStars } from './src/scenarios/save';
 import { levelNote } from './src/progress/profile';
@@ -85,7 +85,7 @@ function Root() {
     if (!saveStars(now)) return { ...c, saved: false }; // unsaved stars stay unearned, so a later clear pays them
     setStars(now);
     if (!had) keep(clearFeats(profile(), s));
-    return { ...c, saved: true, gained: award(c.pay) };
+    return { ...c, saved: true, gained: award(c.pay, profile().cue) }; // the scenario played the player's own cue
   };
   const nextScen = SCENARIOS[scen + 1]?.pack === SCENARIOS[scen].pack && isOpen(scen + 1, stars, profile().xp);
   // A lesson passed for the first time pays once and counts toward the Giant Pencil.
@@ -177,7 +177,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext, scen: S, onC
   useEffect(() => { const again = () => { stale.current = true; }, off = [shot.sub(again), tip.sub(again)]; return () => off.forEach(f => f()); }, []);
   // A lesson plays with the engine's own cue, the one its reference shots are tuned on (src/learn/lessons.test.mjs).
   // A scenario plays with the player's own cue and its aim guide (stick stats count in challenges).
-  const own = useMemo(() => profile().cue, []), cue = useMemo(() => (S ? stick(own, false) : L ? CUE : STICK), []); // fixed for the life of the screen: a cue change takes effect at the next table
+  const own = useMemo(() => profile().cue, []), mine = useMemo(() => ownStats(own), []), cue = useMemo(() => (S ? stick(own, false, mine) : L ? CUE : STICK), []); // fixed for the life of the screen: a cue change takes effect at the next table
   const shotOf = (power: number): Shot => ({ ang: shot.get().aim, speed: Math.max(0.05, power * (table.current.rules.phase === 'break' ? cue.breakSpeed : cue.maxSpeed)), ...shotTip(tip.get(), cue) });
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the
   // rack is over. In a lesson: the shot plays itself, or the verdict card is up.
@@ -205,7 +205,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext, scen: S, onC
       if (stale.current) { // one guide a frame, however many touches came. While a shot can be made the guide and the cue stick are always there: for the pull on the rail, or for a firm shot without one
         const rec = Skia.PictureRecorder(), c = rec.beginRecording(), { aim, power } = shot.get();
         if (!shut() || watching()) {
-          const g = aimGuide(B, shotOf(previewPower(power)), S ? guideFor(CUES[own].aim) : L ? 3 : GUIDE_LEVEL, GUIDE_WORK, cue); // lessons use the full guide
+          const g = aimGuide(B, shotOf(previewPower(power)), S ? guideFor(mine.aim) : L ? 3 : GUIDE_LEVEL, GUIDE_WORK, cue); // lessons use the full guide
           if (!(S && les.current.guideOff)) { peeked.current = true; drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob); } drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power);
         }
         guide.value = rec.finishRecordingAsPicture(); stale.current = false;
@@ -315,7 +315,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext, scen: S, onC
       else {
         const c = onClear!(les.current.tries, !peeked.current), k = starCount(c.bits);
         const left = !(c.bits & 2) ? `Next star: clear it within ${par(S)} tries.` : !(c.bits & 4) ? 'Next star: clear it with the guide off.' : '';
-        const pay = !c.n ? 'No new stars.' : c.saved ? `+${c.pay.xp} XP · +${c.pay.coins} coins${c.gained ? ` · ${levelNote(c.gained)}` : ''}` : 'The stars could not be saved, so they pay nothing yet.';
+        const pay = !c.n ? 'No new stars.' : c.saved ? `+${c.pay.xp} XP · +${c.pay.coins} coins${c.gained ? ` · ${levelNote(c.gained)}` : ''}${c.gained?.mastery ? `\n${c.gained.mastery}` : ''}` : 'The stars could not be saved, so they pay nothing yet.';
         out = { title: `${'★'.repeat(k)}${'☆'.repeat(3 - k)}  Cleared`, say: [pay, left].filter(Boolean).join('\n'), ok: true };
       }
       les.current = { ...les.current, said: out }; setSaid(out); paint(); redraw(); return;
