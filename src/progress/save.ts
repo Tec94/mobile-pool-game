@@ -5,8 +5,12 @@ import { File, Paths } from 'expo-file-system';
 import { readProfile, type Profile } from './profile.ts';
 
 const file = (name: string) => new File(Paths.document, name);
-const good = (name: string) => { try { const t = file(name).textSync(); JSON.parse(t); return t; } catch { return null; } };
-export const loadProfile = (): Profile => readProfile(good('profile.json') ?? good('profile.bak.json'));
+// A file is good when it holds a JSON object: null, [] or a damaged file falls to the next one.
+const good = (name: string) => {
+  try { const t = file(name).textSync(), o = JSON.parse(t); return o && typeof o === 'object' && !Array.isArray(o) ? t : null; } catch { return null; }
+};
+// A good new file is the newest complete save: a crash after its write and before its move leaves it there.
+export const loadProfile = (): Profile => readProfile(good('profile.new.json') ?? good('profile.json') ?? good('profile.bak.json'));
 // Sync, like saveSettings: two quick saves cannot land out of order. A failed save keeps the last good file.
 export function saveProfile(p: Profile) {
   try {
