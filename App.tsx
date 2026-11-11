@@ -2,8 +2,8 @@
 // shortcut: no spin or elevation controls, rules or HUD yet (the Demo button plays spin, jump and masse shots);
 // this screen proves Skia, the engine and the ball animation on the phone.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { PanResponder, PixelRatio, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { Canvas, Line, matchFont, Picture, Skia, vec } from '@shopify/react-native-skia';
+import { PanResponder, PixelRatio, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Canvas, Line, Picture, Skia, vec } from '@shopify/react-native-skia';
 import Animated, { useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
@@ -16,7 +16,7 @@ import { C } from './src/theme';
 const MAX_DRAG = 160; // px of pull-back for full power
 // Shots the screen has no controls for yet, played from a fresh rack so the spin, jump and masse animation can be seen.
 const DEMOS: [string, Partial<Shot>][] = [['Draw', { speed: 2.5, b: -0.45 }], ['Side', { speed: 1.2, a: 0.45 }], ['Jump', { speed: 4.2, elev: 0.7 }], ['Massé', { speed: 3.5, a: 0.4, elev: 1.19 }]];
-const kit = makeKit(Skia, matchFont({ fontFamily: Platform.select({ ios: 'Helvetica Neue', default: 'sans-serif' }), fontSize: 10, fontWeight: 'bold' }));
+const kit = makeKit(Skia);
 const EMPTY = (() => { const rec = Skia.PictureRecorder(); rec.beginRecording(); return rec.finishRecordingAsPicture(); })();
 
 const newTable = () => {

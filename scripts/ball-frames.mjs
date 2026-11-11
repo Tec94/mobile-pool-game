@@ -1,18 +1,18 @@
 // Renders the ball animations to PNG frame strips with the app's own drawing code (Skia on CanvasKit, no phone needed).
-// Run: node scripts/ball-frames.mjs [outDir] [fontFile]   Every picture is at the phone's real pixel size: the table is
+// Run: node scripts/ball-frames.mjs [outDir]   Every picture is at the phone's real pixel size: the table is
 // laid out by the app's own fit() for an iPhone window, then drawn at 3 px per pt, so one image pixel is one phone pixel.
 import { createRequire } from 'node:module';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { CUE, P, rack, strike } from '../src/physics/engine.ts';
 import { advance, drawBalls, makeKit, newLook } from '../src/render/balls.ts';
 import { drawTable, fit, toScreen } from '../src/render/table.ts';
 
 const require = createRequire(import.meta.url);
-const out = process.argv[2] || 'ball-frames', fontFile = process.argv[3] || '/usr/share/fonts/opentype/inter/Inter-ExtraBold.otf';
+const out = process.argv[2] || 'ball-frames';
 globalThis.CanvasKit = await require('canvaskit-wasm/bin/full/canvaskit.js')({ locateFile: f => require.resolve('canvaskit-wasm/bin/full/' + f) });
 const { JsiSkApi } = require('@shopify/react-native-skia/lib/commonjs/skia/web');
 const Skia = JsiSkApi(CanvasKit);
-const kit = makeKit(Skia, Skia.Font(Skia.Typeface.MakeFreeTypeFaceFromData(Skia.Data.fromBytes(new Uint8Array(readFileSync(fontFile)))), 10));
+const kit = makeKit(Skia);
 mkdirSync(out, { recursive: true });
 CUE.squirt = 0;
 

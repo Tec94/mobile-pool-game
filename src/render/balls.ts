@@ -2,9 +2,10 @@
 // That one rule covers rolling, sliding (stun, draw, follow), side spin, masse and spin kept in the air; the rest is
 // what the engine does not move: height (jump), the drop into a pocket, leaving the table, landing marks and a speed
 // smear. The Skia API is passed in, so the same code draws on the phone and in scripts/ball-frames.mjs.
-import type { Skia, SkCanvas, SkFont, SkPaint, SkRuntimeEffect } from '@shopify/react-native-skia';
+import type { Skia, SkCanvas, SkFont, SkPaint, SkRect, SkRuntimeEffect } from '@shopify/react-native-skia';
 import { type Ball, type Ev, HOLES, P, step } from '../physics/engine.ts';
 import { BALLS, C } from '../theme.ts';
+import { DIGITS } from './digits.ts';
 import { toScreen, type View } from './table.ts';
 
 const DROP = 220, OFF = 350, RING = 240; // ms: fall into a pocket, flight off the table, landing ring
@@ -68,13 +69,15 @@ half4 main(float2 p) {
 // Proportions are the approved ball sheet's: stripe band 0.58 R to each side, number spot 0.52 R, digits 0.74 R tall (0.6 R for two).
 const SPOT = Math.cos(Math.asin(0.52)), CUE_SPOT = Math.cos(Math.asin(0.17)); // spot radius 0.52 R (number), 0.17 R (cue ball)
 
-export interface Kit { fx: SkRuntimeEffect; fill: SkPaint; line: SkPaint; ball: SkPaint; font: SkFont | null; col: (hex: string) => Float32Array; tw: number[] }
-// font: any bold face at size 10, or null to leave the numbers off.
-export function makeKit(api: typeof Skia, font: SkFont | null): Kit {
+export interface Kit { fx: SkRuntimeEffect; fill: SkPaint; line: SkPaint; ball: SkPaint; font: SkFont | null; col: (hex: string) => Float32Array; ink: SkRect[] }
+export function makeKit(api: typeof Skia): Kit {
   const paint = (stroke: boolean) => { const p = api.Paint(); p.setAntiAlias(true); if (stroke) { p.setStyle(1); p.setStrokeCap(1); } return p; }; // 1 = PaintStyle.Stroke, StrokeCap.Round
   const cache: Record<string, Float32Array> = {};
+  const face = api.Typeface.MakeFreeTypeFaceFromData(api.Data.fromBase64(DIGITS)), font = face && api.Font(face, 10); // no face = no numbers, the balls still draw
+  // The number rides a moving, turning ball: it must sit at fractions of a pixel, not snap to whole ones.
+  if (font) { font.setSubpixel(true); font.setLinearMetrics(true); font.setHinting(0); } // 0 = FontHinting.None
   return { fx: api.RuntimeEffect.Make(SKSL)!, fill: paint(false), line: paint(true), ball: paint(false), font,
-    col: hex => cache[hex] || (cache[hex] = api.Color(hex)), tw: [] };
+    col: hex => cache[hex] || (cache[hex] = api.Color(hex)), ink: [] };
 }
 
 // A ball axis in view space: x right, y down, z towards the eye.
@@ -99,9 +102,9 @@ export function drawBalls(kit: Kit, canvas: SkCanvas, B: Ball[], ids: number[], 
     canvas.save(); canvas.translate(x, y); canvas.scale(rad, rad); canvas.drawCircle(0, 0, 1, ball); canvas.restore();
     if (font && id > 0) for (const k of [1, -1]) { // the number lies flat on its spot, so it turns and foreshortens with the ball
       if (k * Z[2] < 0.35) continue; // nearer the edge the flat number would poke past the ball
-      const tw = kit.tw[id] ?? (kit.tw[id] = font.measureText(String(id)).width), f = rad * (id > 9 ? 0.06 : 0.074);
+      const ink = kit.ink[id] ?? (kit.ink[id] = font.measureText(String(id))), f = rad * (id > 9 ? 0.06 : 0.074); // ink = the box the digits fill, so they sit dead centre on the spot
       canvas.save(); canvas.concat([k * X[0] * f, -Y[0] * f, x + k * Z[0] * rad, k * X[1] * f, -Y[1] * f, y + k * Z[1] * rad, 0, 0, 1]); // the far number reads upright after a half turn about its own upright, as on a real ball
-      fill.setColor(col(C.ink)); fill.setAlphaf(a); canvas.drawText(String(id), -tw / 2, 3.6, fill, font); canvas.restore();
+      fill.setColor(col(C.ink)); fill.setAlphaf(a); canvas.drawText(String(id), -ink.x - ink.width / 2, -ink.y - ink.height / 2, fill, font); canvas.restore();
     }
     canvas.drawCircle(x, y, rad * 0.95, stroke(C.chalk, 0.5 * a, rad * 0.1)); // rim: keeps the 7 and 8 an edge on dark slate
     canvas.drawArc({ x: x - rad * 0.76, y: y - rad * 0.76, width: rad * 1.52, height: rad * 1.52 }, 202, 46, false, stroke('#FFFFFF', 0.8 * a, rad * 0.14)); // fixed highlight tick: the pattern moves under it
