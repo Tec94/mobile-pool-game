@@ -1,6 +1,6 @@
 // Device smoke test: the real engine on a Quiet Slate table. Pull back from anywhere to aim and shoot.
-// shortcut: no spin or elevation controls, rules or HUD yet (the Demo button plays spin, jump and masse shots);
-// this screen proves Skia, the engine and the ball animation on the phone.
+// The cue ball button opens the tip and cue angle sheet (spin, jump, masse).
+// shortcut: no rules or HUD yet; this screen proves Skia, the engine and the ball animation on the phone.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, PixelRatio, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
@@ -11,7 +11,9 @@ import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from 'react
 import { Ball, CUE, P, predict, rack, Shot, strike } from './src/physics/engine';
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
 import { BAR, drawAim, drawTable, fit, toTable } from './src/render/table';
+import { LEVEL, shotTip } from './src/render/tip';
 import { C, CLOTHS } from './src/theme';
+import { TipButton, TipSheet, tipStore } from './src/ui/TipControl';
 
 const MAX_DRAG = 160; // px of pull-back for full power
 // Shots the screen has no controls for yet, played from a fresh rack so the spin, jump and masse animation can be seen.
@@ -39,9 +41,10 @@ function Game() {
   const felt = useMemo(() => { const rec = Skia.PictureRecorder(); drawTable(Skia, rec.beginRecording(), view, CLOTHS[cloth]); return rec.finishRecordingAsPicture(); }, [...where, cloth]);
 
   const table = useRef(newTable());
-  const [aim, setAim] = useState<{ path: number[][]; ghost: number[] | null; pull: number } | null>(null);
-  const guide = useMemo(() => { const rec = Skia.PictureRecorder(), c = rec.beginRecording(); if (aim) drawAim(Skia, c, view, aim.path, aim.ghost); return rec.finishRecordingAsPicture(); }, [aim, ...where]);
+  const [aim, setAim] = useState<{ path: number[][]; ghost: number[] | null; lands: number[][]; lost: boolean; pull: number } | null>(null);
+  const guide = useMemo(() => { const rec = Skia.PictureRecorder(), c = rec.beginRecording(); if (aim) drawAim(Skia, c, view, aim.path, aim.ghost, aim.lands, aim.lost); return rec.finishRecordingAsPicture(); }, [aim, ...where]);
   const [demo, setDemo] = useState(0);
+  const tip = useRef(tipStore()).current, [sheet, setSheet] = useState(false);
   const moving = useRef(false);
   // The balls are one Skia picture, recorded here each frame and handed to the canvas through a shared value, so a
   // frame of play never re-renders React.
@@ -74,13 +77,13 @@ function Game() {
     const pull = Math.min(1, Math.hypot(dx, dy) / MAX_DRAG);
     const a = toTable(map.current, 0, 0), b = toTable(map.current, -dx, -dy); // aim opposite the pull
     const max = table.current.broken ? CUE.maxSpeed : CUE.breakSpeed;
-    return { shot: { ang: Math.atan2(b.y - a.y, b.x - a.x), speed: Math.max(0.05, pull * max), a: 0, b: 0 }, pull };
+    return { shot: { ang: Math.atan2(b.y - a.y, b.x - a.x), speed: Math.max(0.05, pull * max), ...shotTip(tip.get()) }, pull };
   };
   const pan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => !moving.current,
     onPanResponderMove: (_, g) => {
-      const { shot, pull } = shotFrom(g.dx, g.dy), { cue, hit } = predict(table.current.B, shot, 0.4);
-      setAim({ pull, path: cue, ghost: hit && [hit.x, hit.y] });
+      const { shot, pull } = shotFrom(g.dx, g.dy), { cue, hit, lands, scratch, split } = predict(table.current.B, shot, 0.4);
+      setAim({ pull, path: cue, ghost: hit && [hit.x, hit.y], lands, lost: scratch && split < 0 });
     },
     onPanResponderRelease: (_, g) => {
       setAim(null);
@@ -90,6 +93,7 @@ function Game() {
       if (!B[0].on) Object.assign(B[0], { x: P.L / 4, y: P.W / 2, on: true }); // shortcut: a scratch respots on the head spot, no ball in hand yet
       Haptics.impactAsync(pull > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
       strike(B[0], shot); table.current.broken = true; moving.current = true;
+      tip.set(LEVEL); setSheet(false); // the cue goes back to level and centre ball after every shot
     },
   })).current;
 
@@ -111,7 +115,10 @@ function Game() {
           moving.current = true; setDemo((demo + 1) % DEMOS.length);
         }} />
         <Btn label={'Felt\n' + CLOTHS[cloth].name} onPress={() => setCloth((cloth + 1) % CLOTHS.length)} />
+        <TipButton store={tip} onPress={() => setSheet(!sheet)} />
       </View>
+      {sheet && <TipSheet store={tip} land={view.land} felt={CLOTHS[cloth].felt} onDone={() => setSheet(false)}
+        style={view.land ? { right: pad.right + BAR + 8, bottom: Math.max(pad.bottom, 8), width: 300 } : { left: pad.left + 8, right: pad.right + 8, bottom: pad.bottom + BAR + 8 }} />}
     </View>
   );
 }
