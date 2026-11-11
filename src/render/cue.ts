@@ -1,6 +1,6 @@
 // The cue as the shot controls show it: the stick behind the cue ball on the table, the power rail and the fine aim
 // dial. The app and scripts/ball-frames.mjs both draw them with the functions below.
-import type { Skia, SkCanvas } from '@shopify/react-native-skia';
+import type { Skia, SkCanvas, SkFont } from '@shopify/react-native-skia';
 import { P } from '../physics/engine.ts';
 import { C } from '../theme.ts';
 import { BAR, fit, RAIL, toScreen } from './table.ts';
@@ -26,8 +26,9 @@ export function drawCue(api: typeof Skia, canvas: SkCanvas, v: View, x: number, 
 export const RAIL_TIP = 14, RAIL_LABEL = 24; // px from the top of the rail to the cue tip at rest; height of the label strip at its foot
 export const pullOf = (h: number) => 0.75 * Math.min(h, 300); // px of pull for full power: a tall rail keeps the thumb travel of a 300 px one
 // The power rail, w x h, pulled down: the fill grows from the top with its bright lower edge on the cue tip, and the
-// cue moves as far as the finger (full power = pullOf(h)). The label is text, drawn by the app over the foot.
-export function drawRail(api: typeof Skia, canvas: SkCanvas, w: number, h: number, power: number) {
+// cue moves as far as the finger (full power = pullOf(h)). label = the text on the foot ("Pull", "37%"): drawn here, not
+// as React text, so a pull renders no React; no font = no label.
+export function drawRail(api: typeof Skia, canvas: SkCanvas, w: number, h: number, power: number, label = '', font: SkFont | null = null) {
   const box = api.RRectXY(api.XYWHRect(0.5, 0.5, w - 1, h - 1), 14, 14), tip = RAIL_TIP + power * pullOf(h);
   canvas.save(); canvas.clipRRect(box, 1, true); // 1 = ClipOp.Intersect
   canvas.drawRect(api.XYWHRect(0, 0, w, h), fill(api, C.panel));
@@ -39,6 +40,7 @@ export function drawRail(api: typeof Skia, canvas: SkCanvas, w: number, h: numbe
   }
   stick(api, canvas, w / 2, tip, w / 2, tip + 1.3 * h, 8, 12);
   canvas.drawRect(api.XYWHRect(0, h - RAIL_LABEL, w, RAIL_LABEL), fill(api, C.panel));
+  if (font && label) { const m = font.getMetrics(); canvas.drawText(label, (w - font.getTextWidth(label)) / 2, h - RAIL_LABEL / 2 - (m.ascent + m.descent) / 2, fill(api, C.chalk, 0.8), font); }
   canvas.restore();
   const line = fill(api, C.chalk, 0.25); line.setStyle(1); line.setStrokeWidth(1); canvas.drawRRect(box, line); // 1 = PaintStyle.Stroke
 }
