@@ -77,11 +77,13 @@ function Root() {
   const [stars, setStars] = useState(loadStars), [scen, setScen] = useState(0);
   const play = (i: number) => { setScen(i); go('scenario'); };
   // A scenario cleared: its new stars pay once, and only when saved; a first clear also counts toward the feats.
-  const cleared = (i: number, tries: number, guideOff: boolean): Clear => {
-    const s = SCENARIOS[i], had = stars[s.id] ?? 0, c = clear(s, had, tries, guideOff, profile().cue);
+  // shortcut: tries start again when the scenario is left, so the par star can be retried from 1; keep them per table if that matters.
+  const cleared = (s: Scenario, tries: number, guideOff: boolean): Clear => {
+    const had = stars[s.id] ?? 0, c = clear(s, had, tries, guideOff, profile().cue);
     if (!c.n) return { ...c, saved: true };
-    const now = { ...stars, [s.id]: c.bits }; setStars(now);
-    if (!saveStars(now)) return { ...c, saved: false };
+    const now = { ...stars, [s.id]: c.bits };
+    if (!saveStars(now)) return { ...c, saved: false }; // unsaved stars stay unearned, so a later clear pays them
+    setStars(now);
     if (!had) keep(clearFeats(profile(), s));
     return { ...c, saved: true, gained: award(c.pay) };
   };
@@ -107,23 +109,24 @@ function Root() {
     <StatusBar style="light" />
     {screen === 'match' ? <Game set={set} onQuit={() => go('home')} />
       : screen === 'lesson' ? <Game key={lesson} set={set} lesson={lesson} fresh={!done.includes(LESSONS[lesson].id)} onPass={pass} onNext={() => setLesson(lesson + 1)} onQuit={() => go('learn')} />
-      : screen === 'scenario' ? <Game key={`s${scen}`} set={set} scen={scen} onClear={cleared} onNext={nextScen ? () => setScen(scen + 1) : undefined} onQuit={() => go('scenarios')} />
+      : screen === 'scenario' ? <Game key={`s${scen}`} set={set} scen={SCENARIOS[scen]} onClear={(t, off) => cleared(SCENARIOS[scen], t, off)} onNext={nextScen ? () => setScen(scen + 1) : undefined} onQuit={() => go('scenarios')} />
       : <Menus screen={screen} set={set} change={change} go={go} done={done} learn={learn} stars={stars} play={play} />}
   </>;
 }
 
 type Clear = ReturnType<typeof clear> & { saved: boolean; gained?: ReturnType<typeof award> };
-// A match, a lesson (lesson), or a scenario (scen). fresh = the lesson has not been passed before; onPass = it was just
-// passed; onClear = the scenario was just cleared, with its tries and whether the guide was off.
-function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext, scen = -1, onClear }: { set: Settings; onQuit: () => void; lesson?: number; fresh?: boolean; onPass?: (id: string) => boolean; onNext?: () => void; scen?: number; onClear?: (i: number, tries: number, guideOff: boolean) => Clear }) {
+// A match, a lesson (lesson), or a scenario (scen, any table: the daily table plays one too). fresh = the lesson has not
+// been passed before; onPass = it was just passed; onClear = the scenario was just cleared, with its tries and whether
+// the whole try was played with the guide off.
+function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext, scen: S, onClear }: { set: Settings; onQuit: () => void; lesson?: number; fresh?: boolean; onPass?: (id: string) => boolean; onNext?: () => void; scen?: Scenario; onClear?: (tries: number, guideOff: boolean) => Clear }) {
   const { width, height } = useWindowDimensions();
   const pad = useSafeAreaInsets(), calm = useReducedMotion();
-  const S: Scenario | undefined = SCENARIOS[scen], L: Lesson | undefined = S ?? LESSONS[n];
+  const L: Lesson | undefined = S ?? LESSONS[n];
   const table = useRef(L ? newLesson(L) : newTable(newGame(set.game, 0, set.callAll))), HUD = L ? LESSON_HUD : hudHeight(table.current.rules.game); // screen units kept above the table for the HUD
   // The lesson's step, the passes in a row in the solo step, and the verdict on the last shot (a card over the table).
   const [stage, setStage] = useState<Stage>('watch'), [run, setRun] = useState(0), [said, setSaid] = useState<{ title: string; say: string; ok: boolean } | null>(null);
-  // A scenario counts its tries; the third star wants a clear with the aim guide off.
-  const [tries, setTries] = useState(1), [guideOff, setGuideOff] = useState(false);
+  // A scenario counts its tries; the third star wants a try with the aim guide never on screen (peeked = it was).
+  const [tries, setTries] = useState(1), [guideOff, setGuideOff] = useState(false), peeked = useRef(false);
   const les = useRef({ stage, run, said, tries, guideOff }); les.current = { stage, run, said, tries, guideOff };
   const lay = shotLayout(width, height, { ...pad, top: pad.top + HUD }), view = { ...lay.view, dpr: PixelRatio.get(), calm }, where = [view.land, view.s, view.ox, view.oy];
   const { cloth, names, race } = set;
@@ -174,7 +177,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext, scen = -1, o
   useEffect(() => { const again = () => { stale.current = true; }, off = [shot.sub(again), tip.sub(again)]; return () => off.forEach(f => f()); }, []);
   // A lesson plays with the engine's own cue, the one its reference shots are tuned on (src/learn/lessons.test.mjs).
   // A scenario plays with the player's own cue and its aim guide (stick stats count in challenges).
-  const own = useMemo(() => profile().cue, []), cue = useMemo(() => (S ? stick(own, false) : L ? CUE : STICK), []);
+  const own = useMemo(() => profile().cue, []), cue = useMemo(() => (S ? stick(own, false) : L ? CUE : STICK), []); // fixed for the life of the screen: a cue change takes effect at the next table
   const shotOf = (power: number): Shot => ({ ang: shot.get().aim, speed: Math.max(0.05, power * (table.current.rules.phase === 'break' ? cue.breakSpeed : cue.maxSpeed)), ...shotTip(tip.get(), cue) });
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the
   // rack is over. In a lesson: the shot plays itself, or the verdict card is up.
@@ -203,7 +206,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext, scen = -1, o
         const rec = Skia.PictureRecorder(), c = rec.beginRecording(), { aim, power } = shot.get();
         if (!shut() || watching()) {
           const g = aimGuide(B, shotOf(previewPower(power)), S ? guideFor(CUES[own].aim) : L ? 3 : GUIDE_LEVEL, GUIDE_WORK, cue); // lessons use the full guide
-          if (!(S && les.current.guideOff)) drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob); drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power);
+          if (!(S && les.current.guideOff)) { peeked.current = true; drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob); } drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power);
         }
         guide.value = rec.finishRecordingAsPicture(); stale.current = false;
       }
@@ -289,6 +292,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext, scen = -1, o
   // A lesson: the table is set again for every shot. Guided sets the reference spin; watch lines up the reference shot
   // and plays it after a moment.
   const reset = (to: Stage) => {
+    peeked.current = false;
     const was = les.current.stage; // a try keeps the aim of the last try (the balls go back where they were); after watch it starts fresh
     table.current = newLesson(L!); moving.current = false; setSaid(null); les.current = { ...les.current, stage: to, said: null }; setStage(to);
     tip.set(to === 'solo' ? LEVEL : L!.ref.tip);
@@ -309,7 +313,7 @@ function Game({ set, onQuit, lesson: n = -1, fresh, onPass, onNext, scen = -1, o
     if (S) { // a miss is one more try; a clear says its stars, its pay and the star still to get
       if (!v.ok) setTries(les.current.tries + 1);
       else {
-        const c = onClear!(scen, les.current.tries, les.current.guideOff), k = starCount(c.bits);
+        const c = onClear!(les.current.tries, !peeked.current), k = starCount(c.bits);
         const left = !(c.bits & 2) ? `Next star: clear it within ${par(S)} tries.` : !(c.bits & 4) ? 'Next star: clear it with the guide off.' : '';
         const pay = !c.n ? 'No new stars.' : c.saved ? `+${c.pay.xp} XP · +${c.pay.coins} coins${c.gained ? ` · ${levelNote(c.gained)}` : ''}` : 'The stars could not be saved, so they pay nothing yet.';
         out = { title: `${'★'.repeat(k)}${'☆'.repeat(3 - k)}  Cleared`, say: [pay, left].filter(Boolean).join('\n'), ok: true };
