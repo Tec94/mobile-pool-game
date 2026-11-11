@@ -1,10 +1,10 @@
-// Run: npm test   (checks the engine against known pool behaviour; ported from physics/engine.test.js)
+// Run: npm test   (checks the engine against known pool behaviour; physics/engine.test.js in the project files is a copy)
 import assert from 'node:assert';
 import * as EngineAll from './engine.ts';
 const { P, CUE, step, strike, predict, simulate, rack, jumpRuling } = EngineAll;
-const { R, L, W } = P, D = 180 / Math.PI;
+const { R, L, W } = P, D = 180 / Math.PI, Rc = R * Math.sqrt(1 - P.nose ** 2); // Rc: ball centre to the cushion nose at contact
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
-CUE.squirt = 0; // isolate table physics from cue deflection
+const SQUIRT = CUE.squirt; CUE.squirt = 0; // isolate table physics from cue deflection
 
 function run(B, maxT = 60, each) {
   const ev = [], all = [];
@@ -115,6 +115,7 @@ const shot = (gap, speed, a, b, offY = 0) => {
 { const B = [mk(1, 0.5)]; B[0].wz = 100; assert(step(B) === false && B[0].wz === 0, 'spin must not leak into the next shot');
   const b = mk(0, 0); strike(b, { ang: 0, speed: 2, a: 0.5, b: 0 }, { squirt: 0.1 });
   assert(Math.abs(Math.atan2(b.vy, b.vx) - 0.05) < 1e-12, 'strike uses the cue it is given');
+  assert(SQUIRT * 0.5 * D >= 1.8 && SQUIRT * 0.5 * D <= 2.5, 'the standard cue squirts 1.8 to 2.5 degrees at full side spin (measured range)');
   console.log('rest state and per-shot cue ok'); }
 
 // 12. Fuzz: 300 random tables and shots (some with balls frozen together or on a rail). Energy never rises in any
@@ -149,15 +150,17 @@ const shot = (gap, speed, a, b, offY = 0) => {
   console.log('racks ok (8-ball and 9-ball)'); }
 // 15. Calibration against measured tables: roll distance and lag time for the cloth speed (Jewett: speed = 2 t^2,
 // new tournament cloth 100 to 130), side spin decay 5 to 15 rad/s^2 (Dr. Dave), a rolling ball square into a rail
-// leaves at about 0.818 of its speed (Mathavan 2010).
+// leaves at 0.82 of its speed (pool cushions measure 0.6 to 0.9, Dr. Dave; check 27 tests the rail against real tables).
 { const roll = v => ({ ...mk(0.2, W / 2), vx: v, wy: v / R });
   const b = roll(0.5), r = run([b]), a = P.mur * P.g;
   assert(Math.abs(b.x - 0.2 - 0.25 / (2 * a)) < 0.005 && Math.abs(r.t - 0.5 / a) < 0.02, 'rolling ball stops where v^2/(2 mu g) says');
   assert(1 / P.mur >= 100 && 1 / P.mur <= 130, 'table speed is in the new tournament cloth range');
   const s = roll(1); s.wz = 50; for (let i = 0; i < 1000; i++) step([s]);
   assert(50 - s.wz > 5 && 50 - s.wz < 15, 'side spin decays at 5 to 15 rad/s^2');
-  const c = roll(1); c.x = L - 0.2; let vin = 0; while (c.vx > 0) { vin = c.vx; step([c]); }
+  const c = roll(1), ev = []; c.x = L - 0.2; let vin = 0; while (c.vx > 0) { vin = c.vx; step([c], ev); }
   assert(Math.abs(-c.vx / vin - 0.818) < 0.02, 'rail rebound ratio ' + (-c.vx / vin));
+  // The nose is above the ball's centre (63.5% of the diameter), so the centre stops 0.963 R short of the nose line.
+  assert(Math.abs(Rc / R - 0.963) < 5e-4 && Math.abs(ev[0].x - (L - Rc)) < 1e-9, 'the ball meets the cushion nose at 0.963 R');
   console.log(`calibration ok (table speed ${(1 / P.mur).toFixed(0)}, spin decay ${(50 - s.wz).toFixed(1)} rad/s^2, rail rebound ${(-c.vx / vin).toFixed(3)})`); }
 
 // ---- Cue elevation: jump and masse (maths: https://claude.ai/artifact/TVh3RwdDyQP2htw8iHVYFd) ----
@@ -173,7 +176,7 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
     while (land === null) { ev.length = 0; step(B, ev); apex = Math.max(apex, B[0].z); const l = ev.find(q => q.t === 'land'); if (l) land = l.x - 0.3; }
     assert(Math.abs(apex - vz * vz / 2 / P.g) < 0.002, `apex ${apex} vs ${vz * vz / 2 / P.g}`);
     assert(Math.abs(land - 2 * vz * vh / P.g) < 0.01, `landing ${land} vs ${2 * vz * vh / P.g}`);
-    assert(B[0].z === 0 && B[0].vz >= 0, 'ball is back on the slate');
+    assert(B[0].z >= 0 && B[0].z < 0.002 && B[0].vz >= 0, 'ball is back on the slate (or just off it again, in the rest of the step)');
   }
   const B = cueAt(0.3, 0.55); strike(B[0], { ang: 0, speed: 8, a: 0.3, b: 0.2 }); assert(B[0].vz === 0 && B[0].z === 0, 'a level cue never lifts the ball (no scoop jumps)');
   console.log('jump arc ok (apex and landing match the ballistic formulas)'); }
@@ -202,7 +205,7 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   console.log(`masse final direction ok (${n} shots, worst ${worst.toFixed(3)} deg off Coriolis)`); }
 
 // 19. Masse round a blocker: the straight line is blocked, the curved shot reaches the hidden ball with no rail.
-{ const T = () => cueAt(0.45, 0.3, mk(0.85, 0.3), mk(1.3, 0.3)); CUE.squirt = 0.035;
+{ const T = () => cueAt(0.45, 0.3, mk(0.85, 0.3), mk(1.3, 0.3)); CUE.squirt = SQUIRT;
   assert(simulate(T(), { ang: 0, speed: 4.05, a: 0, b: 0 }).first === 1, 'straight line is blocked');
   for (const a of [0.35, 0.4, 0.45]) { const B = T(), ev = []; strike(B[0], { ang: 0.4, speed: 4.05, a, b: 0, elev: el(60) }); let hit = null, rail = false, top = 0;
     for (let i = 0; i < 12000 && !hit; i++) { ev.length = 0; if (!step(B, ev)) break; top = Math.max(top, B[0].z); for (const q of ev) { if (q.t === 'rail') rail = true; if (q.t === 'bb') hit = q; } }
@@ -241,6 +244,7 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   const p = predict(T(), sh, Infinity), B = T(), ev = []; strike(B[0], sh); let land = null, hit = null;
   for (let i = 0; i < 9000 && !hit; i++) { ev.length = 0; step(B, ev); for (const q of ev) { if (q.t === 'land' && !land) land = q; if (q.t === 'bb') hit = q; } }
   assert(p.lands.length && p.lands[0][0] === land.x && p.hit.b === hit.b && p.apex > 0.06, 'aim line shows the real landing and hit');
+  assert([...p.cue, ...p.ob].every(q => q.length === 3) && Math.max(...p.cue.map(q => q[2])) > 0.06, 'every path point is [x, y, z]');
   let s = 7; const rnd = () => (s = s * 16807 % 2147483647) / 2147483647; let offs = 0;
   for (let k = 0; k < 300; k++) { const B = [mk(0.3 + rnd() * 1.6, 0.2 + rnd() * 0.7)];
     for (let j = 0; j < 9; j++) { let q; do q = mk(0.1 + rnd() * 2, 0.1 + rnd() * 0.9); while (B.some(o => Math.hypot(o.x - q.x, o.y - q.y) < 2 * R + 1e-3)); B.push(q); }
@@ -258,14 +262,17 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   console.log(`aim line and elevated fuzz ok (300 random elevated shots, ${offs} balls left the table)`); }
 
 // 23. Pockets do not play wider at speed, and a cue's massRatio sets what spin costs. Effective size = width of the
-// band of rolling-ball paths, straight at a corner pocket, that drop. Dr. Dave (Dec 2004): 3.05 in slow, 2.75 in fast.
+// band of rolling-ball paths, straight at a corner pocket, that drop. The band that touches nothing is the mouth less
+// one ball at nose height, 2.40 in. Dr. Dave's geometric model of the same pocket (TP 3.6: mouth 4.59 in, 142 degree facings; BD Dec
+// 2004) gives 3.05 in slow and 2.75 in fast. Ours is tighter: the cushion grip that the rails are calibrated with also
+// slows and turns a ball that clips a pocket point. Not tuned to the model, because no measured pocket data was found.
 { const size = v => { let n = 0; const q = Math.SQRT1_2;
     for (let o = -0.06; o <= 0.06; o += 0.001) { const b = { ...mk(0.29 + q * o, 0.29 - q * o), vx: -v * q, vy: -v * q, wx: v * q / R, wy: -v * q / R };
       for (let i = 0; i < 4000 && b.on && Math.hypot(b.x, b.y) < 0.45; i++) step([b]);
       if (!b.on && Math.hypot(b.x, b.y) < 0.15) n++; }
     return n * 0.001 / 0.0254; };
   const slow = size(1), fast = size(4.5);
-  assert(slow > 2.4 && slow < 3.1 && fast > 2.4 && fast < 3.1 && fast < slow * 1.1, `corner pocket size ${slow} in slow, ${fast} in fast`);
+  assert(fast > 2.40 && fast <= slow && slow < 3.05, `corner pocket size ${slow} in slow, ${fast} in fast`);
   const v = m => { const c = mk(1, 0.5); strike(c, { ang: 0, speed: 3, a: 0, b: -0.5 }, { ...CUE, massRatio: m }); return c.vx; };
   assert(Math.abs(v(0.316) / 3 - 0.678) < 0.002 && Math.abs(v(2.28) / 3 - 0.84) < 0.002, 'massRatio 2.28 halves the speed cost of full spin');
   console.log(`pocket size ok (corner, straight in: ${slow.toFixed(2)} in at 1 m/s, ${fast.toFixed(2)} in at 4.5 m/s), per-cue massRatio ok`); }
@@ -281,5 +288,54 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   assert(Math.abs(cAng - 142) <= 1 && Math.abs(sAng - 104) <= 1, `facing angles ${cAng} / ${sAng}`);
   assert(cShelf >= 1 && cShelf <= 2.25 && sShelf >= 0 && sShelf <= 0.375, `shelves ${cShelf} / ${sShelf} in`);
   for (const [x, y] of HOLES) assert(x < 0 || x > L || y < 0 || y > W, 'pocket centre must be outside the playing field');
+  // The same pockets on a 9 ft table (100 x 50 in), and back again.
+  EngineAll.setTable(2.54, 1.27); assert(P.L === 2.54 && SEGS.length === 20 && HOLES.length === 6 && HOLES[5][0] === 1.27 && Math.abs(HOLES[5][1] - 1.27 - K.sideOut) < 1e-12, '9 ft table');
+  EngineAll.setTable(L, W); assert(P.L === L && P.W === W && SEGS.length === 20 && HOLES[4][0] === L / 2, 'back to the 8 ft table');
   console.log(`pocket geometry ok (corner ${corner.toFixed(2)} in, ${cAng.toFixed(0)} deg, shelf ${cShelf.toFixed(2)} in; side ${side.toFixed(2)} in, ${sAng.toFixed(0)} deg, shelf ${sShelf.toFixed(2)} in)`); }
+
+// 25. A thin hit is found wherever the steps fall. A ball that grazes another by 0.02 mm at break speed touches it for
+// less than one step, so the whole step is swept, not only its end.
+{ let n = 0;
+  for (const v of [1, 4.5, 12]) for (const depth of [1e-4, 2e-5]) for (let ph = 0; ph < 20; ph++, n++) {
+    const B = [{ ...mk(0.5 + ph * v * P.h / 20, 0.5), vx: v, wy: v / R }, mk(0.9, 0.5 + 2 * R - depth)], ev = [];
+    for (let i = 0; i < 600 && !ev.length; i++) step(B, ev);
+    assert(ev.some(e => e.t === 'bb'), `thin hit missed: ${v} m/s, ${depth * 1e3} mm deep, step phase ${ph}/20`); }
+  console.log(`thin hits ok (${n} grazes, found at every step phase)`); }
+
+// 26. A clip of a pocket point does not depend on where the steps fall. The same line of travel (6 mm into the far
+// point of the side pocket), started at 20 different fractions of a step, leaves the point in the same direction.
+{ const px = L / 2 + EngineAll.POCKET.sc, a = -25 / D, dx = Math.cos(a), dy = Math.sin(a), off = Rc - 0.006; let n = 0, dir = 0;
+  for (const v of [1, 4.5, 8]) { let lo = 9, hi = -9;
+    for (let ph = 0; ph < 20; ph++, n++) { const back = 0.4 + ph * v * P.h / 20, ev = [];
+      const b = { ...mk(px - dx * back - dy * off, -dy * back + dx * off), vx: v * dx, vy: v * dy, wx: -v * dy / R, wy: v * dx / R };
+      for (let i = 0; i < 3000 && !ev.length; i++) step([b], ev);
+      assert(ev[0].t === 'rail' && Math.abs(Math.hypot(ev[0].x - px, ev[0].y) - Rc) < 1e-9, 'the ball meets the point at the contact distance');
+      dir = Math.atan2(b.vy, b.vx); lo = Math.min(lo, dir); hi = Math.max(hi, dir); }
+    assert(hi - lo < 1e-6, `pocket point: the direction after the clip changes by ${(hi - lo) * D} deg with the step phase at ${v} m/s`); }
+  console.log(`pocket point ok (${n} clips, same direction at every step phase: ${(dir * D).toFixed(1)} deg)`); }
+
+// 27. Cloth and cushions together, against real-table figures. These are quoted for a 9 ft table, so the check sets one.
+// (a) Bob Jewett (AzBilliards 2023): a ball needs 2, 4.2, 7.9 and 14.5 ft/s and about 20 mph to travel 1, 2, 3, 4 and 5
+//     table lengths. (b) Dr. Dave: on a kick straight across the table, 1/3, 2/3 and all of the maximum side spin move
+//     the ball about 1, 2 and 3 diamonds along the rail it comes back to.
+{ EngineAll.setTable(2.54, 1.27); const len = [], dia = [], mr = CUE.massRatio;
+  for (const [v, n] of [[0.61, 1], [1.28, 2], [2.41, 3], [4.42, 4], [8.9, 5]]) { const b = { ...mk(R + 1e-4, P.W / 2), vx: v, wy: v / R }; let d = 0, px = b.x;
+    while (step([b])) { d += Math.abs(b.x - px); px = b.x; }
+    len.push(d / (P.L - 2 * R)); assert(Math.abs(len[n - 1] / n - 1) < 0.08, `${v} m/s should travel ${n} table lengths, went ${len[n - 1]}`); }
+  for (const k of [1, 2, 3]) { const off = k / 6, c = mk(0.3 * P.L, R + 1e-4), ev = []; // ball speed 2.2 m/s at each offset
+    strike(c, { ang: Math.PI / 2, speed: 2.2 * (1 + mr + 2.5 * off * off) / (1 + mr), a: off, b: 0 });
+    while (ev.filter(e => e.t === 'rail').length < 2 && step([c], ev));
+    dia.push(Math.abs(c.x - 0.3 * P.L) / (P.L / 8)); assert(Math.abs(dia[k - 1] - k) < 0.25, `${k}/3 side spin should move the kick ${k} diamonds, moved ${dia[k - 1]}`); }
+  EngineAll.setTable(L, W);
+  console.log(`9 ft table ok (1 to 5 lengths: ${len.map(x => x.toFixed(2)).join(', ')}; side spin kick: ${dia.map(x => x.toFixed(2)).join(', ')} diamonds)`); }
+
+// 28. A landing does not depend on where the steps fall. A ball that moves at 3 m/s is dropped from 400 heights that are
+// 0.02 mm apart; where it lands the second time must change smoothly with the height (a landing that waits for the end
+// of its step moves the second landing in jumps of several millimetres).
+{ const second = z0 => { const b = { ...mk(0.3, 0.55), vx: 3, z: z0, vz: 0 }, ev = []; let n = 0;
+    for (let i = 0; i < 3000; i++) { ev.length = 0; step([b], ev); if (ev.some(e => e.t === 'land') && ++n === 2) return ev.find(e => e.t === 'land').x; } };
+  let worst = 0, prev = second(0.05), pd = null;
+  for (let k = 1; k <= 400; k++) { const x = second(0.05 + k * 2e-5), d = x - prev; if (pd !== null) worst = Math.max(worst, Math.abs(d - pd)); pd = d; prev = x; }
+  assert(worst < 5e-5, `second landing jumps by ${worst * 1e3} mm between drop heights 0.02 mm apart`);
+  console.log(`landing ok (second landing moves smoothly with the drop height, largest jump ${(worst * 1e3).toFixed(3)} mm)`); }
 console.log('all checks passed');
