@@ -5,6 +5,7 @@ import { CUE, step, strike } from '../physics/engine.ts';
 import { shotTip } from '../render/tip.ts';
 import { lessonTable, newLessonRec, noteLesson, verdict } from '../learn/lessons.ts';
 import { NEW, PACKS, featCount, toLeave } from '../progress/profile.ts';
+import { stick } from '../progress/cues.ts';
 import { clear, clearFeats, isOpen, par, pRef, readStars, SCENARIOS, starsFor, totalStars } from './scenarios.ts';
 
 const play = (s, ang) => {
@@ -21,6 +22,19 @@ for (const s of SCENARIOS) {
   assert(v.ok, `${s.id}: the reference shot fails: ${v.say}`);
   // the window is real: half of it either side of the middle still clears
   for (const d of [-0.5 * s.tol, 0.5 * s.tol]) assert(play(s, s.ref.ang + d).ok, `${s.id}: no window at ${d} rad`);
+}
+// The tables are measured on the engine cue but played with the player's own. The weakest, the Twig, clears every one
+// with the same tip offset and as much of the speed as it has, near the reference aim.
+const twig = stick('twig', false), onTwig = (s, ang) => {
+  const { B, ids } = lessonTable(s), r = newLessonRec(), ev = [], t = s.ref.tip, k = CUE.tipLimit;
+  strike(B[0], { ang, speed: Math.min(twig.maxSpeed, s.ref.power * CUE.maxSpeed), a: t.x * k, b: t.y * k, elev: t.elev * Math.PI / 180 }, twig);
+  for (let i = 0; i < 40000; i++) { ev.length = 0; const mv = step(B, ev); noteLesson(r, ev, B, ids); if (!mv) break; }
+  return verdict(s, r, B[0]).ok;
+};
+for (const s of SCENARIOS) {
+  let ok = false;
+  for (let k = 0; k <= 400 && !ok; k++) ok = onTwig(s, s.ref.ang + k * 5e-4) || onTwig(s, s.ref.ang - k * 5e-4);
+  assert(ok, `${s.id}: the Twig cannot clear it`);
 }
 PACKS.forEach((_, p) => {
   const pack = SCENARIOS.filter(s => s.pack === p);

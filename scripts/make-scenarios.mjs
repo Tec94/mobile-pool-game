@@ -2,6 +2,8 @@
 // Each table is drawn from a seeded random layout, its shot found by the AI's geometry (enumerate) or by a scan, then
 // measured on the engine: the aim window that clears it gives the reference aim (its middle) and the difficulty (tol,
 // half its width). A pack keeps 12 of its candidates spread from easiest to hardest. Same seed, same file.
+// The ids are places in a pack (pots-1), and the saved stars hang on them: once players have saves, a run that changes
+// the tables (engine, seed, Learn tables put first) needs a new id scheme or a save migration.
 import { writeFileSync } from 'node:fs';
 import { CUE, P, step, strike } from '../src/physics/engine.ts';
 import { enumerate, rng } from '../src/ai/shot-ai.ts';
