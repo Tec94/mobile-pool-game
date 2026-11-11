@@ -1,3 +1,4 @@
+'worklet'; // aimGuide also runs on the worklet runtime (src/shot/far.ts): define a function before its callers
 // The shot controls as plain numbers: how a touch turns the aim, how a pull on the rail becomes power, and what the
 // guide shows. No drawing and no React here; src/ui/ShotControls.tsx and App.tsx are the shells around it.
 // The aim is an angle in radians in the table frame. The screen shows the table mirrored (toScreen flips one axis in
