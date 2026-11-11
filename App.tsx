@@ -1,7 +1,7 @@
 // Two players pass the phone: 8-ball or 9-ball under the WPA rules (src/rules). Pull back from anywhere to aim and shoot.
-// With the cue ball in hand, drag it; tap a pocket to call it.
-// shortcut: no spin or elevation controls yet (the Demo button plays spin, jump and masse shots as a break), and the
-// line of text above the table stands in for the designed HUD.
+// With the cue ball in hand, drag it; tap a pocket to call it. The cue ball button opens the tip and cue angle sheet
+// (spin, jump, masse).
+// shortcut: the line of text above the table stands in for the designed HUD.
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { PanResponder, PixelRatio, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Canvas, Picture, Skia } from '@shopify/react-native-skia';
@@ -13,8 +13,10 @@ import { Ball, CUE, Game as Discipline, HOLES, P, predict, rack, Shot, strike } 
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
 import { drawMarks } from './src/render/marks';
 import { BAR, drawAim, drawTable, fit, toScreen, toTable } from './src/render/table';
+import { LEVEL, shotTip } from './src/render/tip';
 import { canCall, choose, handCue, judge, lowest, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { C, CLOTHS } from './src/theme';
+import { TipButton, TipSheet, tipStore } from './src/ui/TipControl';
 
 const MAX_DRAG = 160; // px of pull-back for full power
 const HUD = 40; // screen units kept above the table for whose turn it is and the last ruling
@@ -22,7 +24,7 @@ const GRAB = 36; // px: a touch this near the cue ball in hand drags it. The bal
 // ball keeps its distance from the finger and stays in view.
 // Game button: the discipline, and for 8-ball whether shots are called the WPA way or only the pocket of the 8 is.
 const MODES: [string, Discipline, boolean][] = [['8-ball', 8, true], ['8-ball\ncall 8 only', 8, false], ['9-ball', 9, true]];
-// Shots the screen has no controls for yet, played from a fresh rack so the spin, jump and masse animation can be seen.
+// Sample shots, played from a fresh rack so the spin, jump and masse animation can be seen without aiming one.
 const DEMOS: [string, Partial<Shot>][] = [['Draw', { speed: 2.5, b: -0.45 }], ['Side', { speed: 1.2, a: 0.45 }], ['Jump', { speed: 4.2, elev: 0.7 }], ['Massé', { speed: 3.5, a: 0.4, elev: 1.19 }]];
 const kit = makeKit(Skia);
 const EMPTY = (() => { const rec = Skia.PictureRecorder(); rec.beginRecording(); return rec.finishRecordingAsPicture(); })();
@@ -50,9 +52,10 @@ function Game() {
   const [mode, setMode] = useState(0);
   const table = useRef(newTable(newGame(8)));
   const rules = table.current.rules, [, redraw] = useReducer((n: number) => n + 1, 0); // the rules live with the table; redraw shows a change
-  const [aim, setAim] = useState<{ path: number[][]; ghost: number[] | null; pull: number } | null>(null);
-  const guide = useMemo(() => { const rec = Skia.PictureRecorder(), c = rec.beginRecording(); if (aim) drawAim(Skia, c, view, aim.path, aim.ghost); return rec.finishRecordingAsPicture(); }, [aim, ...where]);
+  const [aim, setAim] = useState<{ path: number[][]; ghost: number[] | null; lands: number[][]; lost: boolean; pull: number } | null>(null);
+  const guide = useMemo(() => { const rec = Skia.PictureRecorder(), c = rec.beginRecording(); if (aim) drawAim(Skia, c, view, aim.path, aim.ghost, aim.lands, aim.lost); return rec.finishRecordingAsPicture(); }, [aim, ...where]);
   const [demo, setDemo] = useState(0);
+  const tip = useRef(tipStore()).current, [sheet, setSheet] = useState(false);
   const moving = useRef(false), grab = useRef<{ x: number; y: number } | 'call' | null>(null);
   // The balls are one Skia picture, recorded here each frame and handed to the canvas through a shared value, so a
   // frame of play never re-renders React.
@@ -99,7 +102,7 @@ function Game() {
     const pull = Math.min(1, Math.hypot(dx, dy) / MAX_DRAG);
     const a = toTable(map.current, 0, 0), b = toTable(map.current, -dx, -dy); // aim opposite the pull
     const max = table.current.rules.phase === 'break' ? CUE.breakSpeed : CUE.maxSpeed;
-    return { shot: { ang: Math.atan2(b.y - a.y, b.x - a.x), speed: Math.max(0.05, pull * max), a: 0, b: 0 }, pull };
+    return { shot: { ang: Math.atan2(b.y - a.y, b.x - a.x), speed: Math.max(0.05, pull * max), ...shotTip(tip.get()) }, pull };
   };
   const pan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => { const t = table.current; return !moving.current && !t.rec && !t.rules.choice && t.rules.phase !== 'over'; },
@@ -112,8 +115,8 @@ function Game() {
     onPanResponderMove: (_, g) => {
       const d = grab.current, t = table.current;
       if (d) { if (d !== 'call') { const p = toTable(map.current, g.moveX, g.moveY); if (moveCue(t.B, p.x + d.x, p.y + d.y, t.rules.hand)) paint.current(); } return; }
-      const { shot, pull } = shotFrom(g.dx, g.dy), { cue, hit } = predict(table.current.B, shot, 0.4);
-      setAim({ pull, path: cue, ghost: hit && [hit.x, hit.y] });
+      const { shot, pull } = shotFrom(g.dx, g.dy), { cue, hit, lands, scratch, split } = predict(table.current.B, shot, 0.4);
+      setAim({ pull, path: cue, ghost: hit && [hit.x, hit.y], lands, lost: scratch && split < 0 });
     },
     onPanResponderRelease: (_, g) => {
       setAim(null);
@@ -122,6 +125,7 @@ function Game() {
       if (pull < 0.05 || t.rec || moving.current || t.rules.choice || (onEight(t.rules) && t.rules.call < 0)) return; // the 8 needs its pocket called first: the HUD asks for it
       Haptics.impactAsync(pull > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
       t.rec = newRec(); strike(t.B[0], shot); moving.current = true; paint.current();
+      tip.set(LEVEL); setSheet(false); // the cue goes back to level and centre ball after every shot
     },
     onPanResponderTerminate: () => { setAim(null); grab.current = null; },
   })).current;
@@ -171,7 +175,10 @@ function Game() {
           moving.current = true; setDemo((demo + 1) % DEMOS.length);
         }} />
         <Btn label={'Felt\n' + CLOTHS[cloth].name} onPress={() => setCloth((cloth + 1) % CLOTHS.length)} />
+        <TipButton store={tip} onPress={() => setSheet(!sheet)} />
       </View>
+      {sheet && <TipSheet store={tip} land={view.land} calm={calm} felt={CLOTHS[cloth].felt} onDone={() => setSheet(false)}
+        style={view.land ? { right: pad.right + BAR + 8, bottom: Math.max(pad.bottom, 8), width: 300 } : { left: pad.left + 8, right: pad.right + 8, bottom: pad.bottom + BAR + 8 }} />}
     </View>
   );
 }

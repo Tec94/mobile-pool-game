@@ -58,10 +58,18 @@ export function drawTable(api: typeof Skia, canvas: SkCanvas, v: View, cloth = C
 }
 
 // The aim guide, in the chalk line of the approved design: the cue ball's real path, and a ghost ball where it first
-// meets a ball. One path, so the joints of a see-through line do not double up.
-export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: number[][], ghost?: number[] | null) {
+// meets a ball. Each run on the cloth is one path, so the joints of a see-through line do not double up.
+// With a raised cue the ball can leave the cloth: a gap in the line is the ball in the air, a small ring is where it
+// lands (`lands`), and a ring in the warning colour is where it leaves the table or falls in a pocket (`lost`).
+export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: number[][], ghost?: number[] | null, lands: number[][] = [], lost = false) {
   const r = P.R * v.s, p = api.Paint(); p.setAntiAlias(true); p.setColor(api.Color(C.chalk)); p.setStyle(1); p.setStrokeCap(1); p.setStrokeJoin(1); // stroke, round, round
   p.setAlphaf(0.92); p.setStrokeWidth(0.19 * r);
-  canvas.drawPath(api.Path.Polygon(path.map(([x, y]) => toScreen(v, x, y)), false), p);
-  if (ghost) { const g = toScreen(v, ghost[0], ghost[1]); p.setAlphaf(0.9); p.setStrokeWidth(0.16 * r); canvas.drawCircle(g.x, g.y, 0.92 * r, p); }
+  let run: number[][] = [];
+  const end = () => { if (run.length > 1) canvas.drawPath(api.Path.Polygon(run.map(([x, y]) => toScreen(v, x, y)), false), p); run = []; };
+  for (const q of path) if ((q[2] || 0) > 0.05 * P.R) end(); else run.push(q);
+  end();
+  p.setAlphaf(0.9); p.setStrokeWidth(0.16 * r);
+  for (const [x, y] of lands) { const g = toScreen(v, x, y); canvas.drawCircle(g.x, g.y, 0.7 * r, p); }
+  if (ghost) { const g = toScreen(v, ghost[0], ghost[1]); canvas.drawCircle(g.x, g.y, 0.92 * r, p); }
+  if (lost) { const q = path[path.length - 1], g = toScreen(v, q[0], q[1]); p.setColor(api.Color(C.warn)); canvas.drawCircle(g.x, g.y, 0.92 * r, p); }
 }

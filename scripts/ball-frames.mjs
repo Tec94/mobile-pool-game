@@ -7,7 +7,8 @@ import { CUE, P, predict, rack, strike } from '../src/physics/engine.ts';
 import { advance, drawBalls, makeKit, newLook } from '../src/render/balls.ts';
 import { drawMarks } from '../src/render/marks.ts';
 import { drawAim, drawTable, fit, toScreen } from '../src/render/table.ts';
-import { CLOTHS } from '../src/theme.ts';
+import { drawSide, drawTip, drawTipBall, shotTip, SIDE } from '../src/render/tip.ts';
+import { C, CLOTHS } from '../src/theme.ts';
 
 const require = createRequire(import.meta.url);
 const out = process.argv[2] || 'ball-frames';
@@ -38,7 +39,7 @@ function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, c
   for (let f = 0; f < n; f++) {
     const p = typeof at === 'function' ? at(B) : at, o = w ? toScreen(v, p[0], p[1]) : { x: W / 2, y: H / 2 };
     c.save(); c.translate(f * (cw + 4), 0); c.clipRect(Skia.XYWHRect(0, 0, cw, ch), 1, true); c.scale(dpr, dpr); c.translate(cw / 2 / dpr - o.x, ch / 2 / dpr - o.y);
-    drawTable(Skia, c, v, CLOTHS[cloth]); if (aim) { const g = predict(B, aim, 0.4); drawAim(Skia, c, v, g.cue, g.hit && [g.hit.x, g.hit.y]); }
+    drawTable(Skia, c, v, CLOTHS[cloth]); if (aim) { const g = predict(B, aim, 0.4); drawAim(Skia, c, v, g.cue, g.hit && [g.hit.x, g.hit.y], g.lands, g.scratch && g.split < 0); } // as App.tsx does
     if (marks) drawMarks(Skia, c, v, { hand: false, x: B[0].x, y: B[0].y, call: -1, ask: false, ms: 500 + f * 300, ...marks });
     drawBalls(kit, c, B, ids, look, v); c.restore();
     for (let k = 0; k < every; k++) run = advance(B, look, 16, run);
@@ -75,13 +76,27 @@ for (const land of [true, false]) { const B = [ball(P.L / 4, mid)], ids = [0], o
 strip('pocket-calm', { B: [ball(0.12, 0.12)], ids: [14], shots: [[0, { ang: -3 * Math.PI / 4, speed: 0.5, a: 0, b: 0.4 }]], n: 8, w: 0.2, h: 0.2, at: [0.03, 0.03], skip: 22, calm: true });
 // 11. the aim guide on a cut shot, in landscape and in portrait
 for (const land of [true, false]) strip('aim-' + (land ? 'land' : 'port'), { B: [ball(0.6, mid - 0.1), ball(1.2, mid + 0.02)], ids: [0, 4], shots: [], n: 1, w: 1, h: 0.4, at: [1, mid], land, aim: { ang: Math.atan2(0.09, 0.6), speed: 2, a: 0, b: 0 } });
-// 12. what the rules show: the cue ball in hand above the head string before the break (whole window, both ways up),
+// 12. the aim guide with a raised cue: a jump over a blocker, a masse round one, and a jump that loses the cue ball
+for (const [name, t, speed, ang, B] of [['jump', { x: 0, y: 0, elev: 40 }, 3.2, 0, [ball(0.6, mid), ball(0.85, mid), ball(1.6, mid)]],
+  ['masse', { x: 0.8, y: 0, elev: 65 }, 3.5, 0.12, [ball(0.6, mid), ball(1.0, mid), ball(1.4, mid - 0.03)]], ['lost', { x: 0, y: 0, elev: 42 }, 4.5, Math.PI, [ball(0.3, mid)]]])
+  strip('aim-' + name, { B, ids: [0, 8, 4].slice(0, B.length), shots: [], n: 1, w: 1.9, h: 0.5, at: [0.75, mid], aim: { ang, speed, ...shotTip(t) } });
+// 13. the tip and cue angle control at 3 px per pt: the ring with the cue ball, the side picture and the control bar
+// button, for a level cue, the Jump 40 preset with draw, and the Massé 65 preset with right side; then the smaller landscape ring
+{ const tips = [{ x: 0, y: 0, elev: 0 }, { x: 0, y: -0.7, elev: 40 }, { x: 0.8, y: 0.2, elev: 65 }], dpr = PHONE.dpr, cell = 190 + 6 + SIDE.w + 6 + 48 + 12;
+  const surface = CanvasKit.MakeSurface(cell * 4 * dpr, 190 * dpr), sk = surface.getCanvas(), c = new JsiSkCanvas(CanvasKit, sk);
+  c.drawColor(Skia.Color(C.panel)); c.scale(dpr, dpr);
+  [...tips, tips[2]].forEach((t, i) => { const D = i < 3 ? 190 : 150;
+    c.save(); c.translate(i * cell, 0); drawTip(Skia, c, D, t);
+    c.translate(D + 6, (D - SIDE.h) / 2); drawSide(Skia, c, t.elev, CLOTHS[0].felt);
+    c.translate(SIDE.w + 6, 0); drawTipBall(Skia, c, 24, 24, 24, t); c.restore(); });
+  writeFileSync(`${out}/tip-control.png`, surface.makeImageSnapshot().encodeToBytes()); console.log('tip-control'); }
+// 14. what the rules show: the cue ball in hand above the head string before the break (whole window, both ways up),
 // the pulse of the ring, and the pockets asking for a call on the 8 with one called
 for (const land of [true, false]) { const B = [ball(P.L / 4 - 0.001, mid)], ids = [0]; for (const [id, x, y] of rack(8)) { ids.push(id); B.push(ball(x, y)); }
   strip('hand-' + (land ? 'land' : 'port'), { B, ids, shots: [], n: 1, land, marks: { hand: 'kitchen' } }); }
 strip('hand-pulse', { B: [ball(1.2, mid), ball(1.3, mid + 0.03)], ids: [0, 6], shots: [], n: 5, w: 0.3, h: 0.24, at: [1.2, mid], marks: { hand: 'any' } });
 strip('call', { B: [ball(0.5, 0.35), ball(0.25, 0.2)], ids: [0, 8], shots: [], n: 1, w: 0.9, h: 0.75, at: [0.3, 0.2], marks: { ask: true, call: 0 } });
-// 13. the app icon, written to assets/: the 8 ball as the app draws it, on the cloth under the lamp. `felt` off leaves
+// 15. the app icon, written to assets/: the 8 ball as the app draws it, on the cloth under the lamp. `felt` off leaves
 // the ball alone on a clear ground, for the Android adaptive icon and the launch screen.
 function icon(file, n, k, felt) {
   const surface = CanvasKit.MakeSurface(n, n), sk = surface.getCanvas(), c = new JsiSkCanvas(CanvasKit, sk), r = n * k, B = [ball(0, 0)];
