@@ -36,6 +36,11 @@ import { addDays, addMonths, armChalk, chalkResult, dailyClear, dailyPick, dayKe
   assert.deepStrictEqual([...sat].sort(), [6, 7], 'Saturdays pick from both kicks and safeties');
   assert.strictEqual(dailyPick('2026-11-09', list.filter(s => s.pack !== 0)), -1, 'no scenario in the theme');
   assert.strictEqual(dailyPick('2026-11-09', [list[9], list[2]]), 1, 'the only scenario in the theme');
+  // only a pack's first 12 are picked from, so a 13th table appended to a pack moves no day's pick
+  const v1 = [];
+  for (let pack = 0; pack < 9; pack++) for (let k = 0; k < 12; k++) v1.push({ id: `p${pack}-${k}`, pack });
+  const v2 = v1.flatMap(s => (s.id.endsWith('-11') ? [s, { id: `${s.id}+`, pack: s.pack }] : [s]));
+  for (let i = 0; i < 70; i++) { const day = addDays('2026-11-09', i); assert.strictEqual(v2[dailyPick(day, v2)].id, v1[dailyPick(day, v1)].id, `${day}: a 13th table changes nothing`); }
   console.log('daily pick: all checks passed');
 }
 { // streaks come from the calendar

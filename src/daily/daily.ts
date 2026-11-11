@@ -2,7 +2,7 @@
 // doubles the pay of a won match). Pure TS: the screen reads the clock and the save, and calls these.
 import type { Pay } from '../progress/pay.ts';
 
-export const GEN_VERSION = 1; // bump to change every future pick; past days keep their stars
+export const GEN_VERSION = 1; // bumping changes every pick, past days too; stars stay keyed by date
 export const CHALK_CAP = 7;
 export const DAILY_XP = 100, STAR_COINS = 30; // XP on the first clear of a day, coins per first-time star
 
@@ -39,8 +39,10 @@ function hash(s: string) {
   return h >>> 0;
 }
 // The day's scenario: its index in list, or -1 when the list has none in the day's theme.
+// shortcut: picks only from the first 12 of each pack (the v1 packs), so a table appended to a pack moves no day; a new
+// table must go after a pack's first 12, or bump GEN_VERSION and store the picked ids so past days keep their tables.
 export function dailyPick(day: string, list: { id: string; pack: number }[]) {
-  const packs = themePacks(day), at = list.flatMap((s, i) => (packs.includes(s.pack) ? [i] : []));
+  const packs = themePacks(day), at = packs.flatMap(p => list.flatMap((s, i) => (s.pack === p ? [i] : [])).slice(0, 12));
   return at.length ? at[hash(`${day}#${GEN_VERSION}`) % at.length] : -1;
 }
 
