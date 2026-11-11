@@ -1,7 +1,7 @@
 // Run: npm test   (checks the rules against the WPA Rules of Play, 2026-10-21; rule numbers are that edition's)
 import assert from 'node:assert';
 import { P, rack, step, strike } from '../physics/engine.ts';
-import { canCall, choose, handCue, judge, legalSpot, lowest, moveCue, newGame, newRec, note, onEight, setCall, spotBall } from './rules.ts';
+import { canCall, choose, handCue, judge, legalSpot, lowest, moveCue, newGame, newRec, onEight, record, setCall, spotBall } from './rules.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
@@ -73,6 +73,7 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
 { // 1.7: call shot (the default), and the "8 only" setting
   const s = judge(open8(true), rec(3, [[3, 1]], { direct: true })); eq([s.solids, s.turn], [1, 1], 'an obvious pot needs no call');
   let a = judge(s, rec(1, [[1, 4]], { direct: false })); eq([a.turn, a.balls.includes(1)], [0, false], 'an uncalled bank or combination does not keep the table; the ball stays down');
+  eq(a.note, 'Not called: the turn passes.', 'and the screen says why');
   a = judge(s, rec(2, [[1, 4]], { direct: false })); eq(a.turn, 0, 'a ball that was not the one aimed at, uncalled: turn over');
   a = judge(setCall(s, 4), rec(2, [[1, 4]])); eq(a.turn, 1, 'the same shot counts when the pocket was called');
   a = judge(setCall(s, 5), rec(1, [[1, 4]], { direct: true })); eq(a.turn, 0, 'a called pocket missed: turn over, even on a straight pot elsewhere');
@@ -102,7 +103,7 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
   ok('9-ball follows section 5');
 }
 { // The record is built from the engine's events
-  const play = (B, ids, shot) => { const r = newRec(), ev = []; strike(B[0], shot); for (let i = 0, mv = true; mv && i < 60000; i++) { ev.length = 0; mv = step(B, ev); note(r, ev, B, ids); } return r; };
+  const play = (B, ids, shot) => { const r = newRec(), ev = []; strike(B[0], shot); for (let i = 0, mv = true; mv && i < 60000; i++) { ev.length = 0; mv = step(B, ev); record(r, ev, B, ids); } return r; };
   const corner = Math.atan2(-0.4, -0.4); // towards the pocket at the origin
   let r = play([mk(0.6, 0.6), mk(0.4, 0.4)], [0, 3], { ang: corner, speed: 2, a: 0, b: 0 });
   eq([r.first, r.pots.map(p => p.id).includes(3), r.pots[0].pocket, r.direct, r.rails.includes(3)], [3, true, 0, true, true], 'a straight pot: first ball, pocket, obvious, and driven to a rail');
@@ -112,6 +113,10 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
   { const ox = P.L / 2 - 0.3, oy = 0.3, ang = Math.atan2(-(oy + P.W), 0.3); // off the near long rail into the far side pocket
     r = play([mk(ox - 0.2 * Math.cos(ang), oy - 0.2 * Math.sin(ang)), mk(ox, oy)], [0, 3], { ang, speed: 2, a: 0, b: 0 });
     eq([r.pots.map(p => p.id), r.pots[0].pocket, r.direct], [[3], 5, false], 'a bank is not an obvious shot'); }
+  { const y = 0.963 * P.R + 0.005; r = play([mk(1.0, y + 0.01), mk(0.7, y)], [0, 3], { ang: Math.atan2(-0.01, -0.3), speed: 2, a: 0, b: 0 }); }
+  eq([r.pots.map(p => p.id), r.pots[0].pocket, r.banks.length > 0, r.direct], [[3], 0, true, true], 'a ball that runs down the rail into the corner is an obvious shot (1.7: cushions struck do not matter)');
+  r = play([mk(0.8, 0.4), mk(0.06, 0.06)], [0, 3], { ang: -1.91, speed: 2.5, a: 0, b: 0 });
+  eq([r.first, r.pots.map(p => p.id), r.direct], [3, [3], false], 'a kick off a rail is not an obvious shot');
   r = play([mk(0.9, 0.6), mk(1.0, 0.6)], [0, 3], { ang: 0, speed: 0.5, a: 0, b: 0 }); eq([r.first, r.railAfter, r.pots.length], [3, false, 0], 'a soft hit reaches no rail');
   r = play([mk(0.3, 0.6), mk(0.45, 0.6)], [0, 3], { ang: 0, speed: 1, a: 0, b: 0 }); eq(r.crossed, false, 'a ball above the head string hit from above it');
   r = play([mk(0.3, 0.6), mk(1.0, 0.6)], [0, 3], { ang: 0, speed: 1, a: 0, b: 0 }); eq(r.crossed, true, 'a ball below the head string');
@@ -127,6 +132,7 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
   assert(moveCue(B, 0.21, 0.2, 'any') && Math.abs(Math.hypot(B[0].x - 0.2, B[0].y - 0.2) - 2 * P.R) < 1e-3, 'dragged onto a ball, the cue ball slides round it');
   assert(moveCue(B, 5, 5, 'any') && B[0].x <= P.L - P.R && B[0].y <= P.W - P.R, 'it stays on the playing surface');
   moveCue(B, 1.5, 0.5, 'kitchen'); assert(B[0].x < P.L / 4, 'and above the head string when the rules say so');
+  assert(legalSpot(B, 1, 0.97 * P.R, 'any') && !legalSpot(B, 1, 0.9 * P.R, 'any'), 'a cue ball at rest against a cushion lies on a legal place');
   assert(!legalSpot(B, P.L / 4, 0.5, 'kitchen') && legalSpot(B, P.L / 4, 0.5, 'any'), 'on the head string is not above it');
   B[0].x = 1.2; B[0].y = 0.9; handCue(B, 'any'); eq([B[0].x, B[0].y], [1.2, 0.9], 'a cue ball already on a legal place is left there');
   handCue(B, 'kitchen'); assert(B[0].x < P.L / 4, 'ball in hand above the head string brings it back there');

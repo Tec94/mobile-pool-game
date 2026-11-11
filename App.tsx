@@ -13,7 +13,7 @@ import { Ball, CUE, Game as Discipline, HOLES, P, predict, rack, Shot, strike } 
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
 import { drawMarks } from './src/render/marks';
 import { BAR, drawAim, drawTable, fit, toScreen, toTable } from './src/render/table';
-import { canCall, choose, handCue, judge, lowest, moveCue, newGame, newRec, note, onEight, Rec, setCall, spotBall, State } from './src/rules/rules';
+import { canCall, choose, handCue, judge, lowest, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { C, CLOTHS } from './src/theme';
 
 const MAX_DRAG = 160; // px of pull-back for full power
@@ -82,7 +82,7 @@ function Game() {
       if (moving.current || look.fx.length) { // effects (a ball falling into a pocket) outlive the last moving ball
         owed = Math.min(50, owed + (last ? t - last : 16)); // real time, capped after a stall; the part of a millisecond left over carries on
         const ms = Math.floor(owed); owed -= ms;
-        moving.current = advance(B, look, ms, moving.current, rec ? ev => note(rec, ev, B, ids) : undefined);
+        moving.current = advance(B, look, ms, moving.current, rec ? ev => record(rec, ev, B, ids) : undefined);
         paint.current();
       } else if (rec) { // the shot is over: the rules say what it was
         const next = judge(s, rec, push);
@@ -119,7 +119,7 @@ function Game() {
       setAim(null);
       if (grab.current) { grab.current = null; return; }
       const { shot, pull } = shotFrom(g.dx, g.dy), t = table.current;
-      if (pull < 0.05 || (onEight(t.rules) && t.rules.call < 0)) return; // the 8 needs its pocket called first: the HUD asks for it
+      if (pull < 0.05 || t.rec || moving.current || t.rules.choice || (onEight(t.rules) && t.rules.call < 0)) return; // the 8 needs its pocket called first: the HUD asks for it
       Haptics.impactAsync(pull > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
       t.rec = newRec(); strike(t.B[0], shot); moving.current = true; paint.current();
     },
@@ -132,7 +132,7 @@ function Game() {
   const group = rules.solids < 0 ? 'Open table' : (rules.solids === rules.turn ? 'Solids' : 'Stripes') + (onEight(rules) ? ', on the 8' : '');
   const who = over ? `Player ${rules.winner + 1} wins` : `Player ${rules.turn + 1} · ${rules.phase === 'break' ? 'Break' : rules.game === 8 ? group : `Ball ${lowest(rules)}${rules.fouls[rules.turn] === 2 ? ' · on 2 fouls' : ''}`}`;
   const hint = [rules.note, rules.hand === 'kitchen' ? 'Ball in hand behind the line: drag the cue ball.' : rules.hand ? 'Ball in hand: drag the cue ball.' : '',
-    onEight(rules) && rules.call < 0 ? 'Tap a pocket to call the 8.' : '', table.current.push ? 'Push out: no ball or rail needed.' : ''].filter(Boolean).join(' ');
+    canCall(rules) && rules.call < 0 ? (onEight(rules) ? 'Tap a pocket to call the 8.' : !rules.hand && !rules.note ? 'Tap a pocket to call a bank or a combination.' : '') : '', table.current.push ? 'Push out: no ball or rail needed.' : ''].filter(Boolean).join(' ');
 
   return (
     <View style={styles.root} {...pan.panHandlers}>

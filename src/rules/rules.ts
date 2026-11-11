@@ -5,7 +5,9 @@
 // 3.8 push shot, 3.9 balls still moving (the screen does not let a shot start), 3.12, 3.14, 3.15, stalemate.
 // shortcut: no called safety (1.7), no three-ball break rule (5.3c is a tournament regulation), a ball frozen to a
 // rail counts as driven to it (2.7), and on an open table the 8 may not be hit first even when a whole group is
-// already down (4.4, last sentence). Add them when a real game shows the need.
+// already down (4.4, last sentence); a call names a pocket only, so any legal ball in the called pocket counts (1.7
+// asks for ball and pocket); no spotting of the nearest ball when every legal ball is above the head string (1.6).
+// Add them when a real game shows the need.
 import { type Ball, type Ev, type Game, HOLES, P } from '../physics/engine.ts';
 
 export type Hand = false | 'any' | 'kitchen'; // cue ball in hand: anywhere, or above the head string (the kitchen)
@@ -30,9 +32,10 @@ export interface State {
 // What happened on one shot. first = number of the first ball the cue ball hit (-1 none); pots in the order they fell;
 // rails = object balls driven to a rail; railAfter = some ball reached a rail after the first hit; crossed = the cue
 // ball crossed the head string, or hit a ball on or below it (3.11); direct = the first ball hit went straight into a
-// pocket (an "obvious" shot, 1.7); mixed = that ball met another ball or banked off a rail on the way.
-export interface Rec { first: number; pots: { id: number; pocket: number }[]; off: number[]; rails: number[]; railAfter: boolean; crossed: boolean; direct: boolean; mixed: boolean }
-export const newRec = (): Rec => ({ first: -1, pots: [], off: [], rails: [], railAfter: false, crossed: false, direct: false, mixed: false });
+// pocket (an "obvious" shot, 1.7); mixed = a kick, a combination or a kiss; banks = the rails that ball touched
+// (0 head, 1 foot, 2 and 3 the long rails): a touch of a rail its pocket sits on is a shot down the rail, not a bank.
+export interface Rec { first: number; pots: { id: number; pocket: number }[]; off: number[]; rails: number[]; railAfter: boolean; crossed: boolean; direct: boolean; mixed: boolean; banks: number[] }
+export const newRec = (): Rec => ({ first: -1, pots: [], off: [], rails: [], railAfter: false, crossed: false, direct: false, mixed: false, banks: [] });
 
 export const newGame = (game: Game, breaker: Player = 0, callAll = true): State => ({
   game, turn: breaker, breaker, phase: 'break', balls: Array.from({ length: game === 8 ? 15 : 9 }, (_, i) => i + 1), solids: -1,
@@ -40,22 +43,25 @@ export const newGame = (game: Game, breaker: Player = 0, callAll = true): State 
 });
 
 const nearest = (x: number, y: number) => { let k = 0, best = Infinity; HOLES.forEach((h, i) => { const d = (h[0] - x) ** 2 + (h[1] - y) ** 2; if (d < best) { best = d; k = i; } }); return [k, Math.sqrt(best)]; };
+// The rail a point is at: 0 head (x = 0), 1 foot, 2 and 3 the long rails (y = 0, y = W). With `on`, that rail if the
+// point is at it (a corner pocket is at two rails), else -1.
+const side = (x: number, y: number, on = -1) => { const d = [x, P.L - x, y, P.W - y]; return on < 0 ? d.indexOf(Math.min(...d)) : d[on] < 0.05 ? on : -1; };
 // Add one engine step's events to the record. ids[i] = the number of ball i; ball 0 is the cue ball.
-export function note(r: Rec, ev: Ev[], B: Ball[], ids: number[]) {
+export function record(r: Rec, ev: Ev[], B: Ball[], ids: number[]) {
   const head = P.L / 4, rail = (id: number) => { if (id && !r.rails.includes(id)) r.rails.push(id); if (r.first >= 0) r.railAfter = true; };
   for (const e of ev) {
     const id = ids[e.a];
     if (e.t === 'bb') {
       const other = ids[e.b!];
       if (!id && r.first < 0) { r.first = other; r.crossed ||= e.x > head || B[e.b!].x >= head; }
-      else if (id && (id === r.first || other === r.first)) r.mixed = true; // a combination or a kiss: not an obvious shot
+      else if (id === r.first || other === r.first) r.mixed = true; // a combination or a kiss: not an obvious shot
     } else if (e.t === 'rail') {
-      if (!id && r.first < 0 && e.x > head) r.crossed = true;
-      if (id === r.first && nearest(e.x, e.y)[1] > 0.16) r.mixed = true; // a bank. Nearer a pocket than this it is the jaws
+      if (!id && r.first < 0) { r.mixed = true; if (e.x > head) r.crossed = true; } // a kick is not an obvious shot
+      if (id === r.first && nearest(e.x, e.y)[1] > 0.16) r.banks.push(side(e.x, e.y)); // nearer a pocket than this it is the jaws
       rail(id);
     } else if (e.t === 'pocket') {
       r.pots.push({ id, pocket: nearest(e.x, e.y)[0] }); rail(id); // 2.7: a potted ball counts as driven to a rail
-      if (id && id === r.first && !r.mixed) r.direct = true;
+      if (id && id === r.first && !r.mixed && r.banks.every(k => k === side(e.x, e.y, k))) r.direct = true;
     } else if (e.t === 'off') { r.off.push(id); rail(id); }
   }
 }
@@ -120,6 +126,7 @@ export function judge(s: State, r: Rec, push = false): State {
   // A pot counts when it is the called ball in the called pocket (1.7). With no call, WPA counts the obvious shot: the
   // ball that was hit first, straight in. With call shot off, every pot counts.
   const good = pots.filter(p => (s.call >= 0 ? p.pocket === s.call : !s.callAll || (r.direct && p.id === r.first)));
+  if (pots.length && !good.length) n.note = 'Not called: the turn passes.';
   if (s.solids < 0) { // 4.4: the first ball legally potted decides the groups
     const p = good[0];
     if (p) { n.solids = p.id < 8 ? me : opp; n.note = `${p.id < 8 ? 'Solids' : 'Stripes'}.`; } else pass();
@@ -136,8 +143,9 @@ export function choose(s: State, i: number): State {
 // --- Where balls may go ---------------------------------------------------------------------------------------------
 const clear = (B: Ball[], i: number, x: number, y: number, gap = 0) => B.every((b, k) => k === i || !b.on || (b.x - x) ** 2 + (b.y - y) ** 2 >= (2 * P.R + gap) ** 2);
 // May the cue ball lie here? On the playing surface, touching no ball, and above the head string when the rules say so.
+const EDGE = 0.96 * P.R; // a ball at rest on a cushion: its centre is 0.963 R from the nose line
 export const legalSpot = (B: Ball[], x: number, y: number, hand: Hand) =>
-  x >= P.R && x <= P.L - P.R && y >= P.R && y <= P.W - P.R && (hand !== 'kitchen' || x < P.L / 4) && clear(B, 0, x, y);
+  x >= EDGE && x <= P.L - EDGE && y >= EDGE && y <= P.W - EDGE && (hand !== 'kitchen' || x < P.L / 4) && clear(B, 0, x, y);
 // Move the cue ball in hand towards (x, y): held on the table, and slid round a ball in the way. False = it cannot go there.
 export function moveCue(B: Ball[], x: number, y: number, hand: Hand) {
   const lim = (v: number, hi: number) => Math.max(P.R, Math.min(hi - P.R, v));
