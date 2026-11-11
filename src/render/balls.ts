@@ -133,7 +133,7 @@ export function drawBalls(kit: Kit, canvas: SkCanvas, B: Ball[], ids: number[], 
   for (const i of order) { const b = B[i], p = toScreen(v, b.x, b.y); sphere(i, p.x, p.y, r * lift(b.z || 0), 1); }
   for (const f of look.fx) if (f.t === 'off') { // carries on over the rail on its arc and fades as it leaves
     const s = f.age / 1000, t = f.age / OFF, z = Math.max(0, f.z + f.vz * s - P.g * s * s / 2), p = toScreen(v, f.x + f.vx * s, f.y + f.vy * s), a = 1 - t * t;
-    if (!calm) shadow(p.x, p.y, z, a);
+    shadow(p.x, p.y, z, a);
     sphere(f.i, p.x, p.y, r * lift(z), a);
   }
 }
