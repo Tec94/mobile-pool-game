@@ -16,7 +16,7 @@ import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
 import { drawMarks } from './src/render/marks';
 import { newPace, nextFrame, type Pace, refresh, type Slot, spent } from './src/render/pace';
 import { drawCue, shotLayout } from './src/render/cue';
-import { BAR, drawAim, drawTable, toScreen, toTable } from './src/render/table';
+import { BAR, drawAim, drawTable, onTable, toScreen, toTable } from './src/render/table';
 import { LEVEL, shotTip } from './src/render/tip';
 import { canCall, choose, handCue, judge, lowest, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { aimGuide, DRAG, guideFor, HOUSE_CUE, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
@@ -94,7 +94,7 @@ function Game() {
   // A ball the rules or a finger moved did not travel there: no speed streak.
   // again = the guide is drawn again too; the pulse of the ring round the cue ball in hand does not need that.
   const paint = (again = true) => { const { B, look } = table.current; look.last.set(B.flatMap(b => [b.x, b.y])); pace.current = null; if (again) stale.current = true; scheduleOnUI(still, draw.current()); };
-  useEffect(paint, where);
+  useEffect(() => { touch.current = null; paint(); }, where); // a drag measured in the old layout ends when the window turns
   useEffect(() => { const again = () => { stale.current = true; }, off = [shot.sub(again), tip.sub(again)]; return () => off.forEach(f => f()); }, []);
   const shotOf = (power: number): Shot => ({ ang: shot.get().aim, speed: Math.max(0.05, power * (table.current.rules.phase === 'break' ? CUE.breakSpeed : CUE.maxSpeed)), ...shotTip(tip.get()) });
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the rack is over.
@@ -178,7 +178,7 @@ function Game() {
   const finger = (px: number, py: number) => { const p = toTable(map.current, px, py), c = table.current.B[0]; return { ang: Math.atan2(p.y - c.y, p.x - c.x), lever: Math.hypot(p.x - c.x, p.y - c.y) * map.current.s }; };
   const touch = useRef<{ t: number; moved: boolean; ang: number; lever: number } | null>(null);
   const pan = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => !shut(),
+    onStartShouldSetPanResponder: e => !shut() && onTable(map.current, e.nativeEvent.pageX, e.nativeEvent.pageY), // a touch that misses a control must not turn the aim
     onPanResponderGrant: (_, g) => { // a touch by the cue ball in hand drags it, a touch on a pocket calls it, any other aims
       const t = table.current, s = t.rules, v = map.current, p = toTable(v, g.x0, g.y0), c = t.B[0], at = toScreen(v, c.x, c.y);
       const k = canCall(s) ? HOLES.findIndex(h => Math.hypot(h[0] - p.x, h[1] - p.y) < 0.1) : -1;
@@ -187,11 +187,13 @@ function Game() {
       touch.current = grab.current ? null : { t: Date.now(), moved: false, ...finger(g.x0, g.y0) };
     },
     onPanResponderMove: (_, g) => {
+      if (g.numberActiveTouches > 1) { touch.current = null; return; } // a second finger moves the centre of the touches: no aim and no ball follows that
       const h = grab.current, t = table.current;
       if (h) { if (h !== 'call') { const p = toTable(map.current, g.moveX, g.moveY); if (moveCue(t.B, p.x + h.x, p.y + h.y, t.rules.hand)) paint(); } return; }
       const d = touch.current; if (!d || (!d.moved && Math.hypot(g.dx, g.dy) < DRAG)) return; // a drag swings the aim by the turn of the finger about the cue ball
-      const f = finger(g.moveX, g.moveY); d.moved = true;
-      shot.set({ aim: swing(shot.get().aim, d.ang, f.ang, f.lever) }); d.ang = f.ang;
+      const f = finger(g.moveX, g.moveY);
+      if (d.moved) shot.set({ aim: swing(shot.get().aim, d.ang, f.ang, f.lever) }); // the turn is counted from where the drag began: a touch on the cue ball itself would turn a slip of 6 px into a whip
+      d.moved = true; d.ang = f.ang;
     },
     onPanResponderRelease: () => { // a tap points the cue at the tapped point
       const d = touch.current, s = shot.get(); touch.current = grab.current = null;
@@ -242,8 +244,8 @@ function Game() {
       {/* The shot controls sit inside the safe area where shotLayout puts them. */}
       <PowerRail store={shot} box={lay.rail} onStrike={fire} />
       <AimDial store={shot} box={lay.dial} />
-      <View style={[styles.at, lay.spin]}><TipButton store={tip} onPress={() => setSheet(!sheet)} /></View>
-      <View style={[styles.at, lay.tools]}><Btn label="•••" name="Table tools" onPress={() => setTools(!tools)} /></View>
+      <View style={[styles.at, lay.spin]}><TipButton store={tip} onPress={() => { setSheet(!sheet); setTools(false); }} /></View>
+      <View style={[styles.at, lay.tools]}><Btn label="•••" name="Table tools" onPress={() => { setTools(!tools); setSheet(false); }} /></View>
       {/* shortcut: the smoke-test buttons, behind one button until the menus exist. */}
       {tools && (
         <View onStartShouldSetResponder={() => true} style={[styles.tools, view.land ? { left: lay.tools.left + lay.tools.width + 12, bottom: height - lay.tools.top - lay.tools.height } : { left: lay.tools.left, bottom: height - lay.dial.top + 8 }]}>

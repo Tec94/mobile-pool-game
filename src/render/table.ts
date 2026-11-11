@@ -22,6 +22,8 @@ export function fit(w: number, h: number, pad: Inset = { top: 0, right: 0, botto
 }
 export const toScreen = (v: View, x: number, y: number) => (v.land ? { x: v.ox + x * v.s, y: v.oy + (P.W - y) * v.s } : { x: v.ox + (P.W - y) * v.s, y: v.oy + (P.L - x) * v.s });
 export const toTable = (v: View, px: number, py: number) => (v.land ? { x: (px - v.ox) / v.s, y: P.W - (py - v.oy) / v.s } : { x: P.L - (py - v.oy) / v.s, y: P.W - (px - v.ox) / v.s });
+// A screen point is on the table: the cloth, the cushions or the frame. Touches beside it belong to no control.
+export const onTable = (v: View, px: number, py: number) => { const p = toTable(v, px, py); return p.x >= -RAIL && p.x <= P.L + RAIL && p.y >= -RAIL && p.y <= P.W + RAIL; };
 
 // Quiet Slate table, drawn in table metres under one transform so landscape and portrait share every line below.
 // Line weights and dot sizes are the approved prototype's, scaled to a real table.
