@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { CUE, P, simulate, step, strike } from '../physics/engine.ts';
 import { aiShot, correctAim } from './aim.ts';
-import { SOLIDS, STRIPES, TIERS, randomLayout, rng } from './shot-ai.ts';
+import { enumerate, SOLIDS, STRIPES, TIERS, randomLayout, rng } from './shot-ai.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 // Direction the object ball leaves in, measured on the engine, independent of aim.ts.
@@ -75,13 +75,14 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   }
   ok('strike noise is the tier\'s aim, speed and tip error');
 }
-{ // Random full tables, every tier: a Shot strike() can take, with the tip low for a draw leave and high for a follow one.
+{ // Random full tables, every tier: a Shot strike() can take. With no engine time (Rookie, Regular) the tip is low for a
+  // draw leave and high for a follow one; the tiers that refine pick the tip by where the cue ball really stops.
   const rnd = rng(5), spins = new Set();
-  for (const tier of TIERS) for (let i = 0; i < 4; i++) {
+  for (const tier of TIERS) for (let i = 0; i < (tier.budget < 3 ? 8 : 3); i++) {
     const { B, ids } = table(randomLayout(rnd, 7)), { shot, pick, aim } = aiShot(B, ids, SOLIDS, STRIPES, tier, rnd);
     const { ang, speed, a, b } = shot, lim = CUE.tipLimit;
     assert(Number.isFinite(ang) && speed >= 0.5 && speed <= CUE.maxSpeed && Math.abs(a) <= lim && Math.abs(b) <= lim, `${tier.name}: ${JSON.stringify(shot)}`);
-    if (pick.leave) { const want = pick.leave.spin; spins.add(want); assert(Math.sign(aim.b) === want && Math.abs(b - aim.b) < 4 * tier.tipErr, `${tier.name}: spin ${want}, tip ${b}`); }
+    if (pick.leave && tier.budget < 3) { const want = pick.leave.spin; spins.add(want); assert(Math.sign(aim.b) === want && Math.abs(b - aim.b) < 4 * tier.tipErr, `${tier.name}: spin ${want}, tip ${b}`); }
   }
   assert.strictEqual(spins.size, 3, 'draw, stun and follow were all played');
   ok('shots on random tables are within the cue\'s limits, with the tip the leave asks for');
@@ -115,13 +116,14 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   assert(made >= 4, `combos potted ${made}/${p.length}`);
   ok('Legend\'s combos pot on the engine');
 }
-{ // Draw: a straight pot planned with draw comes back off the contact point, which needs a cue ball still spinning back
-  // when it gets there (hit harder than a rolling ball needs). A stun would stop on the contact point, a roll go on.
-  const B = [mk(P.L / 2, 0.8), mk(P.L / 2, 0.3), mk(0.4, 0.8)];
-  let r; for (let i = 0; !r; i++) { const x = aiShot(B, [0, 1, 2], SOLIDS, STRIPES, TIERS[5], rng(i)); if (x.pick.pocket === 1 && x.pick.leave.spin === -1) r = x; }
-  const sim = simulate(B, r.aim), rest = { x: sim.balls[0].x * 1000, y: sim.balls[0].y * 1000 }, d = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
-  assert(sim.potted.includes(1) && rest.y > r.pick.G.y + 20 && d(rest, r.pick.leave) < d(r.pick.G, r.pick.leave), `drew back to ${rest.y.toFixed(0)} mm, contact at ${r.pick.G.y.toFixed(0)}, planned ${r.pick.leave.y.toFixed(0)}`);
-  ok('a planned draw comes back');
+{ // Leave on the engine: a stun or a follow on this straight pot rolls the cue ball to the side cushion, where the 9 and
+  // the 10 hide the 2. Scored by where the cue ball really stops, the pot draws back to a direct shot on the 2.
+  const B = [mk(P.L / 2, 0.8), mk(P.L / 2, 0.3), mk(0.4, 0.8), mk(0.97, 0.21), mk(1.27, 0.21)], ids = [0, 1, 2, 9, 10];
+  const r = aiShot(B, ids, SOLIDS, STRIPES, TIERS[5], rng(1)), sim = simulate(B, r.aim), c = sim.balls[0];
+  const balls = sim.balls.map((b, i) => ({ id: ids[i], x: b.x * 1000, y: b.y * 1000 })).filter((_, i) => i && sim.balls[i].on);
+  const next = enumerate({ x: c.x * 1000, y: c.y * 1000 }, balls, [2]).filter((s) => s.type === 'direct');
+  assert(sim.potted.includes(1) && !sim.scratch && r.aim.b < 0 && c.y > 0.3 && next.length, `tip ${r.aim.b}, rest ${c.x.toFixed(2)}, ${c.y.toFixed(2)}`);
+  ok('the leave is scored where the engine stops the cue ball: it draws back for the next ball');
 }
 { // No legal ball at all (the group and the 8 are gone): no pick, and the AI still hands strike() a shot.
   const { B, ids } = table({ cue: { x: 1000, y: 500 }, balls: [{ id: 9, x: 300, y: 300 }] }), r = aiShot(B, ids, SOLIDS, STRIPES, TIERS[5], rng(1));

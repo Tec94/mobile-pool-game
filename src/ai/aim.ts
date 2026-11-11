@@ -1,7 +1,7 @@
 // The AI's shot on the real engine: correct the picker's ghost-ball aim for throw, squirt and swerve, refine aim, speed
 // and tip with noise-free rollouts within the tier's budget, and turn a pick into an engine Shot with the tier's strike noise. Port of the ai-progression prototype (engine-aim.js) plus the glue.
 import { type Ball, CUE, type Ev, P, type Shot, step, strike } from '../physics/engine.ts';
-import { decide, dist, legalFor, type Obj, type Pick, POCKETS, type Pt, type Tier } from './shot-ai.ts';
+import { decide, dist, enumerate, legalFor, makeProb, NINE, type Obj, type Pick, POCKETS, type Pt, type Tier } from './shot-ai.ts';
 
 // Direction the object ball actually leaves in, for a given strike. Stops at first contact.
 function departure(cue: Ball, obj: Ball, shot: Shot) {
@@ -82,21 +82,34 @@ function rollout(B: Ball[], shot: Shot, k: number, first: number, pk: Pt | null,
     if (!mv || (hit >= 0 && !(c.on && (c.vx || c.vy)) && !(o.on && (o.vx || o.vy)))) break;
   }
   // a ball potted fast enough would have reached the cushion behind the pocket had it missed
-  return { pot: pot && !scratch, legal: hit === first, rail: rail || drop > 0.25, scratch, err: pk || hit !== first ? err : 0, rest: { x: c.x, y: c.y } };
+  return { pot: pot && !scratch, legal: hit === first, rail: rail || drop > 0.25, scratch, err: pk || hit !== first ? err : 0, S };
+}
+// Chance the tier pots its best next shot from where a rollout left the table (S, metres): the leave, measured on the
+// engine instead of planned. 1 when the 8 (the 9) dropped legally, -1 when the 8 dropped early. 9-ball: on the lowest ball left.
+function nextP(B: Ball[], S: Ball[], ids: number[], group: number[], tier: Tier) {
+  const balls: Obj[] = [], w = ids.indexOf(group === NINE ? 9 : 8);
+  S.forEach((b, i) => i && b.on && balls.push({ id: ids[i], x: b.x * 1000, y: b.y * 1000 }));
+  if (w > 0 && B[w].on && !S[w].on) return group === NINE || !balls.some((b) => group.includes(b.id)) ? 1 : -1;
+  const legal = legalFor(balls, group), all = enumerate({ x: S[0].x * 1000, y: S[0].y * 1000 }, balls, legal, group === NINE ? NINE : legal);
+  const mine = all.filter((c) => tier.types.includes(c.type));
+  return Math.max(0, ...(mine.length ? mine : all).map((c) => makeProb(c.tol, tier.sigma * Math.PI / 180)));
 }
 type Roll = ReturnType<typeof rollout> & { shot: Shot; score: number };
 const SPEEDS = [1, 1.3, 0.8, 1.7, 0.65, 2.2, 0.5]; // tried in this order, times the starting speed
 // The shot in hand on the engine, within the tier's budget of full-table simulations: steer the aim until the right ball
 // is hit first and ball k drops in the middle of the pocket (secant on err), then try other speeds and tip heights for the
-// planned spin, and keep the rollout that best pots k without a scratch, hits first legally, sends a ball to a rail and
-// leaves the cue ball nearest the planned spot. leave (with its planned spin) and G in mm.
-function refine(B: Ball[], k: number, first: number, pk: Pt | null, G: Pt, leave: Pt & { spin: number }, shot: Shot, sims: number): Shot {
+// planned spin and for draw, stun and follow, and keep the rollout that best pots k without a scratch, hits first legally,
+// sends a ball to a rail and leaves the best next shot (nextP) where the cue ball really stops; a safety, nearest the
+// planned spot. leave (with its planned spin) and G in mm.
+function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number, first: number, pk: Pt | null, G: Pt, leave: Pt & { spin: number }, shot: Shot, sims: number): Shot {
   const g = { x: G.x / 1000, y: G.y / 1000 }, to = pk && { x: pk.x / 1000, y: pk.y / 1000 };
   let best: Roll | null = null;
   const slope = [0, 0]; // d err / d aim, before the right first hit and after it
   const run = (s: Shot): Roll => {
     sims--;
-    const r = rollout(B, s, k, first, to, g), off = Math.hypot(r.rest.x * 1000 - leave.x, r.rest.y * 1000 - leave.y) / 4000 + Math.abs(r.err) * 5;
+    const r = rollout(B, s, k, first, to, g), c = r.S[0], p = pk && r.pot && r.legal ? nextP(B, r.S, ids, group, tier) : 0;
+    if (p < 0) r.pot = false; // the 8 went down early: the rack is lost
+    const off = Math.abs(r.err) * 5 + (pk ? 1 - Math.max(0, p) : Math.hypot(c.x * 1000 - leave.x, c.y * 1000 - leave.y) / 4000);
     const out = { ...r, shot: s, score: 8 * +(r.pot && r.legal) + 4 * +!r.scratch + 2 * +r.legal + +r.rail - Math.min(0.99, off) };
     if (!best || out.score > best.score) best = out;
     return out;
@@ -113,9 +126,9 @@ function refine(B: Ball[], k: number, first: number, pk: Pt | null, G: Pt, leave
     r0 = r1;
   }
   // speed and tip, from the best aim so far, with one aim step at each if the ball missed
-  const tips = leave.spin ? [shot.b, leave.spin * (CUE.tipLimit - 0.05)] : [shot.b];
+  const tips = [...new Set([shot.b, leave.spin * (CUE.tipLimit - 0.05), ...(pk ? [-(CUE.tipLimit - 0.05), 0, TIP] : [])])];
   for (const m of SPEEDS) for (const b of tips) {
-    if (sims < 1 || best!.score > 14.9875) return best!.shot; // all four goals met and within about 50 mm of the leave
+    if (sims < 1 || best!.score > 14.9875) return best!.shot; // all four goals met, a near-certain next shot (or the leave)
     if (m === 1 && b === shot.b) continue;
     const r = run({ ...shot, ang: best!.shot.ang, speed: Math.min(CUE.maxSpeed, Math.max(0.5, shot.speed * m)), b });
     if (!done(r) && slope[+r.legal] && sims >= 1) run({ ...r.shot, ang: next(r) });
@@ -138,7 +151,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   const b = TIP * pick.leave!.spin, speed = speedFor(pick.paths, pick.leave!.power, pick.v, pick.u, b, 1 - 1.5 * tier.speedErr / 100);
   const first = ids.indexOf(pick.type === 'safety' ? pick.ball : pick.first), start = { ang: correctAim(B[0], B[first], pick, speed, 0, b) ?? pick.aim, speed, a: 0, b };
   const sims = Math.floor(tier.budget - 0.3); // an aim correction costs about 0.3 of a full simulation; one rollout alone has nothing to compare with
-  const aim = sims < 2 ? start : refine(B, ids.indexOf(pick.ball), first, pick.type === 'safety' ? null : POCKETS[pick.pocket], pick.G, pick.leave!, start, sims);
+  const aim = sims < 2 ? start : refine(B, ids, group, tier, ids.indexOf(pick.ball), first, pick.type === 'safety' ? null : POCKETS[pick.pocket], pick.G, pick.leave!, start, sims);
   const t2 = performance.now(), g = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd()); // Box-Muller
   const tip = (x: number) => Math.max(-CUE.tipLimit, Math.min(CUE.tipLimit, x + g() * tier.tipErr)); // tipErr is in ball radii, as a and b are
   const shot = { ang: aim.ang + g() * tier.sigma * Math.PI / 180, speed: Math.min(CUE.maxSpeed, Math.max(0.5, aim.speed * (1 + g() * tier.speedErr / 100))), a: tip(0), b: tip(aim.b) };
