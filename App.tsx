@@ -108,7 +108,7 @@ function Root() {
     const now = { ...daily, stars: { ...daily.stars, [day]: c.bits } };
     if (!saveDaily(now)) return { ...c, saved: false };
     setDaily(now);
-    return { ...c, saved: true, gained: award(c.pay) };
+    return { ...c, saved: true, gained: award(c.pay, profile().cue) }; // the daily table played the player's own cue
   };
   const nextScen = SCENARIOS[scen + 1]?.pack === SCENARIOS[scen].pack && isOpen(scen + 1, stars, profile().xp);
   // A lesson passed for the first time pays once and counts toward the Giant Pencil.
