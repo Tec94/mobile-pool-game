@@ -54,10 +54,10 @@ Apple developer account and install it over USB. So GitHub's macOS runner builds
    ```
    sudo usbmuxd                         # once per WSL start
    xtool devices                        # your iPhone should be listed
-   gh run download -n Pool-Release-ipa -R <you>/<repo>
+   gh run download -n Pool-Release-ipa -R Tec94/mobile-pool-game
    xtool install Pool.ipa
    ```
-5. First install only: iPhone Settings > General > VPN & Device Management > your Apple ID > Trust.
+5. If iOS says "Untrusted Developer": Settings > General > VPN & Device Management > your Apple ID > Trust.
 
 ### Fast loop for code changes (Debug build)
 
