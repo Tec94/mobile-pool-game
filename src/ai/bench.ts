@@ -34,7 +34,7 @@ export function visit(tier: Tier, seed: number, nine = false) {
     const left = ids.filter((id, i) => i && B[i].on), own = SOLIDS.filter((id) => left.includes(id));
     const r = aiShot(B, ids, nine ? NINE : SOLIDS, nine ? NINE : STRIPES, tier, rnd);
     think.push(r.ms[0] + r.ms[1]);
-    if (r.pick.type !== 'direct' && r.pick.type !== 'bank' && r.pick.type !== 'kick' && r.pick.type !== 'combo') break;
+    if (r.pick.type === 'safety' || r.pick.type === 'foul') break;
     const sim = simulate(B, r.shot, undefined, 30000), down = sim.potted.map((i) => ids[i]);
     const lowest = Math.min(...left), on = nine ? [lowest] : own.length ? own : [8];
     if (sim.scratch || sim.off.length || sim.first < 0 || !on.includes(ids[sim.first])) break;
