@@ -91,12 +91,13 @@ for (const [name, t, speed, ang, B] of [['jump', { x: 0, y: 0, elev: 40 }, 3.2, 
   ['masse', { x: 0.8, y: 0, elev: 65 }, 3.5, 0.12, [ball(0.6, mid), ball(1.0, mid), ball(1.4, mid - 0.03)]], ['lost', { x: 0, y: 0, elev: 42 }, 4.5, Math.PI, [ball(0.3, mid)]]])
   strip('aim-' + name, { B, ids: [0, 8, 4].slice(0, B.length), shots: [], n: 1, w: 1.9, h: 0.5, at: [0.75, mid], aim: { ang, speed, ...shotTip(t) } });
 // 13. the tip and cue angle control at 3 px per pt: the ring with the cue ball, the side picture and the control bar
-// button, for a level cue, the Jump 40 preset with draw, and the Massé 65 preset with right side; then the smaller landscape ring
+// button, for a level cue, a 40 degree jump with draw, and a 65 degree massé with right side; then the smaller landscape
+// ring. The top row has the blended zone colours, the bottom row the one-colour ring.
 { const tips = [{ x: 0, y: 0, elev: 0 }, { x: 0, y: -0.7, elev: 40 }, { x: 0.8, y: 0.2, elev: 65 }], dpr = PHONE.dpr, cell = 190 + 6 + SIDE.w + 6 + 48 + 12;
-  const surface = CanvasKit.MakeSurface(cell * 4 * dpr, 190 * dpr), sk = surface.getCanvas(), c = new JsiSkCanvas(CanvasKit, sk);
+  const surface = CanvasKit.MakeSurface(cell * 4 * dpr, 2 * 190 * dpr), sk = surface.getCanvas(), c = new JsiSkCanvas(CanvasKit, sk);
   c.drawColor(Skia.Color(C.panel)); c.scale(dpr, dpr);
-  [...tips, tips[2]].forEach((t, i) => { const D = i < 3 ? 190 : 150;
-    c.save(); c.translate(i * cell, 0); drawTip(Skia, c, D, t);
+  for (const blend of [true, false]) [...tips, tips[2]].forEach((t, i) => { const D = i < 3 ? 190 : 150;
+    c.save(); c.translate(i * cell, blend ? 0 : 190); drawTip(Skia, c, D, t, blend);
     c.translate(D + 6, (D - SIDE.h) / 2); drawSide(Skia, c, t.elev, CLOTHS[0].felt);
     c.translate(SIDE.w + 6, 0); drawTipBall(Skia, c, 24, 24, 24, t); c.restore(); });
   writeFileSync(`${out}/tip-control.png`, surface.makeImageSnapshot().encodeToBytes()); console.log('tip-control'); }
