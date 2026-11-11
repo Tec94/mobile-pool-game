@@ -64,7 +64,7 @@ function Root() {
   useEffect(() => { if (first.current) first.current = false; else saveSettings(set); }, [set]);
   useEffect(() => { ScreenOrientation.lockAsync(LOCKS[set.orient]).catch(() => {}); }, [set.orient]);
   useEffect(() => { // Android back: from a menu page to home
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (screen === 'pass' || screen === 'settings') { go('home'); return true; } return false; });
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (screen !== 'home' && screen !== 'match') { go('home'); return true; } return false; });
     return () => sub.remove();
   }, [screen]);
   return <>
