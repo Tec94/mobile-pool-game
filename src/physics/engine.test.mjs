@@ -1,7 +1,7 @@
 // Run: npm test   (checks the engine against known pool behaviour; physics/engine.test.js in the project files is a copy)
 import assert from 'node:assert';
 import * as EngineAll from './engine.ts';
-const { P, CUE, step, strike, predict, simulate, rack, jumpRuling } = EngineAll;
+const { P, CUE, step, strike, predict, simulate, rack, breakSpot, jumpRuling } = EngineAll;
 const { R, L, W } = P, D = 180 / Math.PI, Rc = R * Math.sqrt(1 - P.nose ** 2); // Rc: ball centre to the cushion nose at contact
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 const SQUIRT = CUE.squirt, TILT = CUE.minElev; CUE.squirt = 0; CUE.minElev = 0; // isolate table physics from cue deflection and from the tilt of the cue
@@ -363,4 +363,20 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   assert(brk.apex > 0.001 && brk.apex < 0.008 && brk.land > 0.3 && brk.land < 0.9, `a full break should hop a few mm and land before the rack: ${brk.apex * 1e3} mm, ${brk.land} m`);
   CUE.squirt = 0; CUE.minElev = 0;
   console.log(`swerve ok (full side spin leaves at ${(fast.leave * D).toFixed(2)} deg and bends ${bend.toFixed(2)}; 1 m on, ${(slow.shift * 1e3).toFixed(0)} mm off the aim line slow, ${(fast.shift * 1e3).toFixed(0)} fast; full break hops ${(brk.apex * 1e3).toFixed(1)} mm, lands after ${brk.land.toFixed(2)} m)`); }
+
+// 30. The break spot: on the head string, clear of the side cushion, and from it the break pots at a believable rate.
+// 120 breaks a game with the real cue, power 75 to 100%, aimed within half a degree of the head ball. The floors are
+// well under the measured rates (35% of 8-ball breaks and 77% of 9-ball breaks pot a ball with no foul), so they catch
+// a break that has stopped working, not a small change.
+{ CUE.squirt = SQUIRT; CUE.minElev = TILT;
+  const [x, y] = breakSpot(), rate = [], N = 120;
+  assert(x === L / 4 && y > W / 2 + 0.3 && y < W - 3 * R, 'the break spot is on the head string, to one side, clear of the cushion');
+  for (const [game, floor] of [[8, 0.2], [9, 0.55]]) { let good = 0;
+    for (let k = 0; k < N; k++) { const r = simulate([mk(x, y), ...rack(game).map(s => mk(s[1], s[2]))],
+        { ang: Math.atan2(W / 2 - y, 0.75 * L - x) + ((k * 0.6180339887498949) % 1 - 0.5) * Math.PI / 180, speed: CUE.breakSpeed * (0.75 + 0.25 * (k + 0.5) / N), a: 0, b: 0 }, CUE, 60000);
+      assert(r.settled && !r.off.length, 'a break from the spot settles and keeps every ball on the table');
+      if (r.potted.length && !r.scratch) good++; }
+    rate.push(good / N); assert(good / N > floor, `${game}-ball: ${good} of ${N} breaks from the spot pot a ball with no foul`); }
+  CUE.squirt = 0; CUE.minElev = 0;
+  console.log(`break spot ok (${rate.map((r, i) => `${Math.round(r * 100)}% of ${8 + i}-ball breaks pot a ball with no foul`).join(', ')})`); }
 console.log('all checks passed');
