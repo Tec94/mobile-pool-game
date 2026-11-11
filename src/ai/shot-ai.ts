@@ -183,6 +183,23 @@ export const TIERS: Tier[] = [
   { name: 'Pro',     sigma: 0.24, types: ['direct', 'bank', 'combo', 'kick'], flair: 0.04, temp: 0.02, depth: 1, tries: 3, wPos: 0.9, posErr: 0.08, speedErr: 5, tipErr: 0.04, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 24 },
   { name: 'Legend',  sigma: 0.19, types: ['direct', 'bank', 'combo', 'kick'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1,   posErr: 0.07, speedErr: 3.5, tipErr: 0.03, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 33 },
 ];
+// The AI for a rating s on the tier scale (1 Rookie .. 6 Legend; the Rival plays 0.5 to 6.5): numeric dials on the line
+// through the two nearest rows, past 1 and 6 along the end pair's slope. Whole settings come from the upper row with
+// chance f (a seeded draw each turn, rnd), else the lower; no rnd = the nearer row. A whole rating is its tier exactly.
+// tries and ctrl are whole on purpose (a count of rollouts, a flag). Depth comes from the upper row when only it plans,
+// so planShare alone fades planning in (else the draw and the share would multiply).
+export function aiParams(s: number, rnd?: () => number): Tier {
+  const i = Math.min(5, Math.max(1, Math.floor(s))), f = s - i, lo = TIERS[i - 1], hi = TIERS[i];
+  if (f === 0 || f === 1) return { ...TIERS[i - 1 + f] };
+  const at = (a: number, b: number) => Math.max(0, (1 - f) * a + f * b);
+  const share = (t: Tier) => (t.depth ? t.planShare ?? 1 : 0); // planning fades in as a share of turns, 0 to 1 over Regular to Shark
+  const up = rnd ? rnd() < f : f >= 0.5, w = up ? hi : lo;
+  return {
+    ...w, sigma: at(lo.sigma, hi.sigma), speedErr: at(lo.speedErr, hi.speedErr), tipErr: at(lo.tipErr, hi.tipErr), posErr: at(lo.posErr, hi.posErr),
+    flair: at(lo.flair, hi.flair), temp: at(lo.temp, hi.temp), wPos: Math.min(1, at(lo.wPos, hi.wPos)), wLeave: Math.min(1, at(lo.wLeave, hi.wLeave)),
+    planShare: Math.min(1, at(share(lo), share(hi))), budget: Math.max(1, at(lo.budget, hi.budget)), depth: lo.depth ? w.depth : hi.depth,
+  };
+}
 // 9-ball: pass NINE as the group for both sides. The lowest ball must be hit first, any ball may drop, the 9 wins.
 export const NINE = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 // By its length, not by identity: a worklet runtime gets copies of NINE (src/ai/think.ts), and SOLIDS and STRIPES have 7.
