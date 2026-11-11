@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, minWidth: 160, gap: 2 },
   label: { color: C.chalk, fontSize: 15, fontWeight: '600' },
   note: { color: C.chalk, fontSize: 13, lineHeight: 17, opacity: 0.75 },
-  seg: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 }, // six AI tiers wrap on a phone
+  seg: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, flexShrink: 1, maxWidth: '100%' }, // six AI tiers wrap on a phone
   field: { gap: 6 },
   bar: { height: 4, marginTop: 4, borderRadius: 2, backgroundColor: C.chalk + '26' },
   fill: { height: 4, borderRadius: 2, backgroundColor: C.accent },
