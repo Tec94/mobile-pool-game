@@ -1,0 +1,31 @@
+# Builds an unsigned iPhone .ipa on a macOS runner. xtool signs it with your Apple ID and installs it (see README).
+name: iOS build
+on:
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: Release = standalone app. Debug = dev client that loads JS from `npm start` on your PC.
+        type: choice
+        options: [Release, Debug]
+        default: Release
+jobs:
+  ipa:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm test
+      - run: npx expo prebuild -p ios
+      - name: Build without signing
+        run: |
+          xcodebuild -workspace ios/Pool.xcworkspace -scheme Pool \
+            -configuration ${{ inputs.configuration }} -sdk iphoneos -destination generic/platform=iOS \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -80  # default shell has pipefail, so a failed build still fails the step
+      - name: Package .ipa
+        run: |
+          mkdir Payload && cp -R "build/Build/Products/${{ inputs.configuration }}-iphoneos/Pool.app" Payload/
+          zip -qry Pool.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with: { name: Pool-${{ inputs.configuration }}-ipa, path: Pool.ipa, retention-days: 14 }

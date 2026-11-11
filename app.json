@@ -1,13 +1,14 @@
 {
   "expo": {
-    "name": "pool",
+    "name": "Pool",
     "slug": "pool",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.tec94.pool"
     },
     "android": {
       "adaptiveIcon": {
@@ -16,7 +17,8 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.tec94.pool"
     },
     "web": {
       "favicon": "./assets/favicon.png"
