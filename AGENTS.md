@@ -15,19 +15,20 @@ Use `bunx` instead of `npx` if the project uses bun (`bun.lock` present).
 ```bash
 npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
 npx expo start              # start the dev server
-npx expo lint               # lint
-npx tsc --noEmit            # typecheck
+npm run typecheck           # tsc --noEmit
+npm test                    # every src/**/*.test.mjs (node --test); a new test file is picked up by its name
+npm run frames              # draws every picture once: the drawing code's only check
 npx expo-doctor             # diagnose dependency and config issues
 npx expo install --fix      # fix incompatible package versions
 ```
 
-Run lint and typecheck before declaring any task done.
+Run `npm run typecheck && npm test && npm run frames` (what CI runs) before declaring any task done. There is no linter.
 
-## Navigation & Routing
+In a cloud session `npx expo install` fails (api.expo.dev is blocked): use `npm install <pkg>@<version from node_modules/expo/bundledNativeModules.json>`.
 
-- Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
-- Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
-- Docs: https://docs.expo.dev/router/introduction.md
+## Navigation
+
+No Expo Router: `Root` in `App.tsx` routes by state (`screen`), and `src/ui/Menus.tsx` picks the menu page. Logic lives in pure modules under `src/` with node tests beside them; `App.tsx` wires them to React.
 
 ## Building with EAS
 
