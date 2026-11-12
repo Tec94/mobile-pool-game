@@ -60,6 +60,49 @@
           "image": "./assets/icon-mark.png",
           "imageWidth": 200
         }
+      ],
+      [
+        "expo-font",
+        {
+          "ios": {
+            "fonts": [
+              "./node_modules/@expo-google-fonts/bricolage-grotesque/800ExtraBold/BricolageGrotesque_800ExtraBold.ttf",
+              "./node_modules/@expo-google-fonts/instrument-sans/600SemiBold/InstrumentSans_600SemiBold.ttf",
+              "./node_modules/@expo-google-fonts/instrument-sans/700Bold/InstrumentSans_700Bold.ttf"
+            ]
+          },
+          "android": {
+            "fonts": [
+              {
+                "fontFamily": "BricolageGrotesque-ExtraBold",
+                "fontDefinitions": [
+                  {
+                    "path": "./node_modules/@expo-google-fonts/bricolage-grotesque/800ExtraBold/BricolageGrotesque_800ExtraBold.ttf",
+                    "weight": 800
+                  }
+                ]
+              },
+              {
+                "fontFamily": "InstrumentSans-SemiBold",
+                "fontDefinitions": [
+                  {
+                    "path": "./node_modules/@expo-google-fonts/instrument-sans/600SemiBold/InstrumentSans_600SemiBold.ttf",
+                    "weight": 600
+                  }
+                ]
+              },
+              {
+                "fontFamily": "InstrumentSans-Bold",
+                "fontDefinitions": [
+                  {
+                    "path": "./node_modules/@expo-google-fonts/instrument-sans/700Bold/InstrumentSans_700Bold.ttf",
+                    "weight": 700
+                  }
+                ]
+              }
+            ]
+          }
+        }
       ]
     ]
   }

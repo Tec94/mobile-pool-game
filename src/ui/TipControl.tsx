@@ -1,12 +1,14 @@
 // The spin button and the "Tip and cue angle" sheet (screens spec: the ring around the spin ball, with the side picture).
 // Drawing and touch maths are in src/render/tip.ts; this file is the React Native shell around them.
 import { useMemo, useRef, useSyncExternalStore } from 'react';
-import { PanResponder, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { PanResponder, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { Canvas, Picture, Skia, SkCanvas } from '@shopify/react-native-skia';
 import Animated, { cubicBezier } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { drawSide, drawTip, drawTipBall, grab, LEVEL, MAX_ELEV, moveElev, moveSpin, padReach, ringAt, ringTurn, SIDE, spinLabel, tapSpin, Tip, zone, zoneLabel } from '../render/tip';
-import { C } from '../theme';
+import { C, DARK, FONT } from '../theme';
+import { Btn } from './Btn';
+import { Slab } from './slab';
 
 // The tip lives outside React state: the game screen reads it when a shot is made and never re-renders for it. Only
 // the button and the sheet below listen.
@@ -19,21 +21,17 @@ export function tipStore(): TipStore {
 }
 const picture = (draw: (c: SkCanvas) => void) => { const rec = Skia.PictureRecorder(); draw(rec.beginRecording()); return rec.finishRecordingAsPicture(); };
 const tick = () => { Haptics.selectionAsync(); }, tap = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
-const press = (down: boolean) => ({ transform: [{ scale: down ? 0.97 : 1 }], transitionProperty: 'transform', transitionDuration: '120ms', transitionTimingFunction: 'ease-out' }) as const;
 
-// The cue ball in the control bar. Its dot is the tip, and a badge gives the elevation when the cue is raised.
+// The cue ball in the control bar, on a dark slab. Its dot is the tip, and a badge gives the elevation when the cue is raised.
 export function TipButton({ store, onPress }: { store: TipStore; onPress: () => void }) {
-  const t = useSyncExternalStore(store.sub, store.get), S = 48;
-  const ball = useMemo(() => picture(c => drawTipBall(Skia, c, S / 2, S / 2, S / 2, t)), [t.x, t.y]);
+  const t = useSyncExternalStore(store.sub, store.get), S = 48, B = 36; // the slab, and the ball on its face
+  const ball = useMemo(() => picture(c => drawTipBall(Skia, c, B / 2, B / 2, B / 2, t)), [t.x, t.y]);
   return (
-    <Pressable onPress={onPress} pressRetentionOffset={16} accessibilityRole="button" accessibilityLabel="Set spin and cue elevation" accessibilityValue={{ text: `${spinLabel(t)}. ${t.elev} degrees` }}>
-      {({ pressed }) => (
-        <Animated.View style={[{ width: S, height: S }, press(pressed)]}>
-          <Canvas style={StyleSheet.absoluteFill}><Picture picture={ball} /></Canvas>
-          {t.elev > 0 && <Text maxFontSizeMultiplier={1.3} style={styles.badge}>{t.elev}°</Text>}
-        </Animated.View>
-      )}
-    </Pressable>
+    <Slab paint={DARK} lip={4} radius={4} onPress={onPress} accessibilityLabel="Set spin and cue elevation" accessibilityValue={{ text: `${spinLabel(t)}. ${t.elev} degrees` }}
+      style={{ width: S, height: S }} face={styles.holder}>
+      <Canvas style={{ width: B, height: B }}><Picture picture={ball} /></Canvas>
+      {t.elev > 0 && <Text maxFontSizeMultiplier={1.3} style={styles.badge}>{t.elev}°</Text>}
+    </Slab>
   );
 }
 
@@ -90,7 +88,7 @@ export function TipSheet({ store, land, calm, felt, blend, onDone, width, style 
       animationName: { from: { opacity: 0, transform: [calm ? { translateY: 0 } : land ? { translateX: 24 } : { translateY: 24 }] } }, animationDuration: '220ms', animationTimingFunction: cubicBezier(0.23, 1, 0.32, 1) }}>
       <View style={styles.head}>
         <Text maxFontSizeMultiplier={1.3} style={styles.eyebrow}>TIP AND CUE ANGLE</Text>
-        <Chip label="Done" onPress={onDone} />
+        <Btn label="Done" onPress={onDone} />
       </View>
       <View style={styles.row}>
         <View {...pan.panHandlers} style={{ width: D, height: D }} accessible accessibilityRole="adjustable" accessibilityLabel="Cue elevation and tip position"
@@ -109,24 +107,15 @@ export function TipSheet({ store, land, calm, felt, blend, onDone, width, style 
   );
 }
 
-// Sheet button: a 44 pt target with the same 3% press as the control bar buttons.
-function Chip({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} pressRetentionOffset={16} accessibilityRole="button" accessibilityLabel={label}>
-      {({ pressed }) => <Animated.View style={[styles.chip, press(pressed)]}><Text maxFontSizeMultiplier={1.3} numberOfLines={1} style={styles.chipText}>{label}</Text></Animated.View>}
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  badge: { position: 'absolute', right: -6, top: -6, minWidth: 26, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 9, overflow: 'hidden', backgroundColor: C.chalk, color: C.ink, fontSize: 11, fontWeight: '700', textAlign: 'center', fontVariant: ['tabular-nums'] },
-  sheet: { position: 'absolute', gap: 8, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 14, backgroundColor: C.panel, borderColor: C.chalk + '40', borderWidth: 1, borderRadius: 20 },
+  holder: { alignItems: 'center', justifyContent: 'center' },
+  badge: { position: 'absolute', right: 0, top: 0, minWidth: 22, paddingHorizontal: 3, borderRadius: 3, overflow: 'hidden', backgroundColor: C.chalk, color: C.ink, fontFamily: FONT.bold, fontSize: 10, lineHeight: 13, textAlign: 'center', fontVariant: ['tabular-nums'] },
+  // A dark slab: the lip is a solid bottom edge of the lip colour, not an outline.
+  sheet: { position: 'absolute', gap: 8, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 14, backgroundColor: DARK[0], borderBottomWidth: 5, borderColor: DARK[1], borderRadius: 5 },
   head: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  eyebrow: { color: C.chalk + 'B3', fontSize: 11, fontWeight: '600', letterSpacing: 0.9 },
+  eyebrow: { color: C.chalk + 'B3', fontFamily: FONT.bold, fontSize: 11, letterSpacing: 0.9 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  deg: { color: C.chalk, fontSize: 22, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  zone: { color: C.chalk + 'B3', fontSize: 11.5, textAlign: 'center', minHeight: 30 }, // room for two lines, so the picture does not move when the text wraps
-  label: { color: C.chalk + 'B3', fontSize: 13, textAlign: 'center' },
-  chip: { minHeight: 44, minWidth: 56, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', borderColor: C.chalk + '66', borderWidth: 1, borderRadius: 12 },
-  chipText: { color: C.chalk + 'CC', fontSize: 12.5, fontWeight: '600' },
+  deg: { color: C.chalk, fontFamily: FONT.display, fontSize: 22, fontVariant: ['tabular-nums'] },
+  zone: { color: C.chalk + 'B3', fontFamily: FONT.semi, fontSize: 11.5, textAlign: 'center', minHeight: 30 }, // room for two lines, so the picture does not move when the text wraps
+  label: { color: C.chalk + 'B3', fontFamily: FONT.semi, fontSize: 13, textAlign: 'center' },
 });

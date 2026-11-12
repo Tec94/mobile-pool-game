@@ -81,7 +81,7 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
     for (const [name, b] of boxes) {
       const slop = name === 'dial' ? 44 - DIAL : 0; // the dial is thinner and takes touches beside it
       assert(b.width + slop >= 44 && b.height + slop >= 44, `${name} is a 44 pt target at ${w}x${h}`);
-      assert(b.left >= pad.left && b.top >= pad.top && b.left + b.width <= w - pad.right + 1e-9 && b.top + b.height <= h - pad.bottom + 1e-9, `${name} is inside the safe area at ${w}x${h}`);
+      assert(b.left >= pad.left - 1e-9 && b.top >= pad.top - 1e-9 && b.left + b.width <= w - pad.right + 1e-9 && b.top + b.height <= h - pad.bottom + 1e-9, `${name} is inside the safe area at ${w}x${h}`);
       for (const [other, o] of boxes) assert(name === other || b.left + b.width <= o.left + 1e-9 || o.left + o.width <= b.left + 1e-9 || b.top + b.height <= o.top + 1e-9 || o.top + o.height <= b.top + 1e-9, `${name} and ${other} overlap at ${w}x${h}`);
     }
     assert(v.land === land && ui.rail.left > v.ox + (tw - RAIL) * v.s, 'the rail is right of the table');

@@ -1,32 +1,40 @@
 // The match HUD (screens spec: player plates, the 9-ball strip, the banner) and the results card. What they show comes
 // from src/ui/hud.ts; this file only draws it.
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
 import type { EdgeInsets } from 'react-native-safe-area-context';
 import { P } from '../physics/engine';
 import type { State } from '../rules/rules';
 import { RAIL, type View as TableView } from '../render/table';
-import { BALLS, C } from '../theme';
+import { BALLS, C, CREAM, DARK, FONT, MODE, type Paint } from '../theme';
 import { banner, fresh, type Plate, plates, strip } from './hud';
+import { Slab, Txt, TYPE } from './slab';
 
 const RED = BALLS[2]; // fouls reuse the three-ball red (Quiet Slate)
 const LINE = C.chalk + '66'; // chalk hairline at 40%: 3:1 on the ground
+const GOLD: Paint = [C.gold, '#B48C12'];
 const POP = { animationName: { from: { opacity: 0, transform: [{ scale: 0.95 }] } }, animationDuration: '200ms', animationTimingFunction: 'ease-out' } as const; // a new ruling pops in
-const TOP = 4, PLATE = 44, STRIP = 24, STRIP_PIP = 18;
+const TOP = 4, PLATE = 44, STRIP = 24, STRIP_PIP = 18, LIP = 3, FRAME = 30;
 // Screen units the HUD takes above the table: the plates, and in 9-ball the strip of balls under them.
 export const hudHeight = (game: number) => TOP + PLATE + 8 + (game === 9 ? STRIP : 0);
 
 // The plates row sits above the table. The pause button comes in as `pause` at the start of the row (top left); the push
 // out button, when the rules offer one, comes in as a child at the end. wait = what the AI is doing, for the banner.
-export function MatchHud({ rules, names, push, view, pad, calm, wait, pause, children }: { rules: State; names: string[]; push: boolean; view: TableView; pad: EdgeInsets; calm: boolean; wait?: string; pause: ReactNode; children?: ReactNode }) {
+// score = frames won in a race, as a chip beside each plate.
+export function MatchHud({ rules, names, push, view, pad, calm, wait, score, pause, children }: { rules: State; names: string[]; push: boolean; view: TableView; pad: EdgeInsets; calm: boolean; wait?: string; score?: readonly number[]; pause: ReactNode; children?: ReactNode }) {
   const [a, b] = plates(rules, names), nine = strip(rules), next = nine.find(q => q.next);
   // Landscape: the banner sits between the plates, above the table, where it covers no pocket. Portrait: over the
   // foot rail, between the corner pockets.
   // 9-ball: both players share the balls, so the strip sits under the seam of the two plates. Landscape: that is the
   // middle of the table. Portrait: the seam, measured, as the pause button and the rail shift it off the table's middle.
   const [seam, setSeam] = useState(0), left = Math.max(pad.left, 8), wide = 9 * STRIP_PIP + 8 * 5;
-  const mid = !view.land && seam ? left + seam - 4 : view.ox + (view.land ? P.L : P.W) * view.s / 2; // 4 = half the row gap
+  const mid = !view.land && seam ? left + seam - (score ? 3 * 8 + 2 * FRAME : 8) / 2 : view.ox + (view.land ? P.L : P.W) * view.s / 2; // the middle of the gaps (8) and frame chips between the plates
+  const frames = (i: number) => score && (
+    <Slab paint={i ? DARK : CREAM} lip={LIP} radius={3} face={styles.frames}>
+      <Txt accessibilityLabel={`${names[i]}: ${score[i]} ${score[i] === 1 ? 'frame' : 'frames'}`} style={[styles.framesText, !i && { color: C.ink }]}>{score[i]}</Txt>
+    </Slab>
+  );
   const say = <Banner rules={rules} push={push} calm={calm} wait={wait} style={view.land ? { flex: 1 } : { position: 'absolute', top: view.oy - RAIL * view.s + 4, left: view.ox, width: P.W * view.s, paddingHorizontal: 0.12 * view.s }} />;
   return (
     <>
@@ -34,7 +42,7 @@ export function MatchHud({ rules, names, push, view, pad, calm, wait, pause, chi
           keeps the plates and the banner centred on the table when no push out button is there. */}
       <View style={[styles.hud, { top: pad.top + TOP, left, right: Math.max(pad.right, 8) }]}>
         <View style={styles.row} accessibilityLiveRegion="polite">
-          {pause}<PlateView p={a} land={view.land} />{view.land && say}<PlateView p={b} land={view.land} onX={setSeam} />{children || (view.land && <View style={styles.even} />)}
+          {pause}<PlateView p={a} land={view.land} />{frames(0)}{view.land && say}{frames(1)}<PlateView p={b} land={view.land} onX={setSeam} />{children || (view.land && <View style={styles.even} />)}
         </View>
       </View>
       {nine.length > 0 && (
@@ -52,25 +60,28 @@ export function MatchHud({ rules, names, push, view, pad, calm, wait, pause, chi
 }
 
 // Line 1 the name; line 2 the group's pips (hollow once potted), or Open / Break / On the 8, or the 9-ball foul warning.
-// The player to shoot is at full strength with a chalk underline.
+// The player to shoot is a cream slab with ink text, the other a dark one.
 function PlateView({ p, land, onX }: { p: Plate; land: boolean; onX?: (x: number) => void }) {
+  const ink = p.on ? C.ink : C.chalk, edge = p.on ? C.ink + '66' : LINE;
   return (
-    <View onLayout={onX && (e => onX(e.nativeEvent.layout.x))} accessible accessibilityLabel={p.label} style={[styles.plate, land && { maxWidth: 200 }, !p.on && { opacity: 0.6 }]}>
-      <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.name}>{p.name}</Text>
-      <View style={styles.l2}>
-        {p.pips.map(q => <Pip key={q.id} id={q.id} gone={q.gone} size={8} />)}
-        {!!p.text && <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={[styles.l2Text, p.warn && { color: RED }]}>{p.text}</Text>}
-      </View>
-      {p.on && <View style={styles.under} />}
+    <View onLayout={onX && (e => onX(e.nativeEvent.layout.x))} accessible accessibilityLabel={p.label} style={[styles.plate, land && { maxWidth: 200 }]}>
+      <Slab paint={p.on ? CREAM : DARK} lip={LIP} radius={3} style={{ flex: 1 }} face={styles.plateFace}>
+        <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={[styles.name, { color: ink }]}>{p.name}</Text>
+        <View style={styles.l2}>
+          {p.pips.map(q => <Pip key={q.id} id={q.id} gone={q.gone} size={10} edge={edge} />)}
+          {!!p.text && <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={[styles.l2Text, { color: ink + 'B3' }, p.warn && { color: RED }]}>{p.text}</Text>}
+        </View>
+      </Slab>
     </View>
   );
 }
 
 // A ball as a flat disc: solid, or a white disc with a colour band for a stripe; a potted ball is an outline only.
-function Pip({ id, gone, size, style, children }: { id: number; gone: boolean; size: number; style?: ViewStyle; children?: ReactNode }) {
+// edge = the outline colour on the face behind it (dark balls on the dark ground, white ones on cream).
+function Pip({ id, gone, size, edge = LINE, style, children }: { id: number; gone: boolean; size: number; edge?: string; style?: ViewStyle; children?: ReactNode }) {
   const hue = BALLS[(id - 1) % 8];
   return (
-    <View style={[{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center' }, gone ? { borderWidth: 1.5, borderColor: LINE } : { backgroundColor: id > 8 ? C.white : hue, overflow: 'hidden' }, (id === 7 || id === 8) && !gone && styles.eight, style]}>
+    <View style={[{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center' }, gone ? { borderWidth: 1.5, borderColor: edge } : { backgroundColor: id > 8 ? C.white : hue, overflow: 'hidden' }, (edge !== LINE ? id > 8 : id === 7 || id === 8) && !gone && { borderWidth: 1, borderColor: edge }, style]}>
       {!gone && id > 8 && <View style={{ position: 'absolute', left: 0, right: 0, top: size / 4, height: size / 2, backgroundColor: hue }} />}
       {children}
     </View>
@@ -92,25 +103,70 @@ function Banner({ rules, push, calm, wait, style }: { rules: State; push: boolea
   return ( // the wrapper stays when the pill is gone, so the plates beside it in landscape do not move
     <View pointerEvents="none" style={[{ alignItems: 'center' }, style]}>
       {!!(say || hint) && <Animated.View key={shown.n} role="status" accessibilityLiveRegion="polite" style={[styles.banner, !calm && POP]}>
-        <Text maxFontSizeMultiplier={1.3} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75} style={styles.bannerText}>
-          {!!say && <Text style={foul && { color: RED }}>{say}</Text>}{say && hint ? ' ' : ''}{hint}
-        </Text>
+        <Slab paint={DARK} lip={LIP} radius={3} face={styles.bannerFace}>
+          <Text maxFontSizeMultiplier={1.3} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75} style={styles.bannerText}>
+            {!!say && <Text style={foul && { color: RED }}>{say}</Text>}{say && hint ? ' ' : ''}{hint}
+          </Text>
+        </Slab>
       </Animated.View>}
     </View>
   );
 }
 
-// The end of the rack: who won and why. The score, the pay and the buttons come in as children.
-export function Results({ rules, title, kind = 'Pass and play', children }: { rules: State; title: string; kind?: string; children: ReactNode }) {
+// The end of the rack, as a mosaic: a tall slab says who won and why (gold when the player at the phone won, or anyone in
+// pass and play; dark when the AI won), with the frame score huge in a race; the pay, the level and the buttons come in
+// as children beside it (under it in portrait). foot = a last line on the slab (the Rival's rating).
+export function Results({ rules, title, kind = 'Pass and play', gold, score, names, foot, children }: { rules: State; title: string; kind?: string; gold: boolean; score?: readonly number[]; names: string[]; foot?: string; children: ReactNode }) {
+  const { width, height } = useWindowDimensions(), land = width > height, ink = gold ? C.ink : C.chalk;
   return (
     <View style={styles.sheet} pointerEvents="box-none">
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.card} accessibilityViewIsModal>
-        <Text maxFontSizeMultiplier={1.3} style={styles.eyebrow}>{kind} · {rules.game}-ball</Text>
-        <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.title}>{title}</Text>
-        {!!rules.note && <Text maxFontSizeMultiplier={1.3} style={styles.why}>{rules.note}</Text>}
-        {children}
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.mosaic, land && styles.wide]} accessibilityViewIsModal>
+        <Slab paint={gold ? GOLD : DARK} style={land ? styles.tall : undefined} face={styles.win}>
+          <Txt style={[TYPE.small, { color: ink }]}>{kind} · {rules.game}-ball</Txt>
+          <Txt accessibilityRole="header" style={[styles.title, { color: ink }]}>{title}</Txt>
+          {!!rules.note && <Txt style={[TYPE.body, { color: ink }]}>{rules.note}</Txt>}
+          {score && <Txt accessibilityLabel={`${names[0]} ${score[0]}, ${names[1]} ${score[1]}`} style={[styles.score, { color: ink }]}>{score[0]}–{score[1]}</Txt>}
+          {!!foot && <Txt style={[TYPE.body, styles.foot, { color: ink }]}>{foot}</Txt>}
+        </Slab>
+        <View style={[styles.side, land && { flex: 1 }]}>{children}</View>
       </ScrollView>
     </View>
+  );
+}
+
+// A pay line of the results: the XP in a gold chip, "× 2" in a blue chip when Fresh Chalk doubled it, and what it paid.
+// A line that paid nothing is not shown.
+export function PayRow({ label, xp, coins, twice }: { label: string; xp: number; coins: number; twice?: boolean }) {
+  if (!xp && !coins) return null;
+  const k = twice ? 2 : 1;
+  return (
+    <View style={styles.payRow} accessible accessibilityLabel={`${label}: ${k * xp} XP, ${k * coins} coins${twice ? ', doubled by Fresh Chalk' : ''}`}>
+      <Txt style={[TYPE.body, styles.payLabel]}>{label}</Txt>
+      <Slab paint={GOLD} lip={LIP} radius={3} face={styles.payChip}><Txt style={styles.chipNum}>{xp}</Txt></Slab>
+      {twice && <><Txt style={TYPE.body}>×</Txt><Slab paint={MODE.daily} lip={LIP} radius={3} face={styles.payChip}><Txt style={styles.chipNum}>2</Txt></Slab><Txt style={[TYPE.small, { color: C.blue }]}>Fresh Chalk</Txt></>}
+      <Txt style={[TYPE.body, styles.payAll]}>{k * xp} XP · {k * coins} coins</Txt>
+    </View>
+  );
+}
+
+// The total of the pay: XP in gold, coins in chalk. None when the match paid nothing.
+export function PayTotal({ xp, coins }: { xp: number; coins: number }) {
+  if (!xp && !coins) return null;
+  return (
+    <Slab paint={DARK} face={styles.total}>
+      <Txt style={[styles.big, { color: C.gold }]}>+{xp} XP</Txt>
+      <Txt style={styles.big}>+{coins} coins</Txt>
+    </Slab>
+  );
+}
+
+// A button of a card or the results: cream = the one that goes on (Resume, Rematch, Next rack), dark on the ground, or by
+// default a key-off face, which reads on a dark card.
+export function Act({ label, paint, onPress }: { label: string; paint?: Paint; onPress: () => void }) {
+  return (
+    <Slab paint={paint ?? [C.keyOff, 'transparent']} lip={paint ? LIP : 0} radius={3} onPress={onPress} accessibilityLabel={label} style={!paint && { marginTop: LIP }} face={styles.act}>
+      <Txt style={[styles.actText, paint === CREAM && { color: C.ink }]}>{label}</Txt>
+    </Slab>
   );
 }
 
@@ -118,21 +174,36 @@ const styles = StyleSheet.create({
   hud: { position: 'absolute', gap: 6 },
   even: { width: 56 }, // the width of the pause button (Btn minWidth)
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, height: PLATE },
-  plate: { flex: 1, height: PLATE, paddingHorizontal: 10, justifyContent: 'center', gap: 3, borderRadius: 6, borderWidth: 1, borderColor: LINE, overflow: 'hidden' },
-  name: { color: C.chalk, fontSize: 14, lineHeight: 17, fontWeight: '600' },
+  plate: { flex: 1, height: PLATE },
+  plateFace: { paddingHorizontal: 10, justifyContent: 'center', gap: 3 },
+  name: { fontFamily: FONT.display, fontSize: 14, lineHeight: 17 },
   l2: { flexDirection: 'row', alignItems: 'center', gap: 3, height: 14 }, // fixed height: the plate never grows
-  l2Text: { color: C.chalk + 'B3', fontSize: 12, lineHeight: 14, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  under: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 3, backgroundColor: C.chalk },
-  eight: { borderWidth: 1, borderColor: LINE }, // the 7 and 8 keep an edge on the dark ground (a border: outline needs a style on web)
+  l2Text: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 14, fontVariant: ['tabular-nums'] },
+  frames: { width: FRAME, height: FRAME, alignItems: 'center', justifyContent: 'center' },
+  framesText: { fontFamily: FONT.display, fontSize: 17, color: C.chalk, fontVariant: ['tabular-nums'] },
   nine: { position: 'absolute', flexDirection: 'row', justifyContent: 'center', gap: 5, height: STRIP_PIP },
-  num: { fontSize: 10, lineHeight: 18, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  num: { fontFamily: FONT.bold, fontSize: 10, lineHeight: 18, fontVariant: ['tabular-nums'] },
   next: { borderWidth: 2, borderColor: C.chalk }, // inside the box: the pip keeps its size
-  banner: { maxWidth: '100%', paddingVertical: 4, paddingHorizontal: 12, borderRadius: 16, borderWidth: 1, borderColor: LINE, backgroundColor: '#000b' },
-  bannerText: { color: C.chalk, fontSize: 13, lineHeight: 16, fontWeight: '600', textAlign: 'center' },
-  sheet: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  scroll: { flexGrow: 0, maxWidth: '100%', borderRadius: 10 }, // a long card (quick match pay) scrolls on a short landscape phone
-  card: { width: 300, maxWidth: '100%', padding: 20, gap: 10, borderRadius: 10, borderWidth: 1, borderColor: LINE, backgroundColor: C.ground + 'F2', alignItems: 'center' },
-  eyebrow: { color: C.chalk + 'B3', fontSize: 11, fontWeight: '600', letterSpacing: 0.9, textTransform: 'uppercase' },
-  title: { color: C.chalk, fontSize: 24, fontWeight: '800', textAlign: 'center' },
-  why: { color: C.chalk, fontSize: 14, lineHeight: 19, textAlign: 'center' },
+  banner: { maxWidth: '100%' },
+  bannerFace: { paddingVertical: 4, paddingHorizontal: 12 },
+  bannerText: { color: C.chalk, fontFamily: FONT.bold, fontSize: 13, lineHeight: 16, textAlign: 'center' },
+  sheet: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 16, backgroundColor: C.menu + 'E6' },
+  scroll: { flexGrow: 0, maxWidth: '100%' }, // a long pay list scrolls on a short landscape phone
+  mosaic: { width: 340, maxWidth: '100%', gap: 14 },
+  wide: { width: 700, flexDirection: 'row', alignItems: 'stretch', gap: 24 },
+  tall: { width: 280 },
+  win: { padding: 16, gap: 6 },
+  title: { fontFamily: FONT.display, fontSize: 30, lineHeight: 32, letterSpacing: -0.5 },
+  score: { fontFamily: FONT.display, fontSize: 84, lineHeight: 88, letterSpacing: -2, fontVariant: ['tabular-nums'] },
+  foot: { marginTop: 'auto', paddingTop: 6 },
+  side: { gap: 10, justifyContent: 'center' },
+  payRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 34 },
+  payLabel: { minWidth: 64 },
+  payChip: { minWidth: 44, height: 26, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
+  chipNum: { fontFamily: FONT.display, fontSize: 15, color: C.ink, fontVariant: ['tabular-nums'] },
+  payAll: { marginLeft: 'auto', fontVariant: ['tabular-nums'] },
+  total: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 14, paddingHorizontal: 14, paddingVertical: 10 },
+  big: { fontFamily: FONT.display, fontSize: 26, lineHeight: 30, color: C.chalk, fontVariant: ['tabular-nums'] },
+  act: { minHeight: 41, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
+  actText: { fontFamily: FONT.bold, fontSize: 15, color: C.chalk, textAlign: 'center' },
 });
