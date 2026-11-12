@@ -11,7 +11,7 @@ const SLOP = { top: 8, bottom: 8, left: 4, right: 4 }; // a 34 pt key or a 26 pt
 // Text with the cap every label in the game has on the system text size.
 export const Txt = (p: TextProps) => <Text maxFontSizeMultiplier={1.3} {...p} />;
 
-type A11y = Pick<React.ComponentProps<typeof Pressable>, 'accessibilityLabel' | 'accessibilityRole' | 'accessibilityState' | 'accessibilityHint' | 'aria-checked' | 'hitSlop'>;
+type A11y = Pick<React.ComponentProps<typeof Pressable>, 'accessibilityLabel' | 'accessibilityRole' | 'accessibilityState' | 'accessibilityHint' | 'accessibilityValue' | 'aria-checked' | 'hitSlop'>;
 export interface SlabProps extends A11y {
   paint: Paint; lip?: number; radius?: number;
   onPress?: () => void; onLongPress?: () => void; disabled?: boolean;
