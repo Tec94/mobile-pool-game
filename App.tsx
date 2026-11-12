@@ -310,7 +310,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         if (!queue.value.length && L) { table.current.rec = null; ended.current(rec as LessonRec); }
         else if (!queue.value.length) {
           const next = judge(s, rec, pushOut);
-          if (vs && s.turn === 0) { noteShot(won.current, potPay(cands.current, rec, s, next, won.current.run, rival ? { boss: level.current } : { tier: ai + 1 }), next.foul); }
+          if (vs && s.turn === 0) noteShot(won.current, potPay(cands.current, rec, s, next, won.current.run, rival ? { boss: level.current } : { tier: ai + 1 }), next.foul && next.phase !== 'over'); // a foul that ends the rack does not cost the clean-match bonus
           if (next.phase === 'over' || next.foul) Haptics.notificationAsync(next.winner < 0 ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
           apply.current(next);
         }
