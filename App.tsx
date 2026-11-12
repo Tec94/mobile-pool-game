@@ -81,11 +81,12 @@ export default function App() {
 }
 
 const LOCKS = [ScreenOrientation.OrientationLock.DEFAULT, ScreenOrientation.OrientationLock.PORTRAIT_UP, ScreenOrientation.OrientationLock.LANDSCAPE];
+const PLAY = ['match', 'ai', 'lesson', 'scenario', 'daily'] as const; // the screens that are a table, not a menu
 const MENU_LOCKS = [ScreenOrientation.OrientationLock.LANDSCAPE, ScreenOrientation.OrientationLock.PORTRAIT_UP];
 
 // The screen on show and the settings. A match reads its setup when it starts.
 function Root() {
-  const [set, setSet] = useState(loadSettings), [screen, go] = useState<Screen | 'match' | 'ai' | 'lesson' | 'scenario' | 'daily'>('home');
+  const [set, setSet] = useState(loadSettings), [screen, go] = useState<Screen | typeof PLAY[number]>('home');
   const [done, setDone] = useState(loadDone), [lesson, setLesson] = useState(0);
   const learn = (i: number) => { setLesson(i); go('lesson'); };
   const [stars, setStars] = useState(loadStars), [scen, setScen] = useState(0);
@@ -139,7 +140,7 @@ function Root() {
   useEffect(() => { if (first.current) first.current = false; else saveSettings(set); }, [set]);
   useEffect(() => { if (done.length >= PENCIL_AT) unlockCue('pencil'); }, []); // also at launch: lessons passed before cues existed still count
   // The lock follows the place: the menus are one way up (settings.menus), a match, lesson or table its own (settings.orient).
-  const playing = screen === 'match' || screen === 'ai' || screen === 'lesson' || screen === 'scenario' || screen === 'daily';
+  const playing = (PLAY as readonly string[]).includes(screen);
   useEffect(() => { ScreenOrientation.lockAsync(playing ? LOCKS[set.orient] : MENU_LOCKS[set.menus]).catch(() => {}); }, [playing, set.orient, set.menus]);
   useEffect(() => { // Android back: from a menu page to home
     const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (screen !== 'home' && !playing) { go('home'); return true; } return false; });

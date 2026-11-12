@@ -6,7 +6,7 @@ anywhere to aim and shoot, tap Rack to reset, Demo to see a spin, jump or massé
 
 ```
 npm install
-npm test           # physics checks (about 30 s)
+npm test           # every src test file (about 20 s)
 npm run typecheck
 npm run frames -- out   # review pictures without a phone, see below
 ```
