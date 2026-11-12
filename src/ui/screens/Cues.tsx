@@ -93,7 +93,8 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
 // Each stat as 10 blocks: the better the cue, the more are filled, against the top of 10.
 function Simple({ id, p }: { id: CueId; p: Profile }) {
   const { land, side, width } = useFrame(), st = statsOf(id, masteryOf(p, id)), aw = Math.floor((width - 2 * side - 283 - 28) / 16) * 16; // in steps of 16, so a resized window makes few pictures
-  // The flat cue fills the width past the stat rows (283 pt), its butt low enough to pass under the stage's link.
+  // The flat cue fills the width past the stat rows (283 pt, a fixed number width so no cue shifts it) and ends on the
+  // right gutter (the steps of 16 leave its slack on the left), its butt low enough to pass under the stage's link.
   return <>
     <View style={styles.simple}>
       <View style={{ gap: 6 }}>
@@ -101,7 +102,7 @@ function Simple({ id, p }: { id: CueId; p: Profile }) {
           <View key={s} style={styles.stat} accessible accessibilityLabel={`${s} ${st[s]} of 10`}>
             <Txt style={[TYPE.body, styles.statName]}>{cap(s)}</Txt>
             <Blocks value={st[s]} width={200} />
-            <Txt style={[TYPE.body, TYPE.num, styles.bold]}>{st[s]}</Txt>
+            <Txt style={[TYPE.body, TYPE.num, styles.bold, { width: 23 }]}>{st[s]}</Txt>
           </View>
         ))}
       </View>
@@ -164,7 +165,7 @@ const styles = StyleSheet.create({
   art: { position: 'absolute', left: 0, top: 4 },
   name: { ...TYPE.name, fontSize: 14, textAlign: 'center', position: 'absolute', left: 3, right: 3 },
   foot: { position: 'absolute', left: 0, right: 0, height: 24, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  simple: { flexDirection: 'row', alignItems: 'center', gap: 28 },
+  simple: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 28 },
   stat: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   statName: { width: 44, opacity: 0.8 },
   facts: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 24, rowGap: 6 },
