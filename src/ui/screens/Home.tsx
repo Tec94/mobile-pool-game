@@ -74,17 +74,18 @@ function QuickStage({ set, change: save, go, daily, arm }: HomeProps) {
   );
 }
 
+let typed: [string, string] | undefined; // the names being typed outlive a card change, as kept does
 function PassStage({ set, change, go }: HomeProps) {
-  const [names, setNames] = useState(set.names);
+  const [names, setTyped] = useState(typed ?? set.names), land = useFrame().land, setNames = (v: [string, string]) => { typed = v; setTyped(v); };
   const start = () => { change({ names: names.map((n, i) => n.trim() || `Player ${i + 1}`) as [string, string] }); go('match'); };
   return (
     <Stage title="Pass and play" line={`Two players, one phone. Pays ${PASS_PLAY.xp} XP and ${PASS_PLAY.coins} coins a match.`} cta={{ label: 'Play', name: 'Play pass and play', onPress: start }}>
       <Row gap={10}>
         {names.map((n, i) => (
-          <View key={i} style={styles.field}>
+          <View key={i} style={[styles.field, !land && { width: '100%' }]}>
             <Txt style={styles.fieldLabel} nativeID={`p${i}`}>Player {i + 1}</Txt>
-            <TextInput value={n} onChangeText={t => setNames(i ? [names[0], t] : [t, names[1]])} maxLength={NAME_MAX} autoCorrect={false} autoComplete="off" returnKeyType="done" maxFontSizeMultiplier={1.3}
-              selectTextOnFocus accessibilityLabelledBy={`p${i}`} accessibilityLabel={`Player ${i + 1} name`} placeholder={`Player ${i + 1}`} placeholderTextColor={C.chalk + '80'} style={styles.input} />
+            <TextInput value={n} onChangeText={t => setNames(i ? [names[0], t] : [t, names[1]])} maxLength={NAME_MAX} autoCorrect={false} autoCapitalize="words" autoComplete="off" returnKeyType="done" maxFontSizeMultiplier={1.3}
+              selectTextOnFocus accessibilityLabelledBy={`p${i}`} accessibilityLabel={`Player ${i + 1} name`} placeholder={`Player ${i + 1}`} placeholderTextColor={C.chalk + '80'} style={[styles.input, land ? { width: 190 } : { flex: 1 }]} />
           </View>
         ))}
       </Row>
@@ -133,6 +134,6 @@ function LearnStage({ go, done, learn }: HomeProps) {
 
 const styles = StyleSheet.create({
   field: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  fieldLabel: { fontFamily: FONT.bold, fontSize: 11, color: C.chalk, opacity: 0.7 },
-  input: { width: 150, height: 34, paddingHorizontal: 10, borderRadius: 3, backgroundColor: C.chalk + '12', borderBottomWidth: 2, borderBottomColor: C.chalk, color: C.chalk, fontFamily: FONT.bold, fontSize: 13.5 },
+  fieldLabel: { width: 48, fontFamily: FONT.bold, fontSize: 11, color: C.chalk, opacity: 0.7 },
+  input: { height: 34, paddingHorizontal: 10, borderRadius: 3, backgroundColor: C.chalk + '12', borderBottomWidth: 2, borderBottomColor: C.chalk, color: C.chalk, fontFamily: FONT.bold, fontSize: 13.5 },
 });
