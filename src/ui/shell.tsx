@@ -66,7 +66,7 @@ const Sliders = () => (
 // An underlined text link, for the line under the stage's button and small actions like a reset.
 export function Link({ label, name, onPress }: { label: string; name?: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={name ?? label} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }} style={styles.link}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={name ?? label} hitSlop={{ top: 4, bottom: 8, left: 4, right: 4 }} style={styles.link}>
       <Txt style={styles.linkText}>{label}</Txt>
     </Pressable>
   );
@@ -97,7 +97,7 @@ export function Stage({ title, line, cta, link, children }: { title: string; lin
 }
 
 // A row of the stage: keys, chips or fields side by side, wrapping when the screen is narrow.
-export const Row = ({ children, gap = 16 }: { children: ReactNode; gap?: number }) => <View style={[styles.row, styles.wrap, { gap }]}>{children}</View>;
+export const Row = ({ children, gap = 16 }: { children: ReactNode; gap?: number }) => <View style={[styles.row, styles.wrap, { columnGap: gap, rowGap: 8 }]}>{children}</View>;
 
 export interface Card {
   key: string; paint: Paint; name: string; // name = what a screen reader says
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   linkText: { fontFamily: FONT.bold, fontSize: 12, color: C.chalk, textDecorationLine: 'underline', opacity: 0.9 },
   line: { ...TYPE.body, opacity: 0.82, marginTop: 3 },
   portTitle: { fontSize: 28, lineHeight: 32, letterSpacing: -0.4 }, // a long title breaks with no orphan word
-  side: { position: 'absolute', top: 6, width: 170, alignItems: 'flex-end' },
+  side: { position: 'absolute', top: 6, width: 170, alignItems: 'flex-end', gap: 4 },
   cta: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   ctaText: { fontFamily: FONT.display, fontSize: 26, lineHeight: 30, color: C.ink },
   art: { position: 'absolute', right: 6, top: 80 },
