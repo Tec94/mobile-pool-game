@@ -58,9 +58,9 @@ export function nearest(B: Ball[], keep = 0) {
 // budget = the limit on the work after the first contact (see predict), so one guide stays inside a frame.
 // stick = the engine cue that will strike, so the guide squirts as the shot will.
 // real = draw the cue ball's real path after the contact in place of the stub (a lesson's watch stage, where the shot
-// plays itself next anyway).
-export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, stick?: Cue, real = false) {
-  const L = guideLen(aim), g = predict(B, shot, L, stick, undefined, budget, real && aim >= LONG), k = g.split < 0 ? g.cue.length : g.split + 1;
+// plays itself next anyway, and the Giant Pencil's perk), at any Aim. scale = the share of the guide length the cue keeps.
+export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, stick?: Cue, real = false, scale = 1) {
+  const L = guideLen(aim) * scale, far = real || aim >= LONG, g = predict(B, shot, L, stick, undefined, budget, real), k = g.split < 0 ? g.cue.length : g.split + 1;
   // predict runs until both balls have gone the length, so the faster one overshoots it: cut each path to the length.
   const clip = (p: number[][], len: number) => {
     const out = p.slice(0, 1);
@@ -70,8 +70,8 @@ export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, st
   // A kick: the cue ball meets a cushion first. Below LONG the line stops there, so the ring goes there too and no
   // object ball path hangs loose beyond it.
   const q = g.cue[k - 1], h = g.hit, kick = g.split >= 0 && !!h && Math.hypot(q[0] - h.x, q[1] - h.y) > 1e-6;
-  if (kick && aim < LONG) return { path: g.cue.slice(0, k), ob: [], ghost: [q[0], q[1]], lands: g.lands, lost: false, first: -1, stub: [] as number[][] };
-  const after = aim < LONG ? [] : clip(g.cue.slice(k - 1), L).slice(1);
+  if (kick && !far) return { path: g.cue.slice(0, k), ob: [], ghost: [q[0], q[1]], lands: g.lands, lost: false, first: -1, stub: [] as number[][] };
+  const after = !far ? [] : clip(g.cue.slice(k - 1), L).slice(1);
   let path = [...g.cue.slice(0, k), ...after], stub: number[][] = [];
   if (h && after.length && !real) {
     const O = B[h.b!], R2 = 0.05715; // 2 P.R: centre to centre at contact

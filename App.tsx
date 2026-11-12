@@ -39,7 +39,7 @@ import { armChalk, chalkResult, dailyClear, dailyPick, dayKey, grantChalk } from
 import { loadDaily, saveDaily } from './src/daily/save';
 import { loadStars, saveStars } from './src/scenarios/save';
 import { levelNote } from './src/progress/profile';
-import { CUES, stick } from './src/progress/cues';
+import { CUES, guideScale, sketch, stick } from './src/progress/cues';
 import { loadSettings, saveSettings } from './src/settings/save';
 import { RIVAL, type Settings } from './src/settings/settings';
 import { BALLS, C, CLOTHS, CREAM, DARK, FONT } from './src/theme';
@@ -246,7 +246,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   useEffect(() => { held.current = paused; wake.current(); }, [paused]); // the marks stop under the pause card, and move again after it
   // A lesson plays with the engine's own cue, the one its reference shots are tuned on (src/learn/lessons.test.mjs).
   // A scenario and quick match play with the player's own cue and its aim guide (stick stats count in challenges).
-  const own = useMemo(() => profile().cue, []), mine = useMemo(() => ownStats(own), []), cue = useMemo(() => (S || vs ? stick(own, false, mine) : L ? CUE : STICK), []); // fixed for the life of the screen: a cue change takes effect at the next table
+  const own = useMemo(() => profile().cue, []), mine = useMemo(() => ownStats(own), []), cue = useMemo(() => (S || vs ? stick(own, false, mine) : L ? CUE : STICK), []), pen = !!(S || vs) && sketch(own); // fixed for the life of the screen: a cue change takes effect at the next table
   const shotOf = (power: number): Shot => ({ ang: shot.get().aim, speed: Math.max(0.05, power * (table.current.rules.phase === 'break' ? cue.breakSpeed : cue.maxSpeed)), ...shotTip(tip.get(), cue) });
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the
   // rack is over. In a lesson: the shot plays itself, or the verdict card is up.
@@ -287,7 +287,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       if (stale.current) { // one guide a frame, however many touches came. While a shot can be made the guide and the cue stick are always there: for the pull on the rail, or for a firm shot without one
         stale.current = false; redo.current = true;
         const { power } = shot.get();
-        if (!shut() || watching()) guides.ask({ B, shot: shotOf(previewPower(power)), aim: S || vs ? mine.aim : L ? 10 : GUIDE_AIM, budget: GUIDE_WORK, stick: cue, real: watching() }, power > 0.05); // lessons use the full guide; watch shows the real path, as the shot plays next
+        if (!shut() || watching()) guides.ask({ B, shot: shotOf(previewPower(power)), aim: S || vs ? mine.aim : L ? 10 : GUIDE_AIM, budget: GUIDE_WORK, stick: cue, real: watching() || pen, scale: pen ? guideScale(own) : 1 }, power > 0.05); // lessons use the full guide; watch shows the real path, as the shot plays next; so does the Giant Pencil, on a shorter guide
         else { guides.drop(); line.current = null; }
       }
       if (redo.current) { // the stick follows the finger every frame; the line is the newest guide there is, a few frames old when it came from the other thread
