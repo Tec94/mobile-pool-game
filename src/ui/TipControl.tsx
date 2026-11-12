@@ -1,13 +1,12 @@
-// The spin button and the "Tip and cue angle" sheet (screens spec: the ring around the spin ball, with the side picture).
+// The spin button and the tip and cue angle sheet (screens spec: the ring around the spin ball, with the side picture).
 // Drawing and touch maths are in src/render/tip.ts; this file is the React Native shell around them.
-import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { PanResponder, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { BackHandler, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Canvas, Picture, Skia, SkCanvas } from '@shopify/react-native-skia';
-import Animated, { cubicBezier, useReducedMotion } from 'react-native-reanimated';
+import Animated, { cubicBezier, FadeOut, useReducedMotion } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { drawSide, drawTip, drawTipBall, grab, LEVEL, MAX_ELEV, moveElev, moveSpin, padReach, ringAt, ringTurn, SIDE, spinLabel, tapSpin, Tip, zone, zoneLabel } from '../render/tip';
 import { C, DARK, FONT } from '../theme';
-import { Btn } from './Btn';
 
 // The tip lives outside React state: the game screen reads it when a shot is made and never re-renders for it. Only
 // the button and the sheet below listen.
@@ -38,13 +37,17 @@ export function TipButton({ store, onPress }: { store: TipStore; onPress: () => 
   );
 }
 
-// The sheet. The table stays live around it: a pull on the table still aims and shoots while it is open.
-// width = the sheet's own; a sheet narrower than the big ring and the side picture need takes a smaller ring.
-export function TipSheet({ store, land, calm, felt, blend, onDone, width, style }: { store: TipStore; land: boolean; calm: boolean; felt: string; blend: boolean; onDone: () => void; width: number; style: ViewStyle }) {
-  const t = useSyncExternalStore(store.sub, store.get), D = Math.min(land ? 150 : 190, width - 140); // 140 = side picture, gap, padding and border
+// The sheet: the ring with the cue ball, and the side picture, in a dark slab at the centre of the window. A touch
+// anywhere outside it closes it and does nothing else: the catcher under the slab takes the touch, so it never aims
+// the cue, pulls the rail or turns the dial. Android back and the screen reader's escape close it too.
+const TRIM = 183 / 214; // the ring's picture is empty right of the ball and under it (src/render/tip.ts): the box ends at the ball
+export function TipSheet({ store, land, calm, felt, blend, onDone }: { store: TipStore; land: boolean; calm: boolean; felt: string; blend: boolean; onDone: () => void }) {
+  const t = useSyncExternalStore(store.sub, store.get), D = land ? 150 : 190;
   const size = useRef(D), drag = useRef<{ on: 'ring' | 'pad'; from: Tip; x: number; y: number; t: number; moved: boolean; a: number; e: number } | null>(null);
   if (size.current !== D) drag.current = null; // the phone turned during a drag: the touch no longer maps to the ring
   size.current = D; // the pan responder is created once, so it reads the latest size
+  const close = useRef(onDone); close.current = onDone;
+  useEffect(() => { const sub = BackHandler.addEventListener('hardwareBackPress', () => { close.current(); return true; }); return () => sub.remove(); }, []); // registered last, so it runs before the pause card's
   const ring = useMemo(() => picture(c => drawTip(Skia, c, D, t, blend)), [D, t, blend]);
   const side = useMemo(() => picture(c => drawSide(Skia, c, t.elev, felt)), [t.elev, felt]);
   const put = ({ tip, bump }: { tip: Tip; bump: boolean }) => { store.set(tip); if (bump) tick(); };
@@ -84,41 +87,37 @@ export function TipSheet({ store, land, calm, felt, blend, onDone, width, style 
   const acts: Record<string, () => void> = { increment: () => store.set(moveElev(t, t.elev + 5).tip), decrement: () => store.set(moveElev(t, t.elev - 5).tip),
     'Tip higher': () => nudge(0, 0.2), 'Tip lower': () => nudge(0, -0.2), 'Tip left': () => nudge(-0.2, 0), 'Tip right': () => nudge(0.2, 0) };
 
-  return (
-    // Reduced motion: the sheet fades in and does not slide.
-    // The sheet takes every touch that starts on it, so a slip off a handle never aims the cue on the table below.
-    <Animated.View onStartShouldSetResponder={() => true} onResponderTerminationRequest={() => false} style={{ ...styles.sheet, ...(land && { gap: 6, paddingTop: 8, paddingBottom: 8 }), width, ...style,
-      animationName: { from: { opacity: 0, transform: [calm ? { translateY: 0 } : land ? { translateX: 24 } : { translateY: 24 }] } }, animationDuration: '220ms', animationTimingFunction: EASE_OUT }}>
-      <View style={styles.head}>
-        <Text maxFontSizeMultiplier={1.3} style={styles.eyebrow}>TIP AND CUE ANGLE</Text>
-        <Btn label="Done" onPress={onDone} />
-      </View>
-      <View style={styles.row}>
-        <View {...pan.panHandlers} style={{ width: D, height: D }} accessible accessibilityRole="adjustable" accessibilityLabel="Cue elevation and tip position"
+  return <>
+    <Pressable style={StyleSheet.absoluteFill} onPress={onDone} accessibilityRole="button" accessibilityLabel="Close spin and cue elevation" />
+    {/* It grows from 95% at the centre in 200 ms and fades out in 120 ms; with reduced motion it only fades in. The layer
+        is the size of the window and lets touches through to the catcher, so the fade out blocks nothing. */}
+    <Animated.View pointerEvents="box-none" exiting={calm ? undefined : FadeOut.duration(120)} style={[styles.layer,
+      { animationName: { from: { opacity: 0, transform: [{ scale: calm ? 1 : 0.95 }] } }, animationDuration: '200ms', animationTimingFunction: EASE_OUT }]}>
+      {/* The sheet takes every touch that starts on it, so a slip off a handle does not close it. */}
+      <View onStartShouldSetResponder={() => true} onResponderTerminationRequest={() => false} onAccessibilityEscape={onDone} style={styles.sheet}>
+        <View {...pan.panHandlers} style={{ width: D * TRIM, height: D * TRIM }} accessible accessibilityRole="adjustable" accessibilityLabel="Cue elevation and tip position" accessibilityLiveRegion="polite"
           accessibilityValue={{ min: 0, max: MAX_ELEV, now: t.elev, text: `${t.elev} degrees, ${zone(t.elev)}. ${spinLabel(t)}` }}
           accessibilityActions={Object.keys(acts).map(name => ({ name, label: name }))} onAccessibilityAction={e => acts[e.nativeEvent.actionName]?.()}>
-          <Canvas style={StyleSheet.absoluteFill} pointerEvents="none"><Picture picture={ring} /></Canvas>
+          <Canvas style={{ position: 'absolute', left: 0, top: 0, width: D, height: D }} pointerEvents="none"><Picture picture={ring} /></Canvas>
         </View>
-        <View style={{ width: SIDE.w, alignItems: 'center' }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-          <Canvas style={{ width: SIDE.w, height: SIDE.h }}><Picture picture={side} /></Canvas>
+        <View style={styles.side} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <Canvas style={styles.sideView}><Picture picture={side} /></Canvas>
           <Text maxFontSizeMultiplier={1.3} style={styles.deg}>{t.elev}°</Text>
-          <Text maxFontSizeMultiplier={1.3} style={styles.zone}>{blend ? zoneLabel(t) : ''}</Text>{/* one colour: the player learns the zones */}
+          {blend && <Text maxFontSizeMultiplier={1.3} style={styles.zone}>{zoneLabel(t)}</Text>}{/* one colour: the player learns the zones */}
         </View>
       </View>
-      <Text maxFontSizeMultiplier={1.3} style={styles.label} accessibilityLiveRegion="polite">{spinLabel(t)}</Text>
     </Animated.View>
-  );
+  </>;
 }
 
 const styles = StyleSheet.create({
   holder: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   badge: { position: 'absolute', right: 0, top: 0, minWidth: 22, paddingHorizontal: 3, borderRadius: 3, overflow: 'hidden', backgroundColor: C.chalk, color: C.ink, fontFamily: FONT.bold, fontSize: 10, lineHeight: 13, textAlign: 'center', fontVariant: ['tabular-nums'] },
-  // A dark slab: the lip is a solid bottom edge of the lip colour, not an outline.
-  sheet: { position: 'absolute', gap: 8, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 14, backgroundColor: DARK[0], borderBottomWidth: 5, borderColor: DARK[1], borderRadius: 5 },
-  head: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  eyebrow: { color: C.chalk + 'B3', fontFamily: FONT.bold, fontSize: 11, letterSpacing: 0.9 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  deg: { color: C.chalk, fontFamily: FONT.display, fontSize: 22, fontVariant: ['tabular-nums'] },
-  zone: { color: C.chalk + 'B3', fontFamily: FONT.semi, fontSize: 11.5, textAlign: 'center', minHeight: 30 }, // room for two lines, so the picture does not move when the text wraps
-  label: { color: C.chalk + 'B3', fontFamily: FONT.semi, fontSize: 13, textAlign: 'center' },
+  layer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' },
+  // A dark slab: the lip is a solid bottom edge of the lip colour, not an outline. It hugs the ring and the side picture, 12 pt on every side.
+  sheet: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, backgroundColor: DARK[0], borderBottomWidth: 5, borderColor: DARK[1], borderRadius: 5 },
+  side: { width: SIDE.w, alignItems: 'center' },
+  sideView: { width: SIDE.w, height: SIDE.h, marginTop: -12 }, // the picture is empty at the top until the cue is raised: that part lies over the sheet's padding, so the column is as tall as the ring
+  deg: { color: C.chalk, fontFamily: FONT.display, fontSize: 22, lineHeight: 26, paddingLeft: 5, fontVariant: ['tabular-nums'] }, // paddingLeft: the digits sit at the centre, not the digits and the degree sign
+  zone: { color: C.chalk + 'B3', fontFamily: FONT.semi, fontSize: 11.5, lineHeight: 15, textAlign: 'center', minHeight: 30 }, // room for two lines, so the picture does not move when the text wraps
 });
