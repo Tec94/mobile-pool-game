@@ -13,7 +13,7 @@ import type { Props } from '../Menus';
 import { type Card, Hand, Row, Shell, Stage, useFrame } from '../shell';
 import { Blocks, feel, Hatch, Slab, Txt, TYPE } from '../slab';
 
-const W = 104, ART = 110; // the picture ends above the name (110..127), the foot is 132..156
+const W = 104; // the picture ends above the name (ART..ART + 17), the foot is ART + 22..ART + 46
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 // A cue's own look (cueArt.ts) in a w x h box: tip at (x, y), turned deg, len long, k thick. Drawn once per cue and
@@ -34,7 +34,7 @@ function CueArt({ id, pose }: { id: CueId; pose: Pose }) {
   }
   return <Image source={{ uri }} style={{ width: w, height: h }} />;
 }
-const TALL: Pose = [W, 106, W / 2, 6, 90, 100, 96 / 27]; // a card
+const tall = (cut: number): Pose => [W, 106 - cut, W / 2, 6, 90, 100 - cut, 96 / 27]; // a card
 const small = (size: number): Pose => [size, size, 4, size - 4, -48, size * 1.1, size / 18]; // a portrait header
 
 // The cue rack as a hand: cream = owned, dark = not, each with its footer (in use, stats, or what gets it). The stage
@@ -42,6 +42,8 @@ const small = (size: number): Pose => [size, size, 4, size - 4, -48, size * 1.1,
 // and tuning. shortcut: pass and play stays on House Cue stats, so the pick only counts once a mode with own cues lands.
 export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
   const [p, setP] = useState(profile), [up, setUp] = useState(() => CUE_IDS.indexOf(p.cue)), [adv, setAdv] = useState(false);
+  // A window under 393 pt sinks the hand by as much (shell.tsx): the picture gives it up, so the foot stays on screen.
+  const cut = Math.min(18, Math.max(0, 393 - useFrame().height)), ART = 110 - cut;
   const put = (next: Profile) => { if (next !== p) { keep(next); setP(next); } };
   const foot = (id: CueId) => {
     const c: CueInfo = CUES[id], f = c.feat as FeatId | undefined, st = statsOf(id, masteryOf(p, id));
@@ -59,9 +61,9 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
       name: `${c.name}${use ? ', in use' : owned ? ', yours' : ''}${owned ? `, power ${st.power}, spin ${st.spin}, aim ${st.aim}` : ''}`,
       art: size => <CueArt id={id} pose={small(size)} />,
       body: <>
-        <View style={styles.art}><CueArt id={id} pose={TALL} /></View>
-        <Txt numberOfLines={1} style={[styles.name, ink]}>{c.name}</Txt>
-        <View style={[styles.foot, { backgroundColor: use ? C.gold : owned ? CREAM[1] : DARK[1] }]}>
+        <View style={styles.art}><CueArt id={id} pose={tall(cut)} /></View>
+        <Txt numberOfLines={1} style={[styles.name, ink, { top: ART }]}>{c.name}</Txt>
+        <View style={[styles.foot, { top: ART + 22, backgroundColor: use ? C.gold : owned ? CREAM[1] : DARK[1] }]}>
           <Txt numberOfLines={1} style={[TYPE.small, styles.bold, TYPE.num, { color: owned ? C.ink : C.chalk }]}>{foot(id)}</Txt>
         </View>
       </>,
@@ -160,8 +162,8 @@ function Mastery({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => v
 const styles = StyleSheet.create({
   bold: { fontFamily: FONT.bold },
   art: { position: 'absolute', left: 0, top: 4 },
-  name: { ...TYPE.name, fontSize: 14, textAlign: 'center', position: 'absolute', left: 3, right: 3, top: ART },
-  foot: { position: 'absolute', left: 0, right: 0, top: ART + 22, height: 24, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  name: { ...TYPE.name, fontSize: 14, textAlign: 'center', position: 'absolute', left: 3, right: 3 },
+  foot: { position: 'absolute', left: 0, right: 0, height: 24, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   simple: { flexDirection: 'row', alignItems: 'center', gap: 28 },
   stat: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   statName: { width: 44, opacity: 0.8 },
