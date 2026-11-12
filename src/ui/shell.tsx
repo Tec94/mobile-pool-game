@@ -6,7 +6,7 @@ import { Platform, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, u
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { profile } from '../progress';
 import { levelOf } from '../progress/profile';
-import { C, CREAM, FONT, inkOn, type Paint } from '../theme';
+import { C, CREAM, DARK, FONT, inkOn, type Paint } from '../theme';
 import { BallArt, Chip, HandCard, Hatch, Slab, Txt, TYPE } from './slab';
 
 // Fresh Chalk charges for the strip. The daily state lives in App, so Menus provides it here for every screen.
@@ -75,8 +75,8 @@ export interface Action { label: string; name?: string; onPress: () => void; off
 export function Stage({ title, line, cta, link, children }: { title: string; line?: string; cta: Action; link?: Action; children?: ReactNode }) {
   const { land, side } = useFrame();
   const button = (
-    <Slab paint={CREAM} onPress={cta.onPress} disabled={cta.off} accessibilityLabel={cta.name ?? cta.label} style={land ? { width: 170, height: 58 } : { height: 58, marginTop: 6 }} face={styles.cta}>
-      <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.ctaText}>{cta.label}</Txt>
+    <Slab paint={cta.off ? DARK : CREAM} onPress={cta.onPress} disabled={cta.off} accessibilityLabel={cta.name ?? cta.label} style={[land ? { width: 170, height: 58 } : { height: 58, marginTop: 6 }, { opacity: 1 }]} face={styles.cta}>
+      <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.ctaText, cta.off && { color: C.chalk, opacity: 0.6 }]}>{cta.label}</Txt>
     </Slab>
   );
   return (

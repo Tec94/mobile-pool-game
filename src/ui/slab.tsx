@@ -25,7 +25,7 @@ export function Slab({ paint: [face, lip], lip: h = 5, radius = 5, onPress, onLo
     <View style={[StyleSheet.absoluteFill, { top: h, backgroundColor: lip, borderRadius: radius }]} />
     <View style={[{ flexGrow: 1, marginBottom: h, backgroundColor: face, borderRadius: radius, overflow: 'hidden' }, faceStyle, down && { transform: [{ translateY: PRESS }] }]}>{children}</View>
   </>;
-  const box = [style, disabled && { opacity: 0.4 }];
+  const box = [disabled && { opacity: 0.4 }, style]; // a style's own opacity wins: the stage button shows off as dark, not dim
   if (!onPress) return <View style={box} {...a11y}>{body(false)}</View>;
   return (
     <Pressable onPress={onPress} onLongPress={onLongPress} disabled={disabled} accessibilityRole="button" pressRetentionOffset={16} {...a11y}
