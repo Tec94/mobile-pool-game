@@ -76,21 +76,22 @@ export interface Action { label: string; name?: string; onPress: () => void; off
 export function Stage({ title, line, cta, link, children }: { title: string; line?: string; cta: Action; link?: Action; children?: ReactNode }) {
   const { land, side } = useFrame();
   const button = (
-    <Slab paint={cta.off ? DARK : CREAM} onPress={cta.onPress} disabled={cta.off} accessibilityLabel={cta.name ?? cta.label} style={[land ? { width: 170, height: 58 } : { height: 58, marginTop: 6 }, { opacity: 1 }]} face={styles.cta}>
+    <Slab paint={cta.off ? DARK : CREAM} onPress={cta.onPress} disabled={cta.off} accessibilityLabel={cta.name ?? cta.label} style={[land ? { width: 170, height: 58 } : { height: 58 }, { opacity: 1 }]} face={styles.cta}>
       <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.ctaText, cta.off && { color: C.chalk, opacity: 0.6 }]}>{cta.label}</Txt>
     </Slab>
   );
-  return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: side, paddingTop: land ? 6 : 12, paddingBottom: 12, gap: 8 }} keyboardShouldPersistTaps="handled">
+  // In portrait the link and the button sit under the scroller, just above the stack, so the button never scrolls away.
+  return <>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: side, paddingTop: land ? 6 : 12, paddingBottom: 12, gap: 8 }} keyboardShouldPersistTaps="handled" alwaysBounceVertical={false}>
       <View style={land && { minHeight: 58, paddingRight: 186 }}>
         <Txt accessibilityRole="header" style={TYPE.title}>{title}</Txt>
         {line && <Txt numberOfLines={2} style={styles.line}>{line}</Txt>}
       </View>
       {children}
-      {land ? <View style={[styles.side, { right: side }]}>{button}{link && <Link {...link} />}</View>
-        : <>{button}{link && <View style={{ alignItems: 'flex-end' }}><Link {...link} /></View>}</>}
+      {land && <View style={[styles.side, { right: side }]}>{button}{link && <Link {...link} />}</View>}
     </ScrollView>
-  );
+    {!land && <View style={{ paddingHorizontal: side, paddingBottom: 8, gap: 4 }}>{link && <Link {...link} />}{button}</View>}
+  </>;
 }
 
 // A row of the stage: keys, chips or fields side by side, wrapping when the screen is narrow.
