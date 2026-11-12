@@ -238,13 +238,15 @@ function leaves(G: Pt, v: Pt, u: Pt, balls: Obj[], ignore: number[], powers = PO
 // (sigma) moves it most, Legend at 0.15 degrees runs 4.8 balls against 4.1 at 0.19. Shark's budget of 12 (not 17) and
 // Pro's wLeave of 0.6 (not 0.9: fewer safeties) set Shark, Pro and Legend apart: at 300 tables 2.76, 3.66, 4.04 balls in
 // 8-ball and 0.83, 1.05, 1.40 in 9-ball, against 2.88, 3.47, 4.04 and 0.88, 0.86, 1.40. tries 2, 3 or 4 changed nothing.
+// Skill grows by a steady factor a tier, about 1.28x balls a visit (8-ball, 200 tables): 1.47, 1.95, 2.52, 3.19, 4.01, 5.06
+// (9-ball 0.73, 0.69, 0.70, 0.96, 1.77, 3.03). Aim error sets it; Legend's balls level off near 5.4 however small sigma gets.
 export const TIERS: Tier[] = [
-  { name: 'Rookie',  sigma: 0.71, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1, caromGap: 0 },
-  { name: 'Regular', sigma: 0.42, types: ['direct', 'bank'],                  flair: 0.03, temp: 0.08, depth: 0, wPos: 0,   posErr: 0.16, speedErr: 12, tipErr: 0.08, ctrl: 1, wLeave: 0, safetyAngles: [], budget: 2, caromGap: 0 },
+  { name: 'Rookie',  sigma: 0.50, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.17, speedErr: 12, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1, caromGap: 0 },
+  { name: 'Regular', sigma: 0.41, types: ['direct', 'bank'],                  flair: 0.03, temp: 0.08, depth: 0, wPos: 0,   posErr: 0.16, speedErr: 12, tipErr: 0.08, ctrl: 1, wLeave: 0, safetyAngles: [], budget: 2, caromGap: 0 },
   { name: 'Hustler', sigma: 0.35, types: ['direct', 'bank', 'combo', 'carom'], flair: 0.05, temp: 0.08, depth: 1, planShare: 0.5, wPos: 0.5, posErr: 0.11, speedErr: 8, tipErr: 0.06, ctrl: 1, wLeave: 0.3, safetyAngles: [0], budget: 9, caromGap: 60 },
-  { name: 'Shark',   sigma: 0.30, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.05, temp: 0.04, depth: 1, tries: 2, wPos: 0.8, posErr: 0.10, speedErr: 7, tipErr: 0.055, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-30, 0, 30], budget: 12, caromGap: 10000 },
-  { name: 'Pro',     sigma: 0.24, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.04, temp: 0.02, depth: 1, tries: 3, wPos: 0.9, posErr: 0.08, speedErr: 5, tipErr: 0.04, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 24, caromGap: 10000 },
-  { name: 'Legend',  sigma: 0.19, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1,   posErr: 0.07, speedErr: 3.5, tipErr: 0.03, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 33, caromGap: 10000 },
+  { name: 'Shark',   sigma: 0.28, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.05, temp: 0.04, depth: 1, tries: 2, wPos: 0.8, posErr: 0.10, speedErr: 6.5, tipErr: 0.055, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-30, 0, 30], budget: 12, caromGap: 10000 },
+  { name: 'Pro',     sigma: 0.19, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.04, temp: 0.02, depth: 1, tries: 3, wPos: 0.9, posErr: 0.075, speedErr: 4, tipErr: 0.04, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 24, caromGap: 10000 },
+  { name: 'Legend',  sigma: 0.10, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1,   posErr: 0.06, speedErr: 2.5, tipErr: 0.025, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 33, caromGap: 10000 },
 ];
 // The AI for a rating s on the tier scale (1 Rookie .. 6 Legend; the Rival plays 0.5 to 6.5): numeric dials on the line
 // through the two nearest rows, past 1 and 6 along the end pair's slope. Whole settings come from the upper row with
