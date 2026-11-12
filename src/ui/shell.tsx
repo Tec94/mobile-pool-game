@@ -117,7 +117,7 @@ export function Hand({ cards, up, pick, width = 110, height = 200, follow }: { c
   const choose = (i: number) => { if (i !== up) feel(Haptics.selectionAsync); pick(i); };
   const still = useReducedMotion(), n = cards.length, edge = side + 8, fit = (screen - 2 * edge - 4 * (n - 1)) / n;
   // A hand that fits widens its cards to fill the row edge to edge; one that overflows keeps its width and scrolls.
-  const w = fit >= width * 0.95 ? Math.min(Math.floor(fit), width * 1.25) : width, max = Math.max(0, 2 * edge + n * w + 4 * (n - 1) - screen), follows = !!follow && max > 0;
+  const w = fit >= width * 0.95 ? Math.min(fit, width * 1.25) : width, max = Math.max(0, Math.round(2 * edge + n * w + 4 * (n - 1) - screen)), follows = !!follow && max > 0;
   const at = (i: number) => follows ? offsetOf(i, max, n) : Math.min(Math.max(0, edge + i * (w + 4) - (screen - w) / 2), max); // card i centred, clamped to the row
   // Follow: the scroll moves focus on the UI thread; React hears of it once per new card (a tick) and picks 80 ms after
   // the focus rests. target = the offset a tap scrolls to: cards passing under on the way do not take the focus.
