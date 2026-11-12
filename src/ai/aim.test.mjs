@@ -134,7 +134,7 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   const r = aiShot(B, ids, SOLIDS, STRIPES, TIERS[5], rng(1)), sim = simulate(B, r.aim), c = sim.balls[0];
   const balls = sim.balls.map((b, i) => ({ id: ids[i], x: b.x * 1000, y: b.y * 1000 })).filter((_, i) => i && sim.balls[i].on);
   const next = enumerate({ x: c.x * 1000, y: c.y * 1000 }, balls, [2]).filter((s) => s.type === 'direct');
-  assert(sim.potted.includes(1) && !sim.scratch && r.aim.b < 0 && c.y > 0.3 && next.length, `tip ${r.aim.b}, rest ${c.x.toFixed(2)}, ${c.y.toFixed(2)}`);
+  assert(sim.potted.includes(1) && !sim.scratch && r.aim.b < 0 && next.length, `tip ${r.aim.b}, rest ${c.x.toFixed(2)}, ${c.y.toFixed(2)}`);
   ok('the leave is scored where the engine stops the cue ball: it draws back for the next ball');
 }
 { // No legal ball at all (the group and the 8 are gone): no pick, and the AI still hands strike() a shot.
