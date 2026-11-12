@@ -2,7 +2,7 @@
 // chosen thing, its options as keys, one cream button) and a hand of cards along the bottom edge. Landscape when the
 // window is wider than tall; in portrait the hand becomes a stack of card headers.
 import { createContext, type ReactNode, useContext, useRef } from 'react';
-import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { profile } from '../progress';
 import { levelOf } from '../progress/profile';
@@ -144,7 +144,8 @@ export function Hand({ cards, up, pick, width = 110, height = 200 }: { cards: Ca
 }
 
 const styles = StyleSheet.create({
-  shell: { flex: 1, backgroundColor: C.menu, overflow: 'hidden' },
+  // 'clip' on the web: a focused card would scroll a 'hidden' overflow and lift the whole menu.
+  shell: { flex: 1, backgroundColor: C.menu, overflow: Platform.OS === 'web' ? ('clip' as 'hidden') : 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   wrap: { flexWrap: 'wrap', rowGap: 8 },
   back: { marginRight: 4 },
