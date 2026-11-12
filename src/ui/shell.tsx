@@ -2,7 +2,7 @@
 // chosen thing, its options as keys, one cream button) and a hand of cards along the bottom edge. Landscape when the
 // window is wider than tall; in portrait the hand becomes a stack of card headers.
 import * as Haptics from 'expo-haptics';
-import { createContext, type ReactNode, useContext, useRef } from 'react';
+import { createContext, type ReactNode, useContext, useEffect, useRef } from 'react';
 import { Platform, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { useAnimatedScrollHandler, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -123,6 +123,8 @@ export function Hand({ cards, up, pick, width = 110, height = 200, follow }: { c
   // the focus rests. target = the offset a tap scrolls to: cards passing under on the way do not take the focus.
   const focus = useSharedValue(up), target = useSharedValue(-1), rest = useRef({ pick, timer: undefined as ReturnType<typeof setTimeout> | undefined, felt: 0 }).current;
   rest.pick = pick;
+  useEffect(() => () => clearTimeout(rest.timer), [rest]);
+  const open = useRef({ x: at(up), y: 0 }).current; // the opening offset only: as a live prop it would jump the row on every pick
   const moved = useRef((i: number) => {
     if (Date.now() - rest.felt > 50) { rest.felt = Date.now(); feel(Haptics.selectionAsync); } // one tick per card, at most 20 a second
     clearTimeout(rest.timer); rest.timer = setTimeout(() => rest.pick(i), 80); }).current;
@@ -161,14 +163,14 @@ export function Hand({ cards, up, pick, width = 110, height = 200, follow }: { c
   return (
     // The foot runs 42 pt off the bottom edge, more on a window under 393 pt, so the hand top stays clear of the stage.
     <Animated.ScrollView ref={scroll} horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, height: height + 26, marginBottom: -(42 + Math.min(30, Math.max(0, 393 - tall))) }}
-      contentContainerStyle={{ paddingHorizontal: edge, paddingTop: 26, gap: 4 }} contentOffset={{ x: at(up), y: 0 }}
+      contentContainerStyle={{ paddingHorizontal: edge, paddingTop: 26, gap: 4 }} contentOffset={open}
       onScroll={follows ? onScroll : undefined} snapToOffsets={follows ? cards.map((_, i) => at(i)) : undefined} decelerationRate={follows ? 'fast' : undefined}
       onLayout={() => { if (follows) focus.value = up; scroll.current?.scrollTo({ x: at(up), animated: false }); }}>
       {cards.map((c, i) => {
         const ink = { color: inkOn(c.paint) };
         return (
           <HandCard key={c.key} paint={c.paint} up={i === up} tilt={(i - mid) * step} name={c.name} width={w} height={height} i={i} focus={follows ? focus : undefined}
-            onPress={() => { if (follows && focus.value !== i) { target.value = at(i); focus.value = i; } choose(i); scroll.current?.scrollTo({ x: at(i), animated: !still }); }}>
+            onPress={() => { clearTimeout(rest.timer); if (follows && focus.value !== i) { target.value = at(i); focus.value = i; } choose(i); scroll.current?.scrollTo({ x: at(i), animated: !still }); }}>
             {c.body ?? <>
               <Txt style={[TYPE.name, ink]}>{c.title}</Txt>
               {c.line && <Txt style={[TYPE.small, ink, { marginTop: 3 }]}>{c.line}</Txt>}
