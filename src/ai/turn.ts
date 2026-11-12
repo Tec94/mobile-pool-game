@@ -115,7 +115,7 @@ export function candsFor(B: Ball[], ids: number[], s: State): Cand[] {
 // run = pots in a row this visit before the shot; vs = the opponent (pay.ts). Returns the pay, the run after the shot, and the
 // shooter's own balls potted (for matchPay; the 8 and a foul do not count).
 export function potPay(cands: Cand[], r: Rec, before: State, after: State, run: number, vs: Vs): { pay: Pay; run: number; own: number } {
-  const pay = { xp: 0, coins: 0 }, foul = after.note.startsWith('Foul'), me = before.turn;
+  const pay = { xp: 0, coins: 0 }, foul = after.foul, me = before.turn;
   const mine = (id: number) => before.game === 9 || after.solids < 0 || id === 8 || (id < 8) === (after.solids === me);
   const pots = r.pots.filter(p => p.id);
   for (const p of pots) {

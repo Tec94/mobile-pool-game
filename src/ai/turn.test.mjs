@@ -71,6 +71,7 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, true), phase: 'play', turn: 1, 
   eq(potPay([], rec(1, [[1, holeOf(c)]]), s, after, 0, { tier: 2 }).pay, { xp: 9, coins: 4 }, 'no candidate: a fluke, Routine x0.9');
   const foul = judge(s, rec(1, [[1, 0], [0, 1]])); eq(potPay(cands, rec(1, [[1, 0], [0, 1]]), s, foul, 2, { tier: 2 }), { pay: { xp: 0, coins: 0 }, run: 0, own: 0 }, 'a foul pays nothing and ends the run');
   eq(potPay(cands, rec(9, [[9, 0]]), s, judge(s, rec(1, [[9, 0]])), 0, { tier: 2 }).pay, { xp: 0, coins: 0 }, 'their ball pays nothing');
+  const lost = rec(1, [[1, 0], [8, 1], [0, 2]]), end = judge(s, lost); eq(potPay(cands, lost, s, end, 0, { tier: 2 }), { pay: { xp: 0, coins: 0 }, run: 0, own: 0 }, 'the 8 on a scratch loses the rack: its pots are foul pots and pay nothing');
   const T = [mk(0.6, 0.56), mk(1.1, 0.56), mk(1.6, 0.9)], ids = [0, 1, 10];
   eq([...new Set(candsFor(T, ids, s).map(k => k.ball))], [1], 'solids: candidates for the 1 only');
   eq([...new Set(candsFor(T, ids, { ...s, solids: -1 }).map(k => k.ball))].sort(), [1, 10], 'open table: any ball');

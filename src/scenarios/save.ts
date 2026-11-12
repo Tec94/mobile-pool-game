@@ -1,12 +1,7 @@
-// The scenario stars on the phone: one small JSON file in the app's documents, beside the lessons.
-import { File, Paths } from 'expo-file-system';
+// The scenario stars on the phone: saved like the profile, a new file moved into place and the last good one kept.
+import { loadJson, saveJson } from '../progress/save.ts';
 import { readStars, type Stars } from './scenarios.ts';
 
-const file = () => new File(Paths.document, 'scenarios.json');
-export function loadStars(): Stars {
-  try { const f = file(); return readStars(f.exists ? f.textSync() : null); } catch { return {}; }
-}
+export const loadStars = (): Stars => readStars(loadJson('scenarios') ?? null);
 // false = not saved: the caller must not pay, or the stars would pay again after the next launch.
-export function saveStars(st: Stars) {
-  try { file().writeSync(JSON.stringify(st)); return true; } catch (e) { if (__DEV__) console.warn('scenario stars not saved', e); return false; }
-}
+export const saveStars = (st: Stars) => saveJson('scenarios', st);
