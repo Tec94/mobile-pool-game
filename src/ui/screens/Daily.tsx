@@ -26,7 +26,7 @@ export function Calendar({ go, daily, today, day, playDay }: Pick<Props, 'go'> &
       body: <>
         <Txt style={[TYPE.small, styles.bold, ink]}>{DAYS[weekday(d)].slice(0, 3)}</Txt>
         <Txt style={[styles.date, ink]}>{+d.slice(8, 10)}</Txt>
-        <Txt style={[TYPE.small, styles.bold, ink]}>{THEMES[weekday(d)]}</Txt>
+        <Txt style={[TYPE.small, styles.bold, ink, { minHeight: 28 }]}>{THEMES[weekday(d)]}</Txt>{/* two lines, so a long theme does not move the note */}
         <Txt style={[TYPE.small, styles.bold, ink, { marginTop: 8, opacity: got ? 1 : 0.6 }]}>{note}</Txt>
       </>,
     };
