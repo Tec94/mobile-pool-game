@@ -1,7 +1,7 @@
 // The match HUD (screens spec: player plates, the 9-ball strip, the banner) and the results card. What they show comes
 // from src/ui/hud.ts; this file only draws it.
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
+import { type LayoutChangeEvent, ScrollView, StyleSheet, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
 import type { EdgeInsets } from 'react-native-safe-area-context';
 import { P } from '../physics/engine';
@@ -15,38 +15,48 @@ const RED = BALLS[2]; // fouls reuse the three-ball red (Quiet Slate)
 const LINE = C.chalk + '66'; // chalk hairline at 40%: 3:1 on the ground
 const GOLD: Paint = [C.gold, '#B48C12'];
 const POP = { animationName: { from: { opacity: 0, transform: [{ scale: 0.95 }] } }, animationDuration: '200ms', animationTimingFunction: 'ease-out' } as const; // a new ruling pops in
-const TOP = 4, PLATE = 44, STRIP = 24, STRIP_PIP = 18, LIP = 3, FRAME = 30;
+const TOP = 4, PLATE = 44, STRIP = 24, STRIP_PIP = 18, LIP = 3, FRAME = 30, KEY = 56, NAME = 144; // KEY = the width of the pause button (Btn minWidth); NAME = the widest plate in landscape: a 14 letter name and its padding
 // Screen units the HUD takes above the table: the plates, and in 9-ball the strip of balls under them.
 export const hudHeight = (game: number) => TOP + PLATE + 8 + (game === 9 ? STRIP : 0);
 
 // The plates row sits above the table. The pause button comes in as `pause` at the start of the row (top left); the push
 // out button, when the rules offer one, comes in as a child at the end. wait = what the AI is doing, for the banner.
 // score = frames won in a race, as a chip beside each plate.
+// Every box of the row is as tall as the row (PLATE), by `alignItems: 'stretch'`, with its text at the centre of its
+// face. On a phone a slab in a row of a fixed height takes that height anyway (Yoga's legacy stretch), where a browser
+// keeps it small: the stretch makes the two agree.
 export function MatchHud({ rules, names, push, view, pad, calm, wait, score, pause, children }: { rules: State; names: string[]; push: boolean; view: TableView; pad: EdgeInsets; calm: boolean; wait?: string; score?: readonly number[]; pause: ReactNode; children?: ReactNode }) {
   const [a, b] = plates(rules, names), nine = strip(rules), next = nine.find(q => q.next);
   // Landscape: the banner sits between the plates, above the table, where it covers no pocket. Portrait: over the
   // foot rail, between the corner pockets.
   // 9-ball: both players share the balls, so the strip sits under the seam of the two plates. Landscape: that is the
   // middle of the table. Portrait: the seam, measured, as the pause button and the rail shift it off the table's middle.
-  const [seam, setSeam] = useState(0), left = Math.max(pad.left, 8), wide = 9 * STRIP_PIP + 8 * 5;
+  const [seam, setSeam] = useState(0), left = Math.max(pad.left, 8), right = Math.max(pad.right, 8), wide = 9 * STRIP_PIP + 8 * 4;
+  // Landscape: the banner lies at the middle of the row and may be as wide as the free part of the row lets it be on its
+  // narrower side (the row's own gaps stay clear): it never meets a plate, a chip or the push out button. The free part
+  // keeps 160 pt: on a narrow phone the plates give way first (down to their 112), then the banner.
+  const row = useWindowDimensions().width - left - right, [room, setRoom] = useState(160);
+  const fit = (e: LayoutChangeEvent) => { const { x, width } = e.nativeEvent.layout; setRoom(2 * Math.min(row / 2 - x, x + width - row / 2)); };
   const mid = !view.land && seam ? left + seam - (score ? 3 * 8 + 2 * FRAME : 8) / 2 : view.ox + (view.land ? P.L : P.W) * view.s / 2; // the middle of the gaps (8) and frame chips between the plates
   const frames = (i: number) => score && (
     <Slab paint={i ? DARK : CREAM} lip={LIP} radius={3} face={styles.frames}>
       <Txt accessibilityLabel={`${names[i]}: ${score[i]} ${score[i] === 1 ? 'frame' : 'frames'}`} style={[styles.framesText, !i && { color: C.ink }]}>{score[i]}</Txt>
     </Slab>
   );
-  const say = <Banner rules={rules} push={push} calm={calm} wait={wait} style={view.land ? { flex: 1 } : { position: 'absolute', top: view.oy - RAIL * view.s + 4, left: view.ox, width: P.W * view.s, paddingHorizontal: 0.12 * view.s }} />;
+  const say = <Banner rules={rules} push={push} calm={calm} wait={wait} fill={view.land ? room : 0} style={view.land ? styles.over : { position: 'absolute', top: view.oy - RAIL * view.s + 4, left: view.ox, width: P.W * view.s, paddingHorizontal: 0.12 * view.s }} />;
   return (
     <>
-      {/* Landscape: the rail starts under the HUD, so the row spans the window; a spacer the size of the pause button
-          keeps the plates and the banner centred on the table when no push out button is there. */}
-      <View style={[styles.hud, { top: pad.top + TOP, left, right: Math.max(pad.right, 8) }]}>
+      {/* Landscape: the rail starts under the HUD, so the row spans the window. The plates are as wide as their text and
+          sit at the two ends; the banner lies over the middle of the row, which is the middle of the table. A spacer
+          the size of the pause button keeps the two sides alike when no push out button is there. */}
+      <View style={[styles.hud, { top: pad.top + TOP, left, right }]}>
         <View style={styles.row} accessibilityLiveRegion="polite">
-          {pause}<PlateView p={a} land={view.land} />{frames(0)}{view.land && say}{frames(1)}<PlateView p={b} land={view.land} onX={setSeam} />{children || (view.land && <View style={styles.even} />)}
+          {pause}<PlateView p={a} land={view.land} />{frames(0)}{view.land && <View style={styles.gap} onLayout={fit} />}{frames(1)}<PlateView p={b} land={view.land} onX={setSeam} />{children || (view.land && <View style={styles.even} />)}
         </View>
+        {view.land && say}
       </View>
       {nine.length > 0 && (
-        <View style={[styles.nine, { top: pad.top + TOP + PLATE + 6, left: mid - wide / 2, width: wide }]} accessible accessibilityLabel={`${next ? `Ball ${next.id} to hit. ` : ''}Potted: ${nine.filter(q => q.gone).map(q => q.id).join(', ') || 'none'}`}>
+        <View style={[styles.nine, { top: pad.top + TOP + PLATE + 7, left: mid - wide / 2, width: wide }]} accessible accessibilityLabel={`${next ? `Ball ${next.id} to hit. ` : ''}Potted: ${nine.filter(q => q.gone).map(q => q.id).join(', ') || 'none'}`}>
           {nine.map(q => (
             <Pip key={q.id} id={q.id} gone={q.gone} size={STRIP_PIP} style={q.next ? styles.next : undefined}>
               <Text maxFontSizeMultiplier={1} style={[styles.num, { color: q.gone ? C.chalk + '80' : q.id === 8 ? C.white : C.ink }]}>{q.id}</Text>
@@ -64,13 +74,13 @@ export function MatchHud({ rules, names, push, view, pad, calm, wait, score, pau
 function PlateView({ p, land, onX }: { p: Plate; land: boolean; onX?: (x: number) => void }) {
   const ink = p.on ? C.ink : C.chalk, edge = p.on ? C.ink + '66' : LINE;
   return (
-    <View onLayout={onX && (e => onX(e.nativeEvent.layout.x))} accessible accessibilityLabel={p.label} style={[styles.plate, land && { maxWidth: 200 }]}>
+    <View onLayout={onX && (e => onX(e.nativeEvent.layout.x))} accessible accessibilityLabel={p.label} style={land ? styles.plateLand : styles.plate}>
       <Slab paint={p.on ? CREAM : DARK} lip={LIP} radius={3} style={{ flex: 1 }} face={styles.plateFace}>
-        <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={[styles.name, { color: ink }]}>{p.name}</Text>
-        <View style={styles.l2}>
+        <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.name, { color: ink }]}>{p.name}</Text>
+        {(p.pips.length > 0 || !!p.text) && <View style={styles.l2}>{/* 9-ball has no line 2 until the foul warning: the name sits at the centre */}
           {p.pips.map(q => <Pip key={q.id} id={q.id} gone={q.gone} size={10} edge={edge} />)}
-          {!!p.text && <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={[styles.l2Text, { color: ink + 'B3' }, p.warn && { color: RED }]}>{p.text}</Text>}
-        </View>
+          {!!p.text && <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.l2Text, { color: ink + 'B3' }, p.warn && { color: RED }]}>{p.text}</Text>}
+        </View>}
       </Slab>
     </View>
   );
@@ -90,7 +100,8 @@ function Pip({ id, gone, size, edge = LINE, style, children }: { id: number; gon
 
 // The ruling on the last shot for a moment (a foul a little longer, in red), then only what the player still has to do
 // (drag the cue ball in hand, call the 8, push out on), which stays until it is done.
-function Banner({ rules, push, calm, wait, style }: { rules: State; push: boolean; calm: boolean; wait?: string; style: ViewStyle }) {
+// fill = landscape: the banner is as tall as the row, at most this wide; 0 = portrait: it is as small as its text.
+function Banner({ rules, push, calm, wait, fill, style }: { rules: State; push: boolean; calm: boolean; wait?: string; fill: number; style: ViewStyle }) {
   const { note, foul, hint } = banner(rules, push, wait), [shown, setShown] = useState({ n: 0, old: true }), last = useRef<{ note: string; balls: number[] } | null>(null);
   useEffect(() => { // a new shot (its balls) or a new ruling pops the note; anything else ends it
     if (!fresh(last.current, note, rules.balls)) { setShown(s => (s.old ? s : { ...s, old: true })); return; }
@@ -100,10 +111,10 @@ function Banner({ rules, push, calm, wait, style }: { rules: State; push: boolea
     return () => clearTimeout(t);
   }, [note, foul, rules.balls]);
   const say = shown.old ? '' : note;
-  return ( // the wrapper stays when the pill is gone, so the plates beside it in landscape do not move
+  return (
     <View pointerEvents="none" style={[{ alignItems: 'center' }, style]}>
-      {!!(say || hint) && <Animated.View key={shown.n} role="status" accessibilityLiveRegion="polite" style={[styles.banner, !calm && POP]}>
-        <Slab paint={DARK} lip={LIP} radius={3} face={styles.bannerFace}>
+      {!!(say || hint) && <Animated.View key={shown.n} role="status" accessibilityLiveRegion="polite" style={[styles.banner, !!fill && { flex: 1, maxWidth: fill }, !calm && POP]}>
+        <Slab paint={DARK} lip={LIP} radius={3} style={!!fill && { flex: 1 }} face={styles.bannerFace}>
           <Text maxFontSizeMultiplier={1.3} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75} style={styles.bannerText}>
             {!!say && <Text style={foul && { color: RED }}>{say}</Text>}{say && hint ? ' ' : ''}{hint}
           </Text>
@@ -171,39 +182,42 @@ export function Act({ label, paint, onPress }: { label: string; paint?: Paint; o
 }
 
 const styles = StyleSheet.create({
-  hud: { position: 'absolute', gap: 6 },
-  even: { width: 56 }, // the width of the pause button (Btn minWidth)
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, height: PLATE },
-  plate: { flex: 1, height: PLATE },
-  plateFace: { paddingHorizontal: 10, justifyContent: 'center', gap: 3 },
+  hud: { position: 'absolute' },
+  even: { width: KEY },
+  gap: { flex: 1, minWidth: 160 },
+  row: { flexDirection: 'row', alignItems: 'stretch', gap: 8, height: PLATE },
+  over: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }, // the banner in landscape: over the middle of the row
+  plate: { flex: 1 }, // portrait: the two plates share the row
+  plateLand: { minWidth: 112, maxWidth: NAME, flexShrink: 1 }, // 112 = seven pips (7 x 10 + 6 x 3) and the padding: the plate keeps its width when the groups are set
+  plateFace: { paddingHorizontal: 12, justifyContent: 'center', gap: 4 },
   name: { fontFamily: FONT.display, fontSize: 14, lineHeight: 17 },
   l2: { flexDirection: 'row', alignItems: 'center', gap: 3, height: 14 }, // fixed height: the plate never grows
   l2Text: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 14, fontVariant: ['tabular-nums'] },
-  frames: { width: FRAME, height: FRAME, alignItems: 'center', justifyContent: 'center' },
+  frames: { width: FRAME, alignItems: 'center', justifyContent: 'center' },
   framesText: { fontFamily: FONT.display, fontSize: 17, color: C.chalk, fontVariant: ['tabular-nums'] },
-  nine: { position: 'absolute', flexDirection: 'row', justifyContent: 'center', gap: 5, height: STRIP_PIP },
+  nine: { position: 'absolute', flexDirection: 'row', justifyContent: 'center', gap: 4, height: STRIP_PIP },
   num: { fontFamily: FONT.bold, fontSize: 10, lineHeight: 18, fontVariant: ['tabular-nums'] },
   next: { borderWidth: 2, borderColor: C.chalk }, // inside the box: the pip keeps its size
   banner: { maxWidth: '100%' },
-  bannerFace: { paddingVertical: 4, paddingHorizontal: 12 },
+  bannerFace: { paddingVertical: 4, paddingHorizontal: 12, justifyContent: 'center' },
   bannerText: { color: C.chalk, fontFamily: FONT.bold, fontSize: 13, lineHeight: 16, textAlign: 'center' },
   sheet: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 16, backgroundColor: C.menu + 'E6' },
   scroll: { flexGrow: 0, maxWidth: '100%' }, // a long pay list scrolls on a short landscape phone
-  mosaic: { width: 340, maxWidth: '100%', gap: 14 },
-  wide: { width: 700, flexDirection: 'row', alignItems: 'stretch', gap: 24 },
+  mosaic: { width: 340, maxWidth: '100%', gap: 16 },
+  wide: { width: 700, flexDirection: 'row', alignItems: 'center', gap: 24 }, // the slab is as tall as its text, at the middle of the pay beside it
   tall: { width: 280 },
   win: { padding: 16, gap: 6 },
-  title: { fontFamily: FONT.display, fontSize: 30, lineHeight: 32, letterSpacing: -0.5 },
+  title: { fontFamily: FONT.display, fontSize: 30, lineHeight: 32, letterSpacing: -0.5, writingDirection: 'ltr' }, // ltr: a right-to-left name must not turn the sentence round
   score: { fontFamily: FONT.display, fontSize: 84, lineHeight: 88, letterSpacing: -2, fontVariant: ['tabular-nums'] },
-  foot: { marginTop: 'auto', paddingTop: 6 },
-  side: { gap: 10, justifyContent: 'center' },
+  foot: { paddingTop: 6 },
+  side: { gap: 8, justifyContent: 'center' },
   payRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 34 },
   payLabel: { minWidth: 64 },
   payChip: { minWidth: 44, height: 26, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
   chipNum: { fontFamily: FONT.display, fontSize: 15, color: C.ink, fontVariant: ['tabular-nums'] },
   payAll: { marginLeft: 'auto', fontVariant: ['tabular-nums'] },
-  total: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 14, paddingHorizontal: 14, paddingVertical: 10 },
+  total: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 12, paddingHorizontal: 16, paddingVertical: 8 },
   big: { fontFamily: FONT.display, fontSize: 26, lineHeight: 30, color: C.chalk, fontVariant: ['tabular-nums'] },
-  act: { minHeight: 41, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
+  act: { minHeight: 41, paddingHorizontal: 16, paddingVertical: 4, alignItems: 'center', justifyContent: 'center' },
   actText: { fontFamily: FONT.bold, fontSize: 15, color: C.chalk, textAlign: 'center' },
 });

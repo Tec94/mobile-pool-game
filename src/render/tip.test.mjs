@@ -1,7 +1,7 @@
 // Run: npm test   (checks the tip and cue elevation control: what a touch sets, and that the engine gets the same shot)
 import assert from 'node:assert';
 import { CUE, P, predict } from '../physics/engine.ts';
-import { grab, LEVEL, moveElev, moveSpin, ringAt, ringTurn, shotTip, spinLabel, tapSpin, zone, zoneLabel } from './tip.ts';
+import { drawSide, grab, LEVEL, moveElev, moveSpin, ringAt, ringTurn, shotTip, SIDE, spinLabel, tapSpin, zone, zoneLabel } from './tip.ts';
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 const near = (a, b, tol, msg) => assert(Math.abs(a - b) < tol, `${msg}: ${a} vs ${b}`);
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
@@ -47,4 +47,14 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
   assert(Math.abs(masse.cue[Math.min(masse.cue.length - 1, 200)][1] - P.W / 2) > P.R, 'and curves off the aim line');
   assert(spinLabel(LEVEL) === 'Center ball. No spin' && spinLabel({ x: 0.5, y: -0.5, elev: 0 }) === 'Bottom, draws back with right side · 71%', 'label');
   ok('presets give the engine a jump and a masse');
+}
+{ // The side picture: the cue stays inside the picture at every elevation, its ends 4 pt from the top and left edges,
+  // so the sheet never cuts it flat.
+  const lines = [], paint = new Proxy({}, { get: () => () => {} }), api = { Paint: () => paint, Color: c => c, XYWHRect: () => null };
+  const canvas = { drawRect() {}, drawOval() {}, drawCircle() {}, drawLine: (...q) => lines.push(q) };
+  for (let e = 0; e <= 80; e += 5) {
+    lines.length = 0; drawSide(api, canvas, e, '#000');
+    for (const [x0, y0, x1, y1] of lines) for (const [x, y] of [[x0, y0], [x1, y1]]) assert(x >= 4 - 1e-9 && y >= 4 - 1e-9 && x <= SIDE.w && y <= SIDE.h, `${e} degrees: the cue reaches (${x.toFixed(1)}, ${y.toFixed(1)})`);
+  }
+  ok('the side picture keeps the cue inside its edges');
 }

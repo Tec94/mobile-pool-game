@@ -16,12 +16,13 @@ import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from 'react
 import { Ball, breakSpot, CUE, HOLES, P, rack, Shot, strike } from './src/physics/engine';
 import { benchAI } from './src/ai/bench';
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
-import { drawMarks } from './src/render/marks';
+import { drawMarks, SETTLE } from './src/render/marks';
+import { drawBank } from './src/render/bank';
 import { newPace, nextFrame, type Pace, refresh, type Slot, spent } from './src/render/pace';
 import { drawCue, shotLayout } from './src/render/cue';
 import { BAR, drawAim, drawTable, onTable, toScreen, toTable } from './src/render/table';
 import { LEVEL, shotTip } from './src/render/tip';
-import { type Lesson, LESSON_PAY, LESSONS, lessonTable, type LessonRec, newLessonRec, noteLesson, PENCIL_AT, SOLO_RUN, type Stage, verdict } from './src/learn/lessons';
+import { type Lesson, LESSON_PAY, LESSONS, lessonTable, type LessonRec, litCushions, newLessonRec, noteLesson, PENCIL_AT, SOLO_RUN, type Stage, verdict } from './src/learn/lessons';
 import { loadDone, saveDone } from './src/learn/save';
 import { canCall, choose, handCue, judge, legalFirst, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { thinkAsync } from './src/ai/think';
@@ -180,7 +181,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   // The table never changes during play: one picture, drawn again only when the window does.
   const felt = useMemo(() => { const rec = Skia.PictureRecorder(); drawTable(Skia, rec.beginRecording(), view, CLOTHS[cloth]); return rec.finishRecordingAsPicture(); }, [...where, cloth]);
 
-  const score = useRef<[number, number]>([0, 0]), [paused, setPaused] = useState(false); // score = frames won
+  const score = useRef<[number, number]>([0, 0]), [paused, setPaused] = useState(false), held = useRef(false); // score = frames won; held = paused, for the frame loop
   const gained = useRef<ReturnType<typeof award> | null>(null); // the award of the match, for the results card
   // Quick match: the pay so far (src/progress/pay.ts), the pots on the table at the strike (for pRef), and the pay lines
   // of the finished match.
@@ -199,7 +200,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   const [demo, setDemo] = useState(0);
   const [hud, setHud] = useState(__DEV__), [rates, setRates] = useState(''); // frame rate readout: hold the Rack button to show or hide it
   const tip = useRef(tipStore()).current, [sheet, setSheet] = useState(false), [tools, setTools] = useState(false);
-  const moving = useRef(false), grab = useRef<{ x: number; y: number } | 'call' | null>(null);
+  const moving = useRef(false), grab = useRef<{ x: number; y: number } | 'call' | null>(null), called = useRef(0); // called = when the player called a pocket: its ring settles from then
   // The balls and the aim guide are Skia pictures, recorded on the JS thread and handed to the canvas through shared
   // values, so a frame of play or of aiming never re-renders React.
   // The marks (src/render/marks.ts) are a picture of their own: the pulse of the ring round the cue ball in hand
@@ -214,7 +215,8 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   mark.current = () => {
     const rec = Skia.PictureRecorder(), { B, rules: s, rec: shot } = table.current;
     const me = !shot && !bot(); // on the AI's turn the human's marks stay off
-    drawMarks(Skia, rec.beginRecording(), view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call, ask: me && onEight(s), ms: performance.now(), zone: L?.goal.zone });
+    const c = rec.beginRecording(); if (L) drawBank(Skia, c, view, litCushions(L)); // a bank table's lit cushions, worked out once per table
+    drawMarks(Skia, c, view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call, ask: me && onEight(s), ms: performance.now(), at: called.current, zone: L?.goal.zone });
     return rec.finishRecordingAsPicture();
   };
   // Frames of play wait in queue and the UI thread shows one on each display refresh (see src/render/pace.ts).
@@ -240,6 +242,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   const paint = (again = true) => { const { B, look } = table.current; look.last.set(B.flatMap(b => [b.x, b.y])); pace.current = null; if (again) { dirty(); guides.drop(); line.current = null; } scheduleOnUI(still, draw.current(), mark.current()); }; // a guide for the table as it was is not drawn
   useEffect(() => { touch.current = null; paint(); }, where); // a drag measured in the old layout ends when the window turns
   useEffect(() => { const off = [shot.sub(dirty), tip.sub(dirty)]; return () => off.forEach(f => f()); }, []);
+  useEffect(() => { held.current = paused; wake.current(); }, [paused]); // the marks stop under the pause card, and move again after it
   // A lesson plays with the engine's own cue, the one its reference shots are tuned on (src/learn/lessons.test.mjs).
   // A scenario and quick match play with the player's own cue and its aim guide (stick stats count in challenges).
   const own = useMemo(() => profile().cue, []), mine = useMemo(() => ownStats(own), []), cue = useMemo(() => (S || vs ? stick(own, false, mine) : L ? CUE : STICK), []); // fixed for the life of the screen: a cue change takes effect at the next table
@@ -247,6 +250,9 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the
   // rack is over. In a lesson: the shot plays itself, or the verdict card is up.
   const bot = () => vs && table.current.rules.turn === 1; // on the AI's turn nothing can be touched
+  // The marks move: the ring round the cue ball in hand pulses, the pockets ask for a call, a called pocket settles. A called pocket at rest does not.
+  // Not under the pause card, which hides the table: the loop sleeps there.
+  const beats = () => { const { rules: r, rec } = table.current; return !map.current.calm && !held.current && ((r.hand && !r.choice) || (!rec && !bot() && onEight(r) && r.call < 0) || performance.now() - called.current < SETTLE); };
   const shut = () => { const t = table.current; return moving.current || !!t.rec || !!t.rules.choice || t.rules.phase === 'over' || (!!L && (les.current.stage === 'watch' || !!les.current.said)) || bot(); };
   const watching = () => !!L && les.current.stage === 'watch' && !les.current.said && !moving.current && !table.current.rec; // the reference shot is lined up: its guide shows
   // Put a ruling on the table: a new rack, or the balls the rules spot and the cue ball in hand.
@@ -273,21 +279,21 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
     const rest = () => setTimeout(() => { if (!on) live.current.setActive(false); }, 300);
     let timer = rest(); on = false;
     let was = performance.now();
-    let dead = false;
+    let dead = false, beat = false; // beat = the marks moved last turn: one more picture shows them at rest
     const tick = (t: number) => {
       raf = 0; if (dead) return;
       const { B, ids, look, rules: s, rec, push: pushOut } = table.current;
       if (stale.current) { // one guide a frame, however many touches came. While a shot can be made the guide and the cue stick are always there: for the pull on the rail, or for a firm shot without one
         stale.current = false; redo.current = true;
         const { power } = shot.get();
-        if (!shut() || watching()) guides.ask({ B, shot: shotOf(previewPower(power)), aim: S || vs ? mine.aim : L ? 10 : GUIDE_AIM, budget: GUIDE_WORK, stick: cue }, power > 0.05); // lessons use the full guide
+        if (!shut() || watching()) guides.ask({ B, shot: shotOf(previewPower(power)), aim: S || vs ? mine.aim : L ? 10 : GUIDE_AIM, budget: GUIDE_WORK, stick: cue, real: watching() }, power > 0.05); // lessons use the full guide; watch shows the real path, as the shot plays next
         else { guides.drop(); line.current = null; }
       }
       if (redo.current) { // the stick follows the finger every frame; the line is the newest guide there is, a few frames old when it came from the other thread
         const rec = Skia.PictureRecorder(), c = rec.beginRecording(), { aim, power } = shot.get(), g = line.current;
         if (!shut() || watching() || lining.current) {
           const bad = !!g && !L && !pushOut && g.first > 0 && !legalFirst(s, ids[g.first]); // the ghost meets a ball the rules do not allow first
-          if (g && !(S && les.current.guideOff)) { peeked.current = true; drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob, bad); }
+          if (g && !(S && les.current.guideOff)) { peeked.current = true; drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob, bad, g.stub); }
           if (!grab.current || grab.current === 'call') drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power); // no stick while a finger carries the cue ball in hand
         }
         guide.value = rec.finishRecordingAsPicture(); redo.current = false;
@@ -316,9 +322,9 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         }
       } else {
         if (on) { on = false; pace.current = null; timer = rest(); }
-        if (s.hand && !s.choice && !map.current.calm) scheduleOnUI(setMarks, mark.current()); // the ring round the cue ball in hand pulses
+        const b = beats(); if (b || beat) scheduleOnUI(setMarks, mark.current()); beat = b;
       }
-      const n = table.current, pulse = n.rules.hand && !n.rules.choice && !map.current.calm; // the table now: a ruling may have racked a new one
+      const n = table.current, pulse = beats() || beat; // the table now: a ruling may have racked a new one
       if ((stale.current || redo.current || moving.current || n.look.fx.length || n.rec || on || pulse) && !raf) raf = requestAnimationFrame(tick); // !raf: a wake inside this turn already asked for the next
     };
     wake.current = () => { if (!raf && !dead) { was = performance.now(); raf = requestAnimationFrame(tick); } };
@@ -425,7 +431,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       const k = canCall(s) ? HOLES.findIndex(h => Math.hypot(h[0] - p.x, h[1] - p.y) < 0.1) : -1;
       grab.current = s.hand && Math.hypot(at.x - g.x0, at.y - g.y0) < GRAB ? { x: c.x - p.x, y: c.y - p.y } : k >= 0 ? 'call' : null;
       if (grab.current && grab.current !== 'call') dirty(); // the stick goes as the finger takes the ball
-      if (k >= 0 && grab.current === 'call') { t.rules = setCall(s, k === s.call ? -1 : k); Haptics.selectionAsync(); paint(); redraw(); }
+      if (k >= 0 && grab.current === 'call') { if (k !== s.call) called.current = performance.now(); t.rules = setCall(s, k === s.call ? -1 : k); Haptics.selectionAsync(); paint(); redraw(); }
       touch.current = grab.current ? null : { t: Date.now(), moved: false, ...finger(g.x0, g.y0) };
     },
     onPanResponderMove: (_, g) => {
@@ -495,6 +501,9 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
     apply.current(newGame(game, breaker as 0 | 1, set.callAll));
   };
 
+  const cardAt = !view.land && { right: width - lay.rail.left, padding: 8 }; // portrait: a card over the table sits at the middle of the table, clear of the rail
+  const card = !!(L && said) || !!rules.choice || over || paused; // a card or the results are up: the tip sheet closes, as it would lie over them
+  useEffect(() => { if (card) setSheet(false); }, [card]);
   return (
     <View style={styles.root} {...pan.panHandlers}>
       {/* The table has its own canvas: it is most of the drawing work and it does not change during play. */}
@@ -517,7 +526,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       </MatchHud>}
       {/* A lesson's verdict on the last shot, and where to go from it. */}
       {L && said && !paused && (
-        <View style={styles.sheet} pointerEvents="box-none">
+        <View style={[styles.sheet, cardAt]} pointerEvents="box-none">
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>{said.title}</Text>
             <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, said.say.startsWith('+') && styles.pay]}>{said.say}</Text>
@@ -532,7 +541,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       )}
       {/* A decision the rules hand to a player: a card over the table, and play waits for it. */}
       {rules.choice && !paused && !(vs && rules.turn === 1) && (
-        <View style={styles.sheet} pointerEvents="box-none">
+        <View style={[styles.sheet, cardAt]} pointerEvents="box-none">
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>{`${names[rules.turn]}, your call`}</Text>
             {!!rules.note && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{rules.note}</Text>}
@@ -543,7 +552,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       {/* The shot controls sit inside the safe area where shotLayout puts them. */}
       <PowerRail store={shot} box={lay.rail} onStrike={fire} />
       <AimDial store={shot} box={lay.dial} />
-      {!(L && stage === 'watch') && <View style={[styles.at, lay.spin]}><TipButton store={tip} onPress={() => { setSheet(!sheet); setTools(false); }} /></View>}
+      {!(L && stage === 'watch') && <View style={[styles.at, lay.spin]}><TipButton store={tip} land={view.land} onPress={() => { setSheet(!sheet); setTools(false); }} /></View>}
       {!L && !vs && <View style={[styles.at, lay.tools]}><Btn label="•••" name="Table tools" onPress={() => { setTools(!tools); setSheet(false); }} /></View>}
       {/* shortcut: the test buttons (Rack, Demo), behind one button. Not in quick match: a new rack would dodge a loss and a demo pot would pay. */}
       {tools && (
@@ -556,9 +565,8 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
           }} />
         </View>
       )}
-      {/* The sheet stops short of the rail, so a shot can be pulled while it is open. */}
-      {sheet && <TipSheet store={tip} land={view.land} calm={calm} felt={CLOTHS[cloth].felt} blend={set.zones} onDone={() => setSheet(false)} width={view.land ? 300 : lay.rail.left - 8 - lay.tools.left}
-        style={view.land ? { right: width - lay.rail.left + 8, bottom: Math.max(pad.bottom, 8) } : { left: lay.tools.left, bottom: height - lay.spin.top + 8 }} />}
+      {/* The tip and cue angle sheet, at the centre of the window. A touch outside it closes it and does nothing else; the rail still shoots. */}
+      {sheet && !card && <TipSheet store={tip} land={view.land} keep={width - lay.rail.left} calm={calm} felt={CLOTHS[cloth].felt} blend={set.zones} onDone={() => setSheet(false)} />}
       {/* The end of the rack: the frame score in a race, the pay at the end of the match. Over the controls, which wait. */}
       {over && !paused && (
         <Results rules={rules} kind={vs ? 'Quick match' : undefined} title={`${names[win]} wins${race > 1 ? done ? ' the match' : ' the frame' : ''}`} gold={!vs || win === 0}
@@ -580,7 +588,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         <View style={[styles.sheet, styles.dim]} onStartShouldSetResponder={() => true}>
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>Paused</Text>
-            {!L && race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} ${score.current[0]} – ${score.current[1]} ${names[1]} · race to ${race}`}</Text>}
+            {!L && race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} – ${names[1]}\n${score.current[0]} – ${score.current[1]}\nRace to ${race}`}</Text>}
             <Act paint={CREAM} label="Resume" onPress={() => setPaused(false)} />
             <Act label={S ? 'Leave scenario' : L ? 'Leave lesson' : 'Leave match'} onPress={onQuit} />
           </View>
@@ -601,12 +609,12 @@ const styles = StyleSheet.create({
   // Cards and the tools tray are dark slabs: the lip is a solid bottom edge of the lip colour, not an outline.
   tools: { position: 'absolute', flexDirection: 'row', gap: 8, padding: 8, backgroundColor: DARK[0], borderBottomWidth: 5, borderColor: DARK[1], borderRadius: 5 },
   sheet: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { width: 300, maxWidth: '100%', alignSelf: 'center', padding: 16, gap: 10, borderRadius: 5, backgroundColor: DARK[0], borderBottomWidth: 5, borderColor: DARK[1] },
+  card: { width: 300, maxWidth: '100%', alignSelf: 'center', padding: 16, gap: 12, borderRadius: 5, backgroundColor: DARK[0], borderBottomWidth: 5, borderColor: DARK[1] },
   cardTitle: { color: C.chalk, fontFamily: FONT.display, fontSize: 24, lineHeight: 28, textAlign: 'center' },
   cardNote: { color: C.chalk, fontFamily: FONT.semi, fontSize: 14, lineHeight: 19, textAlign: 'center' },
   dim: { backgroundColor: C.menu + 'B3' },
   pay: { color: BALLS[0], fontFamily: FONT.bold }, // one-ball yellow is for coins and XP
   left: { textAlign: 'left' },
-  acts: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  acts: { flexDirection: 'row', gap: 8, marginTop: 4 },
   rates: { position: 'absolute', color: C.chalk, fontSize: 10, lineHeight: 13, fontVariant: ['tabular-nums'] },
 });

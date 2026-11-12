@@ -3,7 +3,7 @@
 // guide shows. No drawing and no React here; src/ui/ShotControls.tsx and App.tsx are the shells around it.
 // The aim is an angle in radians in the table frame. The screen shows the table mirrored (toScreen flips one axis in
 // both orientations), so a clockwise turn on the glass is a smaller angle here.
-import { predict } from '../physics/engine.ts';
+import { P, predict } from '../physics/engine.ts';
 import type { Ball, Cue, Shot } from '../physics/engine.ts';
 
 const TURN = 2 * Math.PI, DEG = Math.PI / 180, wrap = (a: number) => a - TURN * Math.round(a / TURN);
@@ -37,7 +37,9 @@ export const previewPower = (pull: number) => (pull > 0.05 ? pull : 0.7); // the
 // The guide's length past the first contact grows with every Aim point (Jack: no point may do nothing): 10 cm at Aim 1
 // to 60 cm at Aim 10, metres. 0 = Off; the line to the first contact is always drawn.
 export const guideLen = (aim: number) => (aim <= 0 ? 0 : 0.1 + (Math.min(10, aim) - 1) * 0.5 / 9);
-export const LONG = 7; // from this Aim the cue ball's path after contact shows too
+export const LONG = 7; // from this Aim a stub after the contact shows where the cue ball leaves the ghost ball
+export const STUB = 4 * 0.028575; // m, 4 ball radii (P.R): the stub is this long at every Aim, power and spin, from a 30 degree cut
+const FULL = 0.052; // sine of a 3 degree cut: fuller than this the cue ball stops or runs on through, and the tangent says nothing
 // The angle from the cue ball to the nearest object ball, or `keep` when the table has none.
 export function nearest(B: Ball[], keep = 0) {
   let best = Infinity, ang = keep;
@@ -45,13 +47,20 @@ export function nearest(B: Ball[], keep = 0) {
   return ang;
 }
 // What drawAim needs for a shot: the cue ball's path, the object ball's path, the ghost ball at the first contact,
-// the touchdowns of a jump, `lost` when the cue ball leaves the table before it meets anything, and `first` = the index
-// in B of the ball the ghost touches (-1 none, or a kick whose ring is on the cushion).
-// aim = the Aim stat of the cue (lessons pass 10). The cue ball's path after the first contact shows only from LONG.
+// the touchdowns of a jump, `lost` when the cue ball leaves the table before it meets anything, `first` = the index
+// in B of the ball the ghost touches (-1 none, or a kick whose ring is on the cushion), and `stub` = [from, to] after
+// the contact, or none.
+// aim = the Aim stat of the cue (lessons pass 10). From LONG the guide shows a stub after the ghost ball: the tangent
+// line, the way the cue ball leaves on a stun shot. Jack: the real path after contact (it bends with follow, draw and
+// side, and comes off cushions) gives away the skill of reading spin and power. The stub is worked out from the
+// contact itself, not from the cue ball's path after it, which spin bends from the first step. No stub after a jump: the
+// cue ball meets the ball in the air or still hopping.
 // budget = the limit on the work after the first contact (see predict), so one guide stays inside a frame.
 // stick = the engine cue that will strike, so the guide squirts as the shot will.
-export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, stick?: Cue) {
-  const L = guideLen(aim), g = predict(B, shot, L, stick, undefined, budget), k = g.split < 0 ? g.cue.length : g.split + 1;
+// real = draw the cue ball's real path after the contact in place of the stub (a lesson's watch stage, where the shot
+// plays itself next anyway).
+export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, stick?: Cue, real = false) {
+  const L = guideLen(aim), g = predict(B, shot, L, stick, undefined, budget, real && aim >= LONG), k = g.split < 0 ? g.cue.length : g.split + 1;
   // predict runs until both balls have gone the length, so the faster one overshoots it: cut each path to the length.
   const clip = (p: number[][], len: number) => {
     const out = p.slice(0, 1);
@@ -60,7 +69,27 @@ export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, st
   };
   // A kick: the cue ball meets a cushion first. Below LONG the line stops there, so the ring goes there too and no
   // object ball path hangs loose beyond it.
-  const q = g.cue[k - 1], kick = aim < LONG && g.split >= 0 && !!g.hit && Math.hypot(q[0] - g.hit.x, q[1] - g.hit.y) > 1e-6;
-  if (kick) return { path: g.cue.slice(0, k), ob: [], ghost: [q[0], q[1]], lands: g.lands, lost: false, first: -1 };
-  return { path: [...g.cue.slice(0, k), ...(aim < LONG ? [] : clip(g.cue.slice(k - 1), L).slice(1))], ob: clip(g.ob, L), ghost: g.hit && [g.hit.x, g.hit.y], lands: g.lands, lost: g.scratch && g.split < 0, first: g.hit ? g.hit.b! : -1 };
+  const q = g.cue[k - 1], h = g.hit, kick = g.split >= 0 && !!h && Math.hypot(q[0] - h.x, q[1] - h.y) > 1e-6;
+  if (kick && aim < LONG) return { path: g.cue.slice(0, k), ob: [], ghost: [q[0], q[1]], lands: g.lands, lost: false, first: -1, stub: [] as number[][] };
+  const after = aim < LONG ? [] : clip(g.cue.slice(k - 1), L).slice(1);
+  let path = [...g.cue.slice(0, k), ...after], stub: number[][] = [];
+  if (h && after.length && !real) {
+    const O = B[h.b!], R2 = 0.05715; // 2 P.R: centre to centre at contact
+    // A kick from LONG: the line runs on from the cushion to the ghost ball and stops there.
+    // shortcut: the line stops where the cue ball first comes within 2 mm of touching the ball, which a near miss before the real hit would fool; keep the index of the hit in predict if that shows.
+    const j = after.findIndex(p => Math.hypot(p[0] - O.x, p[1] - O.y) < R2 + 2e-3);
+    path = kick ? [...g.cue.slice(0, k), ...after.slice(0, j < 0 ? after.length : j), [h.x, h.y, 0]] : g.cue.slice(0, k);
+    // The cue ball comes in along d. The object ball's offset from that line is the same all along it, so the cut
+    // (s = its sine) is exact even though the ghost sits up to a step past the true contact. The cue ball leaves
+    // square to the line of centres, away from the object ball's side.
+    const p = path[path.length - 2], dx = h.x - p[0], dy = h.y - p[1], n = Math.hypot(dx, dy), ux = dx / n, uy = dy / n;
+    const s = Math.max(-1, Math.min(1, ((O.y - h.y) * ux - (O.x - h.x) * uy) / R2)), c = Math.sqrt(1 - s * s), sg = s < 0 ? -1 : 1;
+    const ex = sg * (s * ux + c * uy), ey = sg * (s * uy - c * ux);
+    let t = STUB * Math.min(1, Math.abs(s) / 0.5); // it grows with the cut, whole from a 30 degree cut: no pop as it shows
+    if (ex) t = Math.min(t, ((ex > 0 ? P.L - P.R : P.R) - h.x) / ex); // and stops where the cue ball meets a cushion
+    if (ey) t = Math.min(t, ((ey > 0 ? P.W - P.R : P.R) - h.y) / ey);
+    const ahead = (O.x - h.x) * ux + (O.y - h.y) * uy > 0; // the ball lies ahead of the line: a kick whose line was cut at a near miss gets no stub, not a wrong one
+    if (n > 0 && Math.abs(s) > FULL && t > 0 && ahead && !h.air && !g.lands.length) stub = [[h.x, h.y], [h.x + t * ex, h.y + t * ey]];
+  }
+  return { path, ob: clip(g.ob, L), ghost: h && [h.x, h.y], lands: g.lands, lost: g.scratch && g.split < 0, first: h ? h.b! : -1, stub };
 }
