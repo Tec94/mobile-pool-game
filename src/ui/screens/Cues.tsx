@@ -2,14 +2,13 @@ import { Skia } from '@shopify/react-native-skia';
 import { useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { PENCIL_AT } from '../../learn/lessons';
-import { P } from '../../physics/engine';
 import { keep, profile } from '../../progress';
 import { CUE_IDS, CUES, type CueId, type CueInfo, specs } from '../../progress/cues';
 import { MASTERY_XP, masteryLevel, masteryOf, points, STATS, statsOf, tunable, tuneDown, tuneUp, upCost, used } from '../../progress/mastery';
 import { buy, FEATS, featCount, type FeatId, type Profile, select } from '../../progress/profile';
-import { drawCue } from '../../render/cue';
 import { C, CREAM, DARK, FONT } from '../../theme';
 import { Btn } from '../Btn';
+import { drawCueArt } from '../cueArt';
 import type { Props } from '../Menus';
 import { type Card, Hand, Row, Shell, Stage, useFrame } from '../shell';
 import { Blocks, Hatch, Slab, Txt, TYPE } from '../slab';
@@ -17,22 +16,26 @@ import { Blocks, Hatch, Slab, Txt, TYPE } from '../slab';
 const W = 96, H = 180, ART = 88;
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
-// The cue as the table draws it, standing tip up in a box w wide and len + 16 tall. Drawn once per size on an offscreen
-// Skia surface and shown as an image: a canvas per card would want a GL context each, and a browser keeps only 16.
+// A cue's own look (cueArt.ts) in a w x h box: tip at (x, y), turned deg, len long, k thick. Drawn once per cue and
+// pose on an offscreen Skia surface and shown as an image: a canvas per card would want a GL context each, and a
+// browser keeps only 16.
+type Pose = [w: number, h: number, x: number, y: number, deg: number, len: number, k: number];
 const pics = new Map<string, string>(), DPR = 3;
-function CueArt({ w, len }: { w: number; len: number }) {
-  const key = `${w}x${len}`;
+function CueArt({ id, pose }: { id: CueId; pose: Pose }) {
+  const [w, h, x, y, deg, len, k] = pose, key = `${id} ${pose}`;
   let uri = pics.get(key);
   if (!uri) {
-    const surface = Skia.Surface.Make(w * DPR, (len + 16) * DPR), s = len / 0.77; // drawCue's stick is 0.77 m
+    const surface = Skia.Surface.Make(Math.ceil(w * DPR), Math.ceil(h * DPR));
     if (!surface) return null;
     const c = surface.getCanvas();
-    c.scale(DPR, DPR);
-    drawCue(Skia, c, { land: true, s, ox: w / 2, oy: 8 - (P.R + 0.0015) * s }, 0, P.W, Math.PI / 2, 0);
+    c.scale(DPR, DPR); c.translate(x, y); c.rotate(deg, 0, 0);
+    drawCueArt(Skia, c, id, len, k);
     pics.set(key, uri = `data:image/png;base64,${surface.makeImageSnapshot().encodeToBase64()}`);
   }
-  return <Image source={{ uri }} style={{ width: w, height: len + 16 }} />;
+  return <Image source={{ uri }} style={{ width: w, height: h }} />;
 }
+const TALL: Pose = [96, 112, 48, 6, 90, 100, 96 / 27], FLAT: Pose = [250, 50, 4, 40, -6, 240, 2.2]; // card; stage
+const small = (size: number): Pose => [size, size, 4, size - 4, -48, size * 1.1, size / 18]; // a portrait header
 
 // The cue rack as a hand: cream = owned, dark = not, each with its footer (in use, stats, or what gets it). The stage
 // shows the raised cue as simple stat blocks against the top of 10, or with Advanced stats, the real numbers, mastery
@@ -53,9 +56,9 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
     const c = CUES[id], owned = p.owned.includes(id), use = p.cue === id, ink = { color: owned ? C.ink : C.chalk };
     return {
       key: id, paint: owned ? CREAM : DARK, name: `${c.name}${use ? ', in use' : owned ? ', yours' : ''}`, title: c.name, line: foot(id),
-      art: size => <CueArt w={size} len={size - 16} />,
+      art: size => <CueArt id={id} pose={small(size)} />,
       body: <>
-        <View style={styles.art}><CueArt w={W} len={ART - 16} /></View>
+        <View style={styles.art}><CueArt id={id} pose={TALL} /></View>
         <Txt numberOfLines={1} style={[styles.name, ink]}>{c.name}</Txt>
         <View style={[styles.foot, { backgroundColor: use ? C.gold : owned ? CREAM[1] : DARK[1] }]}>
           <Txt numberOfLines={1} style={[TYPE.small, styles.bold, TYPE.num, { color: owned ? C.ink : C.chalk }]}>{foot(id)}</Txt>
@@ -87,14 +90,17 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
 function Simple({ id, p }: { id: CueId; p: Profile }) {
   const { land } = useFrame(), st = statsOf(id, masteryOf(p, id));
   return <>
-    <View style={{ gap: 6 }}>
-      {STATS.map(s => (
-        <View key={s} style={styles.stat} accessible accessibilityLabel={`${s} ${st[s]} of 10`}>
-          <Txt style={[TYPE.body, styles.statName]}>{cap(s)}</Txt>
-          <Blocks value={st[s]} width={200} />
-          <Txt style={[TYPE.body, TYPE.num, styles.bold]}>{st[s]}</Txt>
-        </View>
-      ))}
+    <View style={styles.simple}>
+      <View style={{ gap: 6 }}>
+        {STATS.map(s => (
+          <View key={s} style={styles.stat} accessible accessibilityLabel={`${s} ${st[s]} of 10`}>
+            <Txt style={[TYPE.body, styles.statName]}>{cap(s)}</Txt>
+            <Blocks value={st[s]} width={200} />
+            <Txt style={[TYPE.body, TYPE.num, styles.bold]}>{st[s]}</Txt>
+          </View>
+        ))}
+      </View>
+      {land && <CueArt id={id} pose={FLAT} />}
     </View>
     {!land && <Txt style={[TYPE.small, { opacity: 0.7 }]}>Pass and play is a matched game: both players use House Cue stats.</Txt>}
   </>;
@@ -148,6 +154,7 @@ const styles = StyleSheet.create({
   art: { position: 'absolute', left: 0, top: 4 },
   name: { ...TYPE.name, fontSize: 14, textAlign: 'center', position: 'absolute', left: 4, right: 4, top: ART },
   foot: { position: 'absolute', left: 0, right: 0, top: ART + 22, height: 24, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  simple: { flexDirection: 'row', alignItems: 'center', gap: 28 },
   stat: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   statName: { width: 44, opacity: 0.8 },
   facts: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
