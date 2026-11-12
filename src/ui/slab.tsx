@@ -46,11 +46,11 @@ export function Key({ label, name, on, off, onPress }: { label: string; name?: s
   );
 }
 
-// A radio group of keys, with an optional small label in front. label is also the group's name for a screen reader.
-export function Keys<T>({ label, show, value, pick, options }: { label: string; show?: boolean; value: T; pick: (v: T) => void; options: ([string, T] | [string, T, string])[] }) {
+// A radio group of keys. label = the group's name for a screen reader; show = an optional small label in front.
+export function Keys<T>({ label, show, value, pick, options }: { label: string; show?: string; value: T; pick: (v: T) => void; options: ([string, T] | [string, T, string])[] }) {
   return (
     <View style={styles.keys} accessibilityRole="radiogroup" accessibilityLabel={label}>
-      {show && <Txt style={styles.keyLabel}>{label}</Txt>}
+      {show && <Txt style={styles.keyLabel}>{show}</Txt>}
       {options.map(([text, v, name]) => <Key key={text} label={text} name={name} on={v === value} onPress={() => pick(v)} />)}
     </View>
   );
@@ -68,7 +68,7 @@ export function Chip({ children, onPress, name, style }: { children: ReactNode; 
 // A ball as the design draws it: a flat disc on a hard offset shadow, a chalk rim, a highlight tick, the number on a
 // white dot. label = the text on the dot (a level), n = the colour (1 to 15; above 8 they repeat).
 export function BallArt({ n, size, label }: { n: number; size: number; label?: string | number }) {
-  const r = size / 2, col = BALLS[(n - 1) % 8], tick = r * 1.4, line = Math.max(1, r * 0.11);
+  const r = size / 2, col = BALLS[(n - 1) % 8], tick = r * 0.42, line = Math.max(1, r * 0.11);
   return (
     <View style={{ width: size, height: size }} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
       <View style={[styles.disc, { width: size, height: size, borderRadius: r, left: r * 0.2, top: r * 0.24, backgroundColor: C.shade, opacity: 0.6 }]} />
@@ -77,7 +77,7 @@ export function BallArt({ n, size, label }: { n: number; size: number; label?: s
           <Text allowFontScaling={false} style={{ fontFamily: FONT.display, fontSize: r * 0.56, lineHeight: r * 0.7, color: C.ink }}>{label ?? n}</Text>
         </View>}
       </View>
-      {r >= 7 && <View style={[styles.disc, { width: tick, height: tick, borderRadius: tick, left: r - tick / 2, top: r - tick / 2, borderWidth: line, borderColor: 'transparent', borderTopColor: '#FFFFFFBF', transform: [{ rotate: '-45deg' }] }]} />}
+      {r >= 7 && <View style={[styles.disc, { width: tick, height: line, borderRadius: line, left: r * 0.5 - tick / 2, top: r * 0.5 - line / 2, backgroundColor: '#FFFFFFBF', transform: [{ rotate: '-45deg' }] }]} />}
     </View>
   );
 }
@@ -120,7 +120,7 @@ export const TYPE = StyleSheet.create({
 const styles = StyleSheet.create({
   key: { height: 34, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', flexGrow: 0 },
   keyText: { fontFamily: FONT.bold, fontSize: 12.5, fontVariant: ['tabular-nums'] },
-  keys: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4 },
+  keys: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, flexShrink: 1, maxWidth: '100%' },
   keyLabel: { fontFamily: FONT.bold, fontSize: 11, color: C.chalk, opacity: 0.7, marginRight: 4 },
   chip: { minHeight: 26, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 5 },
   chipText: { fontFamily: FONT.bold, fontSize: 13, color: C.chalk, fontVariant: ['tabular-nums'] },
