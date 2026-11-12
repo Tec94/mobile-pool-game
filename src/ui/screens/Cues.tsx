@@ -33,7 +33,7 @@ function CueArt({ id, pose }: { id: CueId; pose: Pose }) {
   }
   return <Image source={{ uri }} style={{ width: w, height: h }} />;
 }
-const TALL: Pose = [W, 106, W / 2, 6, 90, 100, 96 / 27], FLAT: Pose = [250, 50, 4, 40, -6, 240, 2.2]; // card; stage
+const TALL: Pose = [W, 106, W / 2, 6, 90, 100, 96 / 27]; // a card
 const small = (size: number): Pose => [size, size, 4, size - 4, -48, size * 1.1, size / 18]; // a portrait header
 
 // The cue rack as a hand: cream = owned, dark = not, each with its footer (in use, stats, or what gets it). The stage
@@ -87,7 +87,8 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
 
 // Each stat as 10 blocks: the better the cue, the more are filled, against the top of 10.
 function Simple({ id, p }: { id: CueId; p: Profile }) {
-  const { land } = useFrame(), st = statsOf(id, masteryOf(p, id));
+  const { land, side, width } = useFrame(), st = statsOf(id, masteryOf(p, id)), aw = width - 2 * side - 283 - 28;
+  // The flat cue fills the width past the stat rows (283 pt), its butt low enough to pass under the stage's link.
   return <>
     <View style={styles.simple}>
       <View style={{ gap: 6 }}>
@@ -99,9 +100,9 @@ function Simple({ id, p }: { id: CueId; p: Profile }) {
           </View>
         ))}
       </View>
-      {land && <CueArt id={id} pose={FLAT} />}
+      {land && <CueArt id={id} pose={[aw, 56, 4, 50, -2.5, aw - 8, 3]} />}
     </View>
-    {!land && <Txt style={[TYPE.small, { opacity: 0.7 }]}>Pass and play is a matched game: both players use House Cue stats.</Txt>}
+    <Txt style={[TYPE.small, { opacity: 0.7 }]}>Pass and play is a matched game: both players use House Cue stats.</Txt>
   </>;
 }
 
