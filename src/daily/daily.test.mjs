@@ -137,4 +137,22 @@ import { addDays, addMonths, armChalk, chalkResult, dailyClear, dailyPick, dayKe
   disk.set('daily.new.json', JSON.stringify(b));
   assert.deepStrictEqual(loadDaily(today).daily, b, 'a new file left by a crash before its move is the newest save');
   console.log('daily file: all checks passed');
+  // Lessons and stars save the same way. learn.json is a list, which the profile and daily files must not be.
+  const { loadDone, saveDone } = await import('../learn/save.ts'), { loadStars, saveStars } = await import('../scenarios/save.ts');
+  const { LESSONS } = await import('../learn/lessons.ts'), { SCENARIOS } = await import('../scenarios/scenarios.ts');
+  const [l1, l2] = LESSONS.map(l => l.id), s1 = SCENARIOS[0].id;
+  disk.set('learn.json', JSON.stringify([l1]));
+  assert.deepStrictEqual(loadDone(), [l1], 'a learn.json from before still loads');
+  assert(saveDone([l1, l2]), 'lessons saved');
+  assert.deepStrictEqual(JSON.parse(disk.get('learn.bak.json')), [l1], 'the old list is the backup');
+  disk.set('learn.json', '["les');
+  assert.deepStrictEqual(loadDone(), [l1], 'a damaged lessons file falls back to the backup: no lesson pays twice');
+  disk.set('scenarios.json', JSON.stringify({ [s1]: 1 }));
+  assert.deepStrictEqual(loadStars(), { [s1]: 1 }, 'a scenarios.json from before still loads');
+  assert(saveStars({ [s1]: 3 }), 'stars saved');
+  disk.set('scenarios.json', '{');
+  assert.deepStrictEqual(loadStars(), { [s1]: 1 }, 'damaged stars fall back to the backup');
+  disk.set('daily.json', '[]'); disk.delete('daily.new.json');
+  assert.deepStrictEqual(loadDaily(today).daily, a, 'a list is not a daily file: the backup loads');
+  console.log('lesson and star files: all checks passed');
 }
