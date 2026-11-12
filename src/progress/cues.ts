@@ -4,7 +4,7 @@ import { guideLen } from '../shot/aim.ts';
 
 export interface CueInfo {
   name: string; power: number; spin: number; aim: number;
-  perk?: string;             // shortcut: only Liftoff, Hex and Humble act; the others are text until their work lands
+  perk?: string;             // shortcut: only Liftoff, Hex, Humble and Sketch act; the others are text until their work lands
   price?: number;            // coins
   feat?: string;             // the feat that gives it (FEATS)
   level?: number;            // the level that gives it
@@ -13,7 +13,7 @@ export interface CueInfo {
 export const CUES = {
   house: { name: 'House Cue', power: 3, spin: 3, aim: 5 },
   broomstick: { name: 'Broomstick', power: 4, spin: 2, aim: 4, price: 400 },
-  pencil: { name: 'Giant Pencil', power: 3, spin: 4, aim: 5, perk: 'Sketch: shows the cue ball path after contact', get: 'Finish 10 Learn lessons' },
+  pencil: { name: 'Giant Pencil', power: 3, spin: 4, aim: 5, perk: 'Sketch: shows the cue ball path after contact, guide 15% shorter', get: 'Finish 10 Learn lessons' },
   baguette: { name: 'Baguette', power: 5, spin: 4, aim: 3, perk: 'Crusty: break +10%', price: 900 },
   rod: { name: 'Fishing Rod', power: 3, spin: 6, aim: 4, perk: 'Reel: backspin +15%', feat: 'reel' },
   noodle: { name: 'Pool Noodle', power: 2, spin: 5, aim: 7, perk: 'Soft touch', price: 1500 },
@@ -41,11 +41,15 @@ export function stick(id: CueId, matched = false, stats?: Pick<CueInfo, 'power' 
   return { ...CUE, maxSpeed: top * (k === 'rocket' ? 1.1 : 1), breakSpeed: top * CUE.breakSpeed / CUE.maxSpeed, tipLimit: 0.33 + (c.spin - 1) * 0.17 / 9, squirt: k === 'wizard' ? 0 : CUE.squirt };
 }
 
+// The Giant Pencil's Sketch: the guide shows the cue ball's real path after contact, and pays with 15% of its length (Jack).
+export const sketch = (id: CueId) => id === 'pencil';
+export const guideScale = (id: CueId) => (sketch(id) ? 0.85 : 1);
+
 // What a cue's stats mean on the table, for the cue pages: top shot and break speed in m/s, the farthest the tip may
 // sit from the centre in mm, and how much of the path past the first contact the aim guide shows, in cm.
 export function specs(id: CueId, stats: Pick<CueInfo, 'power' | 'spin' | 'aim'> = CUES[id]) {
   const s = stick(id, false, stats);
-  return { shot: s.maxSpeed, brk: s.breakSpeed, tipMm: s.tipLimit * P.R * 1000, guideCm: Math.round(guideLen(stats.aim) * 100) };
+  return { shot: s.maxSpeed, brk: s.breakSpeed, tipMm: s.tipLimit * P.R * 1000, guideCm: Math.round(guideLen(stats.aim) * guideScale(id) * 100) };
 }
 export const specLine = ({ shot, brk, tipMm, guideCm }: ReturnType<typeof specs>) =>
   `Power: ${shot.toFixed(2)} m/s top shot, ${brk.toFixed(1)} m/s break\nSpin: tip up to ${tipMm.toFixed(1)} mm off centre\nAim: guide ${guideCm} cm past contact`;

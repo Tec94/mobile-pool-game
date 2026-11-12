@@ -56,6 +56,7 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
   near(len(aimGuide(B, shot, 1).ob), 0.1, 1e-9, 'Aim 1: 0.1 m'); near(len(aimGuide(B, shot, 6).ob) - len(m.ob), 0.5 / 9, 1e-9, 'one Aim point: 5.6 cm more');
   const l = aimGuide(B, shot, 10); near(len(l.ob), 0.6, 1e-9, 'Aim 10: 0.6 m of object ball path');
   near(len(aimGuide(B, shot, 10, undefined, undefined, true).path) - len(m.path), 0.6, 1e-9, 'the watch stage of a lesson: 0.6 m of the real cue ball path after the contact');
+  const pen = aimGuide(B, shot, 5, undefined, undefined, true, 0.85); near(len(pen.path) - len(m.path), guideLen(5) * 0.85, 1e-9, 'Giant Pencil at Aim 5: the real path, 15% shorter'); near(len(pen.ob), guideLen(5) * 0.85, 1e-9, 'and the object ball path too'); assert(pen.stub.length === 0, 'no stub with the real path');
   assert(aimGuide(B, shot, 0).ob.length < 2, 'Off: no object ball path');
   const jump = aimGuide([mk(0.3, mid)], { ang: Math.PI, speed: 4.5, a: 0, b: 0, elev: 42 * DEG }, 5); assert(jump.lost && !jump.ghost, 'a jump off the table is lost');
   ok('the guide grows with every Aim point');
