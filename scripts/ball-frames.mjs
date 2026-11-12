@@ -29,9 +29,9 @@ const ball = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 
 // One scenario: n cells, each `every` frames (16 ms each) apart, showing w x h metres centred on at(B) or a fixed point.
 // w = 0 shows the whole phone window instead. aim = a shot to draw the aim guide for, as the app does while the player aims;
-// marks = what the rules show (cue ball in hand, called pocket), as the app draws it under the balls;
+// marks = what the rules show (cue ball in hand, called pocket), as the app draws it under the balls, tick ms of its clock a cell;
 // pull = the power on the rail, which draws the cue stick behind the cue ball as well.
-function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, calm = false, skip = 0, cloth = 0, aim, pull, marks }) {
+function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, calm = false, skip = 0, cloth = 0, aim, pull, marks, tick = 300 }) {
   const { dpr } = PHONE, W = land ? PHONE.h : PHONE.w, H = land ? PHONE.w : PHONE.h, lay = shotLayout(W, H, SAFE[land ? 'land' : 'port']), v = { ...lay.view, dpr, calm }, look = newLook(B);
   const cw = Math.round(w ? (land ? w : h) * v.s * dpr : W * dpr), ch = Math.round(w ? (land ? h : w) * v.s * dpr : H * dpr);
   const surface = CanvasKit.MakeSurface(n * cw + (n - 1) * 4, ch);
@@ -44,7 +44,7 @@ function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, c
     const p = typeof at === 'function' ? at(B) : at, o = w ? toScreen(v, p[0], p[1]) : { x: W / 2, y: H / 2 };
     c.save(); c.translate(f * (cw + 4), 0); c.clipRect(Skia.XYWHRect(0, 0, cw, ch), 1, true); c.scale(dpr, dpr); c.translate(cw / 2 / dpr - o.x, ch / 2 / dpr - o.y);
     drawTable(Skia, c, v, CLOTHS[cloth]); if (aim) { const g = aimGuide(B, aim, CUES.house.aim); drawAim(Skia, c, v, g.path, g.ghost, g.lands, g.lost, g.ob); if (pull !== undefined) drawCue(Skia, c, v, B[0].x, B[0].y, aim.ang, pull); } // as App.tsx does
-    if (marks) drawMarks(Skia, c, v, { hand: false, x: B[0].x, y: B[0].y, call: -1, ask: false, ms: 500 + f * 300, ...marks });
+    if (marks) drawMarks(Skia, c, v, { hand: false, x: B[0].x, y: B[0].y, call: -1, ask: false, ms: 500 + f * tick, ...marks });
     drawBalls(kit, c, B, ids, look, v);
     if (!w) { // the whole window: the shot controls where the app puts them (the tools button is its outline)
       const put = (box, draw) => { c.save(); c.translate(box.left, box.top); draw(box.width, box.height); c.restore(); }, edge = Skia.Paint(); edge.setAntiAlias(true); edge.setStyle(1); edge.setColor(Skia.Color(C.chalk)); edge.setAlphaf(0.4);
@@ -106,7 +106,15 @@ for (const [name, t, speed, ang, B] of [['jump', { x: 0, y: 0, elev: 40 }, 3.2, 
 for (const land of [true, false]) { const B = [ball(P.L / 4 - 0.001, mid)], ids = [0]; for (const [id, x, y] of rack(8)) { ids.push(id); B.push(ball(x, y)); }
   strip('hand-' + (land ? 'land' : 'port'), { B, ids, shots: [], n: 1, land, marks: { hand: 'kitchen' } }); }
 strip('hand-pulse', { B: [ball(1.2, mid), ball(1.3, mid + 0.03)], ids: [0, 6], shots: [], n: 5, w: 0.3, h: 0.24, at: [1.2, mid], marks: { hand: 'any' } });
-strip('call', { B: [ball(0.5, 0.35), ball(0.25, 0.2)], ids: [0, 8], shots: [], n: 1, w: 0.9, h: 0.75, at: [0.3, 0.2], marks: { ask: true, call: 0 } });
+// The pockets: every one asks for a call (4 cells 300 ms apart: the arcs turn), one called while the others fall back,
+// and a called or marked pocket alone with a ball on its way in; then the settle of a call, 50 ms a cell, at a corner
+// and at a side pocket; then the whole window, both ways up and on the blue cloth.
+{ const T = () => ({ B: [ball(0.5, 0.35), ball(0.25, 0.2)], ids: [0, 8], shots: [], w: 0.9, h: 0.75, at: [0.3, 0.2] }), t0 = 500;
+  strip('call-ask', { ...T(), n: 4, marks: { ask: true } }); strip('call', { ...T(), n: 1, marks: { ask: true, call: 0 } });
+  strip('call-alone', { B: [ball(0.14, 0.14)], ids: [8], shots: [[0, { ang: -3 * Math.PI / 4, speed: 0.5, a: 0, b: 0.4 }]], n: 8, w: 0.24, h: 0.24, at: [0.03, 0.03], skip: 10, marks: { call: 0 } });
+  for (const [k, at] of [[0, [0, 0]], [4, [P.L / 2, -0.03]]]) strip('call-settle-' + k, { B: [ball(0.5, 0.35)], ids: [0], shots: [], n: 7, every: 0, w: 0.24, h: 0.24, at, marks: { ask: true, call: k, at: t0 }, tick: 50 });
+  strip('call-calm', { ...T(), n: 2, calm: true, marks: { ask: true } });
+  for (const land of [true, false]) for (const cloth of [0, 1]) strip(`call-screen-${land ? 'land' : 'port'}${cloth ? '-blue' : ''}`, { ...T(), n: 1, w: 0, land, cloth, marks: { ask: true, call: land ? 0 : 4 } }); }
 // 15. the shot controls at 3 px per pt: the power rail at rest, at 50% and at full power, then the fine aim dial as it
 // lies in portrait and as it stands in landscape
 { const dpr = PHONE.dpr, surface = CanvasKit.MakeSurface(520 * dpr, 316 * dpr), sk = surface.getCanvas(), c = new JsiSkCanvas(CanvasKit, sk);

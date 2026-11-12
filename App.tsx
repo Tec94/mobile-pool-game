@@ -16,7 +16,7 @@ import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from 'react
 import { Ball, breakSpot, CUE, HOLES, P, rack, Shot, strike } from './src/physics/engine';
 import { benchAI } from './src/ai/bench';
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
-import { drawMarks } from './src/render/marks';
+import { drawMarks, SETTLE } from './src/render/marks';
 import { newPace, nextFrame, type Pace, refresh, type Slot, spent } from './src/render/pace';
 import { drawCue, shotLayout } from './src/render/cue';
 import { BAR, drawAim, drawTable, onTable, toScreen, toTable } from './src/render/table';
@@ -199,7 +199,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   const [demo, setDemo] = useState(0);
   const [hud, setHud] = useState(__DEV__), [rates, setRates] = useState(''); // frame rate readout: hold the Rack button to show or hide it
   const tip = useRef(tipStore()).current, [sheet, setSheet] = useState(false), [tools, setTools] = useState(false);
-  const moving = useRef(false), grab = useRef<{ x: number; y: number } | 'call' | null>(null);
+  const moving = useRef(false), grab = useRef<{ x: number; y: number } | 'call' | null>(null), called = useRef(0); // called = when the player called a pocket: its ring settles from then
   // The balls and the aim guide are Skia pictures, recorded on the JS thread and handed to the canvas through shared
   // values, so a frame of play or of aiming never re-renders React.
   // The marks (src/render/marks.ts) are a picture of their own: the pulse of the ring round the cue ball in hand
@@ -214,7 +214,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   mark.current = () => {
     const rec = Skia.PictureRecorder(), { B, rules: s, rec: shot } = table.current;
     const me = !shot && !bot(); // on the AI's turn the human's marks stay off
-    drawMarks(Skia, rec.beginRecording(), view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call, ask: me && onEight(s), ms: performance.now(), zone: L?.goal.zone });
+    drawMarks(Skia, rec.beginRecording(), view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call, ask: me && onEight(s), ms: performance.now(), at: called.current, zone: L?.goal.zone });
     return rec.finishRecordingAsPicture();
   };
   // Frames of play wait in queue and the UI thread shows one on each display refresh (see src/render/pace.ts).
@@ -247,6 +247,8 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the
   // rack is over. In a lesson: the shot plays itself, or the verdict card is up.
   const bot = () => vs && table.current.rules.turn === 1; // on the AI's turn nothing can be touched
+  // The marks move: the ring round the cue ball in hand pulses, the pockets ask for a call, a called pocket settles. A called pocket at rest does not.
+  const beats = () => { const { rules: r, rec } = table.current; return !map.current.calm && ((r.hand && !r.choice) || (!rec && !bot() && onEight(r) && r.call < 0) || performance.now() - called.current < SETTLE); };
   const shut = () => { const t = table.current; return moving.current || !!t.rec || !!t.rules.choice || t.rules.phase === 'over' || (!!L && (les.current.stage === 'watch' || !!les.current.said)) || bot(); };
   const watching = () => !!L && les.current.stage === 'watch' && !les.current.said && !moving.current && !table.current.rec; // the reference shot is lined up: its guide shows
   // Put a ruling on the table: a new rack, or the balls the rules spot and the cue ball in hand.
@@ -273,7 +275,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
     const rest = () => setTimeout(() => { if (!on) live.current.setActive(false); }, 300);
     let timer = rest(); on = false;
     let was = performance.now();
-    let dead = false;
+    let dead = false, beat = false; // beat = the marks moved last turn: one more picture shows them at rest
     const tick = (t: number) => {
       raf = 0; if (dead) return;
       const { B, ids, look, rules: s, rec, push: pushOut } = table.current;
@@ -316,9 +318,9 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         }
       } else {
         if (on) { on = false; pace.current = null; timer = rest(); }
-        if (s.hand && !s.choice && !map.current.calm) scheduleOnUI(setMarks, mark.current()); // the ring round the cue ball in hand pulses
+        const b = beats(); if (b || beat) scheduleOnUI(setMarks, mark.current()); beat = b;
       }
-      const n = table.current, pulse = n.rules.hand && !n.rules.choice && !map.current.calm; // the table now: a ruling may have racked a new one
+      const n = table.current, pulse = beats() || beat; // the table now: a ruling may have racked a new one
       if ((stale.current || redo.current || moving.current || n.look.fx.length || n.rec || on || pulse) && !raf) raf = requestAnimationFrame(tick); // !raf: a wake inside this turn already asked for the next
     };
     wake.current = () => { if (!raf && !dead) { was = performance.now(); raf = requestAnimationFrame(tick); } };
@@ -425,7 +427,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       const k = canCall(s) ? HOLES.findIndex(h => Math.hypot(h[0] - p.x, h[1] - p.y) < 0.1) : -1;
       grab.current = s.hand && Math.hypot(at.x - g.x0, at.y - g.y0) < GRAB ? { x: c.x - p.x, y: c.y - p.y } : k >= 0 ? 'call' : null;
       if (grab.current && grab.current !== 'call') dirty(); // the stick goes as the finger takes the ball
-      if (k >= 0 && grab.current === 'call') { t.rules = setCall(s, k === s.call ? -1 : k); Haptics.selectionAsync(); paint(); redraw(); }
+      if (k >= 0 && grab.current === 'call') { if (k !== s.call) called.current = performance.now(); t.rules = setCall(s, k === s.call ? -1 : k); Haptics.selectionAsync(); paint(); redraw(); }
       touch.current = grab.current ? null : { t: Date.now(), moved: false, ...finger(g.x0, g.y0) };
     },
     onPanResponderMove: (_, g) => {
