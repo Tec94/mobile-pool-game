@@ -30,8 +30,8 @@ const ball = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 // One scenario: n cells, each `every` frames (16 ms each) apart, showing w x h metres centred on at(B) or a fixed point.
 // w = 0 shows the whole phone window instead. aim = a shot to draw the aim guide for, as the app does while the player aims;
 // marks = what the rules show (cue ball in hand, called pocket), as the app draws it under the balls, tick ms of its clock a cell;
-// pull = the power on the rail, which draws the cue stick behind the cue ball as well.
-function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, calm = false, skip = 0, cloth = 0, aim, pull, marks, tick = 300 }) {
+// pull = the power on the rail, which draws the cue stick behind the cue ball as well; aimStat = the Aim of the cue (House Cue's when left out).
+function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, calm = false, skip = 0, cloth = 0, aim, aimStat, pull, marks, tick = 300 }) {
   const { dpr } = PHONE, W = land ? PHONE.h : PHONE.w, H = land ? PHONE.w : PHONE.h, lay = shotLayout(W, H, SAFE[land ? 'land' : 'port']), v = { ...lay.view, dpr, calm }, look = newLook(B);
   const cw = Math.round(w ? (land ? w : h) * v.s * dpr : W * dpr), ch = Math.round(w ? (land ? h : w) * v.s * dpr : H * dpr);
   const surface = CanvasKit.MakeSurface(n * cw + (n - 1) * 4, ch);
@@ -43,7 +43,7 @@ function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, c
   for (let f = 0; f < n; f++) {
     const p = typeof at === 'function' ? at(B) : at, o = w ? toScreen(v, p[0], p[1]) : { x: W / 2, y: H / 2 };
     c.save(); c.translate(f * (cw + 4), 0); c.clipRect(Skia.XYWHRect(0, 0, cw, ch), 1, true); c.scale(dpr, dpr); c.translate(cw / 2 / dpr - o.x, ch / 2 / dpr - o.y);
-    drawTable(Skia, c, v, CLOTHS[cloth]); if (aim) { const g = aimGuide(B, aim, CUES.house.aim); drawAim(Skia, c, v, g.path, g.ghost, g.lands, g.lost, g.ob); if (pull !== undefined) drawCue(Skia, c, v, B[0].x, B[0].y, aim.ang, pull); } // as App.tsx does
+    drawTable(Skia, c, v, CLOTHS[cloth]); if (aim) { const g = aimGuide(B, aim, aimStat ?? CUES.house.aim); drawAim(Skia, c, v, g.path, g.ghost, g.lands, g.lost, g.ob, false, g.stub); if (pull !== undefined) drawCue(Skia, c, v, B[0].x, B[0].y, aim.ang, pull); } // as App.tsx does
     if (marks) drawMarks(Skia, c, v, { hand: false, x: B[0].x, y: B[0].y, call: -1, ask: false, ms: 500 + f * tick, ...marks });
     drawBalls(kit, c, B, ids, look, v);
     if (!w) { // the whole window: the shot controls where the app puts them (the tools button is its outline)
@@ -86,6 +86,9 @@ for (const land of [true, false]) { const B = [ball(P.L / 4, mid)], ids = [0], o
 strip('pocket-calm', { B: [ball(0.12, 0.12)], ids: [14], shots: [[0, { ang: -3 * Math.PI / 4, speed: 0.5, a: 0, b: 0.4 }]], n: 8, w: 0.2, h: 0.2, at: [0.03, 0.03], skip: 22, calm: true });
 // 11. the aim guide on a cut shot, in landscape and in portrait
 for (const land of [true, false]) strip('aim-' + (land ? 'land' : 'port'), { B: [ball(0.6, mid - 0.1), ball(1.2, mid + 0.02)], ids: [0, 4], shots: [], n: 1, w: 1, h: 0.4, at: [1, mid], land, aim: { ang: Math.atan2(0.09, 0.6), speed: 2, a: 0, b: 0 } });
+// the aim guide of a long cue (Aim 10, as in lessons) on that cut shot with follow, with draw, and on a full hit: the same faint stub after the ghost ball, none on the full hit
+for (const [name, t, ang] of [['follow', { x: 0, y: 0.6, elev: 0 }, Math.atan2(0.09, 0.6)], ['draw', { x: 0, y: -0.6, elev: 0 }, Math.atan2(0.09, 0.6)], ['full', { x: 0, y: 0.6, elev: 0 }, Math.atan2(0.12, 0.6)]])
+  for (const land of [true, false]) strip(`aim-long-${name}-${land ? 'land' : 'port'}`, { B: [ball(0.6, mid - 0.1), ball(1.2, mid + 0.02)], ids: [0, 4], shots: [], n: 1, w: 1, h: 0.4, at: [1, mid], land, aimStat: 10, aim: { ang, speed: 2, ...shotTip(t) } });
 // 12. the aim guide with a raised cue: a jump over a blocker, a masse round one, and a jump that loses the cue ball
 for (const [name, t, speed, ang, B] of [['jump', { x: 0, y: 0, elev: 40 }, 3.2, 0, [ball(0.6, mid), ball(0.85, mid), ball(1.6, mid)]],
   ['masse', { x: 0.8, y: 0, elev: 65 }, 3.5, 0.12, [ball(0.6, mid), ball(1.0, mid), ball(1.4, mid - 0.03)]], ['lost', { x: 0, y: 0, elev: 42 }, 4.5, Math.PI, [ball(0.3, mid)]]])

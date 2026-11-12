@@ -54,17 +54,41 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
   near(Math.hypot(m.ghost[0] - end[0], m.ghost[1] - end[1]), 0, 1e-3, 'ghost at the contact');
   near(len(m.ob), guideLen(5), 1e-9, 'Aim 5: 0.32 m of object ball path'); near(m.ob[0][0], 1, 2e-3, 'from the object ball');
   near(len(aimGuide(B, shot, 1).ob), 0.1, 1e-9, 'Aim 1: 0.1 m'); near(len(aimGuide(B, shot, 6).ob) - len(m.ob), 0.5 / 9, 1e-9, 'one Aim point: 5.6 cm more');
-  const l = aimGuide(B, shot, 10); near(len(l.path) - len(m.path), 0.6, 1e-9, 'Aim 10: 0.6 m of cue ball path after the contact'); near(len(l.ob), 0.6, 1e-9, 'and of the object ball');
-  near(len(aimGuide(B, shot, 7).path) - len(m.path), guideLen(7), 1e-9, 'from Aim 7 the cue ball path after contact shows'); assert(len(aimGuide(B, shot, 6).path) === len(m.path), 'below 7 it does not');
+  const l = aimGuide(B, shot, 10); near(len(l.ob), 0.6, 1e-9, 'Aim 10: 0.6 m of object ball path');
+  near(len(aimGuide(B, shot, 10, undefined, undefined, true).path) - len(m.path), 0.6, 1e-9, 'the watch stage of a lesson: 0.6 m of the real cue ball path after the contact');
   assert(aimGuide(B, shot, 0).ob.length < 2, 'Off: no object ball path');
   const jump = aimGuide([mk(0.3, mid)], { ang: Math.PI, speed: 4.5, a: 0, b: 0, elev: 42 * DEG }, 5); assert(jump.lost && !jump.ghost, 'a jump off the table is lost');
-  ok('the guide grows with every Aim point, and shows the cue ball path after contact from Aim 7');
+  ok('the guide grows with every Aim point');
+}
+{ // After the contact the guide gives away only the tangent line: a short straight stub from the ghost ball, from Aim 7.
+  const B = [mk(0.5, mid), mk(1.2, mid + 0.03)], plain = { ...CUE, squirt: 0, minElev: 0 }; // no squirt or swerve: side spin leaves the contact where it was
+  const g = (s, aim = 10) => aimGuide(B, { ang: 0, a: 0, b: 0, speed: 2, ...s }, aim, undefined, plain), dir = q => { const [a, b] = q.stub, d = Math.hypot(b[0] - a[0], b[1] - a[1]); return [(b[0] - a[0]) / d, (b[1] - a[1]) / d]; };
+  const base = g({}); assert.strictEqual(base.stub.length, 2, 'Aim 10: a stub of one straight line');
+  const [ux, uy] = dir(base), ox = 1.2 - base.ghost[0], oy = mid + 0.03 - base.ghost[1];
+  near(Math.hypot(base.stub[0][0] - base.ghost[0], base.stub[0][1] - base.ghost[1]), 0, 1e-12, 'from the ghost ball');
+  near(len(base.stub), 4 * P.R, 1e-12, 'four ball radii long');
+  near((ux * ox + uy * oy) / Math.hypot(ox, oy), 0, 0.03, 'along the tangent line, square to the line of centres'); assert(ux > 0 && uy < 0, 'forward, away from the object ball');
+  const end = base.path[base.path.length - 1]; near(Math.hypot(end[0] - base.ghost[0], end[1] - base.ghost[1]), 0, 1e-9, 'the cue ball line stops at the ghost ball');
+  for (const [name, s] of [['top', { b: 0.5 }], ['bottom', { b: -0.5 }], ['right side', { a: 0.5 }], ['left side', { a: -0.5 }], ['soft', { speed: 0.6 }], ['hard', { speed: 4.5 }], ['draw, hard', { b: -0.5, speed: 4 }]]) {
+    const q = g(s), [vx, vy] = dir(q);
+    near(Math.hypot(vx - ux, vy - uy), 0, 1e-6, `${name}: the same direction`); near(len(q.stub), 4 * P.R, 1e-12, `${name}: the same length`);
+    const far = Math.max(...q.path.map(p => p[0] - q.ghost[0])); // the aim is along x assert(far <= 4 * P.R, `${name}: no point of the path beyond the ghost (${far})`);
+  }
+  for (const aim of [1, 5, 6]) { const q = g({}, aim), e = q.path[q.path.length - 1]; assert(q.stub.length === 0 && Math.hypot(e[0] - q.ghost[0], e[1] - q.ghost[1]) < 1e-9, `Aim ${aim}: nothing after the contact`); }
+  assert.strictEqual(g({}, 7).stub.length, 2, 'Aim 7: the stub');
+  const full = aimGuide([mk(0.5, mid), mk(1.2, mid + 0.001)], { ang: 0, speed: 2, a: 0, b: 0.5 }, 10, undefined, plain); // a 1 degree cut
+  assert(full.ghost && full.stub.length === 0, 'a full-ball hit: no stub'); assert(Math.max(...full.path.map(p => p[0])) <= full.ghost[0] + 1e-9, 'and no follow line past the ghost');
+  ok('after the contact a straight 4-radius stub on the tangent line, the same for every spin and power, from Aim 7');
 }
 { // A kick shot below Aim 7: the line stops at the cushion, the ring sits on its end and no object ball path hangs loose.
   const ball = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true }), B = [ball(1, 0.3), ball(1.4, 0.12)];
   const g = aimGuide(B, { ang: Math.atan2(-0.27, 0.3), speed: 2, a: 0, b: 0 }, 5), end = g.path[g.path.length - 1];
   assert(end[1] < P.R + 1e-3, 'the line ends at the cushion'); assert(g.ghost && Math.hypot(g.ghost[0] - end[0], g.ghost[1] - end[1]) < 1e-9, 'the ring is on the end of the line'); assert(g.ob.length === 0, 'no object ball path');
-  ok('a kick shot shows the ring at the cushion');
+  const f = aimGuide(B, { ang: Math.atan2(-0.27, 0.3) + 0.02, speed: 2, a: 0, b: 0 }, 10), last = f.path[f.path.length - 1];
+  assert(f.first === 1 && Math.hypot(last[0] - f.ghost[0], last[1] - f.ghost[1]) < 1e-9, 'from Aim 7 the line runs off the cushion to the ghost ball and stops there');
+  assert(f.path.some(p => p[1] < P.R + 1e-3) && f.stub.length === 2, 'by way of the cushion, then the stub');
+  assert(f.path.every((p, i) => !i || Math.hypot(p[0] - f.path[i - 1][0], p[1] - f.path[i - 1][1]) < 0.02), 'one unbroken line into the ghost: nothing of the path after the hit');
+  ok('a kick shot shows the ring at the cushion, and from Aim 7 the ghost ball and the stub');
 }
 { // The guide uses the cue that strikes: with side spin a cue of no squirt meets the ball elsewhere than the default cue.
   const B = [mk(0.5, mid), mk(1.5, mid)], shot = { ang: 0, speed: 2, a: 0.3, b: 0 }, hex = { ...CUE, squirt: 0 };

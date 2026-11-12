@@ -59,13 +59,14 @@ export function drawTable(api: typeof Skia, canvas: SkCanvas, v: View, cloth = C
   canvas.restore();
 }
 
-// The aim guide, in the chalk line of the approved design: the cue ball's real path, and a ghost ball where it first
+// The aim guide, in the chalk line of the approved design: the cue ball's path, and a ghost ball where it first
 // meets a ball. Each run on the cloth is one path, so the joints of a see-through line do not double up.
 // With a raised cue the ball can leave the cloth: a gap in the line is the ball in the air, a small ring is where it
 // lands (`lands`), and a ring in the warning colour is where it leaves the table or falls in a pocket (`lost`).
 // `ob` is the path of the ball it meets first, from that ball. `bad` = the rules do not let the cue ball hit that ball
 // first: the ghost is a prohibited sign in the warning colour and the ball's path is not drawn, as the shot is a foul.
-export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: number[][], ghost?: number[] | null, lands: number[][] = [], lost = false, ob: number[][] = [], bad = false) {
+// `stub` = [from, to]: where the cue ball leaves the ghost ball, only a hint, so it is fainter and fades out.
+export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: number[][], ghost?: number[] | null, lands: number[][] = [], lost = false, ob: number[][] = [], bad = false, stub: number[][] = []) {
   const r = P.R * v.s, p = api.Paint(); p.setAntiAlias(true); p.setColor(api.Color(C.chalk)); p.setStyle(1); p.setStrokeCap(1); p.setStrokeJoin(1); // stroke, round, round
   p.setAlphaf(0.92); p.setStrokeWidth(0.19 * r);
   let run: number[][] = [];
@@ -73,6 +74,11 @@ export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: numbe
   for (const q of path) if ((q[2] || 0) > 0.05 * P.R) end(); else run.push(q);
   end();
   if (!bad) { run = ob; end(); }
+  if (!bad && stub.length > 1) {
+    const a = toScreen(v, stub[0][0], stub[0][1]), b = toScreen(v, stub[1][0], stub[1][1]), f = api.Paint(); f.setAntiAlias(true); f.setStyle(1); f.setStrokeCap(1); f.setStrokeWidth(0.16 * r);
+    f.setShader(api.Shader.MakeLinearGradient(a, b, [api.Color('rgba(238,242,234,0.6)'), api.Color('rgba(238,242,234,0)')], null, 0)); // chalk, 0 = TileMode.Clamp
+    canvas.drawLine(a.x, a.y, b.x, b.y, f);
+  }
   p.setAlphaf(0.9); p.setStrokeWidth(0.16 * r);
   for (const [x, y] of lands) { const g = toScreen(v, x, y); canvas.drawCircle(g.x, g.y, 0.7 * r, p); }
   if (ghost) {
