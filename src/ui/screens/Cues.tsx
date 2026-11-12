@@ -81,7 +81,7 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
         link={adv ? { label: '‹ Simple stats', name: 'Simple stats', onPress: () => setAdv(false) } : { label: 'Advanced stats ›', name: 'Advanced stats', onPress: () => setAdv(true) }}>
         {adv ? <Advanced id={id} p={p} put={put} /> : <Simple id={id} p={p} />}
       </Stage>
-      <Hand cards={cards} up={up} pick={setUp} width={W} />
+      <Hand cards={cards} up={up} pick={setUp} width={W} follow />
     </Shell>
   );
 }

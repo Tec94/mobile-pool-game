@@ -3,11 +3,13 @@
 // window is wider than tall; in portrait the hand becomes a stack of card headers.
 import { createContext, type ReactNode, useContext, useRef } from 'react';
 import { Platform, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { useReducedMotion } from 'react-native-reanimated';
+import Animated, { useAnimatedScrollHandler, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { scheduleOnRN } from 'react-native-worklets';
 import { profile } from '../progress';
 import { levelOf } from '../progress/profile';
 import { C, CREAM, DARK, FONT, inkOn, type Paint } from '../theme';
+import { focusAt, offsetOf } from './hand';
 import { BallArt, Chip, HandCard, Hatch, Slab, Txt, TYPE } from './slab';
 
 // Fresh Chalk charges for the strip. The daily state lives in App, so Menus provides it here for every screen.
@@ -108,12 +110,28 @@ export interface Card {
 // The choices as cards. Tap one: it rises and the stage follows (pick). Landscape: a row along the bottom edge that runs
 // off it and scrolls sideways, opening on the raised card. The scroller holds the whole cards and runs off the screen
 // itself, so nothing in it can scroll up and down (a focused card would, on the web). Portrait: a stack of 50 pt headers, the chosen one outlined, opening near it.
-export function Hand({ cards, up, pick, width = 110, height = 200 }: { cards: Card[]; up: number; pick: (i: number) => void; width?: number; height?: number }) {
+// follow (landscape, a row that scrolls): the raised card follows the scroll and the stage follows once it rests (hand.ts).
+export function Hand({ cards, up, pick, width = 110, height = 200, follow }: { cards: Card[]; up: number; pick: (i: number) => void; width?: number; height?: number; follow?: boolean }) {
   const { land, side, pad, width: screen, height: tall } = useFrame(), scroll = useRef<ScrollViewInstance>(null), mid = (cards.length - 1) / 2, step = Math.min(1.1, 3.3 / Math.max(1, mid));
   const still = useReducedMotion(), n = cards.length, edge = side + 8, fit = (screen - 2 * edge - 4 * (n - 1)) / n;
   // A hand that fits widens its cards to fill the row edge to edge; one that overflows keeps its width and scrolls.
-  const w = fit >= width * 0.95 ? Math.min(Math.floor(fit), width * 1.25) : width;
-  const at = (i: number) => Math.min(Math.max(0, edge + i * (w + 4) - (screen - w) / 2), Math.max(0, 2 * edge + n * w + 4 * (n - 1) - screen)); // card i centred, clamped to the row
+  const w = fit >= width * 0.95 ? Math.min(Math.floor(fit), width * 1.25) : width, max = Math.max(0, 2 * edge + n * w + 4 * (n - 1) - screen), follows = !!follow && max > 0;
+  const at = (i: number) => follows ? offsetOf(i, max, n) : Math.min(Math.max(0, edge + i * (w + 4) - (screen - w) / 2), max); // card i centred, clamped to the row
+  // Follow: the scroll moves focus on the UI thread; React hears of it once per new card (a tick) and picks 80 ms after
+  // the focus rests. target = the offset a tap scrolls to: cards passing under on the way do not take the focus.
+  const focus = useSharedValue(up), target = useSharedValue(-1), rest = useRef({ pick, timer: undefined as ReturnType<typeof setTimeout> | undefined }).current;
+  rest.pick = pick;
+  const moved = useRef((i: number) => { clearTimeout(rest.timer); rest.timer = setTimeout(() => rest.pick(i), 80); }).current;
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: e => {
+      const x = e.contentOffset.x;
+      if (target.value >= 0) { if (Math.abs(x - target.value) > 2) return; target.value = -1; }
+      const i = focusAt(x, e.contentSize.width - e.layoutMeasurement.width, n);
+      if (i >= 0 && i !== focus.value) { focus.value = i; scheduleOnRN(moved, i); }
+    },
+    onBeginDrag: () => { target.value = -1; },
+    onMomentumEnd: () => { target.value = -1; },
+  });
   if (!land) return (
     // A stack of more than six shows a half header, so it reads as one that scrolls; never over 42% of the window.
     <ScrollView ref={scroll} style={{ flexGrow: 0, maxHeight: Math.min(50 * Math.min(n, 6) + (n > 6 ? 56 : 85), 0.42 * tall), marginBottom: -40 }} contentContainerStyle={{ paddingHorizontal: side }}
@@ -138,14 +156,15 @@ export function Hand({ cards, up, pick, width = 110, height = 200 }: { cards: Ca
   );
   return (
     // The foot runs 42 pt off the bottom edge, more on a window under 393 pt, so the hand top stays clear of the stage.
-    <ScrollView ref={scroll} horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, height: height + 26, marginBottom: -(42 + Math.min(30, Math.max(0, 393 - tall))) }}
+    <Animated.ScrollView ref={scroll} horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, height: height + 26, marginBottom: -(42 + Math.min(30, Math.max(0, 393 - tall))) }}
       contentContainerStyle={{ paddingHorizontal: edge, paddingTop: 26, gap: 4 }} contentOffset={{ x: at(up), y: 0 }}
-      onLayout={() => scroll.current?.scrollTo({ x: at(up), animated: false })}>
+      onScroll={follows ? onScroll : undefined} snapToOffsets={follows ? cards.map((_, i) => at(i)) : undefined} decelerationRate={follows ? 'fast' : undefined}
+      onLayout={() => { if (follows) focus.value = up; scroll.current?.scrollTo({ x: at(up), animated: false }); }}>
       {cards.map((c, i) => {
         const ink = { color: inkOn(c.paint) };
         return (
-          <HandCard key={c.key} paint={c.paint} up={i === up} tilt={(i - mid) * step} name={c.name} width={w} height={height}
-            onPress={() => { pick(i); scroll.current?.scrollTo({ x: at(i), animated: !still }); }}>
+          <HandCard key={c.key} paint={c.paint} up={i === up} tilt={(i - mid) * step} name={c.name} width={w} height={height} i={i} focus={follows ? focus : undefined}
+            onPress={() => { if (follows && focus.value !== i) { target.value = at(i); focus.value = i; } pick(i); scroll.current?.scrollTo({ x: at(i), animated: !still }); }}>
             {c.body ?? <>
               <Txt style={[TYPE.name, ink]}>{c.title}</Txt>
               {c.line && <Txt style={[TYPE.small, ink, { marginTop: 3 }]}>{c.line}</Txt>}
@@ -154,7 +173,7 @@ export function Hand({ cards, up, pick, width = 110, height = 200 }: { cards: Ca
           </HandCard>
         );
       })}
-    </ScrollView>
+    </Animated.ScrollView>
   );
 }
 
