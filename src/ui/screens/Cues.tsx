@@ -138,8 +138,9 @@ function Mastery({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => v
   const next = !tunable(id) ? 'Cannot be tuned' : !pts ? 'Mastery 2 gives a tuning point' : !free ? 'Every point in use' : cost === undefined ? 'No stat has room for more' : `${free} point${free > 1 ? 's' : ''} to place`;
   return (
     <Row gap={14}>
-      {/* Priced + keys say what the next point costs, so that line goes and the block narrows: the row fits 635 pt. */}
-      <View style={[styles.mastery, { width: priced ? 132 : 170 }]}>
+      {/* Priced + keys say what the next point costs, so that line goes and the block narrows (its widest line,
+          "2499 / 2500 cue XP", is 96 pt): the row fits 635 pt with 16 pt between the tuning groups. */}
+      <View style={[styles.mastery, { width: priced ? 112 : 170 }]}>
         <Txt style={[TYPE.small, TYPE.num]}><Txt style={styles.bold}>{head}</Txt>{priced ? '\n' : '  '}{xp}</Txt>
         <Hatch share={need ? into / need : 1} />
         {!priced && <Txt style={[TYPE.small, { opacity: 0.8 }]}>{next}</Txt>}
@@ -171,7 +172,7 @@ const styles = StyleSheet.create({
   facts: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 24, rowGap: 6 },
   big: { fontFamily: FONT.display, fontSize: 19, lineHeight: 22, color: C.chalk, fontVariant: ['tabular-nums'] },
   mastery: { gap: 3 },
-  tunes: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, maxWidth: '100%' }, // no shrink: on a narrow screen it takes lines of its own
+  tunes: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16, rowGap: 8, maxWidth: '100%' }, // no shrink: on a narrow screen it takes lines of its own
   tune: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   tuned: { minWidth: 56, textAlign: 'center' },
   key: { minWidth: 34, height: 34, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' }, // Btn's minWidth is the HUD's
