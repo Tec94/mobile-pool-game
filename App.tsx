@@ -254,7 +254,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   apply.current = (s: State) => {
     const t = table.current;
     if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++; if (score.current[s.winner] === race) {
-      const r = vs ? settle(won.current, { tier: rival ? tenth(level.current) : ai + 1, won: s.winner === 0, early: s.winner === 1 && s.note.endsWith('went down early.') }, chalk) // early: only an early 8 pays nothing (the note of over() in rules.ts)
+      const r = vs ? settle(won.current, { tier: rival ? tenth(level.current) : ai + 1, won: s.winner === 0, early: s.winner === 1 && s.early }, chalk) // only an early 8 pays nothing
         : { match: PASS_PLAY, shots: { xp: 0, coins: 0 }, chalk: null, total: PASS_PLAY };
       end.current = r; gained.current = award(r.total, vs ? own : undefined); // quick match played the player's own cue
       // The loser's own balls left (8-ball; 7 on an open table) say how close the match was.
@@ -310,8 +310,8 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         if (!queue.value.length && L) { table.current.rec = null; ended.current(rec as LessonRec); }
         else if (!queue.value.length) {
           const next = judge(s, rec, pushOut);
-          if (vs && s.turn === 0) { noteShot(won.current, potPay(cands.current, rec, s, next, won.current.run, rival ? { boss: level.current } : { tier: ai + 1 }), next.note.startsWith('Foul')); }
-          if (next.phase === 'over' || next.note.startsWith('Foul')) Haptics.notificationAsync(next.winner < 0 ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
+          if (vs && s.turn === 0) { noteShot(won.current, potPay(cands.current, rec, s, next, won.current.run, rival ? { boss: level.current } : { tier: ai + 1 }), next.foul); }
+          if (next.phase === 'over' || next.foul) Haptics.notificationAsync(next.winner < 0 ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
           apply.current(next);
         }
       } else {
