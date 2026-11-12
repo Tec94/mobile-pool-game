@@ -27,7 +27,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   ok('cue stats give the engine cue');
   eq(specLine(specs('house')), 'Power: 3.88 m/s top shot, 10.3 m/s break\nSpin: tip up to 10.5 mm off centre\nAim: guide 32 cm past contact', 'House Cue in real units');
   eq(specs('rocket').shot.toFixed(2) + ' ' + specs('rocket').brk.toFixed(1), '4.95 12.0', 'Rocket: Liftoff in the shot speed');
-  eq([specs('twig').guideCm, specs('periscope').guideCm], [10, 54], 'Aim 1: 10 cm, Aim 9: 54 cm');
+  eq([specs('twig').guideCm, specs('periscope').guideCm], [10, 54], 'Aim 1: 10 cm, Aim 9: 54 cm'); eq(specs('pencil').guideCm, 27, 'Giant Pencil: 15% off the 32 cm of Aim 5');
   ok('cue stats in real units');
 }
 
