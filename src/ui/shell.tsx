@@ -1,13 +1,17 @@
 // The frame of every menu in the hand design: a strip along the top (level, XP, Fresh Chalk, coins), a stage (the
 // chosen thing, its options as keys, one cream button) and a hand of cards along the bottom edge. Landscape when the
 // window is wider than tall; in portrait the hand becomes a stack of card headers.
-import { createContext, type ReactNode, useContext, useRef } from 'react';
+import * as Haptics from 'expo-haptics';
+import { createContext, type ReactNode, useContext, useEffect, useRef } from 'react';
 import { Platform, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, useWindowDimensions, View } from 'react-native';
+import Animated, { useAnimatedScrollHandler, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { scheduleOnRN } from 'react-native-worklets';
 import { profile } from '../progress';
 import { levelOf } from '../progress/profile';
-import { C, CREAM, FONT, inkOn, type Paint } from '../theme';
-import { BallArt, Chip, HandCard, Hatch, Slab, Txt, TYPE } from './slab';
+import { C, CREAM, DARK, FONT, inkOn, type Paint } from '../theme';
+import { focusAt, offsetOf } from './hand';
+import { BallArt, Chip, feel, HandCard, Hatch, Slab, Txt, TYPE } from './slab';
 
 // Fresh Chalk charges for the strip. The daily state lives in App, so Menus provides it here for every screen.
 export const ChalkCount = createContext(0);
@@ -15,7 +19,7 @@ export const ChalkCount = createContext(0);
 // Landscape or not, and the side gutter: the safe area plus 12, at least 16.
 export function useFrame() {
   const { width, height } = useWindowDimensions(), pad = useSafeAreaInsets();
-  return { land: width > height, side: Math.max(16, Math.max(pad.left, pad.right) + 12), pad, width };
+  return { land: width > height, side: Math.max(16, Math.max(pad.left, pad.right) + 12), pad, width, height };
 }
 
 // A menu: the strip on top, then the stage and the hand. back = a back chip named title; settings = the settings chip.
@@ -38,15 +42,17 @@ export function Strip({ title, back, settings }: { title?: string; back?: () => 
   </>;
   return (
     <View style={{ paddingHorizontal: side, paddingTop: land ? 10 : 8, gap: 8 }}>
-      <View style={styles.row}>
-        {back ? <Chip onPress={back} name="Back" style={styles.back}>{`‹ ${title ?? ''}`}</Chip>
+      {/* each chip 3 pt down: its lip hangs under the face, so the face lines up with the level */}
+      <View style={[styles.row, { minHeight: 32 }]}>
+        {back ? <Chip onPress={back} name={`Back${title ? `, ${title}` : ''}`} style={[styles.back, styles.lip]}>{`‹ ${title ?? ''}`}</Chip>
           : <BallArt n={level} size={30} label={level} />}
-        <Txt style={back ? styles.small : styles.level}>{`Level ${level}`}</Txt>
+        <Txt numberOfLines={1} style={[back ? styles.small : styles.level, { flexShrink: 1 }]}>{`Level ${level}`}</Txt>
         {land && xp}
         <View style={{ flex: 1 }} />
-        <Chip name={`Fresh Chalk, ${chalk} ${chalk === 1 ? 'charge' : 'charges'}`}><View style={styles.cube} /><Txt style={styles.chipNum}>{chalk}</Txt></Chip>
-        <Chip name={`${p.coins} coins`}><View style={styles.coin} /><Txt style={styles.chipNum}>{p.coins.toLocaleString('en-US')}</Txt></Chip>
-        {settings && <Chip onPress={settings} name="Settings"><Sliders /></Chip>}
+        <Chip name={`Fresh Chalk, ${chalk} ${chalk === 1 ? 'charge' : 'charges'}`} style={styles.lip}><View style={styles.cube} /><Txt style={styles.chipNum}>{chalk}</Txt></Chip>
+        <Chip name={`${p.coins} coins`} style={styles.lip}><View style={styles.coin} />
+          <Txt style={styles.chipNum}>{p.coins >= 1e6 ? `${(p.coins / 1e6).toFixed(2)}M` : p.coins.toLocaleString('en-US')}</Txt></Chip>
+        {settings && <Chip onPress={settings} name="Settings" style={styles.lip}><Sliders /></Chip>}
       </View>
       {!land && <View style={styles.row}>{xp}</View>}
     </View>
@@ -55,7 +61,7 @@ export function Strip({ title, back, settings }: { title?: string; back?: () => 
 
 // The settings mark: three sliders.
 const Sliders = () => (
-  <View style={{ width: 15, height: 20, justifyContent: 'center', gap: 3 }}>
+  <View style={{ width: 19, height: 20, justifyContent: 'center', gap: 3 }}>
     {[3, 9, 5].map((x, i) => <View key={i} style={{ height: 2, backgroundColor: C.chalk }}><View style={[styles.knob, { left: x }]} /></View>)}
   </View>
 );
@@ -63,37 +69,38 @@ const Sliders = () => (
 // An underlined text link, for the line under the stage's button and small actions like a reset.
 export function Link({ label, name, onPress }: { label: string; name?: string; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={name ?? label} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }} style={styles.link}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={name ?? label} hitSlop={{ top: 4, bottom: 8, left: 4, right: 4 }} style={styles.link}>
       <Txt style={styles.linkText}>{label}</Txt>
     </Pressable>
   );
 }
 
-export interface Action { label: string; name?: string; onPress: () => void; off?: boolean } // off = cannot be pressed now
+export interface Action { label: string; name?: string; onPress: () => void; off?: boolean; quiet?: boolean } // off = cannot be pressed now; quiet = the press gives its own haptic
 // The chosen thing: its title, one line, the option rows (children), and the one cream button, top right in landscape
 // (with an optional link under it) and full width under the rows in portrait.
 export function Stage({ title, line, cta, link, children }: { title: string; line?: string; cta: Action; link?: Action; children?: ReactNode }) {
   const { land, side } = useFrame();
   const button = (
-    <Slab paint={CREAM} onPress={cta.onPress} disabled={cta.off} accessibilityLabel={cta.name ?? cta.label} style={land ? { width: 170, height: 65 } : { height: 65, marginTop: 6 }} face={styles.cta}>
-      <Txt numberOfLines={1} style={[styles.ctaText, cta.label.length > 6 && { fontSize: 23 }]}>{cta.label}</Txt>
+    <Slab paint={cta.off ? DARK : CREAM} onPress={() => { if (!cta.quiet) feel(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)); cta.onPress(); }} disabled={cta.off} accessibilityLabel={cta.name ?? cta.label} style={[land ? { width: 170, height: 58 } : { height: 58 }, { opacity: 1 }]} face={styles.cta}>
+      <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.ctaText, cta.off && { color: C.chalk, opacity: 0.6 }]}>{cta.label}</Txt>
     </Slab>
   );
-  return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: side, paddingTop: land ? 6 : 12, paddingBottom: 12, gap: 8 }} keyboardShouldPersistTaps="handled">
-      <View style={land && { minHeight: 73, paddingRight: 186 }}>
-        <Txt accessibilityRole="header" style={TYPE.title}>{title}</Txt>
-        {line && <Txt style={styles.line}>{line}</Txt>}
+  // In portrait the link and the button sit under the scroller, just above the stack, so the button never scrolls away.
+  return <>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: side, paddingTop: land ? 6 : 12, paddingBottom: land ? 8 : 12, gap: 8 }} keyboardShouldPersistTaps="handled" alwaysBounceVertical={false}>
+      <View style={land && { minHeight: 58, paddingRight: 186 }} accessibilityLiveRegion="polite">
+        <Txt accessibilityRole="header" style={[TYPE.title, !land && styles.portTitle]}>{title}</Txt>
+        {line && <Txt numberOfLines={2} style={styles.line}>{line}</Txt>}
       </View>
       {children}
-      {land ? <View style={[styles.side, { right: side }]}>{button}{link && <Link {...link} />}</View>
-        : <>{button}{link && <View style={{ alignItems: 'flex-end' }}><Link {...link} /></View>}</>}
+      {land && <View style={[styles.side, { right: side }]}>{button}{link && <Link {...link} />}</View>}
     </ScrollView>
-  );
+    {!land && <View style={{ paddingHorizontal: side, paddingBottom: 8, gap: 4 }}>{link && <Link {...link} />}{button}</View>}
+  </>;
 }
 
 // A row of the stage: keys, chips or fields side by side, wrapping when the screen is narrow.
-export const Row = ({ children, gap = 16 }: { children: ReactNode; gap?: number }) => <View style={[styles.row, styles.wrap, { gap }]}>{children}</View>;
+export const Row = ({ children, gap = 16 }: { children: ReactNode; gap?: number }) => <View style={[styles.row, styles.wrap, { columnGap: gap, rowGap: 8 }]}>{children}</View>;
 
 export interface Card {
   key: string; paint: Paint; name: string; // name = what a screen reader says
@@ -104,19 +111,48 @@ export interface Card {
 // The choices as cards. Tap one: it rises and the stage follows (pick). Landscape: a row along the bottom edge that runs
 // off it and scrolls sideways, opening on the raised card. The scroller holds the whole cards and runs off the screen
 // itself, so nothing in it can scroll up and down (a focused card would, on the web). Portrait: a stack of 50 pt headers, the chosen one outlined, opening near it.
-export function Hand({ cards, up, pick, width = 110, height = 200 }: { cards: Card[]; up: number; pick: (i: number) => void; width?: number; height?: number }) {
-  const { land, side, width: screen } = useFrame(), scroll = useRef<ScrollViewInstance>(null), mid = (cards.length - 1) / 2, step = Math.min(1.1, 3.3 / Math.max(1, mid));
+// follow (landscape, a row that scrolls): the raised card follows the scroll and the stage follows once it rests (hand.ts).
+export function Hand({ cards, up, pick, width = 110, height = 200, follow }: { cards: Card[]; up: number; pick: (i: number) => void; width?: number; height?: number; follow?: boolean }) {
+  const { land, side, pad, width: screen, height: tall } = useFrame(), scroll = useRef<ScrollViewInstance>(null), mid = (cards.length - 1) / 2, step = Math.min(1.1, 3.3 / Math.max(1, mid));
+  const choose = (i: number) => { if (i !== up) feel(Haptics.selectionAsync); pick(i); };
+  const still = useReducedMotion(), n = cards.length, edge = side + 8, fit = (screen - 2 * edge - 4 * (n - 1)) / n;
+  // A hand that fits widens its cards to fill the row edge to edge; one that overflows keeps its width and scrolls.
+  const w = fit >= width * 0.95 ? Math.min(fit, width * 1.25) : width, max = Math.max(0, Math.round(2 * edge + n * w + 4 * (n - 1) - screen)), follows = !!follow && max > 0;
+  const at = (i: number) => follows ? offsetOf(i, max, n) : Math.min(Math.max(0, edge + i * (w + 4) - (screen - w) / 2), max); // card i centred, clamped to the row
+  // Follow: the scroll moves focus on the UI thread; React hears of it once per new card (a tick) and picks 80 ms after
+  // the focus rests. target = the offset a tap scrolls to: cards passing under on the way do not take the focus.
+  const focus = useSharedValue(up), target = useSharedValue(-1), rest = useRef({ pick, timer: undefined as ReturnType<typeof setTimeout> | undefined, felt: 0 }).current;
+  rest.pick = pick;
+  useEffect(() => () => clearTimeout(rest.timer), [rest]);
+  const open = useRef({ x: at(up), y: 0 }).current; // the opening offset only: as a live prop it would jump the row on every pick
+  const moved = useRef((i: number) => {
+    if (Date.now() - rest.felt > 50) { rest.felt = Date.now(); feel(Haptics.selectionAsync); } // one tick per card, at most 20 a second
+    clearTimeout(rest.timer); rest.timer = setTimeout(() => rest.pick(i), 80); }).current;
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: e => {
+      const x = e.contentOffset.x;
+      if (target.value >= 0) { if (Math.abs(x - target.value) > 2) return; target.value = -1; }
+      const i = focusAt(x, e.contentSize.width - e.layoutMeasurement.width, n);
+      if (i >= 0 && i !== focus.value) { focus.value = i; scheduleOnRN(moved, i); }
+    },
+    onBeginDrag: () => { target.value = -1; },
+    onMomentumEnd: () => { target.value = -1; },
+  });
   if (!land) return (
-    <ScrollView ref={scroll} style={{ flexGrow: 0, maxHeight: 50 * Math.min(cards.length, 6) + 85, marginBottom: -40 }} contentContainerStyle={{ paddingHorizontal: side }}
+    // Up to six: all of it, never over 42% of the window. More: what the window leaves under the tallest stage (432 pt
+    // from the top: strip, stage, link, button), at least 42%, so a tall window shows more headers, not empty stage.
+    <ScrollView ref={scroll} style={{ flexGrow: 0, maxHeight: n > 6 ? Math.min(50 * n + 45 + pad.bottom, Math.max(0.42 * tall, tall - pad.top - 432)) : Math.min(50 * n + 85, 0.42 * tall), marginBottom: -40 }} contentContainerStyle={{ paddingHorizontal: side }}
       onLayout={() => scroll.current?.scrollTo({ y: Math.max(0, 50 * (up - 2)), animated: false })}>
       {cards.map((c, i) => {
         const ink = { color: inkOn(c.paint) }, last = i === cards.length - 1;
         return (
-          <Slab key={c.key} paint={c.paint} onPress={() => pick(i)} accessibilityLabel={c.name} accessibilityState={{ selected: i === up }}
-            style={{ height: last ? 95 : 55, marginBottom: last ? 0 : -5 }} face={i === up && styles.chosen}>
+          <Slab key={c.key} paint={c.paint} onPress={() => choose(i)} accessibilityLabel={c.name} accessibilityState={{ selected: i === up }}
+            style={{ height: last ? 95 + pad.bottom : 55, marginBottom: last ? 0 : -5 }} face={i === up && [styles.chosen, { outlineColor: ink.color }]}>
             <View style={styles.head}>
-              <Txt numberOfLines={1} style={[styles.headTitle, ink]}>{c.title}</Txt>
-              {c.line && <Txt numberOfLines={1} style={[TYPE.small, ink, { flexShrink: 1 }]}>{c.line}</Txt>}
+              <View style={styles.headText}>
+                <Txt numberOfLines={1} style={[styles.headTitle, ink]}>{c.title}</Txt>
+                {c.line && <Txt numberOfLines={1} style={[TYPE.small, ink, { flexShrink: 1 }]}>{c.line.replace(/\n/g, ' · ')}</Txt>}
+              </View>
               <View style={{ flex: 1 }} />
               {c.art?.(32)}
             </View>
@@ -126,12 +162,17 @@ export function Hand({ cards, up, pick, width = 110, height = 200 }: { cards: Ca
     </ScrollView>
   );
   return (
-    <ScrollView ref={scroll} horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, height: height + 26, marginBottom: -42 }} contentContainerStyle={{ paddingHorizontal: side, paddingTop: 26, gap: 4 }}
-      onLayout={() => scroll.current?.scrollTo({ x: Math.max(0, side + up * (width + 4) - (screen - width) / 2), animated: false })}>
+    // The foot runs 42 pt off the bottom edge, more on a window under 393 pt, so the hand top stays clear of the stage.
+    // 30 pt over the cards (4 of them over the stage): a raised card's tilted outline rises 22 + 4 + 3.3 and is not cut.
+    <Animated.ScrollView ref={scroll} horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, height: height + 30, marginTop: -4, marginBottom: -(42 + Math.min(30, Math.max(0, 393 - tall))) }}
+      contentContainerStyle={{ paddingHorizontal: edge, paddingTop: 30, gap: 4 }} contentOffset={open}
+      onScroll={follows ? onScroll : undefined} snapToOffsets={follows ? cards.map((_, i) => at(i)) : undefined} decelerationRate={follows ? 'fast' : undefined}
+      onLayout={() => { if (follows) focus.value = up; scroll.current?.scrollTo({ x: at(up), animated: false }); }}>
       {cards.map((c, i) => {
         const ink = { color: inkOn(c.paint) };
         return (
-          <HandCard key={c.key} paint={c.paint} up={i === up} tilt={(i - mid) * step} onPress={() => pick(i)} name={c.name} width={width} height={height}>
+          <HandCard key={c.key} paint={c.paint} up={i === up} tilt={(i - mid) * step} name={c.name} width={w} height={height} i={i} focus={follows ? focus : undefined}
+            onPress={() => { clearTimeout(rest.timer); if (follows && focus.value !== i) { target.value = at(i); focus.value = i; } choose(i); scroll.current?.scrollTo({ x: at(i), animated: !still }); }}>
             {c.body ?? <>
               <Txt style={[TYPE.name, ink]}>{c.title}</Txt>
               {c.line && <Txt style={[TYPE.small, ink, { marginTop: 3 }]}>{c.line}</Txt>}
@@ -140,7 +181,7 @@ export function Hand({ cards, up, pick, width = 110, height = 200 }: { cards: Ca
           </HandCard>
         );
       })}
-    </ScrollView>
+    </Animated.ScrollView>
   );
 }
 
@@ -150,20 +191,23 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   wrap: { flexWrap: 'wrap', rowGap: 8 },
   back: { marginRight: 4 },
-  level: { fontFamily: FONT.display, fontSize: 20, color: C.chalk },
+  lip: { marginTop: 3 },
+  level: { fontFamily: FONT.display, fontSize: 20, lineHeight: 24, marginBottom: 4, color: C.chalk },
   small: { fontFamily: FONT.semi, fontSize: 12, color: C.chalk, opacity: 0.8 },
-  chipNum: { fontFamily: FONT.bold, fontSize: 13, color: C.chalk, fontVariant: ['tabular-nums'] },
+  chipNum: { fontFamily: FONT.bold, fontSize: 13, lineHeight: 16, color: C.chalk, fontVariant: ['tabular-nums'] },
   cube: { width: 10, height: 10, backgroundColor: C.blue, boxShadow: '1.5px 1.5px 0 #0006' },
   coin: { width: 11, height: 11, borderRadius: 6, backgroundColor: C.gold, boxShadow: '1.5px 1.5px 0 #0006' },
   knob: { position: 'absolute', top: -2, width: 4, height: 6, borderRadius: 1, backgroundColor: C.chalk },
   link: { height: 28, justifyContent: 'center', alignSelf: 'flex-end' },
-  linkText: { fontFamily: FONT.bold, fontSize: 12, color: C.chalk, textDecorationLine: 'underline', opacity: 0.9 },
+  linkText: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 16, color: C.chalk, textDecorationLine: 'underline', opacity: 0.9 },
   line: { ...TYPE.body, opacity: 0.82, marginTop: 3 },
-  side: { position: 'absolute', top: 6, width: 170, alignItems: 'flex-end' },
+  portTitle: { fontSize: 28, lineHeight: 32, letterSpacing: -0.4 }, // a long title breaks with no orphan word
+  side: { position: 'absolute', top: 6, width: 170, alignItems: 'flex-end', gap: 4 },
   cta: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  ctaText: { fontFamily: FONT.display, fontSize: 28, color: C.ink },
-  art: { position: 'absolute', right: 6, top: 92 },
+  ctaText: { fontFamily: FONT.display, fontSize: 26, lineHeight: 30, color: C.ink },
+  art: { position: 'absolute', right: 6, top: 80 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 50, paddingHorizontal: 14 },
   headTitle: { fontFamily: FONT.display, fontSize: 18, lineHeight: 22 },
-  chosen: { outlineColor: C.chalk, outlineWidth: 2, outlineOffset: -2, outlineStyle: 'solid' },
+  headText: { flexDirection: 'row', alignItems: 'baseline', gap: 10, flexShrink: 1 },
+  chosen: { outlineWidth: 3, outlineOffset: -3, outlineStyle: 'solid' }, // colour = the header's ink: chalk on cream was 1.09:1
 });
