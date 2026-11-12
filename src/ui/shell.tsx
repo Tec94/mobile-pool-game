@@ -69,13 +69,13 @@ export function Link({ label, name, onPress }: { label: string; name?: string; o
   );
 }
 
-export interface Action { label: string; name?: string; onPress: () => void }
+export interface Action { label: string; name?: string; onPress: () => void; off?: boolean } // off = cannot be pressed now
 // The chosen thing: its title, one line, the option rows (children), and the one cream button, top right in landscape
 // (with an optional link under it) and full width under the rows in portrait.
 export function Stage({ title, line, cta, link, children }: { title: string; line?: string; cta: Action; link?: Action; children?: ReactNode }) {
   const { land, side } = useFrame();
   const button = (
-    <Slab paint={CREAM} onPress={cta.onPress} accessibilityLabel={cta.name ?? cta.label} style={land ? { width: 170, height: 65 } : { height: 65, marginTop: 6 }} face={styles.cta}>
+    <Slab paint={CREAM} onPress={cta.onPress} disabled={cta.off} accessibilityLabel={cta.name ?? cta.label} style={land ? { width: 170, height: 65 } : { height: 65, marginTop: 6 }} face={styles.cta}>
       <Txt numberOfLines={1} style={[styles.ctaText, cta.label.length > 6 && { fontSize: 23 }]}>{cta.label}</Txt>
     </Slab>
   );
