@@ -7,7 +7,6 @@ import { CUE_IDS, CUES, type CueId, type CueInfo, specs } from '../../progress/c
 import { MASTERY_XP, masteryLevel, masteryOf, points, STATS, statsOf, tunable, tuneDown, tuneUp, upCost, used } from '../../progress/mastery';
 import { buy, FEATS, featCount, type FeatId, type Profile, select } from '../../progress/profile';
 import { C, CREAM, DARK, FONT } from '../../theme';
-import { Btn } from '../Btn';
 import { drawCueArt } from '../cueArt';
 import type { Props } from '../Menus';
 import { type Card, Hand, Row, Shell, Stage, useFrame } from '../shell';
@@ -128,21 +127,26 @@ function Advanced({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => 
 function Mastery({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => void }) {
   const m = masteryOf(p, id), { level, into, need } = masteryLevel(m.xp), pts = points(m), free = pts - used(m);
   const head = `Mastery ${level} of ${MASTERY_XP.length}`, xp = need ? `${into} / ${need} cue XP` : 'Mastered';
-  const cost = STATS.map(s => upCost(p, id, s)).find(x => x !== null);
-  const next = !tunable(id) ? 'Cannot be tuned' : !pts ? 'Mastery 2 gives a tuning point' : !free ? 'Every point in use' : cost === undefined ? 'No stat has room for more' : cost ? `Next point: ${cost} coins` : `${free} point${free > 1 ? 's' : ''} to place`;
+  const cost = STATS.map(s => upCost(p, id, s)).find(x => x !== null), tunes = tunable(id) && pts > 0, priced = tunes && !!cost;
+  const next = !tunable(id) ? 'Cannot be tuned' : !pts ? 'Mastery 2 gives a tuning point' : !free ? 'Every point in use' : cost === undefined ? 'No stat has room for more' : `${free} point${free > 1 ? 's' : ''} to place`;
   return (
     <Row gap={14}>
-      <View style={styles.mastery}>
+      {/* Priced + keys say what the next point costs, so that line goes and the block narrows: the row fits 635 pt. */}
+      <View style={[styles.mastery, { width: priced ? 132 : 170 }]}>
         <Txt style={[TYPE.small, TYPE.num]}><Txt style={styles.bold}>{head}</Txt>{`  ${xp}`}</Txt>
-        <Hatch share={need ? into / need : 1} style={{ width: 170 }} />
-        <Txt style={[TYPE.small, { opacity: 0.8 }]}>{next}</Txt>
+        <Hatch share={need ? into / need : 1} />
+        {!priced && <Txt style={[TYPE.small, { opacity: 0.8 }]}>{next}</Txt>}
       </View>
-      {tunable(id) && pts > 0 && <View style={styles.tunes}>{STATS.map(s => {
+      {tunes && <View style={styles.tunes}>{STATS.map(s => {
         const name = cap(s), cost = upCost(p, id, s);
         return <View key={s} style={styles.tune}>
-          <Btn label="−" name={`${name} down on ${CUES[id].name}`} off={!m[s]} onPress={() => put(tuneDown(p, id, s))} />
+          <Slab paint={DARK} lip={3} radius={3} onPress={() => put(tuneDown(p, id, s))} disabled={!m[s]} accessibilityLabel={`${name} down on ${CUES[id].name}`} face={styles.key}>
+            <Txt style={styles.keyText}>−</Txt>
+          </Slab>
           <Txt style={[TYPE.body, TYPE.num, styles.bold, styles.tuned]}>{`${name} ${m[s] ? `+${m[s]}` : '0'}`}</Txt>
-          <Btn label="+" name={`${name} up on ${CUES[id].name}${cost ? ` for ${cost} coins` : ''}`} off={cost === null || p.coins < cost} onPress={() => put(tuneUp(p, id, s))} />
+          <Slab paint={DARK} lip={3} radius={3} onPress={() => put(tuneUp(p, id, s))} disabled={cost === null || p.coins < cost} accessibilityLabel={`${name} up on ${CUES[id].name}${cost ? ` for ${cost} coins` : ''}`} face={styles.key}>
+            <Txt style={styles.keyText}>{cost ? `+ ${cost.toLocaleString('en-US')}` : '+'}</Txt>
+          </Slab>
         </View>;
       })}</View>}
     </Row>
@@ -162,5 +166,7 @@ const styles = StyleSheet.create({
   mastery: { gap: 3 },
   tunes: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, maxWidth: '100%' }, // no shrink: on a narrow screen it takes lines of its own
   tune: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  tuned: { minWidth: 64, textAlign: 'center' },
+  tuned: { minWidth: 56, textAlign: 'center' },
+  key: { minWidth: 34, height: 34, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' }, // Btn's minWidth is the HUD's
+  keyText: { fontFamily: FONT.bold, fontSize: 13, lineHeight: 16, color: C.chalk, ...TYPE.num },
 });
