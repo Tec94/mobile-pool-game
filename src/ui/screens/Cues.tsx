@@ -67,7 +67,7 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
     };
   });
   const id = CUE_IDS[up], c: CueInfo = CUES[id], owned = p.owned.includes(id), use = p.cue === id;
-  const cta = owned ? { label: use ? 'In use' : 'Use', name: `Use ${c.name}`, onPress: () => put(select(p, id)) }
+  const cta = owned ? { label: use ? 'In use' : 'Use', name: use ? `${c.name}, in use` : `Use ${c.name}`, off: use, onPress: () => put(select(p, id)) }
     : c.price !== undefined ? { label: `Buy ${c.price.toLocaleString('en-US')}`, name: `Buy ${c.name} for ${c.price} coins`, off: p.coins < c.price, onPress: () => put(buy(p, id)) }
     : { label: 'Locked', name: `${c.name}, locked`, off: true, onPress: () => {} };
   // What gets a cue not yet owned goes on the stage's line.
