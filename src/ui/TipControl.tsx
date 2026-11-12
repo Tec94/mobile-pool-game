@@ -96,10 +96,10 @@ export function TipSheet({ store, land, keep, calm, felt, blend, onDone }: { sto
     <Pressable style={[StyleSheet.absoluteFill, { right: keep }]} onPressIn={onDone} onPress={onDone} cancelable={false} accessibilityRole="button" accessibilityLabel="Close spin and cue elevation" />
     {/* It grows from 95% at the centre in 200 ms and fades out in 120 ms; with reduced motion it only fades in. The layer
         is the size of the window and lets touches through to the catcher, so the fade out blocks nothing. */}
-    <Animated.View pointerEvents="box-none" exiting={calm ? undefined : FadeOut.duration(120)} style={[styles.layer, !land && { right: keep, padding: 8 },
+    <Animated.View pointerEvents="box-none" accessibilityViewIsModal exiting={calm ? undefined : FadeOut.duration(120)} style={[styles.layer, !land && { right: keep, padding: 8 },
       { animationName: { from: { opacity: 0, transform: [{ scale: calm ? 1 : 0.95 }] } }, animationDuration: '200ms', animationTimingFunction: EASE_OUT }]}>
       {/* The sheet takes every touch that starts on it, so a slip off a handle does not close it. */}
-      <View onStartShouldSetResponder={() => true} onResponderTerminationRequest={() => false} onAccessibilityEscape={onDone} accessibilityViewIsModal style={styles.sheet}>
+      <View onStartShouldSetResponder={() => true} onResponderTerminationRequest={() => false} onAccessibilityEscape={onDone} style={styles.sheet}>
         <View {...pan.panHandlers} style={{ width: D * TRIM, height: D * TRIM }} accessible accessibilityRole="adjustable" accessibilityLabel="Cue elevation and tip position" accessibilityLiveRegion="polite"
           accessibilityValue={{ min: 0, max: MAX_ELEV, now: t.elev, text: `${t.elev} degrees, ${zone(t.elev)}. ${spinLabel(t)}` }}
           accessibilityActions={Object.keys(acts).map(name => ({ name, label: name }))} onAccessibilityAction={e => acts[e.nativeEvent.actionName]?.()}>
