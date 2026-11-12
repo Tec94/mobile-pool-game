@@ -72,12 +72,12 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
     : { label: 'Locked', name: `${c.name}, locked`, off: true, onPress: () => {} };
   // What gets a cue not yet owned goes on the stage's line.
   const f = c.feat as FeatId | undefined, need = owned ? [use ? 'In use' : 'Yours'] : [
-    c.price !== undefined && `${c.price.toLocaleString('en-US')} coins`, f && `${FEATS[f].name} ${featCount(p, f)}/${FEATS[f].count}`,
-    c.level && `Reach level ${c.level}`, id === 'pencil' ? `${done.length} of ${PENCIL_AT} lessons passed` : c.get,
+    c.price !== undefined && `${c.price.toLocaleString('en-US')} coins`, c.price !== undefined && p.coins < c.price && `${(c.price - p.coins).toLocaleString('en-US')} coins short`,
+    f && `${FEATS[f].name}: ${featCount(p, f)} of ${FEATS[f].count}`, c.level && `Reach level ${c.level}`, id === 'pencil' && `${done.length} of ${PENCIL_AT} lessons passed`,
   ].filter((x): x is string => !!x);
   return (
     <Shell title="Cues" back={() => go('home')}>
-      <Stage title={c.name} line={`${need.join(' · ')} · ${c.perk ?? 'No perk'}${adv ? ' · advanced stats' : ''}`} cta={cta}
+      <Stage title={c.name} line={`${need.join(' · ')} · ${c.perk ?? 'No perk'}`} cta={cta}
         link={adv ? { label: '‹ Simple stats', name: 'Simple stats', onPress: () => setAdv(false) } : { label: 'Advanced stats ›', name: 'Advanced stats', onPress: () => setAdv(true) }}>
         {adv ? <Advanced id={id} p={p} put={put} /> : <Simple id={id} p={p} />}
       </Stage>
