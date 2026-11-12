@@ -19,26 +19,26 @@ export function Calendar({ go, daily, today, day, playDay }: Pick<Props, 'go'> &
   const n = starCount(daily.stars[k]), theme = THEMES[weekday(k)], isToday = k === today;
   const cards: Card[] = days.map(d => {
     const got = starCount(daily.stars[d]), paint = got ? MODE.daily : DARK, ink = { color: got ? C.ink : C.chalk };
-    const note = got ? starLine(got) : d === today ? 'Today' : 'Missed';
+    const note = got ? starLine(got) : d === today ? 'Today' : 'Not played';
     return {
       key: d, paint, title: dateOf(d), line: `${THEMES[weekday(d)]} · ${note}`,
       name: `${DAYS[weekday(d)]} ${+d.slice(8, 10)} ${monthName(d)}, ${got} of 3 stars${d === today ? ', today' : ''}`,
       body: <>
         <Txt style={[TYPE.small, styles.bold, ink]}>{DAYS[weekday(d)].slice(0, 3)}</Txt>
         <Txt style={[styles.date, ink]}>{+d.slice(8, 10)}</Txt>
-        <Txt style={[TYPE.small, styles.bold, ink]}>{THEMES[weekday(d)]}</Txt>
+        <Txt style={[TYPE.small, styles.bold, ink, { minHeight: 28 }]}>{THEMES[weekday(d)]}</Txt>{/* two lines, so a long theme does not move the note */}
         <Txt style={[TYPE.small, styles.bold, ink, { marginTop: 8, opacity: got ? 1 : 0.6 }]}>{note}</Txt>
       </>,
     };
   });
   return (
     <Shell title="Daily Table" back={() => go('home')}>
-      <Stage title={theme} line={`${isToday ? 'Today, ' : ''}${dateOf(k)}. One table a day, the same for everyone. Any day can be played for its stars.`}
+      <Stage title={theme} line={`${isToday ? 'Today, ' : ''}${dateOf(k)}. Any day can be played for its stars.`}
         cta={isToday ? { label: 'Play today', name: `Play today, ${theme}`, onPress: () => playDay(k) }
           : { label: 'Play', name: `Play ${DAYS[weekday(k)]} ${+k.slice(8, 10)} ${monthName(k)}, ${theme}`, onPress: () => playDay(k) }}>
-        <Row gap={8}><Chip name={`${n} of 3 stars`}>{starLine(n)}</Chip><Chip>{`Run ${current}`}</Chip><Chip>{`Best ${best}`}</Chip></Row>
+        <Row gap={8}><Chip name={`${n} of 3 stars`}>{starLine(n)}</Chip><Chip>{`${current}-day run`}</Chip><Chip>{`Best run ${best}`}</Chip></Row>
       </Stage>
-      <Hand cards={cards} up={up} pick={setUp} width={76} height={190} />
+      <Hand cards={cards} up={up} pick={setUp} width={76} />
     </Shell>
   );
 }

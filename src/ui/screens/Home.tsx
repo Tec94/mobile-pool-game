@@ -5,7 +5,6 @@ import { StyleSheet, TextInput, View } from 'react-native';
 import { LESSON_PAY, LESSONS, SOLO_RUN } from '../../learn/lessons';
 import { PASS_PLAY, profile, rivalReset } from '../../progress';
 import { CUE_IDS, CUES } from '../../progress/cues';
-import { masteryOf, STATS, statsOf } from '../../progress/mastery';
 import { PACKS } from '../../progress/profile';
 import { between, MOODS, shown } from '../../progress/rival';
 import { streak, weekday } from '../../daily/daily';
@@ -15,8 +14,8 @@ import { TIERS } from '../../ai/shot-ai';
 import { C, CREAM, FONT, MODE } from '../../theme';
 import { dateOf, THEMES } from '../days';
 import type { DailyProps, LearnProps, Props, ScenarioProps } from '../Menus';
-import { type Card, Hand, Link, Row, Shell, Stage } from '../shell';
-import { BallArt, Blocks, Chip, Keys, Txt, TYPE } from '../slab';
+import { type Card, Hand, Row, Shell, Stage, useFrame } from '../shell';
+import { BallArt, Chip, Keys, Txt } from '../slab';
 
 type HomeProps = Props & LearnProps & ScenarioProps & Omit<DailyProps, 'day'>;
 const GAMES: [string, 8 | 9][] = [['8-ball', 8], ['9-ball', 9]];
@@ -27,7 +26,8 @@ const ball = (n: number) => (size: number) => <BallArt n={n} size={size} />;
 let kept = 0; // the raised card outlives the screen, so a match or a page returns to it
 export function Home(p: HomeProps) {
   const { set, go, done, stars, daily, today } = p;
-  const [up, setUp] = useState(kept), pick = (i: number) => { kept = i; setUp(i); };
+  // The Cues card has no stage: a tap opens the all-cues screen. kept was 5 (Cues) in an older build.
+  const [up, setUp] = useState(kept < 5 ? kept : 0), pick = (i: number) => cards[i].key === 'cues' ? go('cues') : (kept = i, setUp(i));
   const me = profile(), wd = THEMES[weekday(today)], k = starCount(daily.stars[today]), run = streak(daily.stars, today).current;
   const next = LESSONS.find(l => !done.includes(l.id));
   const opp = set.tier === RIVAL ? `Rival ${shown(me.rival[set.aiGame].rating)}` : TIERS[set.tier].name;
@@ -37,9 +37,9 @@ export function Home(p: HomeProps) {
     { key: 'scenarios', paint: MODE.scenarios, name: 'Scenarios', title: 'Scenarios', line: `${totalStars(stars)} of ${3 * SCENARIOS.length} stars`, art: ball(3) },
     { key: 'learn', paint: MODE.learn, name: 'Learn', title: 'Learn', line: next ? `Next: ${next.title}` : 'Every lesson passed', art: ball(4) },
     { key: 'pass', paint: MODE.pass, name: 'Pass and play', title: 'Pass and play', line: 'Two players', art: ball(5) },
-    { key: 'cues', paint: MODE.cues, name: 'Cues', title: 'Cues', line: `${CUES[me.cue].name} · ${me.owned.length} of ${CUE_IDS.length}`, art: ball(6) },
+    { key: 'cues', paint: MODE.cues, name: 'Cues', title: 'Cues', line: `${CUES[me.cue].name}\n${me.owned.length} of ${CUE_IDS.length} cues`, art: ball(6) },
   ];
-  const Stages = [QuickStage, DailyStage, ScenarioStage, LearnStage, PassStage, CueStage], S = Stages[up];
+  const Stages = [QuickStage, DailyStage, ScenarioStage, LearnStage, PassStage], S = Stages[up];
   return (
     <Shell settings={() => go('settings')}>
       <S {...p} />
@@ -56,35 +56,36 @@ function QuickStage({ set, change: save, go, daily, arm }: HomeProps) {
   const change = (p: Partial<Settings>) => { setSure(false); save(p); }; // any change disarms a reset, so one tap never resets another game
   // A reset throws the rating away, so it takes a second tap (no Alert: it does nothing on web).
   const reset = () => { if (sure) rivalReset(set.aiGame); setSure(!sure); };
-  const rival = set.tier === RIVAL;
+  const rival = set.tier === RIVAL, narrow = useFrame().width < 700; // under 700 pt the Mood label costs the moods a line
   return (
-    <Stage title="Quick match" line={rival ? `Rival ${shown(s)}, ${between(s, names)}. Adapts after each match.` : '8-ball or 9-ball against the AI.'}
-      cta={{ label: 'Play', name: 'Play quick match', onPress: () => go('ai') }}>
+    <Stage title="Quick match" line={!rival ? '8-ball or 9-ball against the AI.' : sure ? `Reset the ${set.aiGame}-ball Rival to ${shown(1)}? Tap again to confirm.`
+      : `Rival ${shown(s)}, ${between(s, names)}. Adapts after each match.`}
+      cta={{ label: 'Play', name: 'Play quick match', onPress: () => go('ai') }} link={rival ? { label: sure ? 'Tap again to reset' : 'Reset Rival rating', onPress: reset } : undefined}>
       <Row>
         <Keys label="Game" value={set.aiGame} pick={aiGame => change({ aiGame })} options={GAMES} />
         <Keys label="Race to" value={set.aiRace} pick={aiRace => change({ aiRace })} options={raceKeys} />
-        {charges > 0 && <Keys label="Fresh Chalk" value={armed} pick={arm} options={[['Chalk off', false, 'Off'], ['On, win ×2', true, 'On']]} />}
-        {rival && <Link label={sure ? `Tap again: ${set.aiGame}-ball Rival back to ${shown(1)}` : 'Reset Rival rating'} onPress={reset} />}
+        {charges > 0 && <Keys label="Fresh Chalk" value={armed} pick={arm} options={[['Chalk off', false, 'Chalk off'], ['Chalk on: win pays ×2', true, 'Chalk on']]} />}
       </Row>
       <Row>
         <Keys label="Opponent" value={set.tier} pick={tier => change({ tier })} options={[['Rival', RIVAL], ...TIERS.map((t, i): [string, number] => [t.name, i])]} />
-        {rival && <Keys label="Rival mood" show="Mood" value={set.mood} pick={mood => change({ mood })} options={MOODS.map(m => [m[0].toUpperCase() + m.slice(1), m])} />}
+        {rival && <Keys label="Rival mood" show={narrow ? undefined : 'Mood'} value={set.mood} pick={mood => change({ mood })} options={MOODS.map(m => [m[0].toUpperCase() + m.slice(1), m])} />}
       </Row>
     </Stage>
   );
 }
 
+let typed: [string, string] | undefined; // the names being typed outlive a card change, as kept does
 function PassStage({ set, change, go }: HomeProps) {
-  const [names, setNames] = useState(set.names);
+  const [names, setTyped] = useState(typed ?? set.names), land = useFrame().land, setNames = (v: [string, string]) => { typed = v; setTyped(v); };
   const start = () => { change({ names: names.map((n, i) => n.trim() || `Player ${i + 1}`) as [string, string] }); go('match'); };
   return (
     <Stage title="Pass and play" line={`Two players, one phone. Pays ${PASS_PLAY.xp} XP and ${PASS_PLAY.coins} coins a match.`} cta={{ label: 'Play', name: 'Play pass and play', onPress: start }}>
       <Row gap={10}>
         {names.map((n, i) => (
-          <View key={i} style={styles.field}>
+          <View key={i} style={[styles.field, !land && { width: '100%' }]}>
             <Txt style={styles.fieldLabel} nativeID={`p${i}`}>Player {i + 1}</Txt>
-            <TextInput value={n} onChangeText={t => setNames(i ? [names[0], t] : [t, names[1]])} maxLength={NAME_MAX} autoCorrect={false} autoComplete="off" returnKeyType="done" maxFontSizeMultiplier={1.3}
-              selectTextOnFocus accessibilityLabelledBy={`p${i}`} accessibilityLabel={`Player ${i + 1} name`} placeholder={`Player ${i + 1}`} placeholderTextColor={C.chalk + '80'} style={styles.input} />
+            <TextInput value={n} onChangeText={t => setNames(i ? [names[0], t] : [t, names[1]])} maxLength={NAME_MAX} autoCorrect={false} autoCapitalize="words" autoComplete="off" returnKeyType="done" maxFontSizeMultiplier={1.3}
+              selectTextOnFocus accessibilityLabelledBy={`p${i}`} accessibilityLabel={`Player ${i + 1} name`} placeholder={`Player ${i + 1}`} placeholderTextColor={C.chalk + '80'} style={[styles.input, land ? { width: 190 } : { flex: 1 }]} />
           </View>
         ))}
       </Row>
@@ -101,7 +102,7 @@ function DailyStage({ go, daily, today, playDay }: HomeProps) {
   return (
     <Stage title="Daily Table" line={`${dateOf(today)} · ${wd}. One table a day, the same for everyone.`}
       cta={{ label: 'Play today', name: `Play today, ${wd}`, onPress: () => playDay(today) }} link={{ label: 'All days ›', name: 'All days', onPress: () => go('calendar') }}>
-      <Row gap={8}><Chip name={`${k} of 3 stars today`}>{starLine(k)}</Chip><Chip>{`Run ${current}`}</Chip><Chip>{`Best ${best}`}</Chip></Row>
+      <Row gap={8}><Chip name={`${k} of 3 stars today`}>{starLine(k)}</Chip><Chip>{`${current}-day run`}</Chip><Chip>{`Best run ${best}`}</Chip></Row>
     </Stage>
   );
 }
@@ -115,7 +116,7 @@ function ScenarioStage({ go, stars, play }: HomeProps) {
   const s = SCENARIOS[i], pack = SCENARIOS.filter(t => t.pack === s.pack), got = pack.reduce((n, t) => n + starCount(stars[t.id]), 0);
   return (
     <Stage title={s.title} line={`${PACKS[s.pack][0]} · par ${par(s)} · ${s.say}`} cta={{ label: 'Play', name: `Play ${s.title}`, onPress: () => play(i) }} link={{ ...all, label: 'All packs ›' }}>
-      <Row gap={8}><Chip>{`${PACKS[s.pack][0]} ${got} / ${3 * pack.length} ★`}</Chip><Chip>{`All ${totalStars(stars)} / ${3 * SCENARIOS.length} ★`}</Chip></Row>
+      <Row gap={8}><Chip>{`${PACKS[s.pack][0]} ${got} of ${3 * pack.length} stars`}</Chip><Chip>{`All ${totalStars(stars)} of ${3 * SCENARIOS.length} stars`}</Chip></Row>
     </Stage>
   );
 }
@@ -126,32 +127,13 @@ function LearnStage({ go, done, learn }: HomeProps) {
   const chips = <Row gap={8}><Chip>{`${done.length} of ${LESSONS.length} passed`}</Chip><Chip>{`+${LESSON_PAY.xp} XP`}</Chip></Row>;
   if (i < 0) return <Stage title="Learn" line="Every lesson passed. Replay any of them." cta={all}>{chips}</Stage>;
   return (
-    <Stage title={LESSONS[i].title} line={`Lesson ${i + 1} of ${LESSONS.length}. Watch, then guided, then solo ${SOLO_RUN} in a row.`}
+    <Stage title={LESSONS[i].title} line={`Lesson ${i + 1} of ${LESSONS.length}. Watch, try it guided, then do it ${SOLO_RUN} times in a row.`}
       cta={{ label: 'Start', name: `Start ${LESSONS[i].title}`, onPress: () => learn(i) }} link={{ ...all, label: 'All lessons ›' }}>{chips}</Stage>
-  );
-}
-
-function CueStage({ go }: HomeProps) {
-  const me = profile(), c = CUES[me.cue] as { name: string; perk?: string }, st = statsOf(me.cue, masteryOf(me, me.cue));
-  return (
-    <Stage title={c.name} line={`Your cue${c.perk ? ` · ${c.perk}` : ''}`} cta={{ label: 'All cues', onPress: () => go('cues') }}>
-      <View style={{ gap: 8 }}>
-        {STATS.map(s => (
-          <View key={s} style={styles.stat} accessible accessibilityLabel={`${s} ${st[s]} of 10`}>
-            <Txt style={[TYPE.body, styles.statName]}>{s[0].toUpperCase() + s.slice(1)}</Txt>
-            <Blocks value={st[s]} width={200} />
-            <Txt style={[TYPE.body, TYPE.num, { fontFamily: FONT.bold }]}>{st[s]}</Txt>
-          </View>
-        ))}
-      </View>
-    </Stage>
   );
 }
 
 const styles = StyleSheet.create({
   field: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  fieldLabel: { fontFamily: FONT.bold, fontSize: 11, color: C.chalk, opacity: 0.7 },
-  input: { width: 150, height: 34, paddingHorizontal: 10, borderRadius: 3, backgroundColor: C.chalk + '12', borderBottomWidth: 2, borderBottomColor: C.chalk, color: C.chalk, fontFamily: FONT.bold, fontSize: 13.5 },
-  stat: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  statName: { width: 44, opacity: 0.8 },
+  fieldLabel: { width: 48, fontFamily: FONT.bold, fontSize: 11, color: C.chalk, opacity: 0.7 },
+  input: { height: 34, paddingHorizontal: 10, borderRadius: 3, backgroundColor: C.chalk + '12', borderBottomWidth: 2, borderBottomColor: C.chalk, color: C.chalk, fontFamily: FONT.bold, fontSize: 13.5 },
 });
