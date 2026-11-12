@@ -1,14 +1,13 @@
 // The spin button and the "Tip and cue angle" sheet (screens spec: the ring around the spin ball, with the side picture).
 // Drawing and touch maths are in src/render/tip.ts; this file is the React Native shell around them.
-import { useMemo, useRef, useSyncExternalStore } from 'react';
-import { PanResponder, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { PanResponder, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { Canvas, Picture, Skia, SkCanvas } from '@shopify/react-native-skia';
-import Animated, { cubicBezier } from 'react-native-reanimated';
+import Animated, { cubicBezier, useReducedMotion } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { drawSide, drawTip, drawTipBall, grab, LEVEL, MAX_ELEV, moveElev, moveSpin, padReach, ringAt, ringTurn, SIDE, spinLabel, tapSpin, Tip, zone, zoneLabel } from '../render/tip';
 import { C, DARK, FONT } from '../theme';
 import { Btn } from './Btn';
-import { Slab } from './slab';
 
 // The tip lives outside React state: the game screen reads it when a shot is made and never re-renders for it. Only
 // the button and the sheet below listen.
@@ -20,18 +19,22 @@ export function tipStore(): TipStore {
   return { get: () => v, set: t => { v = t; subs.forEach(f => f()); }, sub: f => { subs.add(f); return () => { subs.delete(f); }; } };
 }
 const picture = (draw: (c: SkCanvas) => void) => { const rec = Skia.PictureRecorder(); draw(rec.beginRecording()); return rec.finishRecordingAsPicture(); };
+const EASE_OUT = cubicBezier(0.23, 1, 0.32, 1); // a strong ease-out: a press and the sheet answer at once
 const tick = () => { Haptics.selectionAsync(); }, tap = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
 
-// The cue ball in the control bar, on a dark slab. Its dot is the tip, and a badge gives the elevation when the cue is raised.
+// The cue ball in the control bar: the bare ball on the ground, in a 48 pt touch box. Its dot is the tip, and a badge
+// gives the elevation when the cue is raised. A press shrinks the ball by 3 pt, the travel of a slab face (at once with reduced motion).
 export function TipButton({ store, onPress }: { store: TipStore; onPress: () => void }) {
-  const t = useSyncExternalStore(store.sub, store.get), S = 48, B = 36; // the slab, and the ball on its face
+  const t = useSyncExternalStore(store.sub, store.get), B = 44, still = useReducedMotion(), [down, setDown] = useState(false);
   const ball = useMemo(() => picture(c => drawTipBall(Skia, c, B / 2, B / 2, B / 2, t)), [t.x, t.y]);
   return (
-    <Slab paint={DARK} lip={4} radius={4} onPress={onPress} accessibilityLabel="Set spin and cue elevation" accessibilityValue={{ text: `${spinLabel(t)}. ${t.elev} degrees` }}
-      style={{ width: S, height: S }} face={styles.holder}>
-      <Canvas style={{ width: B, height: B }}><Picture picture={ball} /></Canvas>
+    <Pressable onPress={onPress} onPressIn={() => setDown(true)} onPressOut={() => setDown(false)} pressRetentionOffset={16} style={styles.holder}
+      accessibilityRole="button" accessibilityLabel="Set spin and cue elevation" accessibilityValue={{ text: `${spinLabel(t)}. ${t.elev} degrees` }}>
+      <Animated.View style={{ transform: [{ scale: down ? 0.93 : 1 }], transitionProperty: 'transform', transitionDuration: still ? 0 : 120, transitionTimingFunction: EASE_OUT }}>
+        <Canvas style={{ width: B, height: B }}><Picture picture={ball} /></Canvas>
+      </Animated.View>
       {t.elev > 0 && <Text maxFontSizeMultiplier={1.3} style={styles.badge}>{t.elev}°</Text>}
-    </Slab>
+    </Pressable>
   );
 }
 
@@ -85,7 +88,7 @@ export function TipSheet({ store, land, calm, felt, blend, onDone, width, style 
     // Reduced motion: the sheet fades in and does not slide.
     // The sheet takes every touch that starts on it, so a slip off a handle never aims the cue on the table below.
     <Animated.View onStartShouldSetResponder={() => true} onResponderTerminationRequest={() => false} style={{ ...styles.sheet, ...(land && { gap: 6, paddingTop: 8, paddingBottom: 8 }), width, ...style,
-      animationName: { from: { opacity: 0, transform: [calm ? { translateY: 0 } : land ? { translateX: 24 } : { translateY: 24 }] } }, animationDuration: '220ms', animationTimingFunction: cubicBezier(0.23, 1, 0.32, 1) }}>
+      animationName: { from: { opacity: 0, transform: [calm ? { translateY: 0 } : land ? { translateX: 24 } : { translateY: 24 }] } }, animationDuration: '220ms', animationTimingFunction: EASE_OUT }}>
       <View style={styles.head}>
         <Text maxFontSizeMultiplier={1.3} style={styles.eyebrow}>TIP AND CUE ANGLE</Text>
         <Btn label="Done" onPress={onDone} />
@@ -108,7 +111,7 @@ export function TipSheet({ store, land, calm, felt, blend, onDone, width, style 
 }
 
 const styles = StyleSheet.create({
-  holder: { alignItems: 'center', justifyContent: 'center' },
+  holder: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   badge: { position: 'absolute', right: 0, top: 0, minWidth: 22, paddingHorizontal: 3, borderRadius: 3, overflow: 'hidden', backgroundColor: C.chalk, color: C.ink, fontFamily: FONT.bold, fontSize: 10, lineHeight: 13, textAlign: 'center', fontVariant: ['tabular-nums'] },
   // A dark slab: the lip is a solid bottom edge of the lip colour, not an outline.
   sheet: { position: 'absolute', gap: 8, paddingHorizontal: 14, paddingTop: 6, paddingBottom: 14, backgroundColor: DARK[0], borderBottomWidth: 5, borderColor: DARK[1], borderRadius: 5 },
