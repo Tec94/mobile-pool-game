@@ -565,7 +565,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
           score={race > 1 ? score.current : undefined} names={names} foot={done ? moved.current : ''}>
           {!done && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{`${names[1 - rules.breaker]} breaks`}</Text>}
           {done && <PayRow label={!vs ? 'Pass and play' : win === 0 ? 'Match win' : 'Match'} xp={paid.pay.xp - paid.shots.xp - (paid.chalk?.xp ?? 0)} coins={paid.pay.coins - paid.shots.coins - (paid.chalk?.coins ?? 0)} twice={!!paid.chalk} />}
-          {done && vs && !!(paid.shots.xp || paid.shots.coins) && <PayRow label="Shots" xp={paid.shots.xp} coins={paid.shots.coins} />}
+          {done && vs && <PayRow label="Shots" xp={paid.shots.xp} coins={paid.shots.coins} />}
           {done && <PayTotal xp={paid.pay.xp} coins={paid.pay.coins} />}
           {done && gained.current && <Gained {...gained.current} />}
           {done && !!gained.current?.mastery && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{gained.current.mastery}</Text>}

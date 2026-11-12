@@ -135,7 +135,9 @@ export function Results({ rules, title, kind = 'Pass and play', gold, score, nam
 }
 
 // A pay line of the results: the XP in a gold chip, "× 2" in a blue chip when Fresh Chalk doubled it, and what it paid.
+// A line that paid nothing is not shown.
 export function PayRow({ label, xp, coins, twice }: { label: string; xp: number; coins: number; twice?: boolean }) {
+  if (!xp && !coins) return null;
   const k = twice ? 2 : 1;
   return (
     <View style={styles.payRow} accessible accessibilityLabel={`${label}: ${k * xp} XP, ${k * coins} coins${twice ? ', doubled by Fresh Chalk' : ''}`}>
@@ -147,8 +149,9 @@ export function PayRow({ label, xp, coins, twice }: { label: string; xp: number;
   );
 }
 
-// The total of the pay: XP in gold, coins in chalk.
+// The total of the pay: XP in gold, coins in chalk. None when the match paid nothing.
 export function PayTotal({ xp, coins }: { xp: number; coins: number }) {
+  if (!xp && !coins) return null;
   return (
     <Slab paint={DARK} face={styles.total}>
       <Txt style={[styles.big, { color: C.gold }]}>+{xp} XP</Txt>
