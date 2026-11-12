@@ -11,7 +11,7 @@ const SLOP = { top: 9, bottom: 9, left: 6, right: 6 }; // a 34 x 36 pt key or a 
 // Text with the cap every label in the game has on the system text size.
 export const Txt = (p: TextProps) => <Text maxFontSizeMultiplier={1.3} {...p} />;
 
-type A11y = Pick<React.ComponentProps<typeof Pressable>, 'accessibilityLabel' | 'accessibilityRole' | 'accessibilityState' | 'accessibilityHint' | 'accessibilityValue' | 'aria-checked' | 'hitSlop'>;
+type A11y = Pick<React.ComponentProps<typeof Pressable>, 'accessible' | 'accessibilityLabel' | 'accessibilityRole' | 'accessibilityState' | 'accessibilityHint' | 'accessibilityValue' | 'aria-checked' | 'hitSlop'>;
 export interface SlabProps extends A11y {
   paint: Paint; lip?: number; radius?: number;
   onPress?: () => void; onLongPress?: () => void; disabled?: boolean;
@@ -59,7 +59,9 @@ export function Keys<T>({ label, show, value, pick, options }: { label: string; 
 // A chip: a small dark slab for coins, Fresh Chalk, back and small facts. Pressable with onPress.
 export function Chip({ children, onPress, name, style }: { children: ReactNode; onPress?: () => void; name?: string; style?: StyleProp<ViewStyle> }) {
   return (
-    <Slab paint={DARK} lip={PRESS} radius={3} onPress={onPress} hitSlop={onPress && SLOP} accessibilityLabel={name} style={style} face={styles.chip}>
+    // A named fact chip is one element, so a screen reader says its name ("800 coins"), not the bare number.
+    <Slab paint={DARK} lip={PRESS} radius={3} onPress={onPress} hitSlop={onPress && SLOP} accessibilityLabel={name} style={style} face={styles.chip}
+      {...(name && !onPress && { accessible: true, accessibilityRole: 'text' as const })}>
       {typeof children === 'string' ? <Txt style={styles.chipText}>{children}</Txt> : children}
     </Slab>
   );
