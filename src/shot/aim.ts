@@ -88,7 +88,8 @@ export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, st
     let t = STUB * Math.min(1, Math.abs(s) / 0.5); // it grows with the cut, whole from a 30 degree cut: no pop as it shows
     if (ex) t = Math.min(t, ((ex > 0 ? P.L - P.R : P.R) - h.x) / ex); // and stops where the cue ball meets a cushion
     if (ey) t = Math.min(t, ((ey > 0 ? P.W - P.R : P.R) - h.y) / ey);
-    if (n > 0 && Math.abs(s) > FULL && t > 0 && !h.air && !g.lands.length) stub = [[h.x, h.y], [h.x + t * ex, h.y + t * ey]];
+    const ahead = (O.x - h.x) * ux + (O.y - h.y) * uy > 0; // the ball lies ahead of the line: a kick whose line was cut at a near miss gets no stub, not a wrong one
+    if (n > 0 && Math.abs(s) > FULL && t > 0 && ahead && !h.air && !g.lands.length) stub = [[h.x, h.y], [h.x + t * ex, h.y + t * ey]];
   }
   return { path, ob: clip(g.ob, L), ghost: h && [h.x, h.y], lands: g.lands, lost: g.scratch && g.split < 0, first: h ? h.b! : -1, stub };
 }
