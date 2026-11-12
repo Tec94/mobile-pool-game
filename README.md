@@ -16,6 +16,12 @@ own drawing code (`src/render`), at the pixel size of an iPhone 15. It also redr
 `assets/` from the same ball code, so they change only when the ball design does. The buttons are React Native views
 and are not in these pictures.
 
+## Built with these Claude skills
+
+- **Code flow**: supermatt (fork of [mattpocock/skills](https://github.com/mattpocock/skills)) `tdd`, `qa`, `code-review`, `pr`, `ship-pr`; `ponytail` (smallest complete change); `write-commit` (commit messages in Simplified Technical English).
+- **Motion and feel**: [emil-skills](https://github.com/emilkowalski/skills) `animate-expo`, `gestures`, `apple-design`.
+- **Interface**: [jakub-skills](https://github.com/jakubkrehel/skills) `better-ui`, `better-layout`, `better-colors`, `better-interface`.
+
 ## Getting it on your iPhone from Windows
 
 xtool cannot build a React Native app itself: it only builds Swift packages. What it can do is sign any `.ipa` with your
