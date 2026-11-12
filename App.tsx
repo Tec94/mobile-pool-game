@@ -43,6 +43,7 @@ import { loadSettings, saveSettings } from './src/settings/save';
 import { RIVAL, type Settings } from './src/settings/settings';
 import { BALLS, C, CLOTHS } from './src/theme';
 import { Btn } from './src/ui/Btn';
+import { useFontsReady } from './src/ui/fonts';
 import { LESSON_HUD, LessonHud } from './src/ui/LessonHud';
 import { hudHeight, MatchHud, Results } from './src/ui/MatchHud';
 import { Menus, type Screen } from './src/ui/Menus';
@@ -74,6 +75,7 @@ const newLesson = (l: Lesson) => {
 };
 
 export default function App() {
+  if (!useFontsReady()) return null;
   return <SafeAreaProvider initialMetrics={initialWindowMetrics}><Root /></SafeAreaProvider>;
 }
 
