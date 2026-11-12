@@ -20,12 +20,12 @@ jobs:
       - run: npx expo prebuild -p ios
       - name: Build without signing
         run: |
-          xcodebuild -workspace ios/Pool.xcworkspace -scheme Pool \
+          xcodebuild -workspace ios/Runout.xcworkspace -scheme Runout \
             -configuration ${{ inputs.configuration }} -sdk iphoneos -destination generic/platform=iOS \
             -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -80  # default shell has pipefail, so a failed build still fails the step
       - name: Package .ipa
         run: |
-          mkdir Payload && cp -R "build/Build/Products/${{ inputs.configuration }}-iphoneos/Pool.app" Payload/
+          mkdir Payload && cp -R "build/Build/Products/${{ inputs.configuration }}-iphoneos/Runout.app" Payload/
           zip -qry Pool.ipa Payload
       - uses: actions/upload-artifact@v4
         with:
