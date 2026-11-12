@@ -123,7 +123,7 @@ export function litCushions(l: Lesson): number[] | null {
 // Did the shot pass, and if not, what to change. cue = the cue ball at rest.
 export function verdict(l: Lesson, r: LessonRec, cue: Ball): { ok: boolean; say: string } {
   const g = l.goal, want = g.first ?? g.pot ?? -1, no = (say: string) => ({ ok: false, say });
-  if (r.pots.some(p => !p.id) || r.off.includes(0)) return no(`The cue ball went in. ${l.long ?? 'Watch where the guide sends the cue ball.'}`);
+  if (r.pots.some(p => !p.id) || r.off.includes(0)) return no(`The cue ball went in. ${l.long ?? 'Change the spin or the power.'}`);
   if (r.first < 0) return no('The cue ball hit nothing. Use more power, or follow the guide to the ghost ball.');
   if (g.kick && !r.kick) return no('Go off a cushion first: a kick reaches the rail before any ball.');
   if (r.first !== want) return no(`The cue ball hit the ${r.first} first. ${l.how}`);

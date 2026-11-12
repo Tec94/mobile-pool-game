@@ -32,9 +32,10 @@ export function LessonHud({ lesson, n, stage, run, land, pad, head, line: said, 
 
 const styles = StyleSheet.create({
   hud: { position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 8, height: LESSON_HUD - 8 },
-  // A button of the strip is as tall as in a match (a plate, 44), at the middle of the text block. The box has a height of its
-  // own: on a phone a slab laid straight in the strip grows to the height of the strip (Yoga's legacy stretch).
-  key: { height: 44, flexDirection: 'row' },
+  // A button of the strip is as tall as in a match (a plate, 44), at the top of the strip, where the pause button of a match
+  // is. The box has a height of its own: on a phone a slab laid straight in the strip grows to the height of the strip
+  // (Yoga's legacy stretch).
+  key: { height: 44, flexDirection: 'row', alignSelf: 'flex-start' },
   text: { flex: 1, gap: 2 },
   eyebrow: { color: C.chalk + 'B3', fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, letterSpacing: 0.9, textTransform: 'uppercase' },
   say: { color: C.chalk, fontFamily: FONT.display, fontSize: 16, lineHeight: 19 },

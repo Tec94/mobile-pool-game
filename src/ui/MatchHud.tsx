@@ -33,7 +33,8 @@ export function MatchHud({ rules, names, push, view, pad, calm, wait, score, pau
   // middle of the table. Portrait: the seam, measured, as the pause button and the rail shift it off the table's middle.
   const [seam, setSeam] = useState(0), left = Math.max(pad.left, 8), right = Math.max(pad.right, 8), wide = 9 * STRIP_PIP + 8 * 4;
   // Landscape: the banner lies at the middle of the row and may be as wide as the free part of the row lets it be on its
-  // narrower side (the row's own gaps stay clear): it never meets a plate, a chip or the push out button.
+  // narrower side (the row's own gaps stay clear): it never meets a plate, a chip or the push out button. The free part
+  // keeps 160 pt: on a narrow phone the plates give way first (down to their 112), then the banner.
   const row = useWindowDimensions().width - left - right, [room, setRoom] = useState(160);
   const fit = (e: LayoutChangeEvent) => { const { x, width } = e.nativeEvent.layout; setRoom(2 * Math.min(row / 2 - x, x + width - row / 2)); };
   const mid = !view.land && seam ? left + seam - (score ? 3 * 8 + 2 * FRAME : 8) / 2 : view.ox + (view.land ? P.L : P.W) * view.s / 2; // the middle of the gaps (8) and frame chips between the plates
@@ -42,7 +43,7 @@ export function MatchHud({ rules, names, push, view, pad, calm, wait, score, pau
       <Txt accessibilityLabel={`${names[i]}: ${score[i]} ${score[i] === 1 ? 'frame' : 'frames'}`} style={[styles.framesText, !i && { color: C.ink }]}>{score[i]}</Txt>
     </Slab>
   );
-  const say = <Banner rules={rules} push={push} calm={calm} wait={wait} fill={view.land ? Math.max(120, room) : 0} style={view.land ? styles.over : { position: 'absolute', top: view.oy - RAIL * view.s + 4, left: view.ox, width: P.W * view.s, paddingHorizontal: 0.12 * view.s }} />;
+  const say = <Banner rules={rules} push={push} calm={calm} wait={wait} fill={view.land ? room : 0} style={view.land ? styles.over : { position: 'absolute', top: view.oy - RAIL * view.s + 4, left: view.ox, width: P.W * view.s, paddingHorizontal: 0.12 * view.s }} />;
   return (
     <>
       {/* Landscape: the rail starts under the HUD, so the row spans the window. The plates are as wide as their text and
@@ -183,11 +184,11 @@ export function Act({ label, paint, onPress }: { label: string; paint?: Paint; o
 const styles = StyleSheet.create({
   hud: { position: 'absolute' },
   even: { width: KEY },
-  gap: { flex: 1 },
+  gap: { flex: 1, minWidth: 160 },
   row: { flexDirection: 'row', alignItems: 'stretch', gap: 8, height: PLATE },
   over: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }, // the banner in landscape: over the middle of the row
   plate: { flex: 1 }, // portrait: the two plates share the row
-  plateLand: { minWidth: 108, maxWidth: NAME, flexShrink: 1 }, // 108 = seven pips and the padding: the plate keeps its width when the groups are set
+  plateLand: { minWidth: 112, maxWidth: NAME, flexShrink: 1 }, // 112 = seven pips (7 x 10 + 6 x 3) and the padding: the plate keeps its width when the groups are set
   plateFace: { paddingHorizontal: 12, justifyContent: 'center', gap: 4 },
   name: { fontFamily: FONT.display, fontSize: 14, lineHeight: 17 },
   l2: { flexDirection: 'row', alignItems: 'center', gap: 3, height: 14 }, // fixed height: the plate never grows
@@ -206,7 +207,7 @@ const styles = StyleSheet.create({
   wide: { width: 700, flexDirection: 'row', alignItems: 'center', gap: 24 }, // the slab is as tall as its text, at the middle of the pay beside it
   tall: { width: 280 },
   win: { padding: 16, gap: 6 },
-  title: { fontFamily: FONT.display, fontSize: 30, lineHeight: 32, letterSpacing: -0.5 },
+  title: { fontFamily: FONT.display, fontSize: 30, lineHeight: 32, letterSpacing: -0.5, writingDirection: 'ltr' }, // ltr: a right-to-left name must not turn the sentence round
   score: { fontFamily: FONT.display, fontSize: 84, lineHeight: 88, letterSpacing: -2, fontVariant: ['tabular-nums'] },
   foot: { paddingTop: 6 },
   side: { gap: 8, justifyContent: 'center' },

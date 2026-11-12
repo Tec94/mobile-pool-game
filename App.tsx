@@ -588,7 +588,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         <View style={[styles.sheet, styles.dim]} onStartShouldSetResponder={() => true}>
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>Paused</Text>
-            {!L && race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} ${score.current[0]} – ${score.current[1]} ${names[1]}\nRace to ${race}`}</Text>}
+            {!L && race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} – ${names[1]}\n${score.current[0]} – ${score.current[1]}\nRace to ${race}`}</Text>}
             <Act paint={CREAM} label="Resume" onPress={() => setPaused(false)} />
             <Act label={S ? 'Leave scenario' : L ? 'Leave lesson' : 'Leave match'} onPress={onQuit} />
           </View>
