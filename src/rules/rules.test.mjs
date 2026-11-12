@@ -149,4 +149,12 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
   eq([2, 5, 9].map(id => legalFirst(nine, id)), [true, false, false], '9-ball: only the lowest ball');
   ok('legalFirst follows 3.3 and the 9-ball rule');
 }
+{ // the ruling as flags, so pay and the screen never read the note's words
+  const s = solids1();
+  let a = judge(s, rec(2, [], { railAfter: false })); eq([a.foul, a.early], [true, false], 'no rail after contact is a foul');
+  a = judge(s, rec(2, [[2]])); eq([a.foul, a.early], [false, false], 'a legal pot is not');
+  a = judge(s, rec(2, [[8, 0]])); eq([a.phase, a.winner, a.foul, a.early], ['over', 0, false, true], 'the 8 before the group is cleared: lost early');
+  a = judge(s, rec(2, [[8, 0], [0]])); eq([a.phase, a.foul, a.early], ['over', true, false], 'the 8 on a scratch: a foul, not early, though the note says the rack is lost');
+  ok('foul and early flags');
+}
 console.log(`\n${n} checks passed`);

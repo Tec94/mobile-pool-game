@@ -35,13 +35,13 @@ export const strip = (s: State) => (s.game === 9 ? range(1, 9).map(id => ({ id, 
 // AI makes. undefined = the player's own turn.
 export function banner(s: State, push: boolean, wait?: string) {
   if (s.phase === 'over' || (s.choice && wait === undefined)) return { note: '', foul: false, hint: '' };
-  if (wait !== undefined) return { note: s.choice ? '' : s.note, foul: !s.choice && s.note.startsWith('Foul'), hint: wait };
+  if (wait !== undefined) return { note: s.choice ? '' : s.note, foul: !s.choice && s.foul, hint: wait };
   const ask = canCall(s) && s.call < 0, eight = onEight(s);
   const note = s.note || (ask && !eight && !s.hand ? 'Tap a pocket to call a bank or a combination.' : '');
   const said = /ball in hand/i.test(note); // the ruling already says it: the hint only says what to do
   const hint = [s.hand === 'kitchen' ? (said ? 'Drag the cue ball behind the line.' : 'Ball in hand behind the line: drag the cue ball.') : s.hand ? (said ? 'Drag the cue ball.' : 'Ball in hand: drag the cue ball.') : '',
     ask && eight ? 'Tap a pocket to call the 8.' : '', push ? 'Push out: no ball or rail needed.' : ''].filter(Boolean).join(' ');
-  return { note, foul: s.note.startsWith('Foul'), hint };
+  return { note, foul: s.foul, hint };
 }
 
 // Should the banner pop this note? Only a new ruling or a new shot (judge makes a new balls array): the same note coming
