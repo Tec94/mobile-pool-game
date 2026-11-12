@@ -6,7 +6,7 @@ import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { BALLS, C, CREAM, DARK, FONT, type Paint } from '../theme';
 
 const PRESS = 3; // pt the face moves down when pressed
-const SLOP = { top: 8, bottom: 8, left: 4, right: 4 }; // a 34 pt key or a 26 pt chip still takes a 44 pt touch
+const SLOP = { top: 9, bottom: 9, left: 6, right: 6 }; // a 34 x 36 pt key or a 26 pt chip still takes a 44 pt touch each way
 
 // Text with the cap every label in the game has on the system text size.
 export const Txt = (p: TextProps) => <Text maxFontSizeMultiplier={1.3} {...p} />;
