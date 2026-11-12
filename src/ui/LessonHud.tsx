@@ -19,19 +19,22 @@ export function LessonHud({ lesson, n, stage, run, land, pad, head, line: said, 
     : stage === 'solo' ? `${run} of ${SOLO_RUN} in a row. No help with spin and power.` : 'Watch the spin and the power.');
   return (
     <View style={[styles.hud, { top: pad.top + 4, left: Math.max(pad.left, 8), right: Math.max(pad.right, 8) + (land ? BAR : 0) }]}>
-      {pause}
+      <View style={styles.key}>{pause}</View>
       <View style={styles.text} accessible accessibilityLiveRegion="polite">
         <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={styles.eyebrow}>{head ?? `Lesson ${n + 1} · ${STEP[stage]}`}</Text>
         <Text maxFontSizeMultiplier={1.2} numberOfLines={2} style={styles.say}>{lesson.say}</Text>
         <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.line}>{line}</Text>
       </View>
-      {children}
+      {!!children && <View style={styles.key}>{children}</View>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   hud: { position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 8, height: LESSON_HUD - 8 },
+  // A button of the strip is as tall as in a match (a plate, 44), at the middle of the text block. The box has a height of its
+  // own: on a phone a slab laid straight in the strip grows to the height of the strip (Yoga's legacy stretch).
+  key: { height: 44, flexDirection: 'row' },
   text: { flex: 1, gap: 2 },
   eyebrow: { color: C.chalk + 'B3', fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, letterSpacing: 0.9, textTransform: 'uppercase' },
   say: { color: C.chalk, fontFamily: FONT.display, fontSize: 16, lineHeight: 19 },
