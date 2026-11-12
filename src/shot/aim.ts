@@ -3,7 +3,7 @@
 // guide shows. No drawing and no React here; src/ui/ShotControls.tsx and App.tsx are the shells around it.
 // The aim is an angle in radians in the table frame. The screen shows the table mirrored (toScreen flips one axis in
 // both orientations), so a clockwise turn on the glass is a smaller angle here.
-import { predict } from '../physics/engine.ts';
+import { P, predict } from '../physics/engine.ts';
 import type { Ball, Cue, Shot } from '../physics/engine.ts';
 
 const TURN = 2 * Math.PI, DEG = Math.PI / 180, wrap = (a: number) => a - TURN * Math.round(a / TURN);
@@ -38,7 +38,7 @@ export const previewPower = (pull: number) => (pull > 0.05 ? pull : 0.7); // the
 // to 60 cm at Aim 10, metres. 0 = Off; the line to the first contact is always drawn.
 export const guideLen = (aim: number) => (aim <= 0 ? 0 : 0.1 + (Math.min(10, aim) - 1) * 0.5 / 9);
 export const LONG = 7; // from this Aim a stub after the contact shows where the cue ball leaves the ghost ball
-export const STUB = 4 * 0.028575; // m, 4 ball radii (P.R): the stub is this long at every Aim, power and spin
+export const STUB = 4 * 0.028575; // m, 4 ball radii (P.R): the stub is this long at every Aim, power and spin, from a 30 degree cut
 const FULL = 0.052; // sine of a 3 degree cut: fuller than this the cue ball stops or runs on through, and the tangent says nothing
 // The angle from the cue ball to the nearest object ball, or `keep` when the table has none.
 export function nearest(B: Ball[], keep = 0) {
@@ -53,7 +53,8 @@ export function nearest(B: Ball[], keep = 0) {
 // aim = the Aim stat of the cue (lessons pass 10). From LONG the guide shows a stub after the ghost ball: the tangent
 // line, the way the cue ball leaves on a stun shot. Jack: the real path after contact (it bends with follow, draw and
 // side, and comes off cushions) gives away the skill of reading spin and power. The stub is worked out from the
-// contact itself, not from the cue ball's path after it, which spin bends from the first step.
+// contact itself, not from the cue ball's path after it, which spin bends from the first step. No stub after a jump: the
+// cue ball meets the ball in the air or still hopping.
 // budget = the limit on the work after the first contact (see predict), so one guide stays inside a frame.
 // stick = the engine cue that will strike, so the guide squirts as the shot will.
 // real = draw the cue ball's real path after the contact in place of the stub (a lesson's watch stage, where the shot
@@ -83,7 +84,11 @@ export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, st
     // square to the line of centres, away from the object ball's side.
     const p = path[path.length - 2], dx = h.x - p[0], dy = h.y - p[1], n = Math.hypot(dx, dy), ux = dx / n, uy = dy / n;
     const s = Math.max(-1, Math.min(1, ((O.y - h.y) * ux - (O.x - h.x) * uy) / R2)), c = Math.sqrt(1 - s * s), sg = s < 0 ? -1 : 1;
-    if (n > 0 && Math.abs(s) > FULL) stub = [[h.x, h.y], [h.x + STUB * sg * (s * ux + c * uy), h.y + STUB * sg * (s * uy - c * ux)]];
+    const ex = sg * (s * ux + c * uy), ey = sg * (s * uy - c * ux);
+    let t = STUB * Math.min(1, Math.abs(s) / 0.5); // it grows with the cut, whole from a 30 degree cut: no pop as it shows
+    if (ex) t = Math.min(t, ((ex > 0 ? P.L - P.R : P.R) - h.x) / ex); // and stops where the cue ball meets a cushion
+    if (ey) t = Math.min(t, ((ey > 0 ? P.W - P.R : P.R) - h.y) / ey);
+    if (n > 0 && Math.abs(s) > FULL && t > 0 && !h.air && !g.lands.length) stub = [[h.x, h.y], [h.x + t * ex, h.y + t * ey]];
   }
   return { path, ob: clip(g.ob, L), ghost: h && [h.x, h.y], lands: g.lands, lost: g.scratch && g.split < 0, first: h ? h.b! : -1, stub };
 }

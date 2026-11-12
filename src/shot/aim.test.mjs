@@ -72,12 +72,27 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
   for (const [name, s] of [['top', { b: 0.5 }], ['bottom', { b: -0.5 }], ['right side', { a: 0.5 }], ['left side', { a: -0.5 }], ['soft', { speed: 0.6 }], ['hard', { speed: 4.5 }], ['draw, hard', { b: -0.5, speed: 4 }]]) {
     const q = g(s), [vx, vy] = dir(q);
     near(Math.hypot(vx - ux, vy - uy), 0, 1e-6, `${name}: the same direction`); near(len(q.stub), 4 * P.R, 1e-12, `${name}: the same length`);
-    const far = Math.max(...q.path.map(p => p[0] - q.ghost[0])); // the aim is along x assert(far <= 4 * P.R, `${name}: no point of the path beyond the ghost (${far})`);
+    const far = Math.max(...q.path.map(p => p[0] - q.ghost[0])); // the aim is along x
+    assert(far <= 1e-9, `${name}: no point of the path beyond the ghost (${far})`);
   }
   for (const aim of [1, 5, 6]) { const q = g({}, aim), e = q.path[q.path.length - 1]; assert(q.stub.length === 0 && Math.hypot(e[0] - q.ghost[0], e[1] - q.ghost[1]) < 1e-9, `Aim ${aim}: nothing after the contact`); }
   assert.strictEqual(g({}, 7).stub.length, 2, 'Aim 7: the stub');
   const full = aimGuide([mk(0.5, mid), mk(1.2, mid + 0.001)], { ang: 0, speed: 2, a: 0, b: 0.5 }, 10, undefined, plain); // a 1 degree cut
   assert(full.ghost && full.stub.length === 0, 'a full-ball hit: no stub'); assert(Math.max(...full.path.map(p => p[0])) <= full.ghost[0] + 1e-9, 'and no follow line past the ghost');
+  // The stub grows with the cut, from nothing on a full hit to its whole length at a 30 degree cut: no pop as it shows.
+  const cut = deg => len(aimGuide([mk(0.5, mid), mk(1.2, mid + 2 * P.R * Math.sin(deg * DEG))], { ang: 0, speed: 2, a: 0, b: 0 }, 10, undefined, plain).stub);
+  const lens = [4, 10, 20, 30, 45].map(cut);
+  assert(lens[0] < 0.2 * 4 * P.R, `a 4 degree cut: a short stub (${lens[0]})`); assert(lens.every((l, i) => !i || l >= lens[i - 1] - 1e-12), `longer with the cut: ${lens}`);
+  near(lens[3], 4 * P.R, 2e-3, 'whole from 30 degrees'); near(lens[4], 4 * P.R, 1e-12, 'whole at 45 degrees');
+  // A jump: the cue ball meets the ball in the air, or bounces down to it, and leaves with its hop: no tangent stub.
+  const air = aimGuide([mk(0.5, mid), mk(0.9, mid - 0.015)], { ang: 0, speed: 4.2, a: 0, b: 0, elev: 25 * DEG }, 10), landed = aimGuide([mk(0.6, mid), mk(0.85, mid), mk(1.6, mid - 0.03)], { ang: 0, speed: 3.2, a: 0, b: 0, elev: 40 * DEG }, 10);
+  assert(air.ghost && air.stub.length === 0, 'a contact in the air: no stub'); assert(landed.first === 2 && landed.lands.length && landed.stub.length === 0, 'a contact after a jump: no stub');
+  // Near a rail the stub stops where the cue ball meets the cushion nose.
+  for (const [c, o, ang] of [[[0.6, P.W - 0.08], [1.2, P.W - 0.12], 0], [[P.L - 0.08, 0.3], [P.L - 0.12, 0.9], Math.PI / 2]]) { // by a side rail, by the foot rail
+    const rail = aimGuide([mk(...c), mk(...o)], { ang, speed: 2, a: 0, b: 0 }, 10, undefined, plain).stub;
+    assert(rail.length === 2 && len(rail) > 0.01 && len(rail) < 4 * P.R - 0.01, `a short stub by the rail (${len(rail)})`);
+    for (const [x, y] of rail) assert(x >= P.R - 1e-9 && x <= P.L - P.R + 1e-9 && y >= P.R - 1e-9 && y <= P.W - P.R + 1e-9, `the stub stays off the cushion (${x}, ${y})`);
+  }
   ok('after the contact a straight 4-radius stub on the tangent line, the same for every spin and power, from Aim 7');
 }
 { // A kick shot below Aim 7: the line stops at the cushion, the ring sits on its end and no object ball path hangs loose.
