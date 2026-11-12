@@ -1,17 +1,21 @@
 // The hand design's pieces: a slab is a flat face on a solid lip of a darker colour (no border, no blur shadow). A press
 // moves the face down onto the lip, at once: no scale, no fade. Keys, chips and cards are slabs.
+import * as Haptics from 'expo-haptics';
 import type { ReactNode } from 'react';
-import { Pressable, type StyleProp, StyleSheet, Text, type TextProps, View, type ViewStyle } from 'react-native';
-import Animated, { useReducedMotion } from 'react-native-reanimated';
+import { Platform, Pressable, type StyleProp, StyleSheet, Text, type TextProps, View, type ViewStyle } from 'react-native';
+import Animated, { cubicBezier, Easing, type SharedValue, useAnimatedStyle, useReducedMotion, withTiming } from 'react-native-reanimated';
 import { BALLS, C, CREAM, DARK, FONT, type Paint } from '../theme';
 
 const PRESS = 3; // pt the face moves down when pressed
-const SLOP = { top: 8, bottom: 8, left: 4, right: 4 }; // a 34 pt key or a 26 pt chip still takes a 44 pt touch
+const SLOP = { top: 9, bottom: 9, left: 6, right: 6 }; // a 34 x 36 pt key or a 26 pt chip still takes a 44 pt touch each way
+
+// A haptic, never on the web (the QA build): feel(Haptics.selectionAsync) when a choice changes.
+export const feel = (f: () => Promise<void>) => { if (Platform.OS !== 'web') f(); };
 
 // Text with the cap every label in the game has on the system text size.
 export const Txt = (p: TextProps) => <Text maxFontSizeMultiplier={1.3} {...p} />;
 
-type A11y = Pick<React.ComponentProps<typeof Pressable>, 'accessibilityLabel' | 'accessibilityRole' | 'accessibilityState' | 'accessibilityHint' | 'accessibilityValue' | 'aria-checked' | 'hitSlop'>;
+type A11y = Pick<React.ComponentProps<typeof Pressable>, 'accessible' | 'accessibilityLabel' | 'accessibilityRole' | 'accessibilityState' | 'accessibilityHint' | 'accessibilityValue' | 'aria-checked' | 'hitSlop'>;
 export interface SlabProps extends A11y {
   paint: Paint; lip?: number; radius?: number;
   onPress?: () => void; onLongPress?: () => void; disabled?: boolean;
@@ -25,7 +29,7 @@ export function Slab({ paint: [face, lip], lip: h = 5, radius = 5, onPress, onLo
     <View style={[StyleSheet.absoluteFill, { top: h, backgroundColor: lip, borderRadius: radius }]} />
     <View style={[{ flexGrow: 1, marginBottom: h, backgroundColor: face, borderRadius: radius, overflow: 'hidden' }, faceStyle, down && { transform: [{ translateY: PRESS }] }]}>{children}</View>
   </>;
-  const box = [style, disabled && { opacity: 0.4 }];
+  const box = [disabled && { opacity: 0.4 }, style]; // a style's own opacity wins: the stage button shows off as dark, not dim
   if (!onPress) return <View style={box} {...a11y}>{body(false)}</View>;
   return (
     <Pressable onPress={onPress} onLongPress={onLongPress} disabled={disabled} accessibilityRole="button" pressRetentionOffset={16} {...a11y}
@@ -38,7 +42,7 @@ export function Slab({ paint: [face, lip], lip: h = 5, radius = 5, onPress, onLo
 // A key of a key group (a radio): 34 pt, off = flat chalk at 11%, on = cream on its lip. name = what a screen reader says.
 export function Key({ label, name, on, off, onPress }: { label: string; name?: string; on: boolean; off?: boolean; onPress: () => void }) {
   return (
-    <Slab paint={on ? CREAM : [C.keyOff, 'transparent']} lip={on ? PRESS : 0} radius={3} onPress={onPress} disabled={off} hitSlop={SLOP}
+    <Slab paint={on ? CREAM : [C.keyOff, 'transparent']} lip={on ? PRESS : 0} radius={3} onPress={() => { if (!on) feel(Haptics.selectionAsync); onPress(); }} disabled={off} hitSlop={SLOP}
       accessibilityRole="radio" accessibilityLabel={name ?? label} accessibilityState={{ checked: on, disabled: !!off }} aria-checked={on}
       style={{ marginBottom: on ? 0 : PRESS }} face={styles.key}>
       <Txt style={[styles.keyText, { color: on ? C.ink : C.chalk }]}>{label}</Txt>
@@ -59,7 +63,9 @@ export function Keys<T>({ label, show, value, pick, options }: { label: string; 
 // A chip: a small dark slab for coins, Fresh Chalk, back and small facts. Pressable with onPress.
 export function Chip({ children, onPress, name, style }: { children: ReactNode; onPress?: () => void; name?: string; style?: StyleProp<ViewStyle> }) {
   return (
-    <Slab paint={DARK} lip={PRESS} radius={3} onPress={onPress} hitSlop={onPress && SLOP} accessibilityLabel={name} style={style} face={styles.chip}>
+    // A named fact chip is one element, so a screen reader says its name ("800 coins"), not the bare number.
+    <Slab paint={DARK} lip={PRESS} radius={3} onPress={onPress} hitSlop={onPress && SLOP} accessibilityLabel={name} style={style} face={styles.chip}
+      {...(name && !onPress && { accessible: true, accessibilityRole: 'text' as const })}>
       {typeof children === 'string' ? <Txt style={styles.chipText}>{children}</Txt> : children}
     </Slab>
   );
@@ -97,15 +103,24 @@ export function Hatch({ share, style }: { share: number; style?: StyleProp<ViewS
 }
 
 // A card of the hand. up = raised 22 pt with a chalk outline (the chosen one); tilt in degrees, from the middle of the hand.
-export function HandCard({ paint, up, tilt = 0, onPress, name, width, height, children }: { paint: Paint; up: boolean; tilt?: number; onPress: () => void; name: string; width: number; height: number; children: ReactNode }) {
+// With focus (a hand whose focus follows its scroll), card i rises while focus is i, on the UI thread: no render per frame.
+export function HandCard({ paint, up, tilt = 0, onPress, name, width, height, children, i = 0, focus }: { paint: Paint; up: boolean; tilt?: number; onPress: () => void; name: string; width: number; height: number; children: ReactNode; i?: number; focus?: SharedValue<number> }) {
   const still = useReducedMotion();
+  const card = <Slab paint={paint} onPress={onPress} accessibilityLabel={name} accessibilityState={{ selected: up }} style={{ flex: 1 }}
+    face={[styles.card, up && !focus && styles.outline]}>{children}</Slab>;
+  if (focus) return <Follow i={i} focus={focus} tilt={tilt} width={width} height={height} still={still}>{card}</Follow>;
   return (
     <Animated.View style={{ width, height, transformOrigin: '50% 100%', transform: [{ translateY: up ? -22 : 0 }, { rotate: `${tilt}deg` }], zIndex: up ? 1 : 0,
-      transitionProperty: 'transform', transitionDuration: still ? 0 : 180, transitionTimingFunction: 'ease-out' }}>
-      <Slab paint={paint} onPress={onPress} accessibilityLabel={name} accessibilityState={{ selected: up }} style={{ flex: 1 }}
-        face={[styles.card, up && styles.outline]}>{children}</Slab>
-    </Animated.View>
+      transitionProperty: 'transform', transitionDuration: still ? 0 : 150, transitionTimingFunction: cubicBezier(0.23, 1, 0.32, 1) }}>{card}</Animated.View>
   );
+}
+function Follow({ i, focus, tilt, width, height, still, children }: { i: number; focus: SharedValue<number>; tilt: number; width: number; height: number; still: boolean; children: ReactNode }) {
+  const lift = useAnimatedStyle(() => {
+    const y = focus.value === i ? -22 : 0;
+    return { zIndex: y ? 1 : 0, transform: [{ translateY: still ? y : withTiming(y, { duration: 150, easing: Easing.bezier(0.23, 1, 0.32, 1) }) }, { rotate: `${tilt}deg` }] };
+  });
+  const ring = useAnimatedStyle(() => ({ opacity: focus.value === i ? 1 : 0 }));
+  return <Animated.View style={[{ width, height, transformOrigin: '50% 100%' }, lift]}>{children}<Animated.View pointerEvents="none" style={[styles.ring, ring]} /></Animated.View>;
 }
 
 // The type of the design: titles in Bricolage Grotesque, the rest in Instrument Sans. Chalk; on a face, add { color: inkOn(paint) }.
@@ -118,12 +133,12 @@ export const TYPE = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  key: { height: 34, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', flexGrow: 0 },
-  keyText: { fontFamily: FONT.bold, fontSize: 12.5, fontVariant: ['tabular-nums'] },
-  keys: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 4, flexShrink: 1, maxWidth: '100%' },
-  keyLabel: { fontFamily: FONT.bold, fontSize: 11, color: C.chalk, opacity: 0.7, marginRight: 4 },
+  key: { height: 34, paddingHorizontal: 8, minWidth: 36, alignItems: 'center', justifyContent: 'center', flexGrow: 0 },
+  keyText: { fontFamily: FONT.bold, fontSize: 12.5, lineHeight: 16, fontVariant: ['tabular-nums'] },
+  keys: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 8, flexShrink: 1, maxWidth: '100%' },
+  keyLabel: { fontFamily: FONT.bold, fontSize: 11, color: C.chalk, opacity: 0.7, marginRight: 4, marginBottom: 3 }, // centred on the key face, not face and lip
   chip: { minHeight: 26, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 5 },
-  chipText: { fontFamily: FONT.bold, fontSize: 13, color: C.chalk, fontVariant: ['tabular-nums'] },
+  chipText: { fontFamily: FONT.bold, fontSize: 13, lineHeight: 16, color: C.chalk, fontVariant: ['tabular-nums'] },
   disc: { position: 'absolute', left: 0, top: 0 },
   blocks: { flexDirection: 'row', gap: 2 },
   block: { flex: 1, height: 10, borderRadius: 1, backgroundColor: C.chalk + '1F' },
@@ -131,4 +146,5 @@ const styles = StyleSheet.create({
   fill: { height: '100%', backgroundColor: C.gold },
   card: { paddingTop: 11, paddingLeft: 11, paddingRight: 8 },
   outline: { outlineColor: C.chalk, outlineWidth: 2, outlineOffset: 2, outlineStyle: 'solid' },
+  ring: { position: 'absolute', left: -4, right: -4, top: -4, bottom: 1, borderWidth: 2, borderColor: C.chalk, borderRadius: 9 }, // the outline's place: the face ends 5 pt (the lip) above the card's foot
 });
