@@ -83,7 +83,10 @@ export function shotLayout(w: number, h: number, pad: Inset): { view: View; rail
     return { view, rail: { left: w - r - BAR + 4 - k, top: t, width: RAIL_W, height: h - t - b },
       spin: { left: l + 8 + k, top: t, width: 48, height: 48 }, dial: { left: l + 32 - DIAL / 2 + k, top, width: DIAL, height: foot - 12 - top }, tools: { left: l + 4 + k, top: foot, width: 56, height: 44 } };
   }
-  const view = fit(w, h, { ...pad, right: r + RAIL_W + 8 }), row = h - b - BAR, top = view.oy - RAIL * view.s, foot = view.oy + (P.L + RAIL) * view.s;
+  // Portrait: the table sits right under the HUD (Jack: no ground between them) and the control row 14 pt under the table,
+  // or at the foot of the window when the table is as tall as it can be.
+  const fitted = fit(w, h, { ...pad, right: r + RAIL_W + 8 }), view = { ...fitted, oy: t + RAIL * fitted.s };
+  const top = t, foot = view.oy + (P.L + RAIL) * view.s, row = Math.min(h - b - BAR, foot + 6); // + 6: the spin button sits 8 down the row
   return { view, rail: { left: w - r - RAIL_W, top, width: RAIL_W, height: foot - top },
     tools: { left: l, top: row + 10, width: 56, height: 44 }, dial: { left: l + 68, top: row + 32 - DIAL / 2, width: w - r - l - 128, height: DIAL }, spin: { left: w - r - 48, top: row + 8, width: 48, height: 48 } };
 }
