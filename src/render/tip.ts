@@ -90,12 +90,13 @@ export function drawTip(api: typeof Skia, canvas: SkCanvas, D: number, t: Tip, b
   const bx = c + r * Math.cos(a), by = c + r * Math.sin(a);
   canvas.drawCircle(bx, by, 12 * k, fill(api, C.ink)); canvas.drawCircle(bx, by, 12 * k, line(api, C.chalk, 4 * k));
 }
-// Side view: the cue ball on the cloth and the cue at its real tilt.
+// Side view: the cue ball on the cloth and the cue at its real tilt. The cue is 62 pt long, shorter where that keeps
+// its butt 4 pt inside the picture (raised, the sheet's top edge would cut it flat).
 export function drawSide(api: typeof Skia, canvas: SkCanvas, elev: number, felt: string) {
-  const e = elev * Math.PI / 180, ux = -Math.cos(e), uy = -Math.sin(e), px = 72 + ux * 13, py = 58 + uy * 13;
+  const e = elev * Math.PI / 180, ux = -Math.cos(e), uy = -Math.sin(e), px = 72 + ux * 13, py = 58 + uy * 13, len = Math.min(62, (px - 4) / -ux, (py - 4) / -uy);
   canvas.drawRect(api.XYWHRect(0, 70, SIDE.w, 14), fill(api, felt));
   canvas.drawOval(api.XYWHRect(63, 67.5, 22, 5), fill(api, C.shade, 0.5));
   canvas.drawCircle(72, 58, 12, fill(api, C.white));
-  canvas.drawLine(px, py, px + ux * 62, py + uy * 62, line(api, C.frame, 5));
+  canvas.drawLine(px, py, px + ux * len, py + uy * len, line(api, C.frame, 5));
   canvas.drawLine(px, py, px + ux * 4, py + uy * 4, line(api, C.accent, 5)); // the chalked tip
 }

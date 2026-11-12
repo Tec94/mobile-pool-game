@@ -7,6 +7,9 @@ import { CUE, P, rack, strike } from '../src/physics/engine.ts';
 import { advance, drawBalls, makeKit, newLook } from '../src/render/balls.ts';
 import { drawCue, drawDial, drawRail, shotLayout } from '../src/render/cue.ts';
 import { drawMarks } from '../src/render/marks.ts';
+import { drawBank } from '../src/render/bank.ts';
+import { LESSONS, lessonTable, litCushions } from '../src/learn/lessons.ts';
+import { SCENARIOS } from '../src/scenarios/scenarios.ts';
 import { drawAim, drawTable, toScreen } from '../src/render/table.ts';
 import { drawSide, drawTip, drawTipBall, LEVEL, shotTip, SIDE } from '../src/render/tip.ts';
 import { aimGuide } from '../src/shot/aim.ts';
@@ -29,9 +32,9 @@ const ball = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 
 // One scenario: n cells, each `every` frames (16 ms each) apart, showing w x h metres centred on at(B) or a fixed point.
 // w = 0 shows the whole phone window instead. aim = a shot to draw the aim guide for, as the app does while the player aims;
-// marks = what the rules show (cue ball in hand, called pocket), as the app draws it under the balls;
-// pull = the power on the rail, which draws the cue stick behind the cue ball as well.
-function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, calm = false, skip = 0, cloth = 0, aim, pull, marks }) {
+// marks = what the rules show (cue ball in hand, called pocket), as the app draws it under the balls, tick ms of its clock a cell; bank = the lit cushions of a bank table, drawn with the marks;
+// pull = the power on the rail, which draws the cue stick behind the cue ball as well; aimStat = the Aim of the cue (House Cue's when left out).
+function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, calm = false, skip = 0, cloth = 0, aim, aimStat, pull, marks, tick = 300, bank }) {
   const { dpr } = PHONE, W = land ? PHONE.h : PHONE.w, H = land ? PHONE.w : PHONE.h, lay = shotLayout(W, H, SAFE[land ? 'land' : 'port']), v = { ...lay.view, dpr, calm }, look = newLook(B);
   const cw = Math.round(w ? (land ? w : h) * v.s * dpr : W * dpr), ch = Math.round(w ? (land ? h : w) * v.s * dpr : H * dpr);
   const surface = CanvasKit.MakeSurface(n * cw + (n - 1) * 4, ch);
@@ -43,8 +46,9 @@ function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, c
   for (let f = 0; f < n; f++) {
     const p = typeof at === 'function' ? at(B) : at, o = w ? toScreen(v, p[0], p[1]) : { x: W / 2, y: H / 2 };
     c.save(); c.translate(f * (cw + 4), 0); c.clipRect(Skia.XYWHRect(0, 0, cw, ch), 1, true); c.scale(dpr, dpr); c.translate(cw / 2 / dpr - o.x, ch / 2 / dpr - o.y);
-    drawTable(Skia, c, v, CLOTHS[cloth]); if (aim) { const g = aimGuide(B, aim, CUES.house.aim); drawAim(Skia, c, v, g.path, g.ghost, g.lands, g.lost, g.ob); if (pull !== undefined) drawCue(Skia, c, v, B[0].x, B[0].y, aim.ang, pull); } // as App.tsx does
-    if (marks) drawMarks(Skia, c, v, { hand: false, x: B[0].x, y: B[0].y, call: -1, ask: false, ms: 500 + f * 300, ...marks });
+    drawTable(Skia, c, v, CLOTHS[cloth]); if (aim) { const g = aimGuide(B, aim, aimStat ?? CUES.house.aim); drawAim(Skia, c, v, g.path, g.ghost, g.lands, g.lost, g.ob, false, g.stub); if (pull !== undefined) drawCue(Skia, c, v, B[0].x, B[0].y, aim.ang, pull); } // as App.tsx does
+    if (bank) drawBank(Skia, c, v, bank);
+    if (marks) drawMarks(Skia, c, v, { hand: false, x: B[0].x, y: B[0].y, call: -1, ask: false, ms: 500 + f * tick, ...marks });
     drawBalls(kit, c, B, ids, look, v);
     if (!w) { // the whole window: the shot controls where the app puts them (the tools button is its outline)
       const put = (box, draw) => { c.save(); c.translate(box.left, box.top); draw(box.width, box.height); c.restore(); }, edge = Skia.Paint(); edge.setAntiAlias(true); edge.setStyle(1); edge.setColor(Skia.Color(C.chalk)); edge.setAlphaf(0.4);
@@ -86,6 +90,9 @@ for (const land of [true, false]) { const B = [ball(P.L / 4, mid)], ids = [0], o
 strip('pocket-calm', { B: [ball(0.12, 0.12)], ids: [14], shots: [[0, { ang: -3 * Math.PI / 4, speed: 0.5, a: 0, b: 0.4 }]], n: 8, w: 0.2, h: 0.2, at: [0.03, 0.03], skip: 22, calm: true });
 // 11. the aim guide on a cut shot, in landscape and in portrait
 for (const land of [true, false]) strip('aim-' + (land ? 'land' : 'port'), { B: [ball(0.6, mid - 0.1), ball(1.2, mid + 0.02)], ids: [0, 4], shots: [], n: 1, w: 1, h: 0.4, at: [1, mid], land, aim: { ang: Math.atan2(0.09, 0.6), speed: 2, a: 0, b: 0 } });
+// the aim guide of a long cue (Aim 10, as in lessons) on that cut shot with follow, with draw, and on a full hit: the same faint stub after the ghost ball, none on the full hit
+for (const [name, t, ang] of [['follow', { x: 0, y: 0.6, elev: 0 }, Math.atan2(0.09, 0.6)], ['draw', { x: 0, y: -0.6, elev: 0 }, Math.atan2(0.09, 0.6)], ['full', { x: 0, y: 0.6, elev: 0 }, Math.atan2(0.12, 0.6)]])
+  for (const land of [true, false]) strip(`aim-long-${name}-${land ? 'land' : 'port'}`, { B: [ball(0.6, mid - 0.1), ball(1.2, mid + 0.02)], ids: [0, 4], shots: [], n: 1, w: 1, h: 0.4, at: [1, mid], land, aimStat: 10, aim: { ang, speed: 2, ...shotTip(t) } });
 // 12. the aim guide with a raised cue: a jump over a blocker, a masse round one, and a jump that loses the cue ball
 for (const [name, t, speed, ang, B] of [['jump', { x: 0, y: 0, elev: 40 }, 3.2, 0, [ball(0.6, mid), ball(0.85, mid), ball(1.6, mid)]],
   ['masse', { x: 0.8, y: 0, elev: 65 }, 3.5, 0.12, [ball(0.6, mid), ball(1.0, mid), ball(1.4, mid - 0.03)]], ['lost', { x: 0, y: 0, elev: 42 }, 4.5, Math.PI, [ball(0.3, mid)]]])
@@ -106,7 +113,18 @@ for (const [name, t, speed, ang, B] of [['jump', { x: 0, y: 0, elev: 40 }, 3.2, 
 for (const land of [true, false]) { const B = [ball(P.L / 4 - 0.001, mid)], ids = [0]; for (const [id, x, y] of rack(8)) { ids.push(id); B.push(ball(x, y)); }
   strip('hand-' + (land ? 'land' : 'port'), { B, ids, shots: [], n: 1, land, marks: { hand: 'kitchen' } }); }
 strip('hand-pulse', { B: [ball(1.2, mid), ball(1.3, mid + 0.03)], ids: [0, 6], shots: [], n: 5, w: 0.3, h: 0.24, at: [1.2, mid], marks: { hand: 'any' } });
-strip('call', { B: [ball(0.5, 0.35), ball(0.25, 0.2)], ids: [0, 8], shots: [], n: 1, w: 0.9, h: 0.75, at: [0.3, 0.2], marks: { ask: true, call: 0 } });
+// The pockets: every one asks for a call (4 cells 300 ms apart: the arcs turn), one called while the others fall back,
+// and a called or marked pocket alone with a ball on its way in; then the settle of a call, 50 ms a cell, at a corner
+// and at a side pocket; then the whole window, both ways up and on the blue cloth.
+{ const T = () => ({ B: [ball(0.5, 0.35), ball(0.25, 0.2)], ids: [0, 8], shots: [], w: 0.9, h: 0.75, at: [0.3, 0.2] }), t0 = 500;
+  strip('call-ask', { ...T(), n: 4, marks: { ask: true } }); strip('call', { ...T(), n: 1, marks: { ask: true, call: 0 } });
+  strip('call-alone', { B: [ball(0.14, 0.14)], ids: [8], shots: [[0, { ang: -3 * Math.PI / 4, speed: 0.5, a: 0, b: 0.4 }]], n: 8, w: 0.24, h: 0.24, at: [0.03, 0.03], skip: 10, marks: { call: 0 } });
+  for (const [k, at] of [[0, [0, 0]], [4, [P.L / 2, -0.03]]]) strip('call-settle-' + k, { B: [ball(0.5, 0.35)], ids: [0], shots: [], n: 7, every: 0, w: 0.24, h: 0.24, at, marks: { ask: true, call: k, at: t0 }, tick: 50 });
+  strip('call-calm', { ...T(), n: 2, calm: true, marks: { ask: true } });
+  for (const land of [true, false]) for (const cloth of [0, 1]) strip(`call-screen-${land ? 'land' : 'port'}${cloth ? '-blue' : ''}`, { ...T(), n: 1, w: 0, land, cloth, marks: { ask: true, call: land ? 0 : 4 } }); }
+// the lit cushions of a bank table, with its marked pocket, as the app draws a lesson: the bank lesson both ways up, a Banks scenario on each cloth
+for (const [name, l, cloth] of [['bank-lesson', LESSONS.find(l => l.id === 'bank'), 0], ['bank-banks-7', SCENARIOS.find(s => s.id === 'banks-7'), 0], ['bank-banks-7-blue', SCENARIOS.find(s => s.id === 'banks-7'), 1]])
+  for (const land of [true, false]) { if (cloth && !land) continue; const { B, ids } = lessonTable(l); strip(`${name}-${land ? 'land' : 'port'}`, { B, ids, shots: [], n: 1, land, cloth, marks: { call: l.goal.pocket }, bank: litCushions(l) }); }
 // 15. the shot controls at 3 px per pt: the power rail at rest, at 50% and at full power, then the fine aim dial as it
 // lies in portrait and as it stands in landscape
 { const dpr = PHONE.dpr, surface = CanvasKit.MakeSurface(520 * dpr, 316 * dpr), sk = surface.getCanvas(), c = new JsiSkCanvas(CanvasKit, sk);

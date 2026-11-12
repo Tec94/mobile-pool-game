@@ -1,9 +1,10 @@
 // Run: npm test. Every lesson's reference shot passes on the engine (watch must never fail), and the verdict says
 // what went wrong.
 import assert from 'node:assert';
-import { CUE, step, strike } from '../physics/engine.ts';
+import { CUE, P, step, strike } from '../physics/engine.ts';
 import { shotTip } from '../render/tip.ts';
-import { LESSONS, lessonTable, newLessonRec, noteLesson, readDone, verdict } from './lessons.ts';
+import { cushions } from '../render/table.ts';
+import { LESSONS, lessonTable, litCushions, newLessonRec, noteLesson, nose, readDone, verdict } from './lessons.ts';
 
 const play = (l, ang, power, tip) => {
   const { B, ids } = lessonTable(l), r = newLessonRec(), ev = [];
@@ -30,6 +31,31 @@ for (const l of LESSONS) {
 assert.match(play(at('kick'), 0, 0.45, { x: 0, y: 0, elev: 0 }).say, /cushion first/, 'kick: straight at the 2 is no kick');
 assert.match(play(at('jump'), 0, 0.5, { x: 0, y: 0, elev: 0 }).say, /hit the 2 first/, 'jump: a level shot hits the blocker');
 assert.match(play(at('safety'), at('safety').ref.ang, 0.02, { x: 0, y: 0, elev: 0 }).say, /hit nothing|cushion after/, 'safety: too soft is a foul');
+{ // A bank lights two cushions next to each other round the table (six: the end rails, and each long rail either side
+  // of its side pocket, numbered from the head half of the y = 0 rail), one of them the cushion the reference banks off.
+  const l = at('bank'), lit = litCushions(l);
+  assert(lit && lit.length === 2 && lit.includes(4), `bank: the cushion the reference banks off is lit (${lit})`);
+  assert([1, 5].includes((lit[1] - lit[0] + 6) % 6), 'bank: with one of its neighbours');
+  assert.deepStrictEqual(litCushions({ ...l }), lit, 'bank: the same pair every time');
+  assert.strictEqual(litCushions(at('aim')), null, 'a table that wants no bank lights nothing');
+  // The table draws cushion k (the lit glow fills it) round nose k.
+  for (let k = 0; k < 6; k++) { const n = nose(k), on = (x, y) => cushions()[k].some(q => Math.hypot(q[0] - x, q[1] - y) < 1e-12); assert(on(n[0], n[1]) && on(n[2], n[3]), `cushion ${k} has nose ${k}`); }
+  // Worked out for each table, not each id: the scenario generator judges many bank tables before they have one.
+  const W = P.W, flip = { ...l, id: '', type: 'bank', cue: [l.cue[0], W - l.cue[1]], balls: l.balls.map(([n, x, y]) => [n, x, W - y]), ref: { ...l.ref, ang: -l.ref.ang } };
+  const mine = litCushions({ ...l, id: '', type: 'bank' }), flipped = litCushions(flip);
+  assert(mine.includes(lit[0]) && flipped.includes(4 - lit[0]), `two tables with no id: each its own cushion (${mine}; ${flipped})`);
+  // The 1 banks off the middle of cushion k and drops in the far side pocket (4, on the y = 0 rail): it passes only off a lit cushion.
+  const Rc = 0.0275, mids = [[P.L / 4, Rc], [3 * P.L / 4, Rc], [P.L - Rc, P.W / 2], [3 * P.L / 4, P.W - Rc], [P.L / 4, P.W - Rc], [Rc, P.W / 2]];
+  const off = (k, at = mids[k]) => {
+    const { B, ids } = lessonTable(l), r = newLessonRec();
+    noteLesson(r, [{ t: 'bb', a: 0, b: 1, x: 0.75, y: P.W - 0.36 }, ...(at ? [{ t: 'rail', a: 1, x: at[0], y: at[1] }] : []), { t: 'pocket', a: 1, x: P.L / 2, y: -0.04 }], B, ids);
+    return verdict(l, r, B[0]);
+  };
+  for (let k = 0; k < 6; k++) { const v = off(k); assert.strictEqual(v.ok, lit.includes(k), `bank: off cushion ${k} (lit ${lit}): ${v.say}`); if (!v.ok) assert.strictEqual(v.say, 'Bank it off a lit cushion.'); }
+  assert.strictEqual(off(-1).say, 'Bank it off a lit cushion.', 'bank: potted with no bank');
+  assert.strictEqual(off(-1, [P.L / 2 - 0.04, P.W - 0.01]).say, 'Bank it off a lit cushion.', 'bank: a pocket jaw next to a lit cushion is no bank');
+  assert.strictEqual(play(l, 2.5781, 0.6, l.ref.tip).say, 'Bank it off a lit cushion.', 'bank: on the engine, a shot that drops the 1 with no bank');
+}
 console.log('lessons: all checks passed');
 {
   assert.deepStrictEqual(readDone(null), [], 'no save');

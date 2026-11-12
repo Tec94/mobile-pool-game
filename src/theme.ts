@@ -2,6 +2,7 @@
 export const C = { ground: '#101F1C', frame: '#D9A866', sight: '#16302B', pocket: '#08100E', chalk: '#EEF2EA', accent: '#5B93F0', ink: '#16191A',
   white: '#F6F4EC', shade: '#06120F', warn: '#EF6B5E', panel: '#16302B', // white = the cue ball and stripes (warmer than chalk, which is for lines and text); shade = ball shadows;
   // warn = a shot that loses the cue ball; panel = sheets over the ground
+  call: '#F2463A', // the called pocket: a red that holds on the black of the hole, apart from warn
   // The hand design: menus sit on a darker ground. Gold is for XP and coins only; blue for Fresh Chalk and the Daily ball only.
   menu: '#0E1B19', gold: '#F2C230', blue: '#4B98EE', keyOff: '#EEF2EA1C' };
 export const BALLS = ['#F2C230', '#4B98EE', '#E0483C', '#8448C8', '#EC7428', '#3FBF7F', '#A8323F', '#16191A']; // balls 1 to 8; 9 to 15 repeat 1 to 7 as stripes

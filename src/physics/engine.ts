@@ -288,7 +288,8 @@ export function step(B:Ball[],ev?:Ev[]):boolean{
 // budget caps the cost after that contact, in ball-steps (one moving ball for one step): a hit into the rack or a
 // cluster sets many balls moving, and following them all until the first ball has run len can take a whole break.
 // The default follows every path to len; the app's guide passes a cap so one aim update fits in a frame.
-export function predict(B:Ball[],shot:Shot,len:number,stick?:Cue,maxSteps=25000,budget=Infinity){
+// follow = false: once the cue ball meets a ball, only that ball is followed on (the guide draws no more of the cue ball).
+export function predict(B:Ball[],shot:Shot,len:number,stick?:Cue,maxSteps=25000,budget=Infinity,follow=true){
   const S=B.map(b=>({...b})),ev:Ev[]=[],c=S[0],cue:number[][]=[[c.x,c.y,0]],ob:number[][]=[];
   strike(c,shot,stick);
   let split=-1,hit:Ev|null=null,o:Ball|null=null,cl=0,ol=0,scratch=false,apex=0;const lands:number[][]=[];
@@ -310,8 +311,8 @@ export function predict(B:Ball[],shot:Shot,len:number,stick?:Cue,maxSteps=25000,
     if(i%4===0||ce)if(c.on)cl+=add(cue,c,split>=0);
     if(o&&(i%4===0||oe)&&o.on)ol+=add(ob,o,true);
     // Only the cue ball and the first ball it hits are drawn, so stop once both are done, not when the whole table is.
-    if(!mv||(idle(c)&&(!o||idle(o))))break;
-    if(split>=0&&cl>=len&&(!o||ol>=len))break;
+    if(!mv||((idle(c)||o&&!follow)&&(!o||idle(o))))break;
+    if(split>=0&&(o&&!follow||cl>=len)&&(!o||ol>=len))break;
     if(split>=0&&budget<Infinity){for(const b of S)if(b.on&&(b.vx||b.vy))budget--;if(budget<0)break;}
   }
   return {cue,ob,split,hit,scratch,lands,apex}; // path points are [x,y,z]; lands = cue ball touchdowns before first contact
