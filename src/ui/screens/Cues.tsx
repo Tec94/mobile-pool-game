@@ -119,7 +119,7 @@ function Advanced({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => 
   return <>
     <View style={[styles.facts, land && { marginRight: 186 }]}>
       {facts.map(([n, unit, what]) => (
-        <View key={what}>
+        <View key={what} style={!land && { width: '46%' }}>{/* portrait: 2 x 2, not 3 + 1 */}
           <Txt style={styles.big}>{n}<Txt style={[TYPE.small, styles.bold]}>{` ${unit}`}</Txt></Txt>
           <Txt style={[TYPE.small, { opacity: 0.8 }]}>{what}</Txt>
         </View>
@@ -132,7 +132,7 @@ function Advanced({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => 
 // A cue's mastery: its level and cue XP, and once it has points, a - and + for each stat. The numbers above show the
 // tuned cue. Points move for free; a point past the paid ones costs the next step.
 function Mastery({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => void }) {
-  const m = masteryOf(p, id), { level, into, need } = masteryLevel(m.xp), pts = points(m), free = pts - used(m);
+  const { land } = useFrame(), m = masteryOf(p, id), { level, into, need } = masteryLevel(m.xp), pts = points(m), free = pts - used(m);
   const head = `Mastery ${level} of ${MASTERY_XP.length}`, xp = need ? `${into} / ${need} cue XP` : 'Mastered';
   const cost = STATS.map(s => upCost(p, id, s)).find(x => x !== null), tunes = tunable(id) && pts > 0, priced = tunes && !!cost;
   const next = !tunable(id) ? 'Cannot be tuned' : !pts ? 'Mastery 2 gives a tuning point' : !free ? 'Every point in use' : cost === undefined ? 'No stat has room for more' : `${free} point${free > 1 ? 's' : ''} to place`;
@@ -145,7 +145,7 @@ function Mastery({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => v
         <Hatch share={need ? into / need : 1} />
         {!priced && <Txt style={[TYPE.small, { opacity: 0.8 }]}>{next}</Txt>}
       </View>
-      {tunes && <View style={styles.tunes}>{STATS.map(s => {
+      {tunes && <View style={[styles.tunes, !land && { flexDirection: 'column' }]}>{/* portrait: a stat a line, not 2 + 1 */}{STATS.map(s => {
         const name = cap(s), cost = upCost(p, id, s);
         return <View key={s} style={styles.tune}>
           <Slab paint={DARK} lip={3} radius={3} onPress={() => put(tuneDown(p, id, s))} disabled={!m[s]} accessibilityLabel={`${name} down on ${CUES[id].name}`} hitSlop={5} face={styles.key}>
