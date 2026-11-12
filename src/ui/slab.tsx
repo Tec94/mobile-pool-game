@@ -1,12 +1,16 @@
 // The hand design's pieces: a slab is a flat face on a solid lip of a darker colour (no border, no blur shadow). A press
 // moves the face down onto the lip, at once: no scale, no fade. Keys, chips and cards are slabs.
+import * as Haptics from 'expo-haptics';
 import type { ReactNode } from 'react';
-import { Pressable, type StyleProp, StyleSheet, Text, type TextProps, View, type ViewStyle } from 'react-native';
+import { Platform, Pressable, type StyleProp, StyleSheet, Text, type TextProps, View, type ViewStyle } from 'react-native';
 import Animated, { cubicBezier, Easing, type SharedValue, useAnimatedStyle, useReducedMotion, withTiming } from 'react-native-reanimated';
 import { BALLS, C, CREAM, DARK, FONT, type Paint } from '../theme';
 
 const PRESS = 3; // pt the face moves down when pressed
 const SLOP = { top: 9, bottom: 9, left: 6, right: 6 }; // a 34 x 36 pt key or a 26 pt chip still takes a 44 pt touch each way
+
+// A haptic, never on the web (the QA build): feel(Haptics.selectionAsync) when a choice changes.
+export const feel = (f: () => Promise<void>) => { if (Platform.OS !== 'web') f(); };
 
 // Text with the cap every label in the game has on the system text size.
 export const Txt = (p: TextProps) => <Text maxFontSizeMultiplier={1.3} {...p} />;
@@ -38,7 +42,7 @@ export function Slab({ paint: [face, lip], lip: h = 5, radius = 5, onPress, onLo
 // A key of a key group (a radio): 34 pt, off = flat chalk at 11%, on = cream on its lip. name = what a screen reader says.
 export function Key({ label, name, on, off, onPress }: { label: string; name?: string; on: boolean; off?: boolean; onPress: () => void }) {
   return (
-    <Slab paint={on ? CREAM : [C.keyOff, 'transparent']} lip={on ? PRESS : 0} radius={3} onPress={onPress} disabled={off} hitSlop={SLOP}
+    <Slab paint={on ? CREAM : [C.keyOff, 'transparent']} lip={on ? PRESS : 0} radius={3} onPress={() => { if (!on) feel(Haptics.selectionAsync); onPress(); }} disabled={off} hitSlop={SLOP}
       accessibilityRole="radio" accessibilityLabel={name ?? label} accessibilityState={{ checked: on, disabled: !!off }} aria-checked={on}
       style={{ marginBottom: on ? 0 : PRESS }} face={styles.key}>
       <Txt style={[styles.keyText, { color: on ? C.ink : C.chalk }]}>{label}</Txt>

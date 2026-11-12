@@ -1,6 +1,7 @@
 // The frame of every menu in the hand design: a strip along the top (level, XP, Fresh Chalk, coins), a stage (the
 // chosen thing, its options as keys, one cream button) and a hand of cards along the bottom edge. Landscape when the
 // window is wider than tall; in portrait the hand becomes a stack of card headers.
+import * as Haptics from 'expo-haptics';
 import { createContext, type ReactNode, useContext, useRef } from 'react';
 import { Platform, Pressable, ScrollView, type ScrollViewInstance, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, { useAnimatedScrollHandler, useReducedMotion, useSharedValue } from 'react-native-reanimated';
@@ -10,7 +11,7 @@ import { profile } from '../progress';
 import { levelOf } from '../progress/profile';
 import { C, CREAM, DARK, FONT, inkOn, type Paint } from '../theme';
 import { focusAt, offsetOf } from './hand';
-import { BallArt, Chip, HandCard, Hatch, Slab, Txt, TYPE } from './slab';
+import { BallArt, Chip, feel, HandCard, Hatch, Slab, Txt, TYPE } from './slab';
 
 // Fresh Chalk charges for the strip. The daily state lives in App, so Menus provides it here for every screen.
 export const ChalkCount = createContext(0);
@@ -74,13 +75,13 @@ export function Link({ label, name, onPress }: { label: string; name?: string; o
   );
 }
 
-export interface Action { label: string; name?: string; onPress: () => void; off?: boolean } // off = cannot be pressed now
+export interface Action { label: string; name?: string; onPress: () => void; off?: boolean; quiet?: boolean } // off = cannot be pressed now; quiet = the press gives its own haptic
 // The chosen thing: its title, one line, the option rows (children), and the one cream button, top right in landscape
 // (with an optional link under it) and full width under the rows in portrait.
 export function Stage({ title, line, cta, link, children }: { title: string; line?: string; cta: Action; link?: Action; children?: ReactNode }) {
   const { land, side } = useFrame();
   const button = (
-    <Slab paint={cta.off ? DARK : CREAM} onPress={cta.onPress} disabled={cta.off} accessibilityLabel={cta.name ?? cta.label} style={[land ? { width: 170, height: 58 } : { height: 58 }, { opacity: 1 }]} face={styles.cta}>
+    <Slab paint={cta.off ? DARK : CREAM} onPress={() => { if (!cta.quiet) feel(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)); cta.onPress(); }} disabled={cta.off} accessibilityLabel={cta.name ?? cta.label} style={[land ? { width: 170, height: 58 } : { height: 58 }, { opacity: 1 }]} face={styles.cta}>
       <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.ctaText, cta.off && { color: C.chalk, opacity: 0.6 }]}>{cta.label}</Txt>
     </Slab>
   );
@@ -113,15 +114,18 @@ export interface Card {
 // follow (landscape, a row that scrolls): the raised card follows the scroll and the stage follows once it rests (hand.ts).
 export function Hand({ cards, up, pick, width = 110, height = 200, follow }: { cards: Card[]; up: number; pick: (i: number) => void; width?: number; height?: number; follow?: boolean }) {
   const { land, side, pad, width: screen, height: tall } = useFrame(), scroll = useRef<ScrollViewInstance>(null), mid = (cards.length - 1) / 2, step = Math.min(1.1, 3.3 / Math.max(1, mid));
+  const choose = (i: number) => { if (i !== up) feel(Haptics.selectionAsync); pick(i); };
   const still = useReducedMotion(), n = cards.length, edge = side + 8, fit = (screen - 2 * edge - 4 * (n - 1)) / n;
   // A hand that fits widens its cards to fill the row edge to edge; one that overflows keeps its width and scrolls.
   const w = fit >= width * 0.95 ? Math.min(Math.floor(fit), width * 1.25) : width, max = Math.max(0, 2 * edge + n * w + 4 * (n - 1) - screen), follows = !!follow && max > 0;
   const at = (i: number) => follows ? offsetOf(i, max, n) : Math.min(Math.max(0, edge + i * (w + 4) - (screen - w) / 2), max); // card i centred, clamped to the row
   // Follow: the scroll moves focus on the UI thread; React hears of it once per new card (a tick) and picks 80 ms after
   // the focus rests. target = the offset a tap scrolls to: cards passing under on the way do not take the focus.
-  const focus = useSharedValue(up), target = useSharedValue(-1), rest = useRef({ pick, timer: undefined as ReturnType<typeof setTimeout> | undefined }).current;
+  const focus = useSharedValue(up), target = useSharedValue(-1), rest = useRef({ pick, timer: undefined as ReturnType<typeof setTimeout> | undefined, felt: 0 }).current;
   rest.pick = pick;
-  const moved = useRef((i: number) => { clearTimeout(rest.timer); rest.timer = setTimeout(() => rest.pick(i), 80); }).current;
+  const moved = useRef((i: number) => {
+    if (Date.now() - rest.felt > 50) { rest.felt = Date.now(); feel(Haptics.selectionAsync); } // one tick per card, at most 20 a second
+    clearTimeout(rest.timer); rest.timer = setTimeout(() => rest.pick(i), 80); }).current;
   const onScroll = useAnimatedScrollHandler({
     onScroll: e => {
       const x = e.contentOffset.x;
@@ -139,7 +143,7 @@ export function Hand({ cards, up, pick, width = 110, height = 200, follow }: { c
       {cards.map((c, i) => {
         const ink = { color: inkOn(c.paint) }, last = i === cards.length - 1;
         return (
-          <Slab key={c.key} paint={c.paint} onPress={() => pick(i)} accessibilityLabel={c.name} accessibilityState={{ selected: i === up }}
+          <Slab key={c.key} paint={c.paint} onPress={() => choose(i)} accessibilityLabel={c.name} accessibilityState={{ selected: i === up }}
             style={{ height: last ? 95 + pad.bottom : 55, marginBottom: last ? 0 : -5 }} face={i === up && [styles.chosen, { outlineColor: ink.color }]}>
             <View style={styles.head}>
               <View style={styles.headText}>
@@ -164,7 +168,7 @@ export function Hand({ cards, up, pick, width = 110, height = 200, follow }: { c
         const ink = { color: inkOn(c.paint) };
         return (
           <HandCard key={c.key} paint={c.paint} up={i === up} tilt={(i - mid) * step} name={c.name} width={w} height={height} i={i} focus={follows ? focus : undefined}
-            onPress={() => { if (follows && focus.value !== i) { target.value = at(i); focus.value = i; } pick(i); scroll.current?.scrollTo({ x: at(i), animated: !still }); }}>
+            onPress={() => { if (follows && focus.value !== i) { target.value = at(i); focus.value = i; } choose(i); scroll.current?.scrollTo({ x: at(i), animated: !still }); }}>
             {c.body ?? <>
               <Txt style={[TYPE.name, ink]}>{c.title}</Txt>
               {c.line && <Txt style={[TYPE.small, ink, { marginTop: 3 }]}>{c.line}</Txt>}

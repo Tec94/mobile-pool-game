@@ -1,4 +1,5 @@
 import { Skia } from '@shopify/react-native-skia';
+import * as Haptics from 'expo-haptics';
 import { useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { PENCIL_AT } from '../../learn/lessons';
@@ -10,7 +11,7 @@ import { C, CREAM, DARK, FONT } from '../../theme';
 import { drawCueArt } from '../cueArt';
 import type { Props } from '../Menus';
 import { type Card, Hand, Row, Shell, Stage, useFrame } from '../shell';
-import { Blocks, Hatch, Slab, Txt, TYPE } from '../slab';
+import { Blocks, feel, Hatch, Slab, Txt, TYPE } from '../slab';
 
 const W = 104, ART = 110; // the picture ends above the name (110..127), the foot is 132..156
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
@@ -68,7 +69,8 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
   });
   const id = CUE_IDS[up], c: CueInfo = CUES[id], owned = p.owned.includes(id), use = p.cue === id;
   const cta = owned ? { label: use ? 'In use' : 'Use', name: use ? `${c.name}, in use` : `Use ${c.name}`, off: use, onPress: () => put(select(p, id)) }
-    : c.price !== undefined ? { label: `Buy ${c.price.toLocaleString('en-US')}`, name: `Buy ${c.name} for ${c.price} coins`, off: p.coins < c.price, onPress: () => put(buy(p, id)) }
+    : c.price !== undefined ? { label: `Buy ${c.price.toLocaleString('en-US')}`, name: `Buy ${c.name} for ${c.price} coins`, off: p.coins < c.price, quiet: true,
+      onPress: () => { const next = buy(p, id); if (next !== p) feel(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)); put(next); } }
     : { label: 'Locked', name: `${c.name}, locked`, off: true, onPress: () => {} };
   // What gets a cue not yet owned goes on the stage's line.
   const f = c.feat as FeatId | undefined, need = owned ? [use ? 'In use' : 'Yours'] : [
