@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { CUE } from '../physics/engine.ts';
 import { CUES, specLine, specs, stick } from './cues.ts';
-import { matchPay, safetyPay, shotPay } from './pay.ts';
+import { matchPay, newLedger, noteShot, safetyPay, settle, shotPay } from './pay.ts';
 import { cueGain, masteryLevel, masteryNote, masteryOf, readMastery, statsOf, tuneDown, tuneUp, upCost } from './mastery.ts';
 import { buy, feat, featCount, gain, levelNote, levelOf, NEW, opens, PACKS, readProfile, select, unlock, VENUES } from './profile.ts';
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
@@ -167,4 +167,18 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(readProfile(JSON.stringify({ mastery: { house: { xp: 300, power: 1, paid: 1 } } })).mastery.house.power, 1, 'mastery is read with the profile');
   eq(readProfile(null).mastery, {}, 'no save: no mastery');
   ok('a saved mastery is read defensively');
+}
+
+{ // a quick match's ledger: shots add up, fouls and own balls feed matchPay, Fresh Chalk pays the match pay again
+  const l = newLedger();
+  noteShot(l, { pay: { xp: 10, coins: 5 }, run: 1, own: 1 }, false);
+  noteShot(l, { pay: { xp: 4, coins: 2 }, run: 0, own: 0 }, true);
+  eq(l, { shots: { xp: 14, coins: 7 }, run: 0, fouls: 1, own: 1 }, 'two shots: pay summed, the run is the last, a foul counted');
+  const m = matchPay({ tier: 2, won: true, fouls: 1, ownPotted: 1 });
+  eq(settle(l, { tier: 2, won: true, early: false }), { match: m, shots: { xp: 14, coins: 7 }, chalk: null, total: { xp: m.xp + 14, coins: m.coins + 7 } }, 'no chalk: match + shots');
+  const twice = settle(l, { tier: 2, won: true, early: false }, (won, p) => (won ? p : { xp: 0, coins: 0 }));
+  eq([twice.chalk, twice.total], [m, { xp: 2 * m.xp + 14, coins: 2 * m.coins + 7 }], 'chalk on a win: the match pay twice, the shots once');
+  eq(settle(l, { tier: 2, won: false, early: false }, () => ({ xp: 0, coins: 0 })).chalk, null, 'chalk that paid nothing is no line');
+  eq(settle(l, { tier: 2, won: false, early: true }).match, { xp: 0, coins: 0 }, 'an early 8 pays no match pay');
+  ok('ledger: shots, fouls, own balls and Fresh Chalk');
 }

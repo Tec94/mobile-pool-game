@@ -28,7 +28,7 @@ import { canCall, choose, handCue, judge, legalFirst, moveCue, newGame, newRec, 
 import { thinkAsync } from './src/ai/think';
 import { candsFor, choiceFor, type Move, nextSafeties, potPay, type Safeties, safetiesArg, softMove, think } from './src/ai/turn';
 import { type Cand, TIERS } from './src/ai/shot-ai';
-import { matchPay, type Pay } from './src/progress/pay';
+import { newLedger, noteShot, type Pay, settle, type Settled } from './src/progress/pay';
 import { DRAG, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { farGuide, type Guide, type GuideAsk, nearGuide } from './src/shot/far';
 import { guidePacer } from './src/shot/pacer';
@@ -183,10 +183,10 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
 
   const score = useRef<[number, number]>([0, 0]), [paused, setPaused] = useState(false); // score = frames won
   const gained = useRef<ReturnType<typeof award> | null>(null); // the award of the match, for the results card
-  // Quick match: what the human's shots earned this match, the run of pots this visit, fouls and own balls potted (for
-  // matchPay), the pots on the table at the strike (for pRef), and the pay of the finished match.
+  // Quick match: the pay so far (src/progress/pay.ts), the pots on the table at the strike (for pRef), and the pay lines
+  // of the finished match.
   // shortcut: a match left from the pause card pays nothing, not even its shots; no safety pay (needs the AI's reply).
-  const won = useRef({ shots: { xp: 0, coins: 0 } as Pay, run: 0, fouls: 0, own: 0, cands: [] as Cand[], pay: PASS_PLAY, chalk: null as Pay | null });
+  const won = useRef(newLedger()), cands = useRef<Cand[]>([]), end = useRef<Settled | null>(null);
   const safe = useRef<Safeties>({ row: 0, rack: 0 }), seed = useRef(Math.floor(Math.random() * 2 ** 31)), [thinking, setThinking] = useState(false);
   useEffect(() => { const sub = BackHandler.addEventListener('hardwareBackPress', () => { setPaused(p => !p); return true; }); return () => sub.remove(); }, []); // Android back opens and closes the pause card
   const rules = table.current.rules, [, redraw] = useReducer((n: number) => n + 1, 0); // the rules live with the table; redraw shows a change
@@ -258,9 +258,9 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   apply.current = (s: State) => {
     const t = table.current;
     if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++; if (score.current[s.winner] === race) {
-      const w = won.current, m = vs && matchPay({ tier: rival ? tenth(level.current) : ai + 1, won: s.winner === 0, fouls: w.fouls, ownPotted: w.own, early: s.winner === 1 && s.note.endsWith('went down early.') }); // early: only an early 8 pays nothing (the note of over() in rules.ts)
-      const x = m && chalk ? chalk(s.winner === 0, m) : null; w.chalk = x?.xp || x?.coins ? x : null; // Fresh Chalk doubles the match pay, not the shot pay
-      w.pay = m ? { xp: m.xp + w.shots.xp + (x?.xp ?? 0), coins: m.coins + w.shots.coins + (x?.coins ?? 0) } : PASS_PLAY; gained.current = award(w.pay, vs ? own : undefined); // quick match played the player's own cue
+      const r = vs ? settle(won.current, { tier: rival ? tenth(level.current) : ai + 1, won: s.winner === 0, early: s.winner === 1 && s.early }, chalk) // only an early 8 pays nothing
+        : { match: PASS_PLAY, shots: { xp: 0, coins: 0 }, chalk: null, total: PASS_PLAY };
+      end.current = r; gained.current = award(r.total, vs ? own : undefined); // quick match played the player's own cue
       // The loser's own balls left (8-ball; 7 on an open table) say how close the match was.
       if (rival) { const lose = 1 - s.winner, left = s.solids < 0 ? 7 : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === lose)).length, [a, b] = rivalDone(game, s.winner === 0, left, set.mood); moved.current = `Rival ${shown(a)} to ${shown(b)}`; }
     } }
@@ -314,8 +314,8 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         if (!queue.value.length && L) { table.current.rec = null; ended.current(rec as LessonRec); }
         else if (!queue.value.length) {
           const next = judge(s, rec, pushOut);
-          if (vs && s.turn === 0) { const w = won.current, p = potPay(w.cands, rec, s, next, w.run, rival ? { boss: level.current } : { tier: ai + 1 }); w.shots.xp += p.pay.xp; w.shots.coins += p.pay.coins; w.run = p.run; w.own += p.own; w.fouls += +next.note.startsWith('Foul'); }
-          if (next.phase === 'over' || next.note.startsWith('Foul')) Haptics.notificationAsync(next.winner < 0 ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
+          if (vs && s.turn === 0) noteShot(won.current, potPay(cands.current, rec, s, next, won.current.run, rival ? { boss: level.current } : { tier: ai + 1 }), next.foul && next.phase !== 'over'); // a foul that ends the rack does not cost the clean-match bonus
+          if (next.phase === 'over' || next.foul) Haptics.notificationAsync(next.winner < 0 ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
           apply.current(next);
         }
       } else {
@@ -347,7 +347,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
     const t = table.current;
     if (shut() || (onEight(t.rules) && t.rules.call < 0)) { shot.set({ power: 0 }); return; } // the 8 needs its pocket called first: the HUD asks for it
     Haptics.impactAsync(power > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
-    if (vs) won.current.cands = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules); // shortcut: a full candidate search on the strike frame, cheap next to a guide
+    if (vs) cands.current = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules); // shortcut: a full candidate search on the strike frame, cheap next to a guide
     t.rec = L ? newLessonRec() : newRec(); strike(t.B[0], shotOf(power), cue); moving.current = true; wake.current();
     tip.set(LEVEL); setSheet(false); setTools(false); shot.set({ power: 0, fine: false, locked: true });
   };
@@ -493,9 +493,9 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   // A new rack. The break alternates after a finished rack (WPA 1.3); a rack started over keeps its breaker.
   const over = rules.phase === 'over';
   const win = rules.winner === -1 ? 0 : rules.winner, done = over && score.current[win] >= race; // the match is over
-  const paid = won.current; // the match pay is the total less the shots and Fresh Chalk (which pays the match pay again)
+  const paid = done ? end.current : null;
   const rerack = (breaker = over ? 1 - rules.breaker : rules.breaker) => {
-    if (done) { score.current = [0, 0]; if (rival) { level.current = profile().rival[game].rating; moved.current = ''; } won.current = { shots: { xp: 0, coins: 0 }, run: 0, fouls: 0, own: 0, cands: [], pay: PASS_PLAY, chalk: null }; }
+    if (done) { score.current = [0, 0]; if (rival) { level.current = profile().rival[game].rating; moved.current = ''; } won.current = newLedger(); cands.current = []; end.current = null; }
     apply.current(newGame(game, breaker as 0 | 1, set.callAll));
   };
 
@@ -568,9 +568,9 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         <Results rules={rules} kind={vs ? 'Quick match' : undefined} title={`${names[win]} wins${race > 1 ? done ? ' the match' : ' the frame' : ''}`} gold={!vs || win === 0}
           score={race > 1 ? score.current : undefined} names={names} foot={done ? moved.current : ''}>
           {!done && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{`${names[1 - rules.breaker]} breaks`}</Text>}
-          {done && <PayRow label={!vs ? 'Pass and play' : win === 0 ? 'Match win' : 'Match'} xp={paid.pay.xp - paid.shots.xp - (paid.chalk?.xp ?? 0)} coins={paid.pay.coins - paid.shots.coins - (paid.chalk?.coins ?? 0)} twice={!!paid.chalk} />}
-          {done && vs && <PayRow label="Shots" xp={paid.shots.xp} coins={paid.shots.coins} />}
-          {done && <PayTotal xp={paid.pay.xp} coins={paid.pay.coins} />}
+          {paid && <PayRow label={!vs ? 'Pass and play' : win === 0 ? 'Match win' : 'Match'} xp={paid.match.xp} coins={paid.match.coins} twice={!!paid.chalk} />}
+          {paid && vs && <PayRow label="Shots" xp={paid.shots.xp} coins={paid.shots.coins} />}
+          {paid && <PayTotal xp={paid.total.xp} coins={paid.total.coins} />}
           {done && gained.current && <Gained {...gained.current} />}
           {done && !!gained.current?.mastery && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{gained.current.mastery}</Text>}
           <View style={styles.acts}>

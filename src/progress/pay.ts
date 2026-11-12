@@ -47,3 +47,18 @@ export function matchPay(m: Match): Pay {
   const [xp, coins] = m.won ? [60, 40] : [20, 10];
   return { xp: Math.round(xp * m.tier * k), coins: Math.round(coins * m.tier * k) };
 }
+
+// A quick match's pay so far: what the human's shots earned, the run of pots this visit, and the fouls and own balls
+// potted that matchPay reads at the end. noteShot adds a shot the rules have judged (potPay in src/ai/turn.ts).
+export interface Ledger { shots: Pay; run: number; fouls: number; own: number }
+export const newLedger = (): Ledger => ({ shots: { xp: 0, coins: 0 }, run: 0, fouls: 0, own: 0 });
+export function noteShot(l: Ledger, p: { pay: Pay; run: number; own: number }, foul: boolean) {
+  l.shots.xp += p.pay.xp; l.shots.coins += p.pay.coins; l.run = p.run; l.own += p.own; l.fouls += +foul;
+}
+// The pay lines of a finished match. chalk = what Fresh Chalk paid (the match pay again on a win, not the shot pay),
+// null when it paid nothing.
+export interface Settled { match: Pay; shots: Pay; chalk: Pay | null; total: Pay }
+export function settle(l: Ledger, m: { tier: number; won: boolean; early: boolean }, chalk?: (won: boolean, match: Pay) => Pay): Settled {
+  const match = matchPay({ ...m, fouls: l.fouls, ownPotted: l.own }), x = chalk ? chalk(m.won, match) : null, c = x && (x.xp || x.coins) ? x : null;
+  return { match, shots: { ...l.shots }, chalk: c, total: { xp: match.xp + l.shots.xp + (c?.xp ?? 0), coins: match.coins + l.shots.coins + (c?.coins ?? 0) } };
+}
