@@ -13,7 +13,7 @@ import type { Props } from '../Menus';
 import { type Card, Hand, Row, Shell, Stage, useFrame } from '../shell';
 import { Blocks, Hatch, Slab, Txt, TYPE } from '../slab';
 
-const W = 96, H = 180, ART = 88;
+const W = 104, ART = 110; // the picture ends above the name (110..127), the foot is 132..156
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 // A cue's own look (cueArt.ts) in a w x h box: tip at (x, y), turned deg, len long, k thick. Drawn once per cue and
@@ -34,7 +34,7 @@ function CueArt({ id, pose }: { id: CueId; pose: Pose }) {
   }
   return <Image source={{ uri }} style={{ width: w, height: h }} />;
 }
-const TALL: Pose = [96, 112, 48, 6, 90, 100, 96 / 27], FLAT: Pose = [250, 50, 4, 40, -6, 240, 2.2]; // card; stage
+const TALL: Pose = [W, 106, W / 2, 6, 90, 100, 96 / 27], FLAT: Pose = [250, 50, 4, 40, -6, 240, 2.2]; // card; stage
 const small = (size: number): Pose => [size, size, 4, size - 4, -48, size * 1.1, size / 18]; // a portrait header
 
 // The cue rack as a hand: cream = owned, dark = not, each with its footer (in use, stats, or what gets it). The stage
@@ -81,7 +81,7 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
         link={adv ? { label: '‹ Simple stats', name: 'Simple stats', onPress: () => setAdv(false) } : { label: 'Advanced stats ›', name: 'Advanced stats', onPress: () => setAdv(true) }}>
         {adv ? <Advanced id={id} p={p} put={put} /> : <Simple id={id} p={p} />}
       </Stage>
-      <Hand cards={cards} up={up} pick={setUp} width={W} height={H} />
+      <Hand cards={cards} up={up} pick={setUp} width={W} />
     </Shell>
   );
 }
@@ -152,7 +152,7 @@ function Mastery({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => v
 const styles = StyleSheet.create({
   bold: { fontFamily: FONT.bold },
   art: { position: 'absolute', left: 0, top: 4 },
-  name: { ...TYPE.name, fontSize: 14, textAlign: 'center', position: 'absolute', left: 4, right: 4, top: ART },
+  name: { ...TYPE.name, fontSize: 14, textAlign: 'center', position: 'absolute', left: 3, right: 3, top: ART },
   foot: { position: 'absolute', left: 0, right: 0, top: ART + 22, height: 24, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   simple: { flexDirection: 'row', alignItems: 'center', gap: 28 },
   stat: { flexDirection: 'row', alignItems: 'center', gap: 8 },
