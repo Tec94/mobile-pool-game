@@ -84,7 +84,7 @@ export function Stage({ title, line, cta, link, children }: { title: string; lin
   return <>
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: side, paddingTop: land ? 6 : 12, paddingBottom: 12, gap: 8 }} keyboardShouldPersistTaps="handled" alwaysBounceVertical={false}>
       <View style={land && { minHeight: 58, paddingRight: 186 }}>
-        <Txt accessibilityRole="header" style={TYPE.title}>{title}</Txt>
+        <Txt accessibilityRole="header" style={[TYPE.title, !land && styles.portTitle]}>{title}</Txt>
         {line && <Txt numberOfLines={2} style={styles.line}>{line}</Txt>}
       </View>
       {children}
@@ -171,6 +171,7 @@ const styles = StyleSheet.create({
   link: { height: 28, justifyContent: 'center', alignSelf: 'flex-end' },
   linkText: { fontFamily: FONT.bold, fontSize: 12, color: C.chalk, textDecorationLine: 'underline', opacity: 0.9 },
   line: { ...TYPE.body, opacity: 0.82, marginTop: 3 },
+  portTitle: { fontSize: 28, lineHeight: 32, letterSpacing: -0.4 }, // a long title breaks with no orphan word
   side: { position: 'absolute', top: 6, width: 170, alignItems: 'flex-end' },
   cta: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   ctaText: { fontFamily: FONT.display, fontSize: 26, lineHeight: 30, color: C.ink },
