@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
   key: { height: 34, paddingHorizontal: 8, minWidth: 36, alignItems: 'center', justifyContent: 'center', flexGrow: 0 },
   keyText: { fontFamily: FONT.bold, fontSize: 12.5, lineHeight: 16, fontVariant: ['tabular-nums'] },
   keys: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 8, flexShrink: 1, maxWidth: '100%' },
-  keyLabel: { fontFamily: FONT.bold, fontSize: 11, color: C.chalk, opacity: 0.7, marginRight: 4 },
+  keyLabel: { fontFamily: FONT.bold, fontSize: 11, color: C.chalk, opacity: 0.7, marginRight: 4, marginBottom: 3 }, // centred on the key face, not face and lip
   chip: { minHeight: 26, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', gap: 5 },
   chipText: { fontFamily: FONT.bold, fontSize: 13, lineHeight: 16, color: C.chalk, fontVariant: ['tabular-nums'] },
   disc: { position: 'absolute', left: 0, top: 0 },
