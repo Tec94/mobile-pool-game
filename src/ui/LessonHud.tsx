@@ -7,7 +7,7 @@ import type { EdgeInsets } from 'react-native-safe-area-context';
 import { type Lesson, SOLO_RUN, type Stage } from '../learn/lessons';
 import { BAR } from '../render/table';
 import { spinLabel, zoneLabel } from '../render/tip';
-import { C } from '../theme';
+import { C, FONT } from '../theme';
 
 export const LESSON_HUD = 92; // screen units above the table: the step, the goal on up to two lines, one line of help
 
@@ -33,7 +33,7 @@ export function LessonHud({ lesson, n, stage, run, land, pad, head, line: said, 
 const styles = StyleSheet.create({
   hud: { position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 8, height: LESSON_HUD - 8 },
   text: { flex: 1, gap: 2 },
-  eyebrow: { color: C.chalk + 'B3', fontSize: 11, lineHeight: 14, fontWeight: '600', letterSpacing: 0.9, textTransform: 'uppercase' },
-  say: { color: C.chalk, fontSize: 15, lineHeight: 19, fontWeight: '700' },
-  line: { color: C.chalk, fontSize: 13, lineHeight: 17 },
+  eyebrow: { color: C.chalk + 'B3', fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, letterSpacing: 0.9, textTransform: 'uppercase' },
+  say: { color: C.chalk, fontFamily: FONT.display, fontSize: 16, lineHeight: 19 },
+  line: { color: C.chalk, fontFamily: FONT.semi, fontSize: 13, lineHeight: 17 },
 });

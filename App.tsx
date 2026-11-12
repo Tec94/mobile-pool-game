@@ -41,10 +41,11 @@ import { levelNote } from './src/progress/profile';
 import { CUES, stick } from './src/progress/cues';
 import { loadSettings, saveSettings } from './src/settings/save';
 import { RIVAL, type Settings } from './src/settings/settings';
-import { BALLS, C, CLOTHS } from './src/theme';
+import { BALLS, C, CLOTHS, CREAM, DARK, FONT } from './src/theme';
 import { Btn } from './src/ui/Btn';
+import { useFontsReady } from './src/ui/fonts';
 import { LESSON_HUD, LessonHud } from './src/ui/LessonHud';
-import { hudHeight, MatchHud, Results } from './src/ui/MatchHud';
+import { Act, hudHeight, MatchHud, PayRow, PayTotal, Results } from './src/ui/MatchHud';
 import { Menus, type Screen } from './src/ui/Menus';
 import { AimDial, PowerRail, shotStore } from './src/ui/ShotControls';
 import { TipButton, TipSheet, tipStore } from './src/ui/TipControl';
@@ -74,10 +75,12 @@ const newLesson = (l: Lesson) => {
 };
 
 export default function App() {
+  if (!useFontsReady()) return null;
   return <SafeAreaProvider initialMetrics={initialWindowMetrics}><Root /></SafeAreaProvider>;
 }
 
 const LOCKS = [ScreenOrientation.OrientationLock.DEFAULT, ScreenOrientation.OrientationLock.PORTRAIT_UP, ScreenOrientation.OrientationLock.LANDSCAPE];
+const MENU_LOCKS = [ScreenOrientation.OrientationLock.LANDSCAPE, ScreenOrientation.OrientationLock.PORTRAIT_UP];
 
 // The screen on show and the settings. A match reads its setup when it starts.
 function Root() {
@@ -134,9 +137,11 @@ function Root() {
   const first = useRef(true);
   useEffect(() => { if (first.current) first.current = false; else saveSettings(set); }, [set]);
   useEffect(() => { if (done.length >= PENCIL_AT) unlockCue('pencil'); }, []); // also at launch: lessons passed before cues existed still count
-  useEffect(() => { ScreenOrientation.lockAsync(LOCKS[set.orient]).catch(() => {}); }, [set.orient]);
+  // The lock follows the place: the menus are one way up (settings.menus), a match, lesson or table its own (settings.orient).
+  const playing = screen === 'match' || screen === 'ai' || screen === 'lesson' || screen === 'scenario' || screen === 'daily';
+  useEffect(() => { ScreenOrientation.lockAsync(playing ? LOCKS[set.orient] : MENU_LOCKS[set.menus]).catch(() => {}); }, [playing, set.orient, set.menus]);
   useEffect(() => { // Android back: from a menu page to home
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (screen !== 'home' && screen !== 'match' && screen !== 'ai' && screen !== 'lesson' && screen !== 'scenario' && screen !== 'daily') { go('home'); return true; } return false; });
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (screen !== 'home' && !playing) { go('home'); return true; } return false; });
     return () => sub.remove();
   }, [screen]);
   return <>
@@ -484,6 +489,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   // A new rack. The break alternates after a finished rack (WPA 1.3); a rack started over keeps its breaker.
   const over = rules.phase === 'over';
   const win = rules.winner === -1 ? 0 : rules.winner, done = over && score.current[win] >= race; // the match is over
+  const paid = won.current; // the match pay is the total less the shots and Fresh Chalk (which pays the match pay again)
   const rerack = (breaker = over ? 1 - rules.breaker : rules.breaker) => {
     if (done) { score.current = [0, 0]; if (rival) { level.current = profile().rival[game].rating; moved.current = ''; } won.current = { shots: { xp: 0, coins: 0 }, run: 0, fouls: 0, own: 0, cands: [], pay: PASS_PLAY, chalk: null }; }
     apply.current(newGame(game, breaker as 0 | 1, set.callAll));
@@ -505,7 +511,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         {S && <Btn label={guideOff ? 'Guide off' : 'Guide on'} name="Aim guide" on={!guideOff} onPress={() => { setGuideOff(!guideOff); les.current.guideOff = !guideOff; dirty(); }} />}
       </LessonHud>}
       {/* The player plates, the 9-ball strip and the banner with the last ruling (src/ui/MatchHud.tsx). */}
-      {!L && <MatchHud rules={rules} names={names} push={table.current.push} view={view} pad={pad} calm={calm} wait={bot() && !over ? (thinking ? `${names[1]} is thinking…` : '') : undefined}
+      {!L && <MatchHud rules={rules} names={names} push={table.current.push} view={view} pad={pad} calm={calm} wait={bot() && !over ? (thinking ? `${names[1]} is thinking…` : '') : undefined} score={race > 1 ? score.current : undefined}
         pause={<Btn label="II" name="Pause" onPress={() => { setPaused(true); setTools(false); setSheet(false); }} />}>
         {rules.push && !rules.choice && !(vs && rules.turn === 1) && <Btn label={table.current.push ? 'Push out: on' : 'Push out'} onPress={() => { if (!table.current.rec) { table.current.push = !table.current.push; redraw(); } }} />}
       </MatchHud>}
@@ -515,12 +521,12 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>{said.title}</Text>
             <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, said.say.startsWith('+') && styles.pay]}>{said.say}</Text>
-            {S ? said.ok ? <>{onNext && <Btn label="Next scenario" onPress={onNext} />}<Btn label="Play again" onPress={() => { setTries(1); les.current.tries = 1; reset('solo'); }} /><Btn label={`Back to ${back}`} onPress={onQuit} /></>
-              : <Btn label="Retry" onPress={() => reset('solo')} />
-              : stage === 'watch' ? <><Btn label="Try it" onPress={() => reset('guided')} /><Btn label="Watch again" onPress={() => reset('watch')} /></>
-              : run >= SOLO_RUN ? <>{onNext && n + 1 < LESSONS.length && <Btn label="Next lesson" onPress={onNext} />}<Btn label="Back to Learn" onPress={onQuit} /></>
-              : stage === 'guided' ? <>{said.ok && <Btn label="Next: solo" onPress={() => { setRun(0); reset('solo'); }} />}<Btn label={said.ok ? 'Again' : 'Retry'} onPress={() => reset('guided')} /><Btn label="Watch again" onPress={() => reset('watch')} /></>
-              : <Btn label={said.ok ? 'Next shot' : 'Retry'} onPress={() => reset('solo')} />}
+            {S ? said.ok ? <>{onNext && <Act paint={CREAM} label="Next scenario" onPress={onNext} />}<Act paint={onNext ? undefined : CREAM} label="Play again" onPress={() => { setTries(1); les.current.tries = 1; reset('solo'); }} /><Act label={`Back to ${back}`} onPress={onQuit} /></>
+              : <Act paint={CREAM} label="Retry" onPress={() => reset('solo')} />
+              : stage === 'watch' ? <><Act paint={CREAM} label="Try it" onPress={() => reset('guided')} /><Act label="Watch again" onPress={() => reset('watch')} /></>
+              : run >= SOLO_RUN ? <>{onNext && n + 1 < LESSONS.length && <Act paint={CREAM} label="Next lesson" onPress={onNext} />}<Act label="Back to Learn" onPress={onQuit} /></>
+              : stage === 'guided' ? <>{said.ok && <Act paint={CREAM} label="Next: solo" onPress={() => { setRun(0); reset('solo'); }} />}<Act paint={said.ok ? undefined : CREAM} label={said.ok ? 'Again' : 'Retry'} onPress={() => reset('guided')} /><Act label="Watch again" onPress={() => reset('watch')} /></>
+              : <Act paint={CREAM} label={said.ok ? 'Next shot' : 'Retry'} onPress={() => reset('solo')} />}
           </View>
         </View>
       )}
@@ -530,24 +536,9 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>{`${names[rules.turn]}, your call`}</Text>
             {!!rules.note && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{rules.note}</Text>}
-            {rules.choice.map((o, i) => <Btn key={o.label} label={o.label} onPress={() => apply.current(choose(rules, i))} />)}
+            {rules.choice.map((o, i) => <Act key={o.label} label={o.label} onPress={() => apply.current(choose(rules, i))} />)}
           </View>
         </View>
-      )}
-      {/* The end of the rack: the frame score in a race, the pay at the end of the match. */}
-      {over && !paused && (
-        <Results rules={rules} kind={vs ? 'Quick match' : undefined} title={`${names[win]} wins${race > 1 ? done ? ' the match' : ' the frame' : ''}`}>
-          {race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} ${score.current[0]} – ${score.current[1]} ${names[1]}`}</Text>}
-          {!done && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[1 - rules.breaker]} breaks`}</Text>}
-          {done && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.pay]}>{`+${won.current.pay.xp} XP · +${won.current.pay.coins} coins`}</Text>}
-          {done && vs && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`Shots +${won.current.shots.xp} XP · +${won.current.shots.coins} coins`}</Text>}
-          {done && !!moved.current && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{moved.current}</Text>}
-          {done && won.current.chalk && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`Fresh Chalk: +${won.current.chalk.xp} XP · +${won.current.chalk.coins} coins`}</Text>}
-          {done && gained.current && <Gained {...gained.current} />}
-          {done && !!gained.current?.mastery && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{gained.current.mastery}</Text>}
-          <Btn label={done ? 'Rematch' : 'Next rack'} onPress={() => rerack()} />
-          {done && <Btn label="Menu" onPress={onQuit} />}
-        </Results>
       )}
       {/* The shot controls sit inside the safe area where shotLayout puts them. */}
       <PowerRail store={shot} box={lay.rail} onStrike={fire} />
@@ -568,14 +559,30 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       {/* The sheet stops short of the rail, so a shot can be pulled while it is open. */}
       {sheet && <TipSheet store={tip} land={view.land} calm={calm} felt={CLOTHS[cloth].felt} blend={set.zones} onDone={() => setSheet(false)} width={view.land ? 300 : lay.rail.left - 8 - lay.tools.left}
         style={view.land ? { right: width - lay.rail.left + 8, bottom: Math.max(pad.bottom, 8) } : { left: lay.tools.left, bottom: height - lay.spin.top + 8 }} />}
+      {/* The end of the rack: the frame score in a race, the pay at the end of the match. Over the controls, which wait. */}
+      {over && !paused && (
+        <Results rules={rules} kind={vs ? 'Quick match' : undefined} title={`${names[win]} wins${race > 1 ? done ? ' the match' : ' the frame' : ''}`} gold={!vs || win === 0}
+          score={race > 1 ? score.current : undefined} names={names} foot={done ? moved.current : ''}>
+          {!done && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{`${names[1 - rules.breaker]} breaks`}</Text>}
+          {done && <PayRow label={!vs ? 'Pass and play' : win === 0 ? 'Match win' : 'Match'} xp={paid.pay.xp - paid.shots.xp - (paid.chalk?.xp ?? 0)} coins={paid.pay.coins - paid.shots.coins - (paid.chalk?.coins ?? 0)} twice={!!paid.chalk} />}
+          {done && vs && <PayRow label="Shots" xp={paid.shots.xp} coins={paid.shots.coins} />}
+          {done && <PayTotal xp={paid.pay.xp} coins={paid.pay.coins} />}
+          {done && gained.current && <Gained {...gained.current} />}
+          {done && !!gained.current?.mastery && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{gained.current.mastery}</Text>}
+          <View style={styles.acts}>
+            <Act paint={CREAM} label={done ? 'Rematch' : 'Next rack'} onPress={() => rerack()} />
+            {done && <Act paint={DARK} label="Menu" onPress={onQuit} />}
+          </View>
+        </Results>
+      )}
       {/* Paused: drawn last, so the card and its ground take every touch and no control or aim works behind them. Leaving ends the match. */}
       {paused && (
         <View style={[styles.sheet, styles.dim]} onStartShouldSetResponder={() => true}>
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>Paused</Text>
             {!L && race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} ${score.current[0]} – ${score.current[1]} ${names[1]} · race to ${race}`}</Text>}
-            <Btn label="Resume" onPress={() => setPaused(false)} />
-            <Btn label={S ? 'Leave scenario' : L ? 'Leave lesson' : 'Leave match'} onPress={onQuit} />
+            <Act paint={CREAM} label="Resume" onPress={() => setPaused(false)} />
+            <Act label={S ? 'Leave scenario' : L ? 'Leave lesson' : 'Leave match'} onPress={onQuit} />
           </View>
         </View>
       )}
@@ -585,18 +592,21 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
 
 // The player's level after the award, on one line (levelNote): yellow for a level-up, like the pay.
 function Gained(g: ReturnType<typeof award>) {
-  return <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, g.to > g.from && styles.pay]}>{levelNote(g)}</Text>;
+  return <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left, g.to > g.from && styles.pay]}>{levelNote(g)}</Text>;
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.ground },
   at: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  tools: { position: 'absolute', flexDirection: 'row', gap: 8, padding: 8, backgroundColor: C.panel, borderColor: C.chalk + '40', borderWidth: 1, borderRadius: 12 },
+  // Cards and the tools tray are dark slabs: the lip is a solid bottom edge of the lip colour, not an outline.
+  tools: { position: 'absolute', flexDirection: 'row', gap: 8, padding: 8, backgroundColor: DARK[0], borderBottomWidth: 5, borderColor: DARK[1], borderRadius: 5 },
   sheet: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { maxWidth: 320, alignSelf: 'center', padding: 16, gap: 10, borderRadius: 10, borderWidth: 1, borderColor: C.chalk + '66', backgroundColor: C.ground + 'F2' },
-  cardTitle: { color: C.chalk, fontSize: 18, fontWeight: '800', textAlign: 'center' },
-  cardNote: { color: C.chalk, fontSize: 14, lineHeight: 19, textAlign: 'center' },
-  dim: { backgroundColor: C.ground + '99' },
-  pay: { color: BALLS[0], fontWeight: '700' }, // one-ball yellow is for coins and XP
+  card: { width: 300, maxWidth: '100%', alignSelf: 'center', padding: 16, gap: 10, borderRadius: 5, backgroundColor: DARK[0], borderBottomWidth: 5, borderColor: DARK[1] },
+  cardTitle: { color: C.chalk, fontFamily: FONT.display, fontSize: 24, lineHeight: 28, textAlign: 'center' },
+  cardNote: { color: C.chalk, fontFamily: FONT.semi, fontSize: 14, lineHeight: 19, textAlign: 'center' },
+  dim: { backgroundColor: C.menu + 'B3' },
+  pay: { color: BALLS[0], fontFamily: FONT.bold }, // one-ball yellow is for coins and XP
+  left: { textAlign: 'left' },
+  acts: { flexDirection: 'row', gap: 10, marginTop: 4 },
   rates: { position: 'absolute', color: C.chalk, fontSize: 10, lineHeight: 13, fontVariant: ['tabular-nums'] },
 });
