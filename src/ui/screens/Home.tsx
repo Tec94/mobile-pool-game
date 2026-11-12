@@ -14,7 +14,7 @@ import { TIERS } from '../../ai/shot-ai';
 import { C, CREAM, FONT, MODE } from '../../theme';
 import { dateOf, THEMES } from '../days';
 import type { DailyProps, LearnProps, Props, ScenarioProps } from '../Menus';
-import { type Card, Hand, Link, Row, Shell, Stage } from '../shell';
+import { type Card, Hand, Row, Shell, Stage, useFrame } from '../shell';
 import { BallArt, Chip, Keys, Txt } from '../slab';
 
 type HomeProps = Props & LearnProps & ScenarioProps & Omit<DailyProps, 'day'>;
@@ -56,19 +56,19 @@ function QuickStage({ set, change: save, go, daily, arm }: HomeProps) {
   const change = (p: Partial<Settings>) => { setSure(false); save(p); }; // any change disarms a reset, so one tap never resets another game
   // A reset throws the rating away, so it takes a second tap (no Alert: it does nothing on web).
   const reset = () => { if (sure) rivalReset(set.aiGame); setSure(!sure); };
-  const rival = set.tier === RIVAL;
+  const rival = set.tier === RIVAL, narrow = useFrame().width < 700; // under 700 pt the Mood label costs the moods a line
   return (
-    <Stage title="Quick match" line={rival ? `Rival ${shown(s)}, ${between(s, names)}. Adapts after each match.` : '8-ball or 9-ball against the AI.'}
-      cta={{ label: 'Play', name: 'Play quick match', onPress: () => go('ai') }}>
+    <Stage title="Quick match" line={!rival ? '8-ball or 9-ball against the AI.' : sure ? `Reset the ${set.aiGame}-ball Rival to ${shown(1)}? Tap again to confirm.`
+      : `Rival ${shown(s)}, ${between(s, names)}. Adapts after each match.`}
+      cta={{ label: 'Play', name: 'Play quick match', onPress: () => go('ai') }} link={rival ? { label: sure ? 'Tap again to reset' : 'Reset Rival rating', onPress: reset } : undefined}>
       <Row>
         <Keys label="Game" value={set.aiGame} pick={aiGame => change({ aiGame })} options={GAMES} />
         <Keys label="Race to" value={set.aiRace} pick={aiRace => change({ aiRace })} options={raceKeys} />
-        {charges > 0 && <Keys label="Fresh Chalk" value={armed} pick={arm} options={[['Chalk off', false, 'Off'], ['On, win ×2', true, 'On']]} />}
-        {rival && <Link label={sure ? `Tap again: ${set.aiGame}-ball Rival back to ${shown(1)}` : 'Reset Rival rating'} onPress={reset} />}
+        {charges > 0 && <Keys label="Fresh Chalk" value={armed} pick={arm} options={[['Chalk off', false, 'Chalk off'], ['Chalk on: win pays ×2', true, 'Chalk on']]} />}
       </Row>
       <Row>
         <Keys label="Opponent" value={set.tier} pick={tier => change({ tier })} options={[['Rival', RIVAL], ...TIERS.map((t, i): [string, number] => [t.name, i])]} />
-        {rival && <Keys label="Rival mood" show="Mood" value={set.mood} pick={mood => change({ mood })} options={MOODS.map(m => [m[0].toUpperCase() + m.slice(1), m])} />}
+        {rival && <Keys label="Rival mood" show={narrow ? undefined : 'Mood'} value={set.mood} pick={mood => change({ mood })} options={MOODS.map(m => [m[0].toUpperCase() + m.slice(1), m])} />}
       </Row>
     </Stage>
   );
