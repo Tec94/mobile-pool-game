@@ -500,6 +500,8 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   };
 
   const cardAt = !view.land && { right: width - lay.rail.left, padding: 8 }; // portrait: a card over the table sits at the middle of the table, clear of the rail
+  const card = !!(L && said) || !!rules.choice || over || paused; // a card or the results are up: the tip sheet closes, as it would lie over them
+  useEffect(() => { if (card) setSheet(false); }, [card]);
   return (
     <View style={styles.root} {...pan.panHandlers}>
       {/* The table has its own canvas: it is most of the drawing work and it does not change during play. */}
@@ -548,7 +550,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       {/* The shot controls sit inside the safe area where shotLayout puts them. */}
       <PowerRail store={shot} box={lay.rail} onStrike={fire} />
       <AimDial store={shot} box={lay.dial} />
-      {!(L && stage === 'watch') && <View style={[styles.at, lay.spin]}><TipButton store={tip} onPress={() => { setSheet(!sheet); setTools(false); }} /></View>}
+      {!(L && stage === 'watch') && <View style={[styles.at, lay.spin]}><TipButton store={tip} land={view.land} onPress={() => { setSheet(!sheet); setTools(false); }} /></View>}
       {!L && !vs && <View style={[styles.at, lay.tools]}><Btn label="•••" name="Table tools" onPress={() => { setTools(!tools); setSheet(false); }} /></View>}
       {/* shortcut: the test buttons (Rack, Demo), behind one button. Not in quick match: a new rack would dodge a loss and a demo pot would pay. */}
       {tools && (
@@ -561,8 +563,8 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
           }} />
         </View>
       )}
-      {/* The tip and cue angle sheet, at the centre of the window. A touch outside it closes it and does nothing else. */}
-      {sheet && <TipSheet store={tip} land={view.land} calm={calm} felt={CLOTHS[cloth].felt} blend={set.zones} onDone={() => setSheet(false)} />}
+      {/* The tip and cue angle sheet, at the centre of the window. A touch outside it closes it and does nothing else; the rail still shoots. */}
+      {sheet && !card && <TipSheet store={tip} land={view.land} keep={width - lay.rail.left} calm={calm} felt={CLOTHS[cloth].felt} blend={set.zones} onDone={() => setSheet(false)} />}
       {/* The end of the rack: the frame score in a race, the pay at the end of the match. Over the controls, which wait. */}
       {over && !paused && (
         <Results rules={rules} kind={vs ? 'Quick match' : undefined} title={`${names[win]} wins${race > 1 ? done ? ' the match' : ' the frame' : ''}`} gold={!vs || win === 0}

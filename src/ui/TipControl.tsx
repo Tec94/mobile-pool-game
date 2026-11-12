@@ -22,14 +22,15 @@ const EASE_OUT = cubicBezier(0.23, 1, 0.32, 1); // a strong ease-out: a press an
 const tick = () => { Haptics.selectionAsync(); }, tap = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
 
 // The cue ball in the control bar: the bare ball on the ground, in a 48 pt touch box. Its dot is the tip, and a badge
-// gives the elevation when the cue is raised. A press shrinks the ball by 3 pt, the travel of a slab face (at once with reduced motion).
-export function TipButton({ store, onPress }: { store: TipStore; onPress: () => void }) {
+// gives the elevation when the cue is raised. A press shrinks the ball by 3 pt at once, the travel of a slab face, and
+// lets go in 120 ms (at once with reduced motion). land = the ball's top edge lines up with the table's (landscape).
+export function TipButton({ store, onPress, land }: { store: TipStore; onPress: () => void; land?: boolean }) {
   const t = useSyncExternalStore(store.sub, store.get), B = 44, still = useReducedMotion(), [down, setDown] = useState(false);
   const ball = useMemo(() => picture(c => drawTipBall(Skia, c, B / 2, B / 2, B / 2, t)), [t.x, t.y]);
   return (
-    <Pressable onPress={onPress} onPressIn={() => setDown(true)} onPressOut={() => setDown(false)} pressRetentionOffset={16} style={styles.holder}
+    <Pressable onPress={onPress} onPressIn={() => setDown(true)} onPressOut={() => setDown(false)} pressRetentionOffset={16} style={[styles.holder, land && styles.atTop]}
       accessibilityRole="button" accessibilityLabel="Set spin and cue elevation" accessibilityValue={{ text: `${spinLabel(t)}. ${t.elev} degrees` }}>
-      <Animated.View style={{ transform: [{ scale: down ? 0.93 : 1 }], transitionProperty: 'transform', transitionDuration: still ? 0 : 120, transitionTimingFunction: EASE_OUT }}>
+      <Animated.View style={{ transform: [{ scale: down ? 0.93 : 1 }], transitionProperty: 'transform', transitionDuration: still || down ? 0 : 120, transitionTimingFunction: EASE_OUT }}>
         <Canvas style={{ width: B, height: B }}><Picture picture={ball} /></Canvas>
       </Animated.View>
       {t.elev > 0 && <Text maxFontSizeMultiplier={1.3} style={styles.badge}>{t.elev}°</Text>}
@@ -37,12 +38,14 @@ export function TipButton({ store, onPress }: { store: TipStore; onPress: () => 
   );
 }
 
-// The sheet: the ring with the cue ball, and the side picture, in a dark slab at the centre of the window. A touch
-// anywhere outside it closes it and does nothing else: the catcher under the slab takes the touch, so it never aims
-// the cue, pulls the rail or turns the dial. Android back and the screen reader's escape close it too.
+// The sheet: the ring with the cue ball, and the side picture, in a dark slab at the centre of the window (portrait: of
+// the room left of the rail, as the cards). A touch outside it closes it as it lands and does nothing else: the catcher
+// under the slab takes the touch, so it never aims the cue or turns the dial. The catcher stops `keep` pt short of the
+// right edge, where the power rail is: a pull there shoots, and the strike closes the sheet. Android back and the screen
+// reader's escape close it too.
 const TRIM = 183 / 214; // the ring's picture is empty right of the ball and under it (src/render/tip.ts): the box ends at the ball
-export function TipSheet({ store, land, calm, felt, blend, onDone }: { store: TipStore; land: boolean; calm: boolean; felt: string; blend: boolean; onDone: () => void }) {
-  const t = useSyncExternalStore(store.sub, store.get), D = land ? 150 : 190;
+export function TipSheet({ store, land, keep, calm, felt, blend, onDone }: { store: TipStore; land: boolean; keep: number; calm: boolean; felt: string; blend: boolean; onDone: () => void }) {
+  const t = useSyncExternalStore(store.sub, store.get), D = land ? 150 : 180; // portrait: 294 pt wide, inside the room left of the rail on a 375 pt phone
   const size = useRef(D), drag = useRef<{ on: 'ring' | 'pad'; from: Tip; x: number; y: number; t: number; moved: boolean; a: number; e: number } | null>(null);
   if (size.current !== D) drag.current = null; // the phone turned during a drag: the touch no longer maps to the ring
   size.current = D; // the pan responder is created once, so it reads the latest size
@@ -88,13 +91,15 @@ export function TipSheet({ store, land, calm, felt, blend, onDone }: { store: Ti
     'Tip higher': () => nudge(0, 0.2), 'Tip lower': () => nudge(0, -0.2), 'Tip left': () => nudge(-0.2, 0), 'Tip right': () => nudge(0.2, 0) };
 
   return <>
-    <Pressable style={StyleSheet.absoluteFill} onPress={onDone} accessibilityRole="button" accessibilityLabel="Close spin and cue elevation" />
+    {/* Not cancelable: a second finger on the table must not hand the touch to the table's aim. onPress: TalkBack's
+        activation is a click with no press in. */}
+    <Pressable style={[StyleSheet.absoluteFill, { right: keep }]} onPressIn={onDone} onPress={onDone} cancelable={false} accessibilityRole="button" accessibilityLabel="Close spin and cue elevation" />
     {/* It grows from 95% at the centre in 200 ms and fades out in 120 ms; with reduced motion it only fades in. The layer
         is the size of the window and lets touches through to the catcher, so the fade out blocks nothing. */}
-    <Animated.View pointerEvents="box-none" exiting={calm ? undefined : FadeOut.duration(120)} style={[styles.layer,
+    <Animated.View pointerEvents="box-none" exiting={calm ? undefined : FadeOut.duration(120)} style={[styles.layer, !land && { right: keep, padding: 8 },
       { animationName: { from: { opacity: 0, transform: [{ scale: calm ? 1 : 0.95 }] } }, animationDuration: '200ms', animationTimingFunction: EASE_OUT }]}>
       {/* The sheet takes every touch that starts on it, so a slip off a handle does not close it. */}
-      <View onStartShouldSetResponder={() => true} onResponderTerminationRequest={() => false} onAccessibilityEscape={onDone} style={styles.sheet}>
+      <View onStartShouldSetResponder={() => true} onResponderTerminationRequest={() => false} onAccessibilityEscape={onDone} accessibilityViewIsModal style={styles.sheet}>
         <View {...pan.panHandlers} style={{ width: D * TRIM, height: D * TRIM }} accessible accessibilityRole="adjustable" accessibilityLabel="Cue elevation and tip position" accessibilityLiveRegion="polite"
           accessibilityValue={{ min: 0, max: MAX_ELEV, now: t.elev, text: `${t.elev} degrees, ${zone(t.elev)}. ${spinLabel(t)}` }}
           accessibilityActions={Object.keys(acts).map(name => ({ name, label: name }))} onAccessibilityAction={e => acts[e.nativeEvent.actionName]?.()}>
@@ -112,6 +117,7 @@ export function TipSheet({ store, land, calm, felt, blend, onDone }: { store: Ti
 
 const styles = StyleSheet.create({
   holder: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  atTop: { justifyContent: 'flex-start' },
   badge: { position: 'absolute', right: 0, top: 0, minWidth: 22, paddingHorizontal: 3, borderRadius: 3, overflow: 'hidden', backgroundColor: C.chalk, color: C.ink, fontFamily: FONT.bold, fontSize: 10, lineHeight: 13, textAlign: 'center', fontVariant: ['tabular-nums'] },
   layer: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' },
   // A dark slab: the lip is a solid bottom edge of the lip colour, not an outline. It hugs the ring and the side picture, 12 pt on every side.
