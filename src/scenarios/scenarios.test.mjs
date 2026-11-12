@@ -3,7 +3,7 @@
 import assert from 'node:assert';
 import { CUE, step, strike } from '../physics/engine.ts';
 import { shotTip } from '../render/tip.ts';
-import { lessonTable, newLessonRec, noteLesson, verdict } from '../learn/lessons.ts';
+import { lessonTable, litCushions, newLessonRec, noteLesson, verdict } from '../learn/lessons.ts';
 import { NEW, PACKS, featCount, toLeave } from '../progress/profile.ts';
 import { stick } from '../progress/cues.ts';
 import { clear, clearFeats, isOpen, par, pRef, readStars, SCENARIOS, starsFor, totalStars } from './scenarios.ts';
@@ -42,6 +42,17 @@ PACKS.forEach((_, p) => {
   assert(pack.every((s, i) => !i || s.tol <= pack[i - 1].tol), `pack ${p} goes from easy to hard`);
   assert(pRef(pack[0]) > pRef(pack[11]), `pack ${p}: the last table is harder than the first`);
 });
+{ // Banks: each table lights the cushion its reference banks off and one neighbour, picked at random by its id.
+  const banks = SCENARIOS.filter(s => s.type === 'bank'), sides = new Set(), at = id => litCushions(SCENARIOS.find(s => s.id === id));
+  for (const s of banks) {
+    const lit = litCushions(s);
+    assert(lit && lit.length === 2 && lit.every(k => Number.isInteger(k) && k >= 0 && k < 6), `${s.id}: two cushions lit (${lit})`);
+    assert([1, 5].includes((lit[1] - lit[0] + 6) % 6), `${s.id}: next to each other (${lit})`); sides.add((lit[1] - lit[0] + 6) % 6);
+  }
+  assert.strictEqual(sides.size, 2, 'the neighbour is not always on the same side');
+  assert(at('banks-1').includes(4) && at('banks-7').includes(1) && at('banks-8').includes(2) && at('banks-11').includes(5), 'the cushion the reference banks off is lit');
+  assert(SCENARIOS.every(s => s.type === 'bank' || litCushions(s) === null), 'only the Banks tables light cushions');
+}
 console.log('scenarios: every reference shot clears');
 
 { // stars and pay

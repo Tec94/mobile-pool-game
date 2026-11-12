@@ -2,9 +2,9 @@
 // table and one goal, played in three steps: watch (the reference shot plays itself), guided (its spin and power are
 // set and named), solo (three passes in a row). Pure TS: the screen feeds the engine's events in and draws the verdict.
 // The reference shot of every lesson is checked to pass on the engine (lessons.test.mjs), so watch never fails.
-import type { Ball, Ev } from '../physics/engine.ts';
+import { type Ball, CUE, type Ev, P, POCKET, step, strike } from '../physics/engine.ts';
 import { newRec, type Rec, record } from '../rules/rules.ts';
-import type { Tip } from '../render/tip.ts';
+import { shotTip, type Tip } from '../render/tip.ts';
 
 export interface Goal {
   pot?: number;       // this ball must go in
@@ -47,7 +47,7 @@ export const LESSONS: Lesson[] = [
     cue: [1.4, 0.5], balls: [[1, 1.85, 0.85]], goal: { pot: 1, pocket: 3, zone: [1.904, 0.711, 0.16] }, ref: { ang: 0.6558, power: 0.5, tip: { x: 0.5, y: 0, elev: 0 } },
     short: 'More side, or a little more power.', long: 'Less side, or a little less power.' },
   { id: 'bank', title: 'One-cushion banks', say: 'Bank the 1 off the near cushion into the far side pocket.', how: 'Send the 1 into the cushion so it comes off at the same angle it went in, a little shorter at speed.',
-    cue: [0.7, 0.6], balls: [[1, 1.0, 0.3]], goal: { pot: 1, pocket: 5 }, ref: { ang: -1.2152, power: 0.45, tip: { x: 0, y: 0, elev: 0 } } },
+    cue: [0.7, 0.6], balls: [[1, 0.76, 0.3]], goal: { pot: 1, pocket: 5 }, ref: { ang: -1.3848, power: 0.45, tip: { x: 0, y: 0, elev: 0 } } },
   { id: 'kick', title: 'Kick shots', say: 'The 2 is in the way. Send the cue ball off a cushion to hit the 1 first.', how: 'Pick the point on the cushion halfway between the cue ball and the 1, mirrored, and aim there.',
     cue: [0.7, 0.56], balls: [[2, 1.2, 0.56], [1, 1.7, 0.56]], goal: { first: 1, kick: true }, ref: { ang: -0.4538, power: 0.45, tip: { x: 0, y: 0, elev: 0 } } },
   { id: 'combo', title: 'Combos', say: 'Hit the 1 into the 2 and pot the 2.', how: 'Find the ghost ball for the 2 first, then send the 1 to that spot.',
@@ -70,16 +70,49 @@ export function lessonTable(l: Lesson): { B: Ball[]; ids: number[] } {
   return { B: [mk(...l.cue), ...l.balls.map(([, x, y]) => mk(x, y))], ids: [0, ...l.balls.map(([id]) => id)] };
 }
 
-// The record of a lesson shot: the rules' record, whether the cue ball reached a cushion before any ball (a kick), and
-// where the cue ball was when it first hit a ball.
-export type LessonRec = Rec & { kick: boolean; hit: [number, number] | null };
-export const newLessonRec = (): LessonRec => ({ ...newRec(), kick: false, hit: null });
+// The six cushions a ball can bank off, round the table: the y = 0 rail's head half (0) and foot half (1), the foot rail
+// (2), the y = W rail's foot half (3) and head half (4), the head rail (5). Neighbours share a pocket.
+// nose(k) = its nose line [x0, y0, x1, y1] from pocket point to pocket point (POCKET in the engine).
+export function nose(k: number) {
+  const { L, W } = P, { cc, sc } = POCKET, m = L / 2;
+  return [[cc, 0, m - sc, 0], [m + sc, 0, L - cc, 0], [L, cc, L, W - cc], [L - cc, W, m + sc, W], [m - sc, W, cc, W], [0, W - cc, 0, cc]][k];
+}
+// The cushion whose nose a ball touching a rail at (x, y) is on, or -1: a pocket jaw or point is no cushion to bank off.
+const cushionAt = (x: number, y: number) => [0, 1, 2, 3, 4, 5].findIndex(k => {
+  const [a, b, c, d] = nose(k), ex = c - a, ey = d - b, l = Math.hypot(ex, ey), t = ((x - a) * ex + (y - b) * ey) / (l * l);
+  return t >= 0 && t <= 1 && Math.abs((x - a) * ey - (y - b) * ex) / l < P.R;
+});
+
+// The record of a lesson shot: the rules' record, whether the cue ball reached a cushion before any ball (a kick),
+// where the cue ball was when it first hit a ball, and [ball number, cushion] of each ball's touch of a cushion nose.
+export type LessonRec = Rec & { kick: boolean; hit: [number, number] | null; cush: number[][] };
+export const newLessonRec = (): LessonRec => ({ ...newRec(), kick: false, hit: null, cush: [] });
 export function noteLesson(r: LessonRec, ev: Ev[], B: Ball[], ids: number[]) {
   for (const e of ev) {
     if (e.t === 'rail' && !ids[e.a] && !r.hit) r.kick = true; // r.first is only set by record() below
     if (e.t === 'bb' && !ids[e.a] && !r.hit) r.hit = [B[0].x, B[0].y];
+    const k = e.t === 'rail' ? cushionAt(e.x, e.y) : -1;
+    if (k >= 0) r.cush.push([ids[e.a], k]);
   }
   record(r, ev, B, ids);
+}
+
+// The two cushions a bank table lights (Jack: "highlight the cushions the user has to bank from, randomize it and
+// select 2 adjacent cushions"): the one its reference shot banks the ball off, so the table stays solvable, and one
+// of its two neighbours, picked by the table's id (FNV-1a), so a table (and the daily table that plays it) always
+// lights the same pair. null = the table wants no bank. The bank tables: this lesson and the Banks scenarios.
+// Worked out once per table, by playing the reference shot on the engine up to its first bank.
+const LIT = new Map<string, number[] | null>();
+export function litCushions(l: Lesson): number[] | null {
+  if (l.id !== 'bank' && (l as Lesson & { type?: string }).type !== 'bank') return null;
+  if (!LIT.has(l.id)) {
+    const { B, ids } = lessonTable(l), r = newLessonRec(), ev: Ev[] = [], at = () => r.cush.find(c => c[0] === l.goal.pot)?.[1];
+    strike(B[0], { ang: l.ref.ang, speed: l.ref.power * CUE.maxSpeed, ...shotTip(l.ref.tip) });
+    for (let i = 0; i < 40000 && at() === undefined; i++) { ev.length = 0; const mv = step(B, ev); noteLesson(r, ev, B, ids); if (!mv) break; }
+    const k = at(), h = [...l.id].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 0x01000193), 0x811c9dc5) >>> 0;
+    LIT.set(l.id, k === undefined ? null : [k, (k + (h & 1 ? 1 : 5)) % 6]);
+  }
+  return LIT.get(l.id)!;
 }
 
 // Did the shot pass, and if not, what to change. cue = the cue ball at rest.
@@ -93,6 +126,8 @@ export function verdict(l: Lesson, r: LessonRec, cue: Ball): { ok: boolean; say:
     const p = r.pots.find(q => q.id === g.pot);
     if (!p) return no(`The ${g.pot} missed the pocket. Watch where the guide sends it.`);
     if (g.pocket !== undefined && p.pocket !== g.pocket) return no(`The ${g.pot} went in the wrong pocket. Aim for the marked one.`);
+    const lit = litCushions(l);
+    if (lit && !r.cush.some(([id, k]) => id === g.pot && lit.includes(k))) return no('Bank it off a lit cushion.');
   }
   if (g.safe && r.pots.length) return no('A ball went in. A safety leaves the balls on the table.');
   if (g.safe && !r.railAfter) return no('No ball reached a cushion after the hit: that is a foul. A touch more power.');

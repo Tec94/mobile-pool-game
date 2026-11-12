@@ -17,11 +17,12 @@ import { Ball, breakSpot, CUE, HOLES, P, rack, Shot, strike } from './src/physic
 import { benchAI } from './src/ai/bench';
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
 import { drawMarks, SETTLE } from './src/render/marks';
+import { drawBank } from './src/render/bank';
 import { newPace, nextFrame, type Pace, refresh, type Slot, spent } from './src/render/pace';
 import { drawCue, shotLayout } from './src/render/cue';
 import { BAR, drawAim, drawTable, onTable, toScreen, toTable } from './src/render/table';
 import { LEVEL, shotTip } from './src/render/tip';
-import { type Lesson, LESSON_PAY, LESSONS, lessonTable, type LessonRec, newLessonRec, noteLesson, PENCIL_AT, SOLO_RUN, type Stage, verdict } from './src/learn/lessons';
+import { type Lesson, LESSON_PAY, LESSONS, lessonTable, type LessonRec, litCushions, newLessonRec, noteLesson, PENCIL_AT, SOLO_RUN, type Stage, verdict } from './src/learn/lessons';
 import { loadDone, saveDone } from './src/learn/save';
 import { canCall, choose, handCue, judge, legalFirst, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { thinkAsync } from './src/ai/think';
@@ -214,7 +215,8 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   mark.current = () => {
     const rec = Skia.PictureRecorder(), { B, rules: s, rec: shot } = table.current;
     const me = !shot && !bot(); // on the AI's turn the human's marks stay off
-    drawMarks(Skia, rec.beginRecording(), view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call, ask: me && onEight(s), ms: performance.now(), at: called.current, zone: L?.goal.zone });
+    const c = rec.beginRecording(); if (L) drawBank(Skia, c, view, litCushions(L)); // a bank table's lit cushions, worked out once per table
+    drawMarks(Skia, c, view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call, ask: me && onEight(s), ms: performance.now(), at: called.current, zone: L?.goal.zone });
     return rec.finishRecordingAsPicture();
   };
   // Frames of play wait in queue and the UI thread shows one on each display refresh (see src/render/pace.ts).
