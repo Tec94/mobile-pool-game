@@ -85,7 +85,7 @@ export function Stage({ title, line, cta, link, children }: { title: string; lin
   // In portrait the link and the button sit under the scroller, just above the stack, so the button never scrolls away.
   return <>
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: side, paddingTop: land ? 6 : 12, paddingBottom: 12, gap: 8 }} keyboardShouldPersistTaps="handled" alwaysBounceVertical={false}>
-      <View style={land && { minHeight: 58, paddingRight: 186 }}>
+      <View style={land && { minHeight: 58, paddingRight: 186 }} accessibilityLiveRegion="polite">
         <Txt accessibilityRole="header" style={[TYPE.title, !land && styles.portTitle]}>{title}</Txt>
         {line && <Txt numberOfLines={2} style={styles.line}>{line}</Txt>}
       </View>
