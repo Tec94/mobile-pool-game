@@ -107,22 +107,25 @@ export interface Card {
 // off it and scrolls sideways, opening on the raised card. The scroller holds the whole cards and runs off the screen
 // itself, so nothing in it can scroll up and down (a focused card would, on the web). Portrait: a stack of 50 pt headers, the chosen one outlined, opening near it.
 export function Hand({ cards, up, pick, width = 110, height = 200 }: { cards: Card[]; up: number; pick: (i: number) => void; width?: number; height?: number }) {
-  const { land, side, width: screen, height: tall } = useFrame(), scroll = useRef<ScrollViewInstance>(null), mid = (cards.length - 1) / 2, step = Math.min(1.1, 3.3 / Math.max(1, mid));
+  const { land, side, pad, width: screen, height: tall } = useFrame(), scroll = useRef<ScrollViewInstance>(null), mid = (cards.length - 1) / 2, step = Math.min(1.1, 3.3 / Math.max(1, mid));
   const still = useReducedMotion(), n = cards.length, edge = side + 8, fit = (screen - 2 * edge - 4 * (n - 1)) / n;
   // A hand that fits widens its cards to fill the row edge to edge; one that overflows keeps its width and scrolls.
   const w = fit >= width * 0.95 ? Math.min(Math.floor(fit), width * 1.25) : width;
   const at = (i: number) => Math.min(Math.max(0, edge + i * (w + 4) - (screen - w) / 2), Math.max(0, 2 * edge + n * w + 4 * (n - 1) - screen)); // card i centred, clamped to the row
   if (!land) return (
-    <ScrollView ref={scroll} style={{ flexGrow: 0, maxHeight: 50 * Math.min(cards.length, 6) + 85, marginBottom: -40 }} contentContainerStyle={{ paddingHorizontal: side }}
+    // A stack of more than six shows a half header, so it reads as one that scrolls; never over 42% of the window.
+    <ScrollView ref={scroll} style={{ flexGrow: 0, maxHeight: Math.min(50 * Math.min(n, 6) + (n > 6 ? 56 : 85), 0.42 * tall), marginBottom: -40 }} contentContainerStyle={{ paddingHorizontal: side }}
       onLayout={() => scroll.current?.scrollTo({ y: Math.max(0, 50 * (up - 2)), animated: false })}>
       {cards.map((c, i) => {
         const ink = { color: inkOn(c.paint) }, last = i === cards.length - 1;
         return (
           <Slab key={c.key} paint={c.paint} onPress={() => pick(i)} accessibilityLabel={c.name} accessibilityState={{ selected: i === up }}
-            style={{ height: last ? 95 : 55, marginBottom: last ? 0 : -5 }} face={i === up && styles.chosen}>
+            style={{ height: last ? 95 + pad.bottom : 55, marginBottom: last ? 0 : -5 }} face={i === up && [styles.chosen, { outlineColor: ink.color }]}>
             <View style={styles.head}>
-              <Txt numberOfLines={1} style={[styles.headTitle, ink]}>{c.title}</Txt>
-              {c.line && <Txt numberOfLines={1} style={[TYPE.small, ink, { flexShrink: 1 }]}>{c.line}</Txt>}
+              <View style={styles.headText}>
+                <Txt numberOfLines={1} style={[styles.headTitle, ink]}>{c.title}</Txt>
+                {c.line && <Txt numberOfLines={1} style={[TYPE.small, ink, { flexShrink: 1 }]}>{c.line}</Txt>}
+              </View>
               <View style={{ flex: 1 }} />
               {c.art?.(32)}
             </View>
@@ -174,5 +177,6 @@ const styles = StyleSheet.create({
   art: { position: 'absolute', right: 6, top: 80 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 50, paddingHorizontal: 14 },
   headTitle: { fontFamily: FONT.display, fontSize: 18, lineHeight: 22 },
-  chosen: { outlineColor: C.chalk, outlineWidth: 2, outlineOffset: -2, outlineStyle: 'solid' },
+  headText: { flexDirection: 'row', alignItems: 'baseline', gap: 10, flexShrink: 1 },
+  chosen: { outlineWidth: 3, outlineOffset: -3, outlineStyle: 'solid' }, // colour = the header's ink: chalk on cream was 1.09:1
 });
