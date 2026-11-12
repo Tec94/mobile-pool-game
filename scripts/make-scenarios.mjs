@@ -90,7 +90,7 @@ function trick(jump) {
 }
 
 const SAY = {
-  pots: ['Pot the 1 in the marked pocket.', L('aim')], cut: ['Cut the 1 into the marked pocket.', L('aim')], bank: ['Bank the 1 into the marked pocket.', L('bank')],
+  pots: ['Pot the 1 in the marked pocket.', L('aim')], cut: ['Cut the 1 into the marked pocket.', L('aim')], bank: ['Bank the 1 off a lit cushion into the marked pocket.', L('bank')],
   position: ['Pot the 1 and stop the cue ball in the ring.', L('position')], nine: ['Hit the 1 first and send it into the 9. Pot the 9.', L('combo')],
   combo: ['Hit the 1 into the 2 and pot the 2.', L('combo')], kick: ['The 2 is in the way. Go off a cushion and pot the 1.', L('kick')],
   safety: ['Hit the 1, pot nothing, and hide the cue ball in the ring behind the 2.', L('safety')],

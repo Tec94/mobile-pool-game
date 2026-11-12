@@ -50,8 +50,14 @@ PACKS.forEach((_, p) => {
     assert([1, 5].includes((lit[1] - lit[0] + 6) % 6), `${s.id}: next to each other (${lit})`); sides.add((lit[1] - lit[0] + 6) % 6);
   }
   assert.strictEqual(sides.size, 2, 'the neighbour is not always on the same side');
+  const side = s => (litCushions(s)[1] - litCushions(s)[0] + 6) % 6, odd = s => [...s.id].reduce((n, c) => n + c.charCodeAt(0), 0) & 1;
+  assert(banks.some(s => banks.some(t => odd(s) === odd(t) && side(s) !== side(t))), 'the neighbour follows more than the parity of the id');
   assert(at('banks-1').includes(4) && at('banks-7').includes(1) && at('banks-8').includes(2) && at('banks-11').includes(5), 'the cushion the reference banks off is lit');
   assert(SCENARIOS.every(s => s.type === 'bank' || litCushions(s) === null), 'only the Banks tables light cushions');
+  // No table lights a cushion that ends at its pocket: a pot along that rail would brush its nose and count as a bank.
+  const ends = [[0, 4], [4, 1], [1, 3], [3, 5], [5, 2], [2, 0]], b10 = SCENARIOS.find(s => s.id === 'banks-10');
+  for (const s of banks) assert(litCushions(s).every(k => !ends[k].includes(s.goal.pocket)), `${s.id}: a lit cushion ends at its pocket (${litCushions(s)})`);
+  assert.strictEqual(play(b10, b10.ref.ang - 0.158).say, 'Bank it off a lit cushion.', 'banks-10: a pot that brushes the foot rail is no bank');
 }
 console.log('scenarios: every reference shot clears');
 

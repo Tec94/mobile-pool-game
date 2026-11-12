@@ -46,8 +46,9 @@ export const LESSONS: Lesson[] = [
   { id: 'side', title: 'Side spin', say: 'Pot the 1 and bring the cue ball off the cushion into the ring.', how: 'Side spin changes the angle the cue ball takes off a cushion. Hit on the side the guide marks.',
     cue: [1.4, 0.5], balls: [[1, 1.85, 0.85]], goal: { pot: 1, pocket: 3, zone: [1.904, 0.711, 0.16] }, ref: { ang: 0.6558, power: 0.5, tip: { x: 0.5, y: 0, elev: 0 } },
     short: 'More side, or a little more power.', long: 'Less side, or a little less power.' },
-  { id: 'bank', title: 'One-cushion banks', say: 'Bank the 1 off the near cushion into the far side pocket.', how: 'Send the 1 into the cushion so it comes off at the same angle it went in, a little shorter at speed.',
-    cue: [0.7, 0.6], balls: [[1, 0.76, 0.3]], goal: { pot: 1, pocket: 5 }, ref: { ang: -1.3848, power: 0.45, tip: { x: 0, y: 0, elev: 0 } } },
+  // Banks off the y = W rail, so the cue lies away from the lesson strip in landscape.
+  { id: 'bank', title: 'One-cushion banks', say: 'Bank the 1 off a lit cushion into the far side pocket.', how: 'Send the 1 into the cushion so it comes off at the same angle it went in, a little shorter at speed.',
+    cue: [0.7, 0.5176], balls: [[1, 0.76, 0.8176]], goal: { pot: 1, pocket: 4 }, ref: { ang: 1.3848, power: 0.45, tip: { x: 0, y: 0, elev: 0 } } },
   { id: 'kick', title: 'Kick shots', say: 'The 2 is in the way. Send the cue ball off a cushion to hit the 1 first.', how: 'Pick the point on the cushion halfway between the cue ball and the 1, mirrored, and aim there.',
     cue: [0.7, 0.56], balls: [[2, 1.2, 0.56], [1, 1.7, 0.56]], goal: { first: 1, kick: true }, ref: { ang: -0.4538, power: 0.45, tip: { x: 0, y: 0, elev: 0 } } },
   { id: 'combo', title: 'Combos', say: 'Hit the 1 into the 2 and pot the 2.', how: 'Find the ghost ball for the 2 first, then send the 1 to that spot.',
@@ -101,18 +102,22 @@ export function noteLesson(r: LessonRec, ev: Ev[], B: Ball[], ids: number[]) {
 // select 2 adjacent cushions"): the one its reference shot banks the ball off, so the table stays solvable, and one
 // of its two neighbours, picked by the table's id (FNV-1a), so a table (and the daily table that plays it) always
 // lights the same pair. null = the table wants no bank. The bank tables: this lesson and the Banks scenarios.
-// Worked out once per table, by playing the reference shot on the engine up to its first bank.
-const LIT = new Map<string, number[] | null>();
+// Worked out once per table, by playing the reference shot on the engine up to its first bank. The cache keys on the
+// table itself, not its id: the scenario generator judges many tables before they have one.
+const LIT = new WeakMap<Lesson, number[] | null>(), ENDS = [[0, 4], [4, 1], [1, 3], [3, 5], [5, 2], [2, 0]]; // ENDS = the pockets at the two ends of each cushion
 export function litCushions(l: Lesson): number[] | null {
   if (l.id !== 'bank' && (l as Lesson & { type?: string }).type !== 'bank') return null;
-  if (!LIT.has(l.id)) {
+  if (!LIT.has(l)) {
     const { B, ids } = lessonTable(l), r = newLessonRec(), ev: Ev[] = [], at = () => r.cush.find(c => c[0] === l.goal.pot)?.[1];
     strike(B[0], { ang: l.ref.ang, speed: l.ref.power * CUE.maxSpeed, ...shotTip(l.ref.tip) });
     for (let i = 0; i < 40000 && at() === undefined; i++) { ev.length = 0; const mv = step(B, ev); noteLesson(r, ev, B, ids); if (!mv) break; }
-    const k = at(), h = [...l.id].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 0x01000193), 0x811c9dc5) >>> 0;
-    LIT.set(l.id, k === undefined ? null : [k, (k + (h & 1 ? 1 : 5)) % 6]);
+    // bit 8 of the hash: bit 0 is only the parity of the id's letters, and the top bits barely change from one table
+    // number to the next. Never a cushion that ends at the target pocket: a ball comes off it away from that pocket, so
+    // a touch there would be a pot along the rail that brushed its nose, not a bank.
+    const k = at(), h = [...l.id].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 0x01000193), 0x811c9dc5) >>> 0, d = h >>> 8 & 1 ? 1 : 5, n = (k ?? 0) + d;
+    LIT.set(l, k === undefined ? null : [k, (ENDS[n % 6].includes(l.goal.pocket ?? -1) ? k + 6 - d : n) % 6]);
   }
-  return LIT.get(l.id)!;
+  return LIT.get(l)!;
 }
 
 // Did the shot pass, and if not, what to change. cue = the cue ball at rest.
