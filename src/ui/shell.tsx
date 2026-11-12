@@ -103,11 +103,12 @@ export interface Card {
 }
 // The choices as cards. Tap one: it rises and the stage follows (pick). Landscape: a row along the bottom edge that runs
 // off it and scrolls sideways, opening on the raised card. The scroller holds the whole cards and runs off the screen
-// itself, so nothing in it can scroll up and down (a focused card would, on the web). Portrait: a stack of 50 pt headers, the chosen one outlined.
+// itself, so nothing in it can scroll up and down (a focused card would, on the web). Portrait: a stack of 50 pt headers, the chosen one outlined, opening near it.
 export function Hand({ cards, up, pick, width = 110, height = 200 }: { cards: Card[]; up: number; pick: (i: number) => void; width?: number; height?: number }) {
   const { land, side, width: screen } = useFrame(), scroll = useRef<ScrollViewInstance>(null), mid = (cards.length - 1) / 2, step = Math.min(1.1, 3.3 / Math.max(1, mid));
   if (!land) return (
-    <ScrollView style={{ flexGrow: 0, maxHeight: 50 * Math.min(cards.length, 6) + 85, marginBottom: -40 }} contentContainerStyle={{ paddingHorizontal: side }}>
+    <ScrollView ref={scroll} style={{ flexGrow: 0, maxHeight: 50 * Math.min(cards.length, 6) + 85, marginBottom: -40 }} contentContainerStyle={{ paddingHorizontal: side }}
+      onLayout={() => scroll.current?.scrollTo({ y: Math.max(0, 50 * (up - 2)), animated: false })}>
       {cards.map((c, i) => {
         const ink = { color: inkOn(c.paint) }, last = i === cards.length - 1;
         return (

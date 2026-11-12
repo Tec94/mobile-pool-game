@@ -1,48 +1,49 @@
 import { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { addMonths, monthGrid, streak, weekday } from '../../daily/daily';
+import { StyleSheet } from 'react-native';
+import { addDays, daysBetween, streak, weekday } from '../../daily/daily';
 import { starCount } from '../../scenarios/scenarios';
-import { Btn } from '../Btn';
+import { C, DARK, FONT, MODE } from '../../theme';
 import { dateOf, DAYS, monthName, THEMES } from '../days';
 import type { DailyProps, Props } from '../Menus';
-import { Page, styles } from './legacy';
+import { type Card, Hand, Row, Shell, Stage } from '../shell';
+import { Chip, Txt, TYPE } from '../slab';
 
-// A month of daily tables. Every day from the first one opened to today plays at full pay; the grid is Monday first.
-// It opens on the month of day, the day last played, so coming back from a table keeps its month.
+const starLine = (k: number) => `${'★'.repeat(k)}${'☆'.repeat(3 - k)}`;
+
+// Every daily table from the first one opened to today, as a hand of days: blue = has stars, dark = none. Every day
+// plays at full pay. It opens on day, the day last played, so coming back from a table keeps it raised.
+// shortcut: one card per day, all rendered; window the hand if a player's days run into the hundreds.
 export function Calendar({ go, daily, today, day, playDay }: Pick<Props, 'go'> & Omit<DailyProps, 'arm'>) {
-  const [month, setMonth] = useState(day.slice(0, 7)), { current, best } = streak(daily.stars, today);
-  const cells = monthGrid(month), weeks = Array.from({ length: cells.length / 7 }, (_, w) => cells.slice(7 * w, 7 * w + 7));
+  const days = Array.from({ length: daysBetween(daily.firstDay, today) + 1 }, (_, i) => addDays(daily.firstDay, i));
+  const [up, setUp] = useState(Math.max(0, days.indexOf(day))), k = days[up] ?? today, { current, best } = streak(daily.stars, today);
+  const n = starCount(daily.stars[k]), theme = THEMES[weekday(k)], isToday = k === today;
+  const cards: Card[] = days.map(d => {
+    const got = starCount(daily.stars[d]), paint = got ? MODE.daily : DARK, ink = { color: got ? C.ink : C.chalk };
+    const note = got ? starLine(got) : d === today ? 'Today' : 'Missed';
+    return {
+      key: d, paint, title: dateOf(d), line: `${THEMES[weekday(d)]} · ${note}`,
+      name: `${DAYS[weekday(d)]} ${+d.slice(8, 10)} ${monthName(d)}, ${got} of 3 stars${d === today ? ', today' : ''}`,
+      body: <>
+        <Txt style={[TYPE.small, styles.bold, ink]}>{DAYS[weekday(d)].slice(0, 3)}</Txt>
+        <Txt style={[styles.date, ink]}>{+d.slice(8, 10)}</Txt>
+        <Txt style={[TYPE.small, styles.bold, ink]}>{THEMES[weekday(d)]}</Txt>
+        <Txt style={[TYPE.small, styles.bold, ink, { marginTop: 8, opacity: got ? 1 : 0.6 }]}>{note}</Txt>
+      </>,
+    };
+  });
   return (
-    <Page title="Daily Table" back={() => go('home')}>
-      <Text maxFontSizeMultiplier={1.3} style={styles.label}>{`Run ${current} · best ${best}`}</Text>
-      <Text maxFontSizeMultiplier={1.3} style={styles.note}>One table a day, the same for everyone. Any day on the calendar can be played for its stars.</Text>
-      <Btn label={`Play today\n${dateOf(today)} · ${THEMES[weekday(today)]}`} name={`Play today, ${THEMES[weekday(today)]}`} onPress={() => playDay(today)} />
-      <View style={styles.top}>
-        <Btn label="‹" name="Previous month" off={month <= daily.firstDay.slice(0, 7)} onPress={() => setMonth(addMonths(month, -1))} />
-        <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={[styles.label, styles.month]}>{`${monthName(month)} ${month.slice(0, 4)}`}</Text>
-        <Btn label="›" name="Next month" off={month >= today.slice(0, 7)} onPress={() => setMonth(addMonths(month, 1))} />
-      </View>
-      <View style={styles.grid}>
-        <View style={styles.week} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <Text key={i} maxFontSizeMultiplier={1.3} style={[styles.note, styles.cell]}>{d}</Text>)}
-        </View>
-        {weeks.map((w, i) => (
-          <View key={i} style={styles.week}>
-            {w.map((k, j) => {
-              if (!k) return <View key={j} style={styles.cell} />;
-              const open = k >= daily.firstDay && k <= today, n = starCount(daily.stars[k]);
-              return (
-                <Pressable key={k} disabled={!open} onPress={() => playDay(k)} accessibilityRole="button" accessibilityState={{ disabled: !open }}
-                  accessibilityLabel={`${DAYS[weekday(k)]} ${+k.slice(8, 10)} ${monthName(k)}${open ? `, ${n} of 3 stars` : ''}${k === today ? ', today' : ''}`}
-                  style={({ pressed }) => [styles.cell, styles.day, k === today && styles.today, { opacity: open ? (pressed ? 0.6 : 1) : 0.3 }]}>
-                  <Text maxFontSizeMultiplier={1.2} style={styles.label}>{+k.slice(8, 10)}</Text>
-                  <Text maxFontSizeMultiplier={1.2} style={styles.stars}>{n ? `${'★'.repeat(n)}${'☆'.repeat(3 - n)}` : ' '}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        ))}
-      </View>
-    </Page>
+    <Shell title="Daily Table" back={() => go('home')}>
+      <Stage title={theme} line={`${isToday ? 'Today, ' : ''}${dateOf(k)}. One table a day, the same for everyone. Any day can be played for its stars.`}
+        cta={isToday ? { label: 'Play today', name: `Play today, ${theme}`, onPress: () => playDay(k) }
+          : { label: 'Play', name: `Play ${DAYS[weekday(k)]} ${+k.slice(8, 10)} ${monthName(k)}, ${theme}`, onPress: () => playDay(k) }}>
+        <Row gap={8}><Chip name={`${n} of 3 stars`}>{starLine(n)}</Chip><Chip>{`Run ${current}`}</Chip><Chip>{`Best ${best}`}</Chip></Row>
+      </Stage>
+      <Hand cards={cards} up={up} pick={setUp} width={76} height={190} />
+    </Shell>
   );
 }
+
+const styles = StyleSheet.create({
+  bold: { fontFamily: FONT.bold },
+  date: { fontFamily: FONT.display, fontSize: 32, lineHeight: 36, marginBottom: 4, ...TYPE.num },
+});
