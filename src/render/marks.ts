@@ -35,11 +35,11 @@ export function drawMarks(api: typeof Skia, canvas: SkCanvas, v: View, m: Marks)
   HOLES.forEach(([x, y, rad], k) => {
     if (k !== m.call && !m.ask) return;
     const c = toScreen(v, x, y), R = rad * v.s, pick = k === m.call, r = (pick ? 0.86 - 0.22 * e : 0.64) * R, box = api.XYWHRect(c.x - r, c.y - r, 2 * r, 2 * r);
-    if (pick) { // the light: brightest under the ring, gone before the rim, so the hole keeps its black edge
+    if (pick) { // the light: a tight halo on the ring, gone well inside it and before the rim, so the hole keeps its black centre and edge
       const g = api.Paint(); g.setAntiAlias(true); g.setAlphaf(e);
-      g.setShader(api.Shader.MakeRadialGradient(c, R, [C.call + '00', C.call + 'A6', C.call + '00'].map(h => api.Color(h)), [0.2, 0.64, 1], 0)); canvas.drawCircle(c.x, c.y, R, g); // 0 = TileMode.Clamp
+      g.setShader(api.Shader.MakeRadialGradient(c, R, [C.call + '00', C.call + '80', C.call + '00'].map(h => api.Color(h)), [0.4, 0.64, 0.9], 0)); canvas.drawCircle(c.x, c.y, R, g); // 0 = TileMode.Clamp
     }
-    p.setColor(api.Color(pick ? C.call : C.chalk)); p.setAlphaf(pick ? 1 : m.call < 0 ? 0.8 : 0.8 - 0.5 * e); p.setStrokeWidth((pick ? 0.24 : 0.17) * R);
+    p.setColor(api.Color(pick ? C.call : C.chalk)); p.setAlphaf(pick ? 1 : m.call < 0 ? 0.8 : 0.8 - 0.4 * e); p.setStrokeWidth((pick ? 0.24 : 0.17) * R); // the others fall back to 40%: 3.5:1 on the hole
     if (pick && e >= 1) canvas.drawCircle(c.x, c.y, r, p);
     else for (let i = 0; i < 3; i++) canvas.drawArc(box, turn + 120 * i + (pick ? 90 * e : 0), pick ? 76 + 44 * e : 76, false, p);
   });

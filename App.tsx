@@ -181,7 +181,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   // The table never changes during play: one picture, drawn again only when the window does.
   const felt = useMemo(() => { const rec = Skia.PictureRecorder(); drawTable(Skia, rec.beginRecording(), view, CLOTHS[cloth]); return rec.finishRecordingAsPicture(); }, [...where, cloth]);
 
-  const score = useRef<[number, number]>([0, 0]), [paused, setPaused] = useState(false); // score = frames won
+  const score = useRef<[number, number]>([0, 0]), [paused, setPaused] = useState(false), held = useRef(false); // score = frames won; held = paused, for the frame loop
   const gained = useRef<ReturnType<typeof award> | null>(null); // the award of the match, for the results card
   // Quick match: the pay so far (src/progress/pay.ts), the pots on the table at the strike (for pRef), and the pay lines
   // of the finished match.
@@ -242,6 +242,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   const paint = (again = true) => { const { B, look } = table.current; look.last.set(B.flatMap(b => [b.x, b.y])); pace.current = null; if (again) { dirty(); guides.drop(); line.current = null; } scheduleOnUI(still, draw.current(), mark.current()); }; // a guide for the table as it was is not drawn
   useEffect(() => { touch.current = null; paint(); }, where); // a drag measured in the old layout ends when the window turns
   useEffect(() => { const off = [shot.sub(dirty), tip.sub(dirty)]; return () => off.forEach(f => f()); }, []);
+  useEffect(() => { held.current = paused; wake.current(); }, [paused]); // the marks stop under the pause card, and move again after it
   // A lesson plays with the engine's own cue, the one its reference shots are tuned on (src/learn/lessons.test.mjs).
   // A scenario and quick match play with the player's own cue and its aim guide (stick stats count in challenges).
   const own = useMemo(() => profile().cue, []), mine = useMemo(() => ownStats(own), []), cue = useMemo(() => (S || vs ? stick(own, false, mine) : L ? CUE : STICK), []); // fixed for the life of the screen: a cue change takes effect at the next table
@@ -250,7 +251,8 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   // rack is over. In a lesson: the shot plays itself, or the verdict card is up.
   const bot = () => vs && table.current.rules.turn === 1; // on the AI's turn nothing can be touched
   // The marks move: the ring round the cue ball in hand pulses, the pockets ask for a call, a called pocket settles. A called pocket at rest does not.
-  const beats = () => { const { rules: r, rec } = table.current; return !map.current.calm && ((r.hand && !r.choice) || (!rec && !bot() && onEight(r) && r.call < 0) || performance.now() - called.current < SETTLE); };
+  // Not under the pause card, which hides the table: the loop sleeps there.
+  const beats = () => { const { rules: r, rec } = table.current; return !map.current.calm && !held.current && ((r.hand && !r.choice) || (!rec && !bot() && onEight(r) && r.call < 0) || performance.now() - called.current < SETTLE); };
   const shut = () => { const t = table.current; return moving.current || !!t.rec || !!t.rules.choice || t.rules.phase === 'over' || (!!L && (les.current.stage === 'watch' || !!les.current.said)) || bot(); };
   const watching = () => !!L && les.current.stage === 'watch' && !les.current.said && !moving.current && !table.current.rec; // the reference shot is lined up: its guide shows
   // Put a ruling on the table: a new rack, or the balls the rules spot and the cue ball in hand.
