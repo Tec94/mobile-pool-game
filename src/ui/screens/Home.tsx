@@ -102,7 +102,7 @@ function DailyStage({ go, daily, today, playDay }: HomeProps) {
   return (
     <Stage title="Daily Table" line={`${dateOf(today)} · ${wd}. One table a day, the same for everyone.`}
       cta={{ label: 'Play today', name: `Play today, ${wd}`, onPress: () => playDay(today) }} link={{ label: 'All days ›', name: 'All days', onPress: () => go('calendar') }}>
-      <Row gap={8}><Chip name={`${k} of 3 stars today`}>{starLine(k)}</Chip><Chip>{`Run ${current}`}</Chip><Chip>{`Best ${best}`}</Chip></Row>
+      <Row gap={8}><Chip name={`${k} of 3 stars today`}>{starLine(k)}</Chip><Chip>{`${current}-day run`}</Chip><Chip>{`Best run ${best}`}</Chip></Row>
     </Stage>
   );
 }
@@ -116,7 +116,7 @@ function ScenarioStage({ go, stars, play }: HomeProps) {
   const s = SCENARIOS[i], pack = SCENARIOS.filter(t => t.pack === s.pack), got = pack.reduce((n, t) => n + starCount(stars[t.id]), 0);
   return (
     <Stage title={s.title} line={`${PACKS[s.pack][0]} · par ${par(s)} · ${s.say}`} cta={{ label: 'Play', name: `Play ${s.title}`, onPress: () => play(i) }} link={{ ...all, label: 'All packs ›' }}>
-      <Row gap={8}><Chip>{`${PACKS[s.pack][0]} ${got} / ${3 * pack.length} ★`}</Chip><Chip>{`All ${totalStars(stars)} / ${3 * SCENARIOS.length} ★`}</Chip></Row>
+      <Row gap={8}><Chip>{`${PACKS[s.pack][0]} ${got} of ${3 * pack.length} stars`}</Chip><Chip>{`All ${totalStars(stars)} of ${3 * SCENARIOS.length} stars`}</Chip></Row>
     </Stage>
   );
 }
@@ -127,7 +127,7 @@ function LearnStage({ go, done, learn }: HomeProps) {
   const chips = <Row gap={8}><Chip>{`${done.length} of ${LESSONS.length} passed`}</Chip><Chip>{`+${LESSON_PAY.xp} XP`}</Chip></Row>;
   if (i < 0) return <Stage title="Learn" line="Every lesson passed. Replay any of them." cta={all}>{chips}</Stage>;
   return (
-    <Stage title={LESSONS[i].title} line={`Lesson ${i + 1} of ${LESSONS.length}. Watch, then guided, then solo ${SOLO_RUN} in a row.`}
+    <Stage title={LESSONS[i].title} line={`Lesson ${i + 1} of ${LESSONS.length}. Watch, try it guided, then do it ${SOLO_RUN} times in a row.`}
       cta={{ label: 'Start', name: `Start ${LESSONS[i].title}`, onPress: () => learn(i) }} link={{ ...all, label: 'All lessons ›' }}>{chips}</Stage>
   );
 }
