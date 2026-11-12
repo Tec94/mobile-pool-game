@@ -79,7 +79,7 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
   ].filter((x): x is string => !!x);
   return (
     <Shell title="Cues" back={() => go('home')}>
-      <Stage title={c.name} line={`${need.join(' · ')} · ${c.perk ?? 'No perk'}`} cta={cta}
+      <Stage title={c.name} line={[...(need.length ? need : ['Locked']), c.perk ?? 'No perk'].join(' · ')} cta={cta}
         link={adv ? { label: '‹ Simple stats', name: 'Simple stats', onPress: () => setAdv(false) } : { label: 'Advanced stats ›', name: 'Advanced stats', onPress: () => setAdv(true) }}>
         {adv ? <Advanced id={id} p={p} put={put} /> : <Simple id={id} p={p} />}
       </Stage>
@@ -90,7 +90,7 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
 
 // Each stat as 10 blocks: the better the cue, the more are filled, against the top of 10.
 function Simple({ id, p }: { id: CueId; p: Profile }) {
-  const { land, side, width } = useFrame(), st = statsOf(id, masteryOf(p, id)), aw = width - 2 * side - 283 - 28;
+  const { land, side, width } = useFrame(), st = statsOf(id, masteryOf(p, id)), aw = Math.floor((width - 2 * side - 283 - 28) / 16) * 16; // in steps of 16, so a resized window makes few pictures
   // The flat cue fills the width past the stat rows (283 pt), its butt low enough to pass under the stage's link.
   return <>
     <View style={styles.simple}>
@@ -103,7 +103,7 @@ function Simple({ id, p }: { id: CueId; p: Profile }) {
           </View>
         ))}
       </View>
-      {land && <CueArt id={id} pose={[aw, 56, 4, 50, -2.5, aw - 8, 3]} />}
+      {land && aw > 40 && <CueArt id={id} pose={[aw, 56, 4, 50, -2.5, aw - 8, 3]} />}
     </View>
     <Txt style={[TYPE.small, { opacity: 0.7 }]}>Pass and play is a matched game: both players use House Cue stats.</Txt>
   </>;
@@ -144,11 +144,11 @@ function Mastery({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => v
       {tunes && <View style={styles.tunes}>{STATS.map(s => {
         const name = cap(s), cost = upCost(p, id, s);
         return <View key={s} style={styles.tune}>
-          <Slab paint={DARK} lip={3} radius={3} onPress={() => put(tuneDown(p, id, s))} disabled={!m[s]} accessibilityLabel={`${name} down on ${CUES[id].name}`} face={styles.key}>
+          <Slab paint={DARK} lip={3} radius={3} onPress={() => put(tuneDown(p, id, s))} disabled={!m[s]} accessibilityLabel={`${name} down on ${CUES[id].name}`} hitSlop={5} face={styles.key}>
             <Txt style={styles.keyText}>−</Txt>
           </Slab>
           <Txt style={[TYPE.body, TYPE.num, styles.bold, styles.tuned]}>{`${name} ${m[s] ? `+${m[s]}` : '0'}`}</Txt>
-          <Slab paint={DARK} lip={3} radius={3} onPress={() => put(tuneUp(p, id, s))} disabled={cost === null || p.coins < cost} accessibilityLabel={`${name} up on ${CUES[id].name}${cost ? ` for ${cost} coins` : ''}`} face={styles.key}>
+          <Slab paint={DARK} lip={3} radius={3} onPress={() => put(tuneUp(p, id, s))} disabled={cost === null || p.coins < cost} accessibilityLabel={`${name} up on ${CUES[id].name}${cost ? ` for ${cost} coins` : ''}`} hitSlop={5} face={styles.key}>
             <Txt style={styles.keyText}>{cost ? `+ ${cost.toLocaleString('en-US')}` : '+'}</Txt>
           </Slab>
         </View>;
