@@ -2,7 +2,7 @@
 // moves the face down onto the lip, at once: no scale, no fade. Keys, chips and cards are slabs.
 import type { ReactNode } from 'react';
 import { Pressable, type StyleProp, StyleSheet, Text, type TextProps, View, type ViewStyle } from 'react-native';
-import Animated, { useReducedMotion } from 'react-native-reanimated';
+import Animated, { cubicBezier, useReducedMotion } from 'react-native-reanimated';
 import { BALLS, C, CREAM, DARK, FONT, type Paint } from '../theme';
 
 const PRESS = 3; // pt the face moves down when pressed
@@ -103,7 +103,7 @@ export function HandCard({ paint, up, tilt = 0, onPress, name, width, height, ch
   const still = useReducedMotion();
   return (
     <Animated.View style={{ width, height, transformOrigin: '50% 100%', transform: [{ translateY: up ? -22 : 0 }, { rotate: `${tilt}deg` }], zIndex: up ? 1 : 0,
-      transitionProperty: 'transform', transitionDuration: still ? 0 : 180, transitionTimingFunction: 'ease-out' }}>
+      transitionProperty: 'transform', transitionDuration: still ? 0 : 150, transitionTimingFunction: cubicBezier(0.23, 1, 0.32, 1) }}>
       <Slab paint={paint} onPress={onPress} accessibilityLabel={name} accessibilityState={{ selected: up }} style={{ flex: 1 }}
         face={[styles.card, up && styles.outline]}>{children}</Slab>
     </Animated.View>
