@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { LESSON_PAY, LESSONS, SOLO_RUN } from '../../learn/lessons';
 import { C, DARK, FONT, MODE, type Paint } from '../../theme';
 import type { Props, LearnProps } from '../Menus';
-import { type Card, Hand, Row, Shell, Stage } from '../shell';
+import { type Card, Hand, Row, Shell, Stage, useFrame } from '../shell';
 import { Chip, Txt } from '../slab';
 
 const NOT_YET: Paint = [DARK[0], MODE.learn[1]], W = 54;
@@ -12,12 +12,13 @@ let kept: number | undefined; // the raised lesson outlives the screen, so a les
 // Every lesson is open from the start; the first one not yet passed is only a suggestion. The hand is the lessons as
 // narrow spines: purple = passed, dark on a purple lip = not yet.
 export function Learn({ go, done, learn }: Pick<Props, 'go'> & LearnProps) {
-  const next = LESSONS.findIndex(l => !done.includes(l.id));
+  const next = LESSONS.findIndex(l => !done.includes(l.id)), { land } = useFrame();
   const [up, setUp] = useState(kept ?? Math.max(0, next)), pick = (i: number) => { kept = i; setUp(i); };
   const cards: Card[] = LESSONS.map((l, i) => {
     const passed = done.includes(l.id);
+    // Not yet = dark on a purple lip as a spine; a stacked header gets a dark lip, as its lip shows at the next row's corners.
     return {
-      key: l.id, paint: passed ? MODE.learn : NOT_YET, name: `Lesson ${i + 1}, ${l.title}, ${passed ? 'passed' : 'not passed'}`,
+      key: l.id, paint: passed ? MODE.learn : land ? NOT_YET : DARK, name: `Lesson ${i + 1}, ${l.title}, ${passed ? 'passed' : 'not passed'}`,
       title: `${i + 1}  ${l.title}`, line: passed ? 'Passed' : i === next ? 'Suggested next' : undefined,
       body: <>
         <Txt style={styles.num}>{i + 1}</Txt>
