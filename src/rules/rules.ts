@@ -29,6 +29,8 @@ export interface State {
   choice: Option[] | null;// the player to shoot picks one before play goes on
   spot: number[];         // balls the table must put back on the foot spot (1.5)
   note: string;           // the ruling on the last shot, for the screen
+  foul: boolean;          // the last shot was a foul (the note may say something else when it ended the rack)
+  early: boolean;         // 8-ball: the rack was lost on an 8 potted before its group was cleared
 }
 // What happened on one shot. first = number of the first ball the cue ball hit (-1 none); pots in the order they fell;
 // rails = object balls driven to a rail; railAfter = some ball reached a rail after the first hit; crossed = the cue
@@ -40,7 +42,7 @@ export const newRec = (): Rec => ({ first: -1, pots: [], off: [], rails: [], rai
 
 export const newGame = (game: Game, breaker: Player = 0, callAll = true): State => ({
   game, turn: breaker, breaker, phase: 'break', balls: Array.from({ length: game === 8 ? 15 : 9 }, (_, i) => i + 1), solids: -1,
-  hand: 'kitchen', callAll, call: -1, fouls: [0, 0], push: false, winner: -1, choice: null, spot: [], note: '',
+  hand: 'kitchen', callAll, call: -1, fouls: [0, 0], push: false, winner: -1, choice: null, spot: [], note: '', foul: false, early: false,
 });
 
 const nearest = (x: number, y: number) => { let k = 0, best = Infinity; HOLES.forEach((h, i) => { const d = (h[0] - x) ** 2 + (h[1] - y) ** 2; if (d < best) { best = d; k = i; } }); return [k, Math.sqrt(best)]; };
@@ -94,7 +96,7 @@ export function judge(s: State, r: Rec, push = false): State {
     : r.first < 0 ? 'no ball hit' : !legal(r.first) ? 'wrong ball first'
     : s.hand === 'kitchen' && !r.crossed ? 'ball behind the head string played from behind it'
     : pots.length ? '' : brk ? (G === 9 && r.rails.length < 4 ? 'fewer than four balls to a rail' : '') : r.railAfter ? '' : 'no rail after contact';
-  const n: State = { ...s, phase: 'play', balls: s.balls.filter(id => !gone(id)), hand: false, call: -1, push: false, choice: null, spot: [], note: foul && `Foul: ${foul}.`, fouls: [s.fouls[0], s.fouls[1]] };
+  const n: State = { ...s, phase: 'play', balls: s.balls.filter(id => !gone(id)), hand: false, call: -1, push: false, choice: null, spot: [], note: foul && `Foul: ${foul}.`, foul: !!foul, early: false, fouls: [s.fouls[0], s.fouls[1]] };
   const spot = (id: number) => { n.balls.push(id); n.spot.push(id); };
   const pass = (hand: Hand = false) => { n.turn = opp; n.hand = hand; };
   const over = (w: Player, why: string) => { n.phase = 'over'; n.winner = w; n.hand = false; n.note = why; };
@@ -127,6 +129,7 @@ export function judge(s: State, r: Rec, push = false): State {
   }
   if (gone(8)) { // 4.8, and the win
     const win = !foul && onEight(s) && pots.some(p => p.id === 8 && p.pocket === s.call);
+    n.early = !win && !r.off.includes(8) && !foul && !onEight(s);
     over(win ? me : opp, win ? 'The 8 is down.' : `Lost the rack: the 8 ${r.off.includes(8) ? 'left the table' : foul ? 'went down on a foul' : !onEight(s) ? 'went down early' : 'went in a pocket that was not called'}.`);
     return n;
   }
