@@ -22,7 +22,7 @@ export function Learn({ go, done, learn }: Pick<Props, 'go'> & LearnProps) {
       body: <>
         <Txt style={styles.num}>{i + 1}</Txt>
         <View style={styles.spine}>
-          <Txt numberOfLines={1} style={styles.name}>{l.title.split(/:| and /)[0]}</Txt>
+          <Txt numberOfLines={1} style={styles.name}>{l.id === 'bank' ? 'Banks' : l.title.split(/:| and /)[0]}</Txt>
           {passed && <Txt style={[styles.name, styles.tick]}>✓</Txt>}
         </View>
       </>,
@@ -43,7 +43,7 @@ export function Learn({ go, done, learn }: Pick<Props, 'go'> & LearnProps) {
   );
 }
 
-const SPINE = 108; // the name runs down the spine, from under the number; its tick stays above y 375 at 375 high
+const SPINE = 108; // the name runs down the spine, from under the number; its tick stays above y 375 at 375 high. "One-cushion banks" does not fit: its spine says Banks
 const styles = StyleSheet.create({
   num: { position: 'absolute', left: 0, right: 0, top: 8, fontFamily: FONT.display, fontSize: 18, lineHeight: 22, color: C.chalk, textAlign: 'center', fontVariant: ['tabular-nums'] },
   spine: { position: 'absolute', width: SPINE, height: 20, alignSelf: 'center', top: 30 + SPINE / 2 - 10, transform: [{ rotate: '90deg' }], flexDirection: 'row', alignItems: 'center', gap: 6 },
