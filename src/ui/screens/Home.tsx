@@ -37,7 +37,7 @@ export function Home(p: HomeProps) {
     { key: 'scenarios', paint: MODE.scenarios, name: 'Scenarios', title: 'Scenarios', line: `${totalStars(stars)} of ${3 * SCENARIOS.length} stars`, art: ball(3) },
     { key: 'learn', paint: MODE.learn, name: 'Learn', title: 'Learn', line: next ? `Next: ${next.title}` : 'Every lesson passed', art: ball(4) },
     { key: 'pass', paint: MODE.pass, name: 'Pass and play', title: 'Pass and play', line: 'Two players', art: ball(5) },
-    { key: 'cues', paint: MODE.cues, name: 'Cues', title: 'Cues', line: `${CUES[me.cue].name} · ${me.owned.length} of ${CUE_IDS.length}`, art: ball(6) },
+    { key: 'cues', paint: MODE.cues, name: 'Cues', title: 'Cues', line: `${CUES[me.cue].name}\n${me.owned.length} of ${CUE_IDS.length} cues`, art: ball(6) },
   ];
   const Stages = [QuickStage, DailyStage, ScenarioStage, LearnStage, PassStage], S = Stages[up];
   return (
