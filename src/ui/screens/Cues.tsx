@@ -113,10 +113,10 @@ function Advanced({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => 
   return <>
     <View style={[styles.facts, land && { marginRight: 186 }]}>
       {facts.map(([n, unit, what]) => (
-        <Slab key={what} paint={DARK} lip={4} style={styles.fact} face={styles.factFace}>
+        <View key={what}>
           <Txt style={styles.big}>{n}<Txt style={[TYPE.small, styles.bold]}>{` ${unit}`}</Txt></Txt>
           <Txt style={[TYPE.small, { opacity: 0.8 }]}>{what}</Txt>
-        </Slab>
+        </View>
       ))}
     </View>
     {p.owned.includes(id) && <Mastery id={id} p={p} put={put} />}
@@ -157,9 +157,7 @@ const styles = StyleSheet.create({
   simple: { flexDirection: 'row', alignItems: 'center', gap: 28 },
   stat: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   statName: { width: 44, opacity: 0.8 },
-  facts: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  fact: { flexGrow: 1, flexBasis: 120 },
-  factFace: { paddingHorizontal: 10, paddingVertical: 4 },
+  facts: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 24, rowGap: 6 },
   big: { fontFamily: FONT.display, fontSize: 19, lineHeight: 22, color: C.chalk, fontVariant: ['tabular-nums'] },
   mastery: { gap: 3 },
   tunes: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, maxWidth: '100%' }, // no shrink: on a narrow screen it takes lines of its own
