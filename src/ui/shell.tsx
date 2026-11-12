@@ -126,7 +126,7 @@ export function Hand({ cards, up, pick, width = 110, height = 200 }: { cards: Ca
             <View style={styles.head}>
               <View style={styles.headText}>
                 <Txt numberOfLines={1} style={[styles.headTitle, ink]}>{c.title}</Txt>
-                {c.line && <Txt numberOfLines={1} style={[TYPE.small, ink, { flexShrink: 1 }]}>{c.line}</Txt>}
+                {c.line && <Txt numberOfLines={1} style={[TYPE.small, ink, { flexShrink: 1 }]}>{c.line.replace(/\n/g, ' · ')}</Txt>}
               </View>
               <View style={{ flex: 1 }} />
               {c.art?.(32)}
