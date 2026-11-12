@@ -6,22 +6,31 @@ import type { Props } from '../Menus';
 import { Shell, useFrame } from '../shell';
 import { Keys, Txt, TYPE } from '../slab';
 
-// A setting: its name, an optional line on what it does, and its keys. The keys wrap under the name on a narrow screen.
+// A setting: its name, an optional line on what it does, and its keys. Landscape: one row, every key group on one left
+// edge. Portrait: a column, so name, note and keys each start at the gutter.
 function Line({ label, note, children }: { label: string; note?: string; children: ReactNode }) {
+  const { land } = useFrame();
+  if (!land) return (
+    <View style={styles.col}>
+      <Txt style={styles.label}>{label}</Txt>
+      {note && <Txt style={[styles.note, { flex: 0, minWidth: 0 }]}>{note}</Txt>}
+      {children}
+    </View>
+  );
   return (
     <View style={styles.line}>
-      <Txt style={styles.label}>{label}</Txt>
-      <Txt style={styles.note}>{note ?? ''}</Txt>
-      {children}
+      <Txt style={[styles.label, styles.lift]}>{label}</Txt>
+      <Txt style={[styles.note, styles.lift]}>{note ?? ''}</Txt>
+      <View style={styles.keys}>{children}</View>
     </View>
   );
 }
 
 export function SettingsPage({ set, change, go }: Props) {
-  const { side, pad } = useFrame();
+  const { land, side, pad } = useFrame();
   return (
     <Shell title="Settings" back={() => go('home')}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: side, paddingTop: 10, paddingBottom: pad.bottom + 16, gap: 8 }}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: side, paddingTop: 10, paddingBottom: pad.bottom + 16, gap: land ? 8 : 20 }}>
         <Line label="Shot calling" note="8-ball. WPA: tap the pocket first for a bank or a combination. 8 only: every pot counts">
           <Keys label="Shot calling" value={set.callAll} pick={callAll => change({ callAll })} options={[['WPA', true], ['8 only', false]]} />
         </Line>
@@ -44,4 +53,7 @@ const styles = StyleSheet.create({
   line: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 12, rowGap: 6, minHeight: 42 },
   label: { fontFamily: FONT.display, fontSize: 16, color: C.chalk, width: 140 },
   note: { ...TYPE.body, flex: 1, minWidth: 180, opacity: 0.82 },
+  lift: { marginBottom: 3 }, // centre on the key face, not face and lip
+  keys: { width: 212, alignItems: 'flex-start' },
+  col: { alignItems: 'flex-start', gap: 6 },
 });
