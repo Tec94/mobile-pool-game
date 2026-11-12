@@ -139,8 +139,9 @@ export function Hand({ cards, up, pick, width = 110, height = 200, follow }: { c
     onMomentumEnd: () => { target.value = -1; },
   });
   if (!land) return (
-    // A stack of more than six shows a half header, so it reads as one that scrolls; never over 42% of the window.
-    <ScrollView ref={scroll} style={{ flexGrow: 0, maxHeight: Math.min(50 * Math.min(n, 6) + (n > 6 ? 56 : 85), 0.42 * tall), marginBottom: -40 }} contentContainerStyle={{ paddingHorizontal: side }}
+    // Up to six: all of it, never over 42% of the window. More: what the window leaves under the tallest stage (382 pt
+    // from the top: strip, stage, link, button), at least 42%, so a tall window shows more headers, not empty stage.
+    <ScrollView ref={scroll} style={{ flexGrow: 0, maxHeight: n > 6 ? Math.min(50 * n + 45 + pad.bottom, Math.max(0.42 * tall, tall - pad.top - 382)) : Math.min(50 * n + 85, 0.42 * tall), marginBottom: -40 }} contentContainerStyle={{ paddingHorizontal: side }}
       onLayout={() => scroll.current?.scrollTo({ y: Math.max(0, 50 * (up - 2)), animated: false })}>
       {cards.map((c, i) => {
         const ink = { color: inkOn(c.paint) }, last = i === cards.length - 1;
