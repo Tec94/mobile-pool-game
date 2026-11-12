@@ -7,7 +7,7 @@ import type { EdgeInsets } from 'react-native-safe-area-context';
 import { P } from '../physics/engine';
 import type { State } from '../rules/rules';
 import { RAIL, type View as TableView } from '../render/table';
-import { BALLS, C, CREAM, DARK, FONT } from '../theme';
+import { BALLS, C, CREAM, DARK, FONT, type Paint } from '../theme';
 import { banner, fresh, type Plate, plates, strip } from './hud';
 import { Slab, Txt } from './slab';
 
@@ -126,6 +126,16 @@ export function Results({ rules, title, kind = 'Pass and play', children }: { ru
   );
 }
 
+// A button of a card or the results: cream = the one that goes on (Resume, Rematch, Next rack), dark on the ground, or by
+// default a key-off face, which reads on a dark card.
+export function Act({ label, paint, onPress }: { label: string; paint?: Paint; onPress: () => void }) {
+  return (
+    <Slab paint={paint ?? [C.keyOff, 'transparent']} lip={paint ? LIP : 0} radius={3} onPress={onPress} accessibilityLabel={label} style={!paint && { marginTop: LIP }} face={styles.act}>
+      <Txt style={[styles.actText, paint === CREAM && { color: C.ink }]}>{label}</Txt>
+    </Slab>
+  );
+}
+
 const styles = StyleSheet.create({
   hud: { position: 'absolute', gap: 6 },
   even: { width: 56 }, // the width of the pause button (Btn minWidth)
@@ -149,4 +159,6 @@ const styles = StyleSheet.create({
   eyebrow: { color: C.chalk + 'B3', fontSize: 11, fontWeight: '600', letterSpacing: 0.9, textTransform: 'uppercase' },
   title: { color: C.chalk, fontSize: 24, fontWeight: '800', textAlign: 'center' },
   why: { color: C.chalk, fontSize: 14, lineHeight: 19, textAlign: 'center' },
+  act: { minHeight: 41, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
+  actText: { fontFamily: FONT.bold, fontSize: 15, color: C.chalk, textAlign: 'center' },
 });

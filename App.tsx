@@ -41,11 +41,11 @@ import { levelNote } from './src/progress/profile';
 import { CUES, stick } from './src/progress/cues';
 import { loadSettings, saveSettings } from './src/settings/save';
 import { RIVAL, type Settings } from './src/settings/settings';
-import { BALLS, C, CLOTHS, DARK } from './src/theme';
+import { BALLS, C, CLOTHS, CREAM, DARK, FONT } from './src/theme';
 import { Btn } from './src/ui/Btn';
 import { useFontsReady } from './src/ui/fonts';
 import { LESSON_HUD, LessonHud } from './src/ui/LessonHud';
-import { hudHeight, MatchHud, Results } from './src/ui/MatchHud';
+import { Act, hudHeight, MatchHud, Results } from './src/ui/MatchHud';
 import { Menus, type Screen } from './src/ui/Menus';
 import { AimDial, PowerRail, shotStore } from './src/ui/ShotControls';
 import { TipButton, TipSheet, tipStore } from './src/ui/TipControl';
@@ -520,12 +520,12 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>{said.title}</Text>
             <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, said.say.startsWith('+') && styles.pay]}>{said.say}</Text>
-            {S ? said.ok ? <>{onNext && <Btn label="Next scenario" onPress={onNext} />}<Btn label="Play again" onPress={() => { setTries(1); les.current.tries = 1; reset('solo'); }} /><Btn label={`Back to ${back}`} onPress={onQuit} /></>
-              : <Btn label="Retry" onPress={() => reset('solo')} />
-              : stage === 'watch' ? <><Btn label="Try it" onPress={() => reset('guided')} /><Btn label="Watch again" onPress={() => reset('watch')} /></>
-              : run >= SOLO_RUN ? <>{onNext && n + 1 < LESSONS.length && <Btn label="Next lesson" onPress={onNext} />}<Btn label="Back to Learn" onPress={onQuit} /></>
-              : stage === 'guided' ? <>{said.ok && <Btn label="Next: solo" onPress={() => { setRun(0); reset('solo'); }} />}<Btn label={said.ok ? 'Again' : 'Retry'} onPress={() => reset('guided')} /><Btn label="Watch again" onPress={() => reset('watch')} /></>
-              : <Btn label={said.ok ? 'Next shot' : 'Retry'} onPress={() => reset('solo')} />}
+            {S ? said.ok ? <>{onNext && <Act paint={CREAM} label="Next scenario" onPress={onNext} />}<Act paint={onNext ? undefined : CREAM} label="Play again" onPress={() => { setTries(1); les.current.tries = 1; reset('solo'); }} /><Act label={`Back to ${back}`} onPress={onQuit} /></>
+              : <Act paint={CREAM} label="Retry" onPress={() => reset('solo')} />
+              : stage === 'watch' ? <><Act paint={CREAM} label="Try it" onPress={() => reset('guided')} /><Act label="Watch again" onPress={() => reset('watch')} /></>
+              : run >= SOLO_RUN ? <>{onNext && n + 1 < LESSONS.length && <Act paint={CREAM} label="Next lesson" onPress={onNext} />}<Act label="Back to Learn" onPress={onQuit} /></>
+              : stage === 'guided' ? <>{said.ok && <Act paint={CREAM} label="Next: solo" onPress={() => { setRun(0); reset('solo'); }} />}<Act paint={said.ok ? undefined : CREAM} label={said.ok ? 'Again' : 'Retry'} onPress={() => reset('guided')} /><Act label="Watch again" onPress={() => reset('watch')} /></>
+              : <Act paint={CREAM} label={said.ok ? 'Next shot' : 'Retry'} onPress={() => reset('solo')} />}
           </View>
         </View>
       )}
@@ -535,7 +535,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>{`${names[rules.turn]}, your call`}</Text>
             {!!rules.note && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{rules.note}</Text>}
-            {rules.choice.map((o, i) => <Btn key={o.label} label={o.label} onPress={() => apply.current(choose(rules, i))} />)}
+            {rules.choice.map((o, i) => <Act key={o.label} label={o.label} onPress={() => apply.current(choose(rules, i))} />)}
           </View>
         </View>
       )}
@@ -579,8 +579,8 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>Paused</Text>
             {!L && race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} ${score.current[0]} – ${score.current[1]} ${names[1]} · race to ${race}`}</Text>}
-            <Btn label="Resume" onPress={() => setPaused(false)} />
-            <Btn label={S ? 'Leave scenario' : L ? 'Leave lesson' : 'Leave match'} onPress={onQuit} />
+            <Act paint={CREAM} label="Resume" onPress={() => setPaused(false)} />
+            <Act label={S ? 'Leave scenario' : L ? 'Leave lesson' : 'Leave match'} onPress={onQuit} />
           </View>
         </View>
       )}
@@ -599,10 +599,10 @@ const styles = StyleSheet.create({
   // Cards and the tools tray are dark slabs: the lip is a solid bottom edge of the lip colour, not an outline.
   tools: { position: 'absolute', flexDirection: 'row', gap: 8, padding: 8, backgroundColor: DARK[0], borderBottomWidth: 5, borderColor: DARK[1], borderRadius: 5 },
   sheet: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { maxWidth: 320, alignSelf: 'center', padding: 16, gap: 10, borderRadius: 10, borderWidth: 1, borderColor: C.chalk + '66', backgroundColor: C.ground + 'F2' },
-  cardTitle: { color: C.chalk, fontSize: 18, fontWeight: '800', textAlign: 'center' },
-  cardNote: { color: C.chalk, fontSize: 14, lineHeight: 19, textAlign: 'center' },
-  dim: { backgroundColor: C.ground + '99' },
-  pay: { color: BALLS[0], fontWeight: '700' }, // one-ball yellow is for coins and XP
+  card: { width: 300, maxWidth: '100%', alignSelf: 'center', padding: 16, gap: 10, borderRadius: 5, backgroundColor: DARK[0], borderBottomWidth: 5, borderColor: DARK[1] },
+  cardTitle: { color: C.chalk, fontFamily: FONT.display, fontSize: 24, lineHeight: 28, textAlign: 'center' },
+  cardNote: { color: C.chalk, fontFamily: FONT.semi, fontSize: 14, lineHeight: 19, textAlign: 'center' },
+  dim: { backgroundColor: C.menu + 'B3' },
+  pay: { color: BALLS[0], fontFamily: FONT.bold }, // one-ball yellow is for coins and XP
   rates: { position: 'absolute', color: C.chalk, fontSize: 10, lineHeight: 13, fontVariant: ['tabular-nums'] },
 });
