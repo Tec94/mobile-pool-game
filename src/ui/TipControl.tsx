@@ -1,7 +1,7 @@
 // The spin button and the tip and cue angle sheet (screens spec: the ring around the spin ball, with the side picture).
 // Drawing and touch maths are in src/render/tip.ts; this file is the React Native shell around them.
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { BackHandler, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, PanResponder, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Canvas, Picture, Skia, SkCanvas } from '@shopify/react-native-skia';
 import Animated, { cubicBezier, FadeOut, useReducedMotion } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -45,7 +45,7 @@ export function TipButton({ store, onPress, land }: { store: TipStore; onPress: 
 // reader's escape close it too.
 const TRIM = 183 / 214; // the ring's picture is empty right of the ball and under it (src/render/tip.ts): the box ends at the ball
 export function TipSheet({ store, land, keep, calm, felt, blend, onDone }: { store: TipStore; land: boolean; keep: number; calm: boolean; felt: string; blend: boolean; onDone: () => void }) {
-  const t = useSyncExternalStore(store.sub, store.get), D = land ? 150 : 180; // portrait: 294 pt wide, inside the room left of the rail on a 375 pt phone
+  const t = useSyncExternalStore(store.sub, store.get), { width } = useWindowDimensions(), D = land ? 150 : Math.min(180, Math.floor((width - keep - 156) / TRIM)); // portrait: 294 pt wide on a 375 pt phone, smaller where the room left of the rail is less (156 = paddings, gap and the side picture)
   const size = useRef(D), drag = useRef<{ on: 'ring' | 'pad'; from: Tip; x: number; y: number; t: number; moved: boolean; a: number; e: number } | null>(null);
   if (size.current !== D) drag.current = null; // the phone turned during a drag: the touch no longer maps to the ring
   size.current = D; // the pan responder is created once, so it reads the latest size
