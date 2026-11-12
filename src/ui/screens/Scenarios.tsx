@@ -36,22 +36,20 @@ export function Scenarios({ go, stars, play }: Pick<Props, 'go'> & ScenarioProps
     <Shell title="Scenarios" back={() => go('home')}>
       <Stage title={pack} line={packOpen ? `${got(s.pack)} of ${3 * tables.length} stars. A clear opens the next two. A new star pays ${STAR_COINS} coins.` : `Opens at level ${at}.`}
         cta={packOpen ? { label: `Play ${n}`, name: `Play ${s.title}`, onPress: () => play(t), off: !open(t) } : { label: 'Locked', name: `${pack}, locked`, onPress: () => {}, off: true }}>
-        {packOpen && <>
-          <View style={styles.keys} accessibilityRole="radiogroup" accessibilityLabel={`${pack} tables`}>
-            {tables.map((i, j) => {
-              const x = SCENARIOS[i], on = i === t, ok = open(i), got = starCount(stars[x.id]);
-              return (
-                <Slab key={x.id} paint={on ? CREAM : [C.keyOff, 'transparent']} lip={on ? 3 : 0} radius={3} onPress={() => choose(i)} disabled={!ok} hitSlop={2}
-                  accessibilityRole="radio" accessibilityLabel={`${x.title}, ${got} of 3 stars, ${ok ? 'open' : 'locked'}`} accessibilityState={{ checked: on, disabled: !ok }} aria-checked={on}
-                  style={{ marginBottom: on ? 0 : 3 }} face={styles.key}>
-                  <Txt style={[styles.num, on && { color: C.ink }]}>{j + 1}</Txt>
-                  <Txt style={[styles.stars, on && { color: C.ink }]}>{starLine(got)}</Txt>
-                </Slab>
-              );
-            })}
-          </View>
-          <Txt style={styles.say}>{`${s.title} · par ${par(s)} · ${s.say.replace(/\.$/, '')}${k ? ` · ${starLine(k)}` : ''}`}</Txt>
-        </>}
+        <View style={styles.keys} accessibilityRole="radiogroup" accessibilityLabel={`${pack} tables`}>
+          {tables.map((i, j) => {
+            const x = SCENARIOS[i], on = i === t, ok = open(i), got = starCount(stars[x.id]);
+            return (
+              <Slab key={x.id} paint={on ? CREAM : [C.keyOff, 'transparent']} lip={on ? 3 : 0} radius={3} onPress={() => choose(i)} disabled={!ok} hitSlop={2}
+                accessibilityRole="radio" accessibilityLabel={`${x.title}, ${got} of 3 stars, ${ok ? 'open' : 'locked'}`} accessibilityState={{ checked: on, disabled: !ok }} aria-checked={on}
+                style={{ marginBottom: on ? 0 : 3 }} face={styles.key}>
+                <Txt style={[styles.num, on && { color: C.ink }]}>{j + 1}</Txt>
+                <Txt style={[styles.stars, on && { color: C.ink }]}>{starLine(got)}</Txt>
+              </Slab>
+            );
+          })}
+        </View>
+        <Txt style={styles.say}>{`${s.title} · par ${par(s)} · ${packOpen ? `${s.say.replace(/\.$/, '')}${k ? ` · ${starLine(k)}` : ''}` : `Opens at level ${at}`}`}</Txt>
       </Stage>
       <Hand cards={cards} up={s.pack} pick={pick} width={88} />
     </Shell>
