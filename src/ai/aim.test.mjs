@@ -129,13 +129,14 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   ok('Legend\'s caroms and billiards pot on the engine');
 }
 { // Leave on the engine: a stun or a follow on this straight pot rolls the cue ball to the side cushion, where the 9 and
-  // the 10 hide the 2. Scored by where the cue ball really stops, the pot draws back to a direct shot on the 2.
+  // the 10 hide the 2. Scored by where the cue ball really stops, the pot keeps a direct shot on the 2 (a draw, or a soft
+  // stun that stops the cue ball on the spot).
   const B = [mk(P.L / 2, 0.8), mk(P.L / 2, 0.3), mk(0.4, 0.8), mk(0.97, 0.21), mk(1.27, 0.21)], ids = [0, 1, 2, 9, 10];
   const r = aiShot(B, ids, SOLIDS, STRIPES, TIERS[5], rng(1)), sim = simulate(B, r.aim), c = sim.balls[0];
   const balls = sim.balls.map((b, i) => ({ id: ids[i], x: b.x * 1000, y: b.y * 1000 })).filter((_, i) => i && sim.balls[i].on);
   const next = enumerate({ x: c.x * 1000, y: c.y * 1000 }, balls, [2]).filter((s) => s.type === 'direct');
-  assert(sim.potted.includes(1) && !sim.scratch && r.aim.b < 0 && next.length, `tip ${r.aim.b}, rest ${c.x.toFixed(2)}, ${c.y.toFixed(2)}`);
-  ok('the leave is scored where the engine stops the cue ball: it draws back for the next ball');
+  assert(sim.potted.includes(1) && !sim.scratch && next.length, `tip ${r.aim.b}, rest ${c.x.toFixed(2)}, ${c.y.toFixed(2)}`);
+  ok('the leave is scored where the engine stops the cue ball: it keeps a shot on the next ball');
 }
 { // No legal ball at all (the group and the 8 are gone): no pick, and the AI still hands strike() a shot.
   const { B, ids } = table({ cue: { x: 1000, y: 500 }, balls: [{ id: 9, x: 300, y: 300 }] }), r = aiShot(B, ids, SOLIDS, STRIPES, TIERS[5], rng(1));
@@ -149,7 +150,7 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   ok('with no engine time a bank is still hit hard enough');
 }
 { // Tiers on the engine: one visit from each of 10 seeded full tables (bench.ts visit(), as npm run bench:visit plays them).
-  // Better tiers run more balls from planning and position, so Legend > Shark > Rookie by a margin (about 1.33x a tier: Shark 2.4x Rookie, Legend 1.7x Shark over 200 tables; 10 are noisy).
+  // Better tiers run more balls from planning and position, so Legend > Shark > Rookie by a margin (Shark 2.9x Rookie, Legend 1.6x Shark over 200 tables; 10 are noisy).
   const run = (t, nine = false) => Array.from({ length: 10 }, (_, i) => visit(TIERS[t], 1 + i, nine).potted).reduce((a, b) => a + b, 0);
   const [rookie, shark, legend] = [0, 3, 5].map((t) => run(t));
   assert(shark > 1.5 * rookie && legend > 1.3 * shark, `balls in 10 visits: Rookie ${rookie}, Shark ${shark}, Legend ${legend}`);
