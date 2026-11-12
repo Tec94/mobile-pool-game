@@ -149,7 +149,7 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   ok('with no engine time a bank is still hit hard enough');
 }
 { // Tiers on the engine: one visit from each of 10 seeded full tables (bench.ts visit(), as npm run bench:visit plays them).
-  // Better tiers run more balls from planning and position, so Legend > Shark > Rookie by a margin (about 1.28x a tier: Shark 2.1x Rookie, Legend 1.6x Shark over 200 tables; 10 are noisy).
+  // Better tiers run more balls from planning and position, so Legend > Shark > Rookie by a margin (about 1.33x a tier: Shark 2.4x Rookie, Legend 1.7x Shark over 200 tables; 10 are noisy).
   const run = (t, nine = false) => Array.from({ length: 10 }, (_, i) => visit(TIERS[t], 1 + i, nine).potted).reduce((a, b) => a + b, 0);
   const [rookie, shark, legend] = [0, 3, 5].map((t) => run(t));
   assert(shark > 1.5 * rookie && legend > 1.3 * shark, `balls in 10 visits: Rookie ${rookie}, Shark ${shark}, Legend ${legend}`);
