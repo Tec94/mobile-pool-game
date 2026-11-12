@@ -1,4 +1,4 @@
-# Pool
+# Runout
 
 Expo (SDK 58) + React Native Skia + TypeScript. The physics engine is `src/physics/engine.ts`, a pure TS port of the
 lab engine with its checks in `src/physics/engine.test.mjs` (`npm test`). `App.tsx` is a smoke-test table: pull back
@@ -67,13 +67,13 @@ Do not use usbipd to pass the phone into WSL: xtool hangs at `[Connecting] 100%`
    rm -f Pool.ipa && gh run download -n Pool-Release-ipa -R Tec94/mobile-pool-game
    xtool install Pool.ipa               # about 10 min
    ```
-5. Tap Pool on the phone. (`xtool launch` can't find it: xtool re-signs the app under its own bundle ID.)
+5. Tap Runout on the phone. (`xtool launch` can't find it: xtool re-signs the app under its own bundle ID.)
    If iOS says "Untrusted Developer": Settings > General > VPN & Device Management > your Apple ID > Trust.
 
 ### Fast loop for code changes (Debug build)
 
 Rebuilding the app for every change is slow. Build once with **Debug** instead of Release and install it the same
-way. That app is a dev client: on Windows run `npm start` in this folder, keep the phone on the same Wi-Fi, open Pool on
+way. That app is a dev client: on Windows run `npm start` in this folder, keep the phone on the same Wi-Fi, open Runout on
 the phone and pick your PC's server. JS and TS changes then reload live. Only rebuild when a native package changes.
 
 ### Signing
