@@ -52,9 +52,10 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
     return id === 'pencil' ? `${done.length}/${PENCIL_AT} lessons` : 'Locked';
   };
   const cards: Card[] = CUE_IDS.map(id => {
-    const c = CUES[id], owned = p.owned.includes(id), use = p.cue === id, ink = { color: owned ? C.ink : C.chalk };
+    const c = CUES[id], owned = p.owned.includes(id), use = p.cue === id, ink = { color: owned ? C.ink : C.chalk }, st = statsOf(id, masteryOf(p, id));
     return {
-      key: id, paint: owned ? CREAM : DARK, name: `${c.name}${use ? ', in use' : owned ? ', yours' : ''}`, title: c.name, line: foot(id),
+      key: id, paint: owned ? CREAM : DARK, title: c.name, line: foot(id),
+      name: `${c.name}${use ? ', in use' : owned ? ', yours' : ''}${owned ? `, power ${st.power}, spin ${st.spin}, aim ${st.aim}` : ''}`,
       art: size => <CueArt id={id} pose={small(size)} />,
       body: <>
         <View style={styles.art}><CueArt id={id} pose={TALL} /></View>
