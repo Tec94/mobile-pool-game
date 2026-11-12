@@ -41,7 +41,7 @@ import { levelNote } from './src/progress/profile';
 import { CUES, stick } from './src/progress/cues';
 import { loadSettings, saveSettings } from './src/settings/save';
 import { RIVAL, type Settings } from './src/settings/settings';
-import { BALLS, C, CLOTHS } from './src/theme';
+import { BALLS, C, CLOTHS, DARK } from './src/theme';
 import { Btn } from './src/ui/Btn';
 import { useFontsReady } from './src/ui/fonts';
 import { LESSON_HUD, LessonHud } from './src/ui/LessonHud';
@@ -596,7 +596,8 @@ function Gained(g: ReturnType<typeof award>) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.ground },
   at: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  tools: { position: 'absolute', flexDirection: 'row', gap: 8, padding: 8, backgroundColor: C.panel, borderColor: C.chalk + '40', borderWidth: 1, borderRadius: 12 },
+  // Cards and the tools tray are dark slabs: the lip is a solid bottom edge of the lip colour, not an outline.
+  tools: { position: 'absolute', flexDirection: 'row', gap: 8, padding: 8, backgroundColor: DARK[0], borderBottomWidth: 5, borderColor: DARK[1], borderRadius: 5 },
   sheet: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 24 },
   card: { maxWidth: 320, alignSelf: 'center', padding: 16, gap: 10, borderRadius: 10, borderWidth: 1, borderColor: C.chalk + '66', backgroundColor: C.ground + 'F2' },
   cardTitle: { color: C.chalk, fontSize: 18, fontWeight: '800', textAlign: 'center' },
