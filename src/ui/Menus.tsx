@@ -25,7 +25,7 @@ export function Menus(p: Props & LearnProps & ScenarioProps & DailyProps & { scr
 
 function page({ screen, set, change, go, done, learn, stars, play, daily, today, day, playDay, arm }: Props & LearnProps & ScenarioProps & DailyProps & { screen: Screen }) {
   if (screen === 'settings') return <SettingsPage set={set} change={change} go={go} />;
-  if (screen === 'cues') return <Cues go={go} />;
+  if (screen === 'cues') return <Cues go={go} done={done} />;
   if (screen === 'learn') return <Learn go={go} done={done} learn={learn} />;
   if (screen === 'scenarios') return <Scenarios go={go} stars={stars} play={play} />;
   if (screen === 'calendar') return <Calendar go={go} daily={daily} today={today} day={day} playDay={playDay} />;
