@@ -1,18 +1,19 @@
 // The match HUD (screens spec: player plates, the 9-ball strip, the banner) and the results card. What they show comes
 // from src/ui/hud.ts; this file only draws it.
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
 import type { EdgeInsets } from 'react-native-safe-area-context';
 import { P } from '../physics/engine';
 import type { State } from '../rules/rules';
 import { RAIL, type View as TableView } from '../render/table';
-import { BALLS, C, CREAM, DARK, FONT, type Paint } from '../theme';
+import { BALLS, C, CREAM, DARK, FONT, MODE, type Paint } from '../theme';
 import { banner, fresh, type Plate, plates, strip } from './hud';
-import { Slab, Txt } from './slab';
+import { Slab, Txt, TYPE } from './slab';
 
 const RED = BALLS[2]; // fouls reuse the three-ball red (Quiet Slate)
 const LINE = C.chalk + '66'; // chalk hairline at 40%: 3:1 on the ground
+const GOLD: Paint = [C.gold, '#B48C12'];
 const POP = { animationName: { from: { opacity: 0, transform: [{ scale: 0.95 }] } }, animationDuration: '200ms', animationTimingFunction: 'ease-out' } as const; // a new ruling pops in
 const TOP = 4, PLATE = 44, STRIP = 24, STRIP_PIP = 18, LIP = 3, FRAME = 30;
 // Screen units the HUD takes above the table: the plates, and in 9-ball the strip of balls under them.
@@ -112,17 +113,47 @@ function Banner({ rules, push, calm, wait, style }: { rules: State; push: boolea
   );
 }
 
-// The end of the rack: who won and why. The score, the pay and the buttons come in as children.
-export function Results({ rules, title, kind = 'Pass and play', children }: { rules: State; title: string; kind?: string; children: ReactNode }) {
+// The end of the rack, as a mosaic: a tall slab says who won and why (gold when the player at the phone won, or anyone in
+// pass and play; dark when the AI won), with the frame score huge in a race; the pay, the level and the buttons come in
+// as children beside it (under it in portrait). foot = a last line on the slab (the Rival's rating).
+export function Results({ rules, title, kind = 'Pass and play', gold, score, names, foot, children }: { rules: State; title: string; kind?: string; gold: boolean; score?: readonly number[]; names: string[]; foot?: string; children: ReactNode }) {
+  const { width, height } = useWindowDimensions(), land = width > height, ink = gold ? C.ink : C.chalk;
   return (
     <View style={styles.sheet} pointerEvents="box-none">
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.card} accessibilityViewIsModal>
-        <Text maxFontSizeMultiplier={1.3} style={styles.eyebrow}>{kind} · {rules.game}-ball</Text>
-        <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.title}>{title}</Text>
-        {!!rules.note && <Text maxFontSizeMultiplier={1.3} style={styles.why}>{rules.note}</Text>}
-        {children}
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.mosaic, land && styles.wide]} accessibilityViewIsModal>
+        <Slab paint={gold ? GOLD : DARK} style={land ? styles.tall : undefined} face={styles.win}>
+          <Txt style={[TYPE.small, { color: ink }]}>{kind} · {rules.game}-ball</Txt>
+          <Txt accessibilityRole="header" style={[styles.title, { color: ink }]}>{title}</Txt>
+          {!!rules.note && <Txt style={[TYPE.body, { color: ink }]}>{rules.note}</Txt>}
+          {score && <Txt accessibilityLabel={`${names[0]} ${score[0]}, ${names[1]} ${score[1]}`} style={[styles.score, { color: ink }]}>{score[0]}–{score[1]}</Txt>}
+          {!!foot && <Txt style={[TYPE.body, styles.foot, { color: ink }]}>{foot}</Txt>}
+        </Slab>
+        <View style={[styles.side, land && { flex: 1 }]}>{children}</View>
       </ScrollView>
     </View>
+  );
+}
+
+// A pay line of the results: the XP in a gold chip, "× 2" in a blue chip when Fresh Chalk doubled it, and what it paid.
+export function PayRow({ label, xp, coins, twice }: { label: string; xp: number; coins: number; twice?: boolean }) {
+  const k = twice ? 2 : 1;
+  return (
+    <View style={styles.payRow} accessible accessibilityLabel={`${label}: ${k * xp} XP, ${k * coins} coins${twice ? ', doubled by Fresh Chalk' : ''}`}>
+      <Txt style={[TYPE.body, styles.payLabel]}>{label}</Txt>
+      <Slab paint={GOLD} lip={LIP} radius={3} face={styles.payChip}><Txt style={styles.chipNum}>{xp}</Txt></Slab>
+      {twice && <><Txt style={TYPE.body}>×</Txt><Slab paint={MODE.daily} lip={LIP} radius={3} face={styles.payChip}><Txt style={styles.chipNum}>2</Txt></Slab><Txt style={[TYPE.small, { color: C.blue }]}>Fresh Chalk</Txt></>}
+      <Txt style={[TYPE.body, styles.payAll]}>{k * xp} XP · {k * coins} coins</Txt>
+    </View>
+  );
+}
+
+// The total of the pay: XP in gold, coins in chalk.
+export function PayTotal({ xp, coins }: { xp: number; coins: number }) {
+  return (
+    <Slab paint={DARK} face={styles.total}>
+      <Txt style={[styles.big, { color: C.gold }]}>+{xp} XP</Txt>
+      <Txt style={styles.big}>+{coins} coins</Txt>
+    </Slab>
   );
 }
 
@@ -153,12 +184,23 @@ const styles = StyleSheet.create({
   banner: { maxWidth: '100%' },
   bannerFace: { paddingVertical: 4, paddingHorizontal: 12 },
   bannerText: { color: C.chalk, fontFamily: FONT.bold, fontSize: 13, lineHeight: 16, textAlign: 'center' },
-  sheet: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  scroll: { flexGrow: 0, maxWidth: '100%', borderRadius: 10 }, // a long card (quick match pay) scrolls on a short landscape phone
-  card: { width: 300, maxWidth: '100%', padding: 20, gap: 10, borderRadius: 10, borderWidth: 1, borderColor: LINE, backgroundColor: C.ground + 'F2', alignItems: 'center' },
-  eyebrow: { color: C.chalk + 'B3', fontSize: 11, fontWeight: '600', letterSpacing: 0.9, textTransform: 'uppercase' },
-  title: { color: C.chalk, fontSize: 24, fontWeight: '800', textAlign: 'center' },
-  why: { color: C.chalk, fontSize: 14, lineHeight: 19, textAlign: 'center' },
+  sheet: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 16, backgroundColor: C.menu + 'E6' },
+  scroll: { flexGrow: 0, maxWidth: '100%' }, // a long pay list scrolls on a short landscape phone
+  mosaic: { width: 340, maxWidth: '100%', gap: 14 },
+  wide: { width: 700, flexDirection: 'row', alignItems: 'stretch', gap: 24 },
+  tall: { width: 280 },
+  win: { padding: 16, gap: 6 },
+  title: { fontFamily: FONT.display, fontSize: 30, lineHeight: 32, letterSpacing: -0.5 },
+  score: { fontFamily: FONT.display, fontSize: 84, lineHeight: 88, letterSpacing: -2, fontVariant: ['tabular-nums'] },
+  foot: { marginTop: 'auto', paddingTop: 6 },
+  side: { gap: 10, justifyContent: 'center' },
+  payRow: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 34 },
+  payLabel: { minWidth: 64 },
+  payChip: { minWidth: 44, height: 26, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
+  chipNum: { fontFamily: FONT.display, fontSize: 15, color: C.ink, fontVariant: ['tabular-nums'] },
+  payAll: { marginLeft: 'auto', fontVariant: ['tabular-nums'] },
+  total: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 14, paddingHorizontal: 14, paddingVertical: 10 },
+  big: { fontFamily: FONT.display, fontSize: 26, lineHeight: 30, color: C.chalk, fontVariant: ['tabular-nums'] },
   act: { minHeight: 41, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
   actText: { fontFamily: FONT.bold, fontSize: 15, color: C.chalk, textAlign: 'center' },
 });

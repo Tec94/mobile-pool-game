@@ -45,7 +45,7 @@ import { BALLS, C, CLOTHS, CREAM, DARK, FONT } from './src/theme';
 import { Btn } from './src/ui/Btn';
 import { useFontsReady } from './src/ui/fonts';
 import { LESSON_HUD, LessonHud } from './src/ui/LessonHud';
-import { Act, hudHeight, MatchHud, Results } from './src/ui/MatchHud';
+import { Act, hudHeight, MatchHud, PayRow, PayTotal, Results } from './src/ui/MatchHud';
 import { Menus, type Screen } from './src/ui/Menus';
 import { AimDial, PowerRail, shotStore } from './src/ui/ShotControls';
 import { TipButton, TipSheet, tipStore } from './src/ui/TipControl';
@@ -489,6 +489,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   // A new rack. The break alternates after a finished rack (WPA 1.3); a rack started over keeps its breaker.
   const over = rules.phase === 'over';
   const win = rules.winner === -1 ? 0 : rules.winner, done = over && score.current[win] >= race; // the match is over
+  const paid = won.current; // the match pay is the total less the shots and Fresh Chalk (which pays the match pay again)
   const rerack = (breaker = over ? 1 - rules.breaker : rules.breaker) => {
     if (done) { score.current = [0, 0]; if (rival) { level.current = profile().rival[game].rating; moved.current = ''; } won.current = { shots: { xp: 0, coins: 0 }, run: 0, fouls: 0, own: 0, cands: [], pay: PASS_PLAY, chalk: null }; }
     apply.current(newGame(game, breaker as 0 | 1, set.callAll));
@@ -539,21 +540,6 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
           </View>
         </View>
       )}
-      {/* The end of the rack: the frame score in a race, the pay at the end of the match. */}
-      {over && !paused && (
-        <Results rules={rules} kind={vs ? 'Quick match' : undefined} title={`${names[win]} wins${race > 1 ? done ? ' the match' : ' the frame' : ''}`}>
-          {race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} ${score.current[0]} – ${score.current[1]} ${names[1]}`}</Text>}
-          {!done && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[1 - rules.breaker]} breaks`}</Text>}
-          {done && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.pay]}>{`+${won.current.pay.xp} XP · +${won.current.pay.coins} coins`}</Text>}
-          {done && vs && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`Shots +${won.current.shots.xp} XP · +${won.current.shots.coins} coins`}</Text>}
-          {done && !!moved.current && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{moved.current}</Text>}
-          {done && won.current.chalk && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`Fresh Chalk: +${won.current.chalk.xp} XP · +${won.current.chalk.coins} coins`}</Text>}
-          {done && gained.current && <Gained {...gained.current} />}
-          {done && !!gained.current?.mastery && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{gained.current.mastery}</Text>}
-          <Btn label={done ? 'Rematch' : 'Next rack'} onPress={() => rerack()} />
-          {done && <Btn label="Menu" onPress={onQuit} />}
-        </Results>
-      )}
       {/* The shot controls sit inside the safe area where shotLayout puts them. */}
       <PowerRail store={shot} box={lay.rail} onStrike={fire} />
       <AimDial store={shot} box={lay.dial} />
@@ -573,6 +559,22 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       {/* The sheet stops short of the rail, so a shot can be pulled while it is open. */}
       {sheet && <TipSheet store={tip} land={view.land} calm={calm} felt={CLOTHS[cloth].felt} blend={set.zones} onDone={() => setSheet(false)} width={view.land ? 300 : lay.rail.left - 8 - lay.tools.left}
         style={view.land ? { right: width - lay.rail.left + 8, bottom: Math.max(pad.bottom, 8) } : { left: lay.tools.left, bottom: height - lay.spin.top + 8 }} />}
+      {/* The end of the rack: the frame score in a race, the pay at the end of the match. Over the controls, which wait. */}
+      {over && !paused && (
+        <Results rules={rules} kind={vs ? 'Quick match' : undefined} title={`${names[win]} wins${race > 1 ? done ? ' the match' : ' the frame' : ''}`} gold={!vs || win === 0}
+          score={race > 1 ? score.current : undefined} names={names} foot={done ? moved.current : ''}>
+          {!done && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{`${names[1 - rules.breaker]} breaks`}</Text>}
+          {done && <PayRow label={!vs ? 'Pass and play' : win === 0 ? 'Match win' : 'Match'} xp={paid.pay.xp - paid.shots.xp - (paid.chalk?.xp ?? 0)} coins={paid.pay.coins - paid.shots.coins - (paid.chalk?.coins ?? 0)} twice={!!paid.chalk} />}
+          {done && vs && !!(paid.shots.xp || paid.shots.coins) && <PayRow label="Shots" xp={paid.shots.xp} coins={paid.shots.coins} />}
+          {done && <PayTotal xp={paid.pay.xp} coins={paid.pay.coins} />}
+          {done && gained.current && <Gained {...gained.current} />}
+          {done && !!gained.current?.mastery && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{gained.current.mastery}</Text>}
+          <View style={styles.acts}>
+            <Act paint={CREAM} label={done ? 'Rematch' : 'Next rack'} onPress={() => rerack()} />
+            {done && <Act paint={DARK} label="Menu" onPress={onQuit} />}
+          </View>
+        </Results>
+      )}
       {/* Paused: drawn last, so the card and its ground take every touch and no control or aim works behind them. Leaving ends the match. */}
       {paused && (
         <View style={[styles.sheet, styles.dim]} onStartShouldSetResponder={() => true}>
@@ -590,7 +592,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
 
 // The player's level after the award, on one line (levelNote): yellow for a level-up, like the pay.
 function Gained(g: ReturnType<typeof award>) {
-  return <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, g.to > g.from && styles.pay]}>{levelNote(g)}</Text>;
+  return <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left, g.to > g.from && styles.pay]}>{levelNote(g)}</Text>;
 }
 
 const styles = StyleSheet.create({
@@ -604,5 +606,7 @@ const styles = StyleSheet.create({
   cardNote: { color: C.chalk, fontFamily: FONT.semi, fontSize: 14, lineHeight: 19, textAlign: 'center' },
   dim: { backgroundColor: C.menu + 'B3' },
   pay: { color: BALLS[0], fontFamily: FONT.bold }, // one-ball yellow is for coins and XP
+  left: { textAlign: 'left' },
+  acts: { flexDirection: 'row', gap: 10, marginTop: 4 },
   rates: { position: 'absolute', color: C.chalk, fontSize: 10, lineHeight: 13, fontVariant: ['tabular-nums'] },
 });
