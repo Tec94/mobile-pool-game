@@ -5,7 +5,6 @@ import { StyleSheet, TextInput, View } from 'react-native';
 import { LESSON_PAY, LESSONS, SOLO_RUN } from '../../learn/lessons';
 import { PASS_PLAY, profile, rivalReset } from '../../progress';
 import { CUE_IDS, CUES } from '../../progress/cues';
-import { masteryOf, STATS, statsOf } from '../../progress/mastery';
 import { PACKS } from '../../progress/profile';
 import { between, MOODS, shown } from '../../progress/rival';
 import { streak, weekday } from '../../daily/daily';
@@ -16,7 +15,7 @@ import { C, CREAM, FONT, MODE } from '../../theme';
 import { dateOf, THEMES } from '../days';
 import type { DailyProps, LearnProps, Props, ScenarioProps } from '../Menus';
 import { type Card, Hand, Link, Row, Shell, Stage } from '../shell';
-import { BallArt, Blocks, Chip, Keys, Txt, TYPE } from '../slab';
+import { BallArt, Chip, Keys, Txt } from '../slab';
 
 type HomeProps = Props & LearnProps & ScenarioProps & Omit<DailyProps, 'day'>;
 const GAMES: [string, 8 | 9][] = [['8-ball', 8], ['9-ball', 9]];
@@ -27,7 +26,8 @@ const ball = (n: number) => (size: number) => <BallArt n={n} size={size} />;
 let kept = 0; // the raised card outlives the screen, so a match or a page returns to it
 export function Home(p: HomeProps) {
   const { set, go, done, stars, daily, today } = p;
-  const [up, setUp] = useState(kept), pick = (i: number) => { kept = i; setUp(i); };
+  // The Cues card has no stage: a tap opens the all-cues screen. kept was 5 (Cues) in an older build.
+  const [up, setUp] = useState(kept < 5 ? kept : 0), pick = (i: number) => cards[i].key === 'cues' ? go('cues') : (kept = i, setUp(i));
   const me = profile(), wd = THEMES[weekday(today)], k = starCount(daily.stars[today]), run = streak(daily.stars, today).current;
   const next = LESSONS.find(l => !done.includes(l.id));
   const opp = set.tier === RIVAL ? `Rival ${shown(me.rival[set.aiGame].rating)}` : TIERS[set.tier].name;
@@ -39,7 +39,7 @@ export function Home(p: HomeProps) {
     { key: 'pass', paint: MODE.pass, name: 'Pass and play', title: 'Pass and play', line: 'Two players', art: ball(5) },
     { key: 'cues', paint: MODE.cues, name: 'Cues', title: 'Cues', line: `${CUES[me.cue].name} · ${me.owned.length} of ${CUE_IDS.length}`, art: ball(6) },
   ];
-  const Stages = [QuickStage, DailyStage, ScenarioStage, LearnStage, PassStage, CueStage], S = Stages[up];
+  const Stages = [QuickStage, DailyStage, ScenarioStage, LearnStage, PassStage], S = Stages[up];
   return (
     <Shell settings={() => go('settings')}>
       <S {...p} />
@@ -131,27 +131,8 @@ function LearnStage({ go, done, learn }: HomeProps) {
   );
 }
 
-function CueStage({ go }: HomeProps) {
-  const me = profile(), c = CUES[me.cue] as { name: string; perk?: string }, st = statsOf(me.cue, masteryOf(me, me.cue));
-  return (
-    <Stage title={c.name} line={`Your cue${c.perk ? ` · ${c.perk}` : ''}`} cta={{ label: 'All cues', onPress: () => go('cues') }}>
-      <View style={{ gap: 8 }}>
-        {STATS.map(s => (
-          <View key={s} style={styles.stat} accessible accessibilityLabel={`${s} ${st[s]} of 10`}>
-            <Txt style={[TYPE.body, styles.statName]}>{s[0].toUpperCase() + s.slice(1)}</Txt>
-            <Blocks value={st[s]} width={200} />
-            <Txt style={[TYPE.body, TYPE.num, { fontFamily: FONT.bold }]}>{st[s]}</Txt>
-          </View>
-        ))}
-      </View>
-    </Stage>
-  );
-}
-
 const styles = StyleSheet.create({
   field: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   fieldLabel: { fontFamily: FONT.bold, fontSize: 11, color: C.chalk, opacity: 0.7 },
   input: { width: 150, height: 34, paddingHorizontal: 10, borderRadius: 3, backgroundColor: C.chalk + '12', borderBottomWidth: 2, borderBottomColor: C.chalk, color: C.chalk, fontFamily: FONT.bold, fontSize: 13.5 },
-  stat: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  statName: { width: 44, opacity: 0.8 },
 });
