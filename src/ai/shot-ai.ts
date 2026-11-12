@@ -235,16 +235,18 @@ function leaves(G: Pt, v: Pt, u: Pt, balls: Obj[], ignore: number[], powers = PO
 // caromGap = widest gap (mm, between the ball surfaces) between the potted ball and the helper it is kissed off.
 // budget = engine time for the shot in hand, in full-table simulations (aim.ts refine()); tries = pots it is split over.
 // Measured on the engine (npm run bench:visit): budget past about 20 a shot and depth 2 add no balls a visit; aim error
-// (sigma) moves it most, Legend at 0.15 degrees runs 4.8 balls against 4.1 at 0.19. Shark's budget of 12 (not 17) and
-// Pro's wLeave of 0.6 (not 0.9: fewer safeties) set Shark, Pro and Legend apart: at 300 tables 2.76, 3.66, 4.04 balls in
-// 8-ball and 0.83, 1.05, 1.40 in 9-ball, against 2.88, 3.47, 4.04 and 0.88, 0.86, 1.40. tries 2, 3 or 4 changed nothing.
+// (sigma) moves it most. Balls a visit grow each tier, steeper from Shark up (Jack 2026-11-12: top tiers punish a single
+// mistake): at 150-200 tables 1.31, 1.75, 2.61, 3.81, 5.25, 6.21 in 8-ball (clears 0, 2, 2, 10, 30, 46%), 0.40, 0.51,
+// 0.70, 1.41, 2.57, 3.99 in 9-ball. With no noise at all Legend runs 6.45 and clears 65%: the planner's ceiling.
+// Keep tipErr x CUE.squirt (rad) at or under sigma: aim.ts takes the squirt out of the aim error, and past sigma it is all squirt.
+// Shark's budget of 12 (not 17) and Pro's wLeave of 0.6 (not 0.9: fewer safeties) keep Shark, Pro and Legend apart.
 export const TIERS: Tier[] = [
-  { name: 'Rookie',  sigma: 0.71, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1, caromGap: 0 },
+  { name: 'Rookie',  sigma: 0.52, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1, caromGap: 0 },
   { name: 'Regular', sigma: 0.42, types: ['direct', 'bank'],                  flair: 0.03, temp: 0.08, depth: 0, wPos: 0,   posErr: 0.16, speedErr: 12, tipErr: 0.08, ctrl: 1, wLeave: 0, safetyAngles: [], budget: 2, caromGap: 0 },
-  { name: 'Hustler', sigma: 0.35, types: ['direct', 'bank', 'combo', 'carom'], flair: 0.05, temp: 0.08, depth: 1, planShare: 0.5, wPos: 0.5, posErr: 0.11, speedErr: 8, tipErr: 0.06, ctrl: 1, wLeave: 0.3, safetyAngles: [0], budget: 9, caromGap: 60 },
-  { name: 'Shark',   sigma: 0.30, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.05, temp: 0.04, depth: 1, tries: 2, wPos: 0.8, posErr: 0.10, speedErr: 7, tipErr: 0.055, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-30, 0, 30], budget: 12, caromGap: 10000 },
-  { name: 'Pro',     sigma: 0.24, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.04, temp: 0.02, depth: 1, tries: 3, wPos: 0.9, posErr: 0.08, speedErr: 5, tipErr: 0.04, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 24, caromGap: 10000 },
-  { name: 'Legend',  sigma: 0.19, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1,   posErr: 0.07, speedErr: 3.5, tipErr: 0.03, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 33, caromGap: 10000 },
+  { name: 'Hustler', sigma: 0.34, types: ['direct', 'bank', 'combo', 'carom'], flair: 0.05, temp: 0.08, depth: 1, planShare: 0.5, wPos: 0.5, posErr: 0.11, speedErr: 8, tipErr: 0.06, ctrl: 1, wLeave: 0.3, safetyAngles: [0], budget: 9, caromGap: 60 },
+  { name: 'Shark',   sigma: 0.20, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.05, temp: 0.04, depth: 1, tries: 2, wPos: 0.8, posErr: 0.08, speedErr: 5, tipErr: 0.035, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-30, 0, 30], budget: 12, caromGap: 10000 },
+  { name: 'Pro',     sigma: 0.12, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.04, temp: 0.02, depth: 1, tries: 3, wPos: 0.9, posErr: 0.05, speedErr: 2.5, tipErr: 0.02, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 24, caromGap: 10000 },
+  { name: 'Legend',  sigma: 0.05, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1,   posErr: 0.03, speedErr: 1, tipErr: 0.01, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 33, caromGap: 10000 },
 ];
 // The AI for a rating s on the tier scale (1 Rookie .. 6 Legend; the Rival plays 0.5 to 6.5): numeric dials on the line
 // through the two nearest rows, past 1 and 6 along the end pair's slope. Whole settings come from the upper row with
