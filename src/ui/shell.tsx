@@ -39,15 +39,17 @@ export function Strip({ title, back, settings }: { title?: string; back?: () => 
   </>;
   return (
     <View style={{ paddingHorizontal: side, paddingTop: land ? 10 : 8, gap: 8 }}>
-      <View style={styles.row}>
-        {back ? <Chip onPress={back} name="Back" style={styles.back}>{`‹ ${title ?? ''}`}</Chip>
+      {/* each chip 3 pt down: its lip hangs under the face, so the face lines up with the level */}
+      <View style={[styles.row, { minHeight: 32 }]}>
+        {back ? <Chip onPress={back} name={`Back${title ? `, ${title}` : ''}`} style={[styles.back, styles.lip]}>{`‹ ${title ?? ''}`}</Chip>
           : <BallArt n={level} size={30} label={level} />}
-        <Txt style={back ? styles.small : styles.level}>{`Level ${level}`}</Txt>
+        <Txt numberOfLines={1} style={[back ? styles.small : styles.level, { flexShrink: 1 }]}>{`Level ${level}`}</Txt>
         {land && xp}
         <View style={{ flex: 1 }} />
-        <Chip name={`Fresh Chalk, ${chalk} ${chalk === 1 ? 'charge' : 'charges'}`}><View style={styles.cube} /><Txt style={styles.chipNum}>{chalk}</Txt></Chip>
-        <Chip name={`${p.coins} coins`}><View style={styles.coin} /><Txt style={styles.chipNum}>{p.coins.toLocaleString('en-US')}</Txt></Chip>
-        {settings && <Chip onPress={settings} name="Settings"><Sliders /></Chip>}
+        <Chip name={`Fresh Chalk, ${chalk} ${chalk === 1 ? 'charge' : 'charges'}`} style={styles.lip}><View style={styles.cube} /><Txt style={styles.chipNum}>{chalk}</Txt></Chip>
+        <Chip name={`${p.coins} coins`} style={styles.lip}><View style={styles.coin} />
+          <Txt style={styles.chipNum}>{p.coins >= 1e6 ? `${(p.coins / 1e6).toFixed(2)}M` : p.coins.toLocaleString('en-US')}</Txt></Chip>
+        {settings && <Chip onPress={settings} name="Settings" style={styles.lip}><Sliders /></Chip>}
       </View>
       {!land && <View style={styles.row}>{xp}</View>}
     </View>
@@ -56,7 +58,7 @@ export function Strip({ title, back, settings }: { title?: string; back?: () => 
 
 // The settings mark: three sliders.
 const Sliders = () => (
-  <View style={{ width: 15, height: 20, justifyContent: 'center', gap: 3 }}>
+  <View style={{ width: 19, height: 20, justifyContent: 'center', gap: 3 }}>
     {[3, 9, 5].map((x, i) => <View key={i} style={{ height: 2, backgroundColor: C.chalk }}><View style={[styles.knob, { left: x }]} /></View>)}
   </View>
 );
@@ -162,7 +164,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   wrap: { flexWrap: 'wrap', rowGap: 8 },
   back: { marginRight: 4 },
-  level: { fontFamily: FONT.display, fontSize: 20, color: C.chalk },
+  lip: { marginTop: 3 },
+  level: { fontFamily: FONT.display, fontSize: 20, lineHeight: 24, marginBottom: 4, color: C.chalk },
   small: { fontFamily: FONT.semi, fontSize: 12, color: C.chalk, opacity: 0.8 },
   chipNum: { fontFamily: FONT.bold, fontSize: 13, color: C.chalk, fontVariant: ['tabular-nums'] },
   cube: { width: 10, height: 10, backgroundColor: C.blue, boxShadow: '1.5px 1.5px 0 #0006' },
