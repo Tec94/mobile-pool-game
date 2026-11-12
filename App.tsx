@@ -499,6 +499,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
     apply.current(newGame(game, breaker as 0 | 1, set.callAll));
   };
 
+  const cardAt = !view.land && { right: width - lay.rail.left, padding: 8 }; // portrait: a card over the table sits at the middle of the table, clear of the rail
   return (
     <View style={styles.root} {...pan.panHandlers}>
       {/* The table has its own canvas: it is most of the drawing work and it does not change during play. */}
@@ -521,7 +522,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       </MatchHud>}
       {/* A lesson's verdict on the last shot, and where to go from it. */}
       {L && said && !paused && (
-        <View style={styles.sheet} pointerEvents="box-none">
+        <View style={[styles.sheet, cardAt]} pointerEvents="box-none">
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>{said.title}</Text>
             <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, said.say.startsWith('+') && styles.pay]}>{said.say}</Text>
@@ -536,7 +537,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       )}
       {/* A decision the rules hand to a player: a card over the table, and play waits for it. */}
       {rules.choice && !paused && !(vs && rules.turn === 1) && (
-        <View style={styles.sheet} pointerEvents="box-none">
+        <View style={[styles.sheet, cardAt]} pointerEvents="box-none">
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>{`${names[rules.turn]}, your call`}</Text>
             {!!rules.note && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{rules.note}</Text>}
@@ -583,7 +584,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         <View style={[styles.sheet, styles.dim]} onStartShouldSetResponder={() => true}>
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>Paused</Text>
-            {!L && race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} ${score.current[0]} – ${score.current[1]} ${names[1]} · race to ${race}`}</Text>}
+            {!L && race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} ${score.current[0]} – ${score.current[1]} ${names[1]}\nRace to ${race}`}</Text>}
             <Act paint={CREAM} label="Resume" onPress={() => setPaused(false)} />
             <Act label={S ? 'Leave scenario' : L ? 'Leave lesson' : 'Leave match'} onPress={onQuit} />
           </View>
@@ -604,12 +605,12 @@ const styles = StyleSheet.create({
   // Cards and the tools tray are dark slabs: the lip is a solid bottom edge of the lip colour, not an outline.
   tools: { position: 'absolute', flexDirection: 'row', gap: 8, padding: 8, backgroundColor: DARK[0], borderBottomWidth: 5, borderColor: DARK[1], borderRadius: 5 },
   sheet: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { width: 300, maxWidth: '100%', alignSelf: 'center', padding: 16, gap: 10, borderRadius: 5, backgroundColor: DARK[0], borderBottomWidth: 5, borderColor: DARK[1] },
+  card: { width: 300, maxWidth: '100%', alignSelf: 'center', padding: 16, gap: 12, borderRadius: 5, backgroundColor: DARK[0], borderBottomWidth: 5, borderColor: DARK[1] },
   cardTitle: { color: C.chalk, fontFamily: FONT.display, fontSize: 24, lineHeight: 28, textAlign: 'center' },
   cardNote: { color: C.chalk, fontFamily: FONT.semi, fontSize: 14, lineHeight: 19, textAlign: 'center' },
   dim: { backgroundColor: C.menu + 'B3' },
   pay: { color: BALLS[0], fontFamily: FONT.bold }, // one-ball yellow is for coins and XP
   left: { textAlign: 'left' },
-  acts: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  acts: { flexDirection: 'row', gap: 8, marginTop: 4 },
   rates: { position: 'absolute', color: C.chalk, fontSize: 10, lineHeight: 13, fontVariant: ['tabular-nums'] },
 });
