@@ -120,7 +120,7 @@ import { addDays, addMonths, armChalk, chalkResult, dailyClear, dailyPick, dayKe
   const disk = new Map(); globalThis.__DEV__ = false; globalThis.__disk = disk;
   const fake = `export const Paths = { document: '' }; const d = globalThis.__disk;
     export class File { constructor(_, n) { this.n = n } get exists() { return d.has(this.n) } textSync() { if (!d.has(this.n)) throw Error('none'); return d.get(this.n) }
-      writeSync(t) { d.set(this.n, t) } moveSync(to) { d.set(to.n, this.textSync()); d.delete(this.n) } }`;
+      writeSync(t) { d.set(this.n, t) } delete() { d.delete(this.n) } moveSync(to) { if (globalThis.__full) throw Error('disk full'); d.set(to.n, this.textSync()); d.delete(this.n) } }`;
   const { registerHooks } = await import('node:module');
   registerHooks({ resolve: (s, c, next) => (s === 'expo-file-system' ? { url: `data:text/javascript,${encodeURIComponent(fake)}`, shortCircuit: true } : next(s, c)) });
   const { loadDaily, saveDaily } = await import('./save.ts'), today = '2026-11-11', fresh = readDaily(null, today);
@@ -154,5 +154,9 @@ import { addDays, addMonths, armChalk, chalkResult, dailyClear, dailyPick, dayKe
   assert.deepStrictEqual(loadStars(), { [s1]: 1 }, 'damaged stars fall back to the backup');
   disk.set('daily.json', '[]'); disk.delete('daily.new.json');
   assert.deepStrictEqual(loadDaily(today).daily, a, 'a list is not a daily file: the backup loads');
+  disk.clear(); saveDone([l1]); globalThis.__full = true;
+  assert(!saveDone([l1, l2]), 'a move that fails is no save');
+  globalThis.__full = false;
+  assert.deepStrictEqual(loadDone(), [l1], 'and the failed save is gone, so the lesson it would have paid is not shown as passed');
   console.log('lesson and star files: all checks passed');
 }

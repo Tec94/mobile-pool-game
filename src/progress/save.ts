@@ -24,7 +24,10 @@ export function saveJson(base: string, o: object) {
     if (good(`${base}.json`, Array.isArray(o))) file(`${base}.json`).moveSync(file(`${base}.bak.json`), { overwrite: true });
     file(`${base}.new.json`).moveSync(file(`${base}.json`), { overwrite: true });
     return true;
-  } catch (e) { if (__DEV__) console.warn(`${base} not saved`, e); return false; }
+  } catch (e) {
+    try { file(`${base}.new.json`).delete(); } catch {} // a save that failed must not load as the newest at the next launch: it was not paid
+    if (__DEV__) console.warn(`${base} not saved`, e); return false;
+  }
 }
 export const loadProfile = (): Profile => readProfile(loadJson('profile') ?? null);
 export const saveProfile = (p: Profile) => saveJson('profile', p);
