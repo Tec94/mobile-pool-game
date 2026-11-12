@@ -162,8 +162,9 @@ export function Hand({ cards, up, pick, width = 110, height = 200, follow }: { c
   );
   return (
     // The foot runs 42 pt off the bottom edge, more on a window under 393 pt, so the hand top stays clear of the stage.
-    <Animated.ScrollView ref={scroll} horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, height: height + 26, marginBottom: -(42 + Math.min(30, Math.max(0, 393 - tall))) }}
-      contentContainerStyle={{ paddingHorizontal: edge, paddingTop: 26, gap: 4 }} contentOffset={open}
+    // 30 pt over the cards (4 of them over the stage): a raised card's tilted outline rises 22 + 4 + 3.3 and is not cut.
+    <Animated.ScrollView ref={scroll} horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, height: height + 30, marginTop: -4, marginBottom: -(42 + Math.min(30, Math.max(0, 393 - tall))) }}
+      contentContainerStyle={{ paddingHorizontal: edge, paddingTop: 30, gap: 4 }} contentOffset={open}
       onScroll={follows ? onScroll : undefined} snapToOffsets={follows ? cards.map((_, i) => at(i)) : undefined} decelerationRate={follows ? 'fast' : undefined}
       onLayout={() => { if (follows) focus.value = up; scroll.current?.scrollTo({ x: at(up), animated: false }); }}>
       {cards.map((c, i) => {
