@@ -76,7 +76,7 @@ export function Stage({ title, line, cta, link, children }: { title: string; lin
   const { land, side } = useFrame();
   const button = (
     <Slab paint={CREAM} onPress={cta.onPress} disabled={cta.off} accessibilityLabel={cta.name ?? cta.label} style={land ? { width: 170, height: 58 } : { height: 58, marginTop: 6 }} face={styles.cta}>
-      <Txt numberOfLines={1} style={[styles.ctaText, cta.label.length > 6 && { fontSize: 23 }]}>{cta.label}</Txt>
+      <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.ctaText}>{cta.label}</Txt>
     </Slab>
   );
   return (
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
   line: { ...TYPE.body, opacity: 0.82, marginTop: 3 },
   side: { position: 'absolute', top: 6, width: 170, alignItems: 'flex-end' },
   cta: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  ctaText: { fontFamily: FONT.display, fontSize: 28, color: C.ink },
+  ctaText: { fontFamily: FONT.display, fontSize: 26, lineHeight: 30, color: C.ink },
   art: { position: 'absolute', right: 6, top: 92 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 50, paddingHorizontal: 14 },
   headTitle: { fontFamily: FONT.display, fontSize: 18, lineHeight: 22 },
