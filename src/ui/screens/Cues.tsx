@@ -140,7 +140,7 @@ function Mastery({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => v
     <Row gap={14}>
       {/* Priced + keys say what the next point costs, so that line goes and the block narrows: the row fits 635 pt. */}
       <View style={[styles.mastery, { width: priced ? 132 : 170 }]}>
-        <Txt style={[TYPE.small, TYPE.num]}><Txt style={styles.bold}>{head}</Txt>{`  ${xp}`}</Txt>
+        <Txt style={[TYPE.small, TYPE.num]}><Txt style={styles.bold}>{head}</Txt>{priced ? '\n' : '  '}{xp}</Txt>
         <Hatch share={need ? into / need : 1} />
         {!priced && <Txt style={[TYPE.small, { opacity: 0.8 }]}>{next}</Txt>}
       </View>
