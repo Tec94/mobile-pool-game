@@ -3,8 +3,10 @@
 import assert from 'node:assert';
 import { breakSpot, HOLES, P, rack, step, strike } from '../physics/engine.ts';
 import { choose, handCue, judge, legalSpot, moveCue, newGame, newRec, record, setCall, spotBall } from '../rules/rules.ts';
-import { breakShot, callFor, candsFor, choiceFor, groupsOf, holeOf, nextSafeties, placeCue, potPay, safetiesArg, softMove, think } from './turn.ts';
-import { enumerate, NINE, rng, SOLIDS, STRIPES, TIERS } from './shot-ai.ts';
+import { breakShot, callFor, candsFor, choiceFor, groupsOf, holeOf, nextSafeties, onLit, placeCue, potPay, safetiesArg, softMove, think } from './turn.ts';
+import { aiShot } from './aim.ts';
+import { cushionAt } from '../rules/rules.ts';
+import { enumerate, NINE, randomLayout, rng, SOLIDS, STRIPES, TIERS } from './shot-ai.ts';
 import { TIER_COUNT } from '../settings/settings.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
@@ -100,4 +102,18 @@ for (const [game, tiers, seed] of [[8, [2, 2], 10], [8, [1, 3], 20], [9, [2, 2],
   const r = playRack(game, tiers, seed);
   assert(r.winner === 0 || r.winner === 1, 'the rack has a winner');
   ok(`${game}-ball, tiers ${tiers}: rack over in ${r.shots} shots (${r.note})`);
+}
+{ // Bank shots: with cushions lit the AI tries only a pot that banks or kicks off one of them, even Rookie, whose repertoire has no banks
+  let pots = 0;
+  for (let i = 0; i < 16; i++) {
+    const { cue, balls } = randomLayout(rng(i), 5), B = [cue, ...balls].map(b => mk(b.x / 1000, b.y / 1000)), ids = [0, ...balls.map(b => b.id)], lit = [i % 6, (i + 1) % 6];
+    for (const tier of [TIERS[0], TIERS[1]]) {
+      const { pick } = aiShot(B.map(b => ({ ...b })), ids, SOLIDS, STRIPES, tier, rng(i), 0, c => onLit(lit, c));
+      if (pick.type === 'safety' || pick.type === 'foul') continue;
+      pots++; const X = pick.type === 'bank' ? pick.paths[1][1] : pick.paths[0][1];
+      assert((pick.type === 'bank' || pick.type === 'kick') && lit.includes(cushionAt(X.x / 1000, X.y / 1000, 2 * P.R)), `${tier.name}, table ${i}: a ${pick.type} off a lit cushion (${lit})`);
+    }
+  }
+  assert(pots > 3, `some tables have such a pot (${pots})`);
+  ok('bank shots: the AI banks off a lit cushion or plays safe');
 }

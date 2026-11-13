@@ -2,8 +2,8 @@
 // table and one goal, played in three steps: watch (the reference shot plays itself), guided (its spin and power are
 // set and named), solo (three passes in a row). Pure TS: the screen feeds the engine's events in and draws the verdict.
 // The reference shot of every lesson is checked to pass on the engine (lessons.test.mjs), so watch never fails.
-import { type Ball, CUE, type Ev, P, POCKET, step, strike } from '../physics/engine.ts';
-import { newRec, type Rec, record } from '../rules/rules.ts';
+import { type Ball, CUE, type Ev, step, strike } from '../physics/engine.ts';
+import { ENDS, newRec, type Rec, record } from '../rules/rules.ts';
 import { shotTip, type Tip } from '../render/tip.ts';
 
 export interface Goal {
@@ -71,29 +71,14 @@ export function lessonTable(l: Lesson): { B: Ball[]; ids: number[] } {
   return { B: [mk(...l.cue), ...l.balls.map(([, x, y]) => mk(x, y))], ids: [0, ...l.balls.map(([id]) => id)] };
 }
 
-// The six cushions a ball can bank off, round the table: the y = 0 rail's head half (0) and foot half (1), the foot rail
-// (2), the y = W rail's foot half (3) and head half (4), the head rail (5). Neighbours share a pocket.
-// nose(k) = its nose line [x0, y0, x1, y1] from pocket point to pocket point (POCKET in the engine).
-export function nose(k: number) {
-  const { L, W } = P, { cc, sc } = POCKET, m = L / 2;
-  return [[cc, 0, m - sc, 0], [m + sc, 0, L - cc, 0], [L, cc, L, W - cc], [L - cc, W, m + sc, W], [m - sc, W, cc, W], [0, W - cc, 0, cc]][k];
-}
-// The cushion whose nose a ball touching a rail at (x, y) is on, or -1: a pocket jaw or point is no cushion to bank off.
-const cushionAt = (x: number, y: number) => [0, 1, 2, 3, 4, 5].findIndex(k => {
-  const [a, b, c, d] = nose(k), ex = c - a, ey = d - b, l = Math.hypot(ex, ey), t = ((x - a) * ex + (y - b) * ey) / (l * l);
-  return t >= 0 && t <= 1 && Math.abs((x - a) * ey - (y - b) * ex) / l < P.R;
-});
-
-// The record of a lesson shot: the rules' record, whether the cue ball reached a cushion before any ball (a kick),
-// where the cue ball was when it first hit a ball, and [ball number, cushion] of each ball's touch of a cushion nose.
-export type LessonRec = Rec & { kick: boolean; hit: [number, number] | null; cush: number[][] };
-export const newLessonRec = (): LessonRec => ({ ...newRec(), kick: false, hit: null, cush: [] });
+// The record of a lesson shot: the rules' record (its cush says which cushions each ball touched), whether the cue ball
+// reached a cushion before any ball (a kick), and where the cue ball was when it first hit a ball.
+export type LessonRec = Rec & { kick: boolean; hit: [number, number] | null };
+export const newLessonRec = (): LessonRec => ({ ...newRec(), kick: false, hit: null });
 export function noteLesson(r: LessonRec, ev: Ev[], B: Ball[], ids: number[]) {
   for (const e of ev) {
     if (e.t === 'rail' && !ids[e.a] && !r.hit) r.kick = true; // r.first is only set by record() below
     if (e.t === 'bb' && !ids[e.a] && !r.hit) r.hit = [B[0].x, B[0].y];
-    const k = e.t === 'rail' ? cushionAt(e.x, e.y) : -1;
-    if (k >= 0) r.cush.push([ids[e.a], k]);
   }
   record(r, ev, B, ids);
 }
@@ -104,7 +89,7 @@ export function noteLesson(r: LessonRec, ev: Ev[], B: Ball[], ids: number[]) {
 // lights the same pair. null = the table wants no bank. The bank tables: this lesson and the Banks scenarios.
 // Worked out once per table, by playing the reference shot on the engine up to its first bank. The cache keys on the
 // table itself, not its id: the scenario generator judges many tables before they have one.
-const LIT = new WeakMap<Lesson, number[] | null>(), ENDS = [[0, 4], [4, 1], [1, 3], [3, 5], [5, 2], [2, 0]]; // ENDS = the pockets at the two ends of each cushion
+const LIT = new WeakMap<Lesson, number[] | null>();
 export function litCushions(l: Lesson): number[] | null {
   if (l.id !== 'bank' && (l as Lesson & { type?: string }).type !== 'bank') return null;
   if (!LIT.has(l)) {

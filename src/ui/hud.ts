@@ -38,7 +38,7 @@ export function banner(s: State, push: boolean, wait?: string) {
   const ask = canCall(s) && s.call < 0, note = s.note;
   const said = /ball in hand/i.test(note); // the ruling already says it: the hint only says what to do
   const hint = [s.hand === 'kitchen' ? (said ? 'Drag the cue ball behind the line.' : 'Ball in hand behind the line: drag the cue ball.') : s.hand ? (said ? 'Drag the cue ball.' : 'Ball in hand: drag the cue ball.') : '',
-    ask ? 'Call a pocket.' : '', push ? 'Push out: no ball or rail needed.' : ''].filter(Boolean).join(' ');
+    ask ? 'Call a pocket.' : '', s.lit.length ? 'Bank off a lit cushion.' : '', push ? 'Push out: no ball or rail needed.' : ''].filter(Boolean).join(' ');
   return { note, foul: s.foul, hint };
 }
 

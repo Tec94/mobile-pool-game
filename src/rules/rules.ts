@@ -9,7 +9,7 @@
 // already down (4.4, last sentence); a call names a pocket only, so any legal ball in the called pocket counts (1.7
 // asks for ball and pocket), and no shot is obvious enough to need no call; no spotting of the nearest ball when every legal ball is above the head string (1.6).
 // Add them when a real game shows the need.
-import { type Ball, type Ev, type Game, HOLES, P } from '../physics/engine.ts';
+import { type Ball, type Ev, type Game, HOLES, P, POCKET } from '../physics/engine.ts';
 
 export type Hand = false | 'any' | 'kitchen'; // cue ball in hand: anywhere, or above the head string (the kitchen)
 export type Player = 0 | 1;
@@ -31,17 +31,39 @@ export interface State {
   note: string;           // the ruling on the last shot, for the screen
   foul: boolean;          // the last shot was a foul (the note may say something else when it ended the rack)
   early: boolean;         // 8-ball: the rack was lost on an 8 potted before its group was cleared
+  bank: 0 | 1 | 2;        // 8-ball bank shots, an app option: 0 off, 1 the 8 must be banked, 2 every ball
+  lit: number[];          // the two adjacent cushions the coming shot must bank off; [] = no bank needed
+  seed: number;           // picks the next lit pair
 }
 // What happened on one shot. first = number of the first ball the cue ball hit (-1 none); pots in the order they fell;
 // rails = object balls driven to a rail; railAfter = some ball reached a rail after the first hit; crossed = the cue
-// ball crossed the head string, or hit a ball on or below it (3.11).
-export interface Rec { first: number; pots: { id: number; pocket: number }[]; off: number[]; rails: number[]; railAfter: boolean; crossed: boolean }
-export const newRec = (): Rec => ({ first: -1, pots: [], off: [], rails: [], railAfter: false, crossed: false });
+// ball crossed the head string, or hit a ball on or below it (3.11); cush = [ball number, cushion] of each touch of a
+// cushion nose by an object ball, and by the cue ball before its first hit (a kick).
+export interface Rec { first: number; pots: { id: number; pocket: number }[]; off: number[]; rails: number[]; railAfter: boolean; crossed: boolean; cush: number[][] }
+export const newRec = (): Rec => ({ first: -1, pots: [], off: [], rails: [], railAfter: false, crossed: false, cush: [] });
 
-export const newGame = (game: Game, breaker: Player = 0, callAll = true): State => ({
+export const newGame = (game: Game, breaker: Player = 0, callAll = true, bank: 0 | 1 | 2 = 0, seed = 0): State => ({
   game, turn: breaker, breaker, phase: 'break', balls: Array.from({ length: game === 8 ? 15 : 9 }, (_, i) => i + 1), solids: -1,
-  hand: 'kitchen', callAll, call: -1, fouls: [0, 0], push: false, winner: -1, choice: null, spot: [], note: '', foul: false, early: false,
+  hand: 'kitchen', callAll, call: -1, fouls: [0, 0], push: false, winner: -1, choice: null, spot: [], note: '', foul: false, early: false, bank, lit: [], seed,
 });
+
+// The six cushions a ball can bank off, round the table: the y = 0 rail's head half (0) and foot half (1), the foot rail
+// (2), the y = W rail's foot half (3) and head half (4), the head rail (5). Neighbours share a pocket.
+// nose(k) = its nose line [x0, y0, x1, y1] from pocket point to pocket point (POCKET in the engine).
+export function nose(k: number) {
+  const { L, W } = P, { cc, sc } = POCKET, m = L / 2;
+  return [[cc, 0, m - sc, 0], [m + sc, 0, L - cc, 0], [L, cc, L, W - cc], [L - cc, W, m + sc, W], [m - sc, W, cc, W], [0, W - cc, 0, cc]][k];
+}
+export const ENDS = [[0, 4], [4, 1], [1, 3], [3, 5], [5, 2], [2, 0]]; // the pockets at the two ends of each cushion
+// The cushion whose nose a ball centred at (x, y) touches (within `near` of the nose line), or -1: a pocket jaw or point
+// is no cushion to bank off.
+export function cushionAt(x: number, y: number, near = P.R) {
+  for (let k = 0; k < 6; k++) {
+    const [a, b, c, d] = nose(k), ex = c - a, ey = d - b, l = Math.sqrt(ex * ex + ey * ey), t = ((x - a) * ex + (y - b) * ey) / (l * l);
+    if (t >= 0 && t <= 1 && Math.abs((x - a) * ey - (y - b) * ex) / l < near) return k;
+  }
+  return -1;
+}
 
 const nearest = (x: number, y: number) => { let k = 0, best = Infinity; HOLES.forEach((h, i) => { const d = (h[0] - x) ** 2 + (h[1] - y) ** 2; if (d < best) { best = d; k = i; } }); return k; };
 // Add one engine step's events to the record. ids[i] = the number of ball i; ball 0 is the cue ball.
@@ -54,6 +76,7 @@ export function record(r: Rec, ev: Ev[], B: Ball[], ids: number[]) {
       if (!id && r.first < 0) { r.first = other; r.crossed ||= e.x > head || B[e.b!].x >= head; }
     } else if (e.t === 'rail') {
       if (!id && r.first < 0 && e.x > head) r.crossed = true;
+      const k = cushionAt(e.x, e.y); if (k >= 0 && (id || r.first < 0)) r.cush.push([id, k]);
       rail(id);
     } else if (e.t === 'pocket') { r.pots.push({ id, pocket: nearest(e.x, e.y) }); rail(id); } // 2.7: a potted ball counts as driven to a rail
     else if (e.t === 'off') { r.off.push(id); rail(id); }
@@ -76,8 +99,13 @@ export const onEight = (s: State) => s.game === 8 && s.phase === 'play' && s.sol
 export const canCall = (s: State) => s.game === 8 && s.phase === 'play' && (s.callAll || onEight(s));
 export const setCall = (s: State, pocket: number): State => ({ ...s, call: pocket });
 
+// A pot is banked when the ball touched a lit cushion that does not end at its pocket (else it ran down the rail), or the
+// cue ball kicked off a lit cushion before its first hit.
+const banked = (s: State, r: Rec, p: { id: number; pocket: number }) =>
+  r.cush.some(([id, k]) => s.lit.includes(k) && (id ? id === p.id && !ENDS[k].includes(p.pocket) : true));
+
 // Rule on a finished shot. push = the shooter declared a push out (9-ball, 5.4).
-export function judge(s: State, r: Rec, push = false): State {
+function rule(s: State, r: Rec, push: boolean): State {
   const me = s.turn, opp = (1 - me) as Player, brk = s.phase === 'break', G = s.game;
   const pots = r.pots.filter(p => p.id), scratch = pots.length < r.pots.length || r.off.includes(0);
   const gone = (id: number) => pots.some(p => p.id === id) || r.off.includes(id);
@@ -119,15 +147,16 @@ export function judge(s: State, r: Rec, push = false): State {
     return n;
   }
   if (gone(8)) { // 4.8, and the win
-    const win = !foul && onEight(s) && pots.some(p => p.id === 8 && p.pocket === s.call);
+    const eight = pots.find(p => p.id === 8 && p.pocket === s.call), win = !foul && onEight(s) && !!eight && (!s.lit.length || banked(s, r, eight));
     n.early = !win && !r.off.includes(8) && !foul && !onEight(s);
-    over(win ? me : opp, win ? 'The 8 is down.' : `Lost the rack: the 8 ${r.off.includes(8) ? 'left the table' : foul ? 'went down on a foul' : !onEight(s) ? 'went down early' : 'went in a pocket that was not called'}.`);
+    over(win ? me : opp, win ? 'The 8 is down.' : `Lost the rack: the 8 ${r.off.includes(8) ? 'left the table' : foul ? 'went down on a foul' : !onEight(s) ? 'went down early' : !eight ? 'went in a pocket that was not called' : 'went in without a bank'}.`);
     return n;
   }
   if (foul) { pass('any'); return n; } // 4.9
-  // Call every shot: a pot counts only in the called pocket (1.7); no call, no pot counts. Else every pot counts.
-  const good = pots.filter(p => !s.callAll || p.pocket === s.call);
-  if (pots.length && !good.length) n.note = 'Wrong pocket: the turn passes.';
+  // Call every shot: a pot counts only in the called pocket (1.7); no call, no pot counts. Else every pot counts. Then,
+  // with cushions lit, only a banked pot counts.
+  const called = pots.filter(p => !s.callAll || p.pocket === s.call), good = called.filter(p => !s.lit.length || banked(s, r, p));
+  if (pots.length && !good.length) n.note = called.length ? 'No bank: the turn passes.' : 'Wrong pocket: the turn passes.';
   if (s.solids < 0) { // 4.4: the first ball legally potted decides the groups
     const p = good[0];
     if (p) { n.solids = p.id < 8 ? me : opp; n.note = `${p.id < 8 ? 'Solids' : 'Stripes'}.`; } else pass();
@@ -135,10 +164,18 @@ export function judge(s: State, r: Rec, push = false): State {
   return n;
 }
 
+// Bank shots: light a new pair of adjacent cushions for the player now to shoot, when the option asks for a bank.
+function light(n: State): State {
+  if (!(n.game === 8 && n.phase === 'play' && (n.bank === 2 || (n.bank === 1 && onEight(n))))) return { ...n, lit: [] };
+  const seed = (Math.imul(n.seed, 1664525) + 1013904223) >>> 0, k = (seed >>> 16) % 6; // an LCG: its high bits are the random ones
+  return { ...n, seed, lit: [k, (k + 1) % 6] };
+}
+export function judge(s: State, r: Rec, push = false): State { return light(rule(s, r, push)); }
+
 // The player to shoot took option i of the choice.
 export function choose(s: State, i: number): State {
   const o = s.choice![i], turn = o.turn ?? s.turn;
-  return o.rack ? newGame(s.game, turn, s.callAll) : { ...s, choice: null, turn, hand: o.hand ?? s.hand };
+  return o.rack ? newGame(s.game, turn, s.callAll, s.bank, s.seed) : light({ ...s, choice: null, turn, hand: o.hand ?? s.hand });
 }
 
 // --- Where balls may go ---------------------------------------------------------------------------------------------

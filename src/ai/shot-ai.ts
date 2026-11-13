@@ -291,9 +291,11 @@ export function plays(tier: Tier, s: Cand, balls: Obj[]) {
   const at = (id?: number) => balls.find((b) => b.id === id)!;
   return tier.types.includes(s.type) && (s.type !== 'carom' || dist(at(s.via), at(s.ball)) - 2 * R <= tier.caromGap);
 }
-export function plan(cue: Pt, balls: Obj[], group: number[], tier: Tier, depth: number, width: number, oppGroup?: number[], kisses = true): Planned[] {
+// ok = the pots this shot may try (bank shots: a bank or kick off a lit cushion); the shots after it are not filtered.
+export function plan(cue: Pt, balls: Obj[], group: number[], tier: Tier, depth: number, width: number, oppGroup?: number[], kisses = true, ok?: (c: Cand) => boolean): Planned[] {
   const sigma = tier.sigma * Math.PI / 180, win = winBall(group);
   let cands = enumerate(cue, balls, legalFor(balls, group), potFor(balls, group), kisses);
+  if (ok) cands = cands.filter(ok);
   const inRepertoire = cands.filter((s) => plays(tier, s, balls));
   // outside the repertoire only when nothing else exists, and never a carom or a billiard
   cands = inRepertoire.length ? inRepertoire : cands.filter((s) => s.type !== 'carom' && s.type !== 'billiard');
@@ -356,9 +358,9 @@ export function safety(cue: Pt, balls: Obj[], group: number[], oppGroup: number[
 // pick is a pot (with .leave and .next), a safety, or { type: 'foul' } when no ball can be reached.
 // safetiesInRow = visits in a row this side has ended with a safety. After two, it must take its best pot, so a rack cannot stall.
 // The caller also passes 2 once this side has played four safeties in the rack (critique/probe5.js F).
-export function decide(cue: Pt, balls: Obj[], group: number[], oppGroup: number[], tier: Tier, rnd: () => number, safetiesInRow = 0): { ranked: Planned[]; pick: Pick } {
+export function decide(cue: Pt, balls: Obj[], group: number[], oppGroup: number[], tier: Tier, rnd: () => number, safetiesInRow = 0, ok?: (c: Cand) => boolean): { ranked: Planned[]; pick: Pick } {
   // planShare: the share of turns on which the tier plans at all (Hustler). Trust (wPos) barely moves run length, this does.
-  const ranked = plan(cue, balls, group, tier, tier.planShare === undefined || rnd() < tier.planShare ? tier.depth : 0, 4, oppGroup);
+  const ranked = plan(cue, balls, group, tier, tier.planShare === undefined || rnd() < tier.planShare ? tier.depth : 0, 4, oppGroup, true, ok);
   // weigh the best pot against the best safety on the same scale; skip the search when a good pot is on
   if (!ranked.length || (tier.safetyAngles.length && ranked[0].value < 0.3 && safetiesInRow < 2)) {
     // shortcut: a fully hooked AI fouls here, add kick safeties when the engine is in

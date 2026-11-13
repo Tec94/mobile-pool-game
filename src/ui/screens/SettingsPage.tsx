@@ -34,6 +34,9 @@ export function SettingsPage({ set, change, go }: Props) {
         <Line label="Calling">
           <Keys label="Calling" value={set.callAll} pick={callAll => change({ callAll })} options={[['Call every shot', true], ['Call only the 8-ball', false]]} />
         </Line>
+        <Line label="Bank shots">
+          <Keys<Settings['bank']> label="Bank shots" value={set.bank} pick={bank => change({ bank })} options={[['Off', 0], ['8-ball only', 1], ['Every ball', 2]]} />
+        </Line>
         <Line label="Table felt"><Keys label="Table felt" value={set.cloth} pick={cloth => change({ cloth })} options={CLOTHS.map((c, i) => [c.name, i])} /></Line>
         <Line label="Menu orientation">
           <Keys<Settings['menus']> label="Menu orientation" value={set.menus} pick={menus => change({ menus })} options={[['Landscape', 0], ['Portrait', 1]]} />

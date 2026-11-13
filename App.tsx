@@ -170,7 +170,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   const { width, height } = useWindowDimensions();
   const pad = useSafeAreaInsets(), calm = useReducedMotion();
   const L: Lesson | undefined = S ?? LESSONS[n];
-  const table = useRef(L ? newLesson(L) : newTable(newGame(game, 0, set.callAll))), HUD = L ? LESSON_HUD : hudHeight(table.current.rules.game); // screen units kept above the table for the HUD
+  const table = useRef(L ? newLesson(L) : newTable(newGame(game, 0, set.callAll, set.bank, Math.floor(Math.random() * 2 ** 31)))), HUD = L ? LESSON_HUD : hudHeight(table.current.rules.game); // screen units kept above the table for the HUD
   // The lesson's step, the passes in a row in the solo step, and the verdict on the last shot (a card over the table).
   const [stage, setStage] = useState<Stage>('watch'), [run, setRun] = useState(0), [said, setSaid] = useState<{ title: string; say: string; ok: boolean } | null>(null);
   // A scenario counts its tries; the third star wants a try with the aim guide never on screen (peeked = it was).
@@ -216,7 +216,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   mark.current = () => {
     const rec = Skia.PictureRecorder(), { B, rules: s, rec: shot } = table.current;
     const me = !shot && !bot(); // on the AI's turn the human's marks stay off
-    const c = rec.beginRecording(); if (L) drawBank(Skia, c, view, litCushions(L)); // a bank table's lit cushions, worked out once per table
+    const c = rec.beginRecording(); drawBank(Skia, c, view, L ? litCushions(L) : s.lit); // a bank table's lit cushions, worked out once per table, or the bank shots of a match
     drawMarks(Skia, c, view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call, ask: me && canCall(s), ms: performance.now(), at: called.current, zone: L?.goal.zone });
     return rec.finishRecordingAsPicture();
   };
@@ -499,7 +499,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   const paid = done ? end.current : null;
   const rerack = (breaker = over ? 1 - rules.breaker : rules.breaker) => {
     if (done) { score.current = [0, 0]; if (rival) { level.current = profile().rival[game].rating; moved.current = ''; } won.current = newLedger(); cands.current = []; end.current = null; }
-    apply.current(newGame(game, breaker as 0 | 1, set.callAll));
+    apply.current(newGame(game, breaker as 0 | 1, set.callAll, set.bank, Math.floor(Math.random() * 2 ** 31)));
   };
 
   const cardAt = !view.land && { right: width - lay.rail.left, padding: 8 }; // portrait: a card over the table sits at the middle of the table, clear of the rail
