@@ -1,139 +1,152 @@
-// Home: the hand of the six modes. A tap raises a card and the stage shows it; quick match and pass and play are set
-// up and started right on the stage, the others open their own screens.
+// Home only picks a mode: quick match as the big cream slab with the one Play, every other mode a tile that opens its
+// screen in one tap and shows its state as a picture.
 import { useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
-import { LESSON_PAY, LESSONS, SOLO_RUN } from '../../learn/lessons';
-import { PASS_PLAY, profile, rivalReset } from '../../progress';
-import { CUE_IDS, CUES } from '../../progress/cues';
-import { PACKS } from '../../progress/profile';
-import { between, MOODS, shown } from '../../progress/rival';
-import { streak, weekday } from '../../daily/daily';
-import { isOpen, par, SCENARIOS, starCount, totalStars } from '../../scenarios/scenarios';
-import { NAME_MAX, RACES, RIVAL, type Settings } from '../../settings/settings';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { TIERS } from '../../ai/shot-ai';
+import { addDays, dailyPick, streak, weekday } from '../../daily/daily';
+import { LESSONS } from '../../learn/lessons';
+import { profile } from '../../progress';
+import { CUE_IDS, CUES } from '../../progress/cues';
+import { shown } from '../../progress/rival';
+import { isOpen, SCENARIOS, starCount, totalStars } from '../../scenarios/scenarios';
+import { RIVAL } from '../../settings/settings';
 import { C, CREAM, FONT, MODE } from '../../theme';
-import { dateOf, THEMES } from '../days';
+import { CueArt } from '../CuePicture';
+import { DAYS, dateOf, THEMES } from '../days';
 import type { DailyProps, LearnProps, Props, ScenarioProps } from '../Menus';
-import { type Card, Hand, Row, Shell, Stage, useFrame } from '../shell';
-import { BallArt, Chip, Keys, Txt } from '../slab';
+import { MiniTable, rackOf, SpinDot, tableOf } from '../MiniTable';
+import { Shell, Tile, useFrame } from '../shell';
+import { BallArt, Slab, Txt, TYPE } from '../slab';
 
 type HomeProps = Props & LearnProps & ScenarioProps & Omit<DailyProps, 'day'>;
-const GAMES: [string, 8 | 9][] = [['8-ball', 8], ['9-ball', 9]];
-const raceKeys = RACES.map((r, i): [string, typeof r, string] => [i ? String(r) : `Race to ${r}`, r, String(r)]);
-const starLine = (k: number) => `${'★'.repeat(k)}${'☆'.repeat(3 - k)}`;
-const ball = (n: number) => (size: number) => <BallArt n={n} size={size} />;
+export const short = (l: { id: string; title: string }) => (l.id === 'bank' ? 'Banks' : l.title.split(/:| and /)[0]);
 
-let kept = 0; // the raised card outlives the screen, so a match or a page returns to it
-export function Home(p: HomeProps) {
-  const { set, go, done, stars, daily, today } = p;
-  // The Cues card has no stage: a tap opens the all-cues screen. kept was 5 (Cues) in an older build.
-  const [up, setUp] = useState(kept < 5 ? kept : 0), pick = (i: number) => cards[i].key === 'cues' ? go('cues') : (kept = i, setUp(i));
-  const me = profile(), wd = THEMES[weekday(today)], k = starCount(daily.stars[today]), run = streak(daily.stars, today).current;
-  const next = LESSONS.find(l => !done.includes(l.id));
+export function Home({ set, go, done, stars, daily, today }: HomeProps) {
+  const { land, side, pad, width, height } = useFrame(), [box, setBox] = useState({ w: width - 2 * side, h: 300 });
+  const me = profile(), wd = weekday(today), k = starCount(daily.stars[today]), run = streak(daily.stars, today).current;
+  const nextLesson = LESSONS.findIndex(l => !done.includes(l.id)), total = totalStars(stars), all = 3 * SCENARIOS.length;
+  // The next table to play: the first open one not yet cleared, else the first open one short of three stars.
+  const open = SCENARIOS.map((_, i) => i).filter(i => isOpen(i, stars, me.xp));
+  const ns = open.find(i => !((stars[SCENARIOS[i].id] ?? 0) & 1)) ?? open.find(i => starCount(stars[SCENARIOS[i].id]) < 3);
   const opp = set.tier === RIVAL ? `Rival ${shown(me.rival[set.aiGame].rating)}` : TIERS[set.tier].name;
-  const cards: Card[] = [
-    { key: 'quick', paint: CREAM, name: 'Quick match', title: 'Quick match', line: `${opp} · ${set.aiGame}-ball`, art: ball(8) },
-    { key: 'daily', paint: MODE.daily, name: `Daily Table, ${dateOf(today)}, ${wd}, ${k} of 3 stars${run ? `, run of ${run} days` : ''}`, title: 'Daily Table', line: `${wd} · ${starLine(k)}`, art: ball(2) },
-    { key: 'scenarios', paint: MODE.scenarios, name: 'Scenarios', title: 'Scenarios', line: `${totalStars(stars)} of ${3 * SCENARIOS.length} stars`, art: ball(3) },
-    { key: 'learn', paint: MODE.learn, name: 'Learn', title: 'Learn', line: next ? `Next: ${next.title}` : 'Every lesson passed', art: ball(4) },
-    { key: 'pass', paint: MODE.pass, name: 'Pass and play', title: 'Pass and play', line: 'Two players', art: ball(5) },
-    { key: 'cues', paint: MODE.cues, name: 'Cues', title: 'Cues', line: `${CUES[me.cue].name}\n${me.owned.length} of ${CUE_IDS.length} cues`, art: ball(6) },
-  ];
-  const Stages = [QuickStage, DailyStage, ScenarioStage, LearnStage, PassStage], S = Stages[up];
+  // Sizes: landscape from the body's measured box, portrait from the window.
+  const heroW = land ? Math.min(300, Math.max(240, 0.37 * box.w)) : width - 2 * side, rest = box.w - heroW - 8, rowH = (box.h - 8) / 2;
+  const dailyW = land ? (rest - 8) * 2 / 3 : width - 2 * side, smallW = land ? (rest - 16) / 3 : (width - 2 * side - 8) / 2, tileH = land ? rowH - 5 : 150;
+  const heroTable = land ? Math.min(heroW - 24, (box.h - 186) * 2 / 1.12) : Math.min(heroW - 24, 420);
+  const scenW = Math.min(smallW - 24, (tileH - 88) / 0.56); // a table is 0.56 of its width tall
+
+  const hero = (
+    <Slab paint={CREAM} style={land ? { width: heroW } : { minHeight: 300 }} face={styles.hero}>
+      <Txt accessibilityRole="header" style={styles.heroTitle}>Quick match</Txt>
+      {(!land || box.h >= 300) && heroTable > 60 && <View style={{ alignItems: 'center' }}><MiniTable width={heroTable} {...rackOf(set.aiGame)} cloth={set.cloth} /></View>}
+      <Pressable onPress={() => go('setup')} accessibilityRole="button" accessibilityLabel={`Change match setup, ${set.aiGame}-ball, race to ${set.aiRace}, ${opp}`} hitSlop={8} style={styles.change}>
+        {[`${set.aiGame}-ball`, `Race to ${set.aiRace}`, opp].map(t => <View key={t} style={styles.tag}><Txt numberOfLines={1} style={styles.tagText}>{t}</Txt></View>)}
+        <View style={{ flex: 1 }} />
+        <Txt style={[styles.tagText, { opacity: 0.6 }]}>Change ›</Txt>
+      </Pressable>
+      <View style={{ flex: 1 }} />
+      <Slab paint={[C.ink, '#000']} lip={4} radius={4} onPress={() => go('ai')} accessibilityLabel="Play quick match" style={{ height: 60 }} face={styles.center}>
+        <Txt style={styles.play}>Play</Txt>
+      </Slab>
+    </Slab>
+  );
+  const week = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6));
+  const tiles = {
+    daily: (
+      <Tile paint={MODE.daily} name={`Daily Table, ${dateOf(today)}, ${THEMES[wd]}, ${k} of 3 stars${run ? `, run of ${run} days` : ''}`} title="Daily Table" onPress={() => go('calendar')} style={{ flex: 2, minHeight: 120 }}>
+        <Txt style={styles.line}>{`${DAYS[wd].slice(0, 3)} ${+today.slice(8, 10)} · ${THEMES[wd]}`}</Txt>
+        <View style={{ flex: 1 }} />
+        <View style={styles.week}>
+          {week.map(d => {
+            const got = starCount(daily.stars[d]) > 0, now = d === today;
+            return <View key={d} style={[styles.day, { backgroundColor: now ? CREAM[0] : got ? C.ink : '#16191A21' }]}><Txt style={[styles.dayText, { color: got && !now ? MODE.daily[0] : C.ink }]}>{DAYS[weekday(d)][0]}</Txt></View>;
+          })}
+        </View>
+        {dailyW >= 250 && <View style={styles.dayTable}><MiniTable width={Math.min(140, dailyW - 170)} {...tableOf(SCENARIOS[dailyPick(today, SCENARIOS)])} /></View>}
+      </Tile>
+    ),
+    scenarios: (
+      <Tile paint={MODE.scenarios} name={`Scenarios, ${total} of ${all} stars`} title="Scenarios" onPress={() => go('scenarios')} style={{ flex: 1, minHeight: 120 }} face={{ gap: 4 }}>
+        {ns !== undefined && scenW > 50 && <View style={{ marginTop: 2 }}><MiniTable width={scenW} {...tableOf(SCENARIOS[ns])} /></View>}
+        <View style={{ flex: 1 }} />
+        <Txt style={[styles.count, { color: C.chalk }]}>{total}<Txt style={styles.of}>{` / ${all} ★`}</Txt></Txt>
+        <View style={styles.track}><View style={[styles.fill, { width: `${Math.max(2, 100 * total / all)}%` }]} /></View>
+      </Tile>
+    ),
+    learn: (
+      <Tile paint={MODE.learn} name={`Learn, ${done.length} of ${LESSONS.length} passed${nextLesson >= 0 ? `, next ${LESSONS[nextLesson].title}` : ''}`} title="Learn" onPress={() => go('learn')} style={{ flex: 1, minHeight: 120 }}>
+        {nextLesson >= 0 && <Txt numberOfLines={1} style={[styles.line, { color: C.chalk }]}>{`Next: ${short(LESSONS[nextLesson])}`}</Txt>}
+        {nextLesson >= 0 && <View style={styles.spin}><SpinDot tip={LESSONS[nextLesson].ref.tip} size={34} /></View>}
+        <View style={{ flex: 1 }} />
+        <View style={styles.pips}>{LESSONS.map(l => <View key={l.id} style={[styles.pip, done.includes(l.id) && { backgroundColor: C.chalk }]} />)}</View>
+      </Tile>
+    ),
+    pass: (
+      <Tile paint={MODE.pass} name={`Pass and play, ${set.names[0]} against ${set.names[1]}`} title="Pass and play" onPress={() => go('pass')} style={{ flex: 1, minHeight: 120 }}>
+        <View style={{ flex: 1 }} />
+        <View style={styles.vs}>
+          <BallArt n={1} size={34} label={set.names[0].slice(0, 2)} /><Txt style={styles.vsText}>vs</Txt><BallArt n={2} size={34} label={set.names[1].slice(0, 2)} />
+        </View>
+      </Tile>
+    ),
+    cues: (
+      <Tile paint={MODE.cues} name={`Cues, ${CUES[me.cue].name} in use, ${me.owned.length} of ${CUE_IDS.length} cues`} title="Cues" onPress={() => go('cues')} style={{ flex: 1, minHeight: 120 }}>
+        <Txt numberOfLines={1} style={styles.line}>{CUES[me.cue].name}</Txt>
+        <Txt style={[styles.line, styles.owned]}>{`${me.owned.length} / ${CUE_IDS.length}`}</Txt>
+        <View style={styles.cue}><CueArt id={me.cue} pose={[Math.round(smallW), 80, 6, 72, -24, Math.round(smallW * 1.3), 4]} /></View>
+      </Tile>
+    ),
+  };
+  if (!land) return (
+    <Shell settings={() => go('settings')}>
+      <ScrollView contentContainerStyle={{ paddingHorizontal: side, paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16), gap: 8 }}>
+        {hero}
+        {tiles.daily}
+        <View style={styles.pair}>{tiles.scenarios}{tiles.learn}</View>
+        <View style={styles.pair}>{tiles.pass}{tiles.cues}</View>
+      </ScrollView>
+    </Shell>
+  );
+  const body = (
+    <View style={[styles.pair, { flex: 1, minHeight: 300 }]} onLayout={e => { const { width: w, height: h } = e.nativeEvent.layout; if (w !== box.w || h !== box.h) setBox({ w, h }); }}>
+      {hero}
+      <View style={{ flex: 1, gap: 8 }}>
+        <View style={[styles.pair, { flex: 1 }]}>{tiles.daily}{tiles.scenarios}</View>
+        <View style={[styles.pair, { flex: 1 }]}>{tiles.learn}{tiles.pass}{tiles.cues}</View>
+      </View>
+    </View>
+  );
+  const padding = { paddingHorizontal: side, paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16) };
   return (
     <Shell settings={() => go('settings')}>
-      <S {...p} />
-      <Hand cards={cards} up={up} pick={pick} />
+      {height < 360 ? <ScrollView contentContainerStyle={[padding, { flexGrow: 1 }]}>{body}</ScrollView> : <View style={[padding, { flex: 1 }]}>{body}</View>}
     </Shell>
   );
 }
 
-// The opponent is the Rival, who adapts between matches, or a fixed AI tier; the setup is kept for next time, as pass
-// and play keeps its own. The Rival's rating is always shown: hidden adaptation would make the player doubt every win.
-function QuickStage({ set, change: save, go, daily, arm }: HomeProps) {
-  const { charges, armed } = daily.chalk;
-  const [sure, setSure] = useState(false), s = profile().rival[set.aiGame].rating, names = TIERS.map(t => t.name);
-  const change = (p: Partial<Settings>) => { setSure(false); save(p); }; // any change disarms a reset, so one tap never resets another game
-  // A reset throws the rating away, so it takes a second tap (no Alert: it does nothing on web).
-  const reset = () => { if (sure) rivalReset(set.aiGame); setSure(!sure); };
-  const rival = set.tier === RIVAL, narrow = useFrame().width < 700; // under 700 pt the Mood label costs the moods a line
-  return (
-    <Stage title="Quick match" line={!rival ? '8-ball or 9-ball against the AI.' : sure ? `Reset the ${set.aiGame}-ball Rival to ${shown(1)}? Tap again to confirm.`
-      : `Rival ${shown(s)}, ${between(s, names)}. Adapts after each match.`}
-      cta={{ label: 'Play', name: 'Play quick match', onPress: () => go('ai') }} link={rival ? { label: sure ? 'Tap again to reset' : 'Reset Rival rating', onPress: reset } : undefined}>
-      <Row>
-        <Keys label="Game" value={set.aiGame} pick={aiGame => change({ aiGame })} options={GAMES} />
-        <Keys label="Race to" value={set.aiRace} pick={aiRace => change({ aiRace })} options={raceKeys} />
-        {charges > 0 && <Keys label="Fresh Chalk" value={armed} pick={arm} options={[['Chalk off', false, 'Chalk off'], ['Chalk on: win pays ×2', true, 'Chalk on']]} />}
-      </Row>
-      <Row>
-        <Keys label="Opponent" value={set.tier} pick={tier => change({ tier })} options={[['Rival', RIVAL], ...TIERS.map((t, i): [string, number] => [t.name, i])]} />
-        {rival && <Keys label="Rival mood" show={narrow ? undefined : 'Mood'} value={set.mood} pick={mood => change({ mood })} options={MOODS.map(m => [m[0].toUpperCase() + m.slice(1), m])} />}
-      </Row>
-    </Stage>
-  );
-}
-
-let typed: [string, string] | undefined; // the names being typed outlive a card change, as kept does
-function PassStage({ set, change, go }: HomeProps) {
-  const [names, setTyped] = useState(typed ?? set.names), land = useFrame().land, setNames = (v: [string, string]) => { typed = v; setTyped(v); };
-  const start = () => { change({ names: names.map((n, i) => n.trim() || `Player ${i + 1}`) as [string, string] }); go('match'); };
-  return (
-    <Stage title="Pass and play" line={`Two players, one phone. Pays ${PASS_PLAY.xp} XP and ${PASS_PLAY.coins} coins a match.`} cta={{ label: 'Play', name: 'Play pass and play', onPress: start }}>
-      <Row gap={10}>
-        {names.map((n, i) => (
-          <View key={i} style={[styles.field, !land && { width: '100%' }]}>
-            <Txt style={styles.fieldLabel} nativeID={`p${i}`}>Player {i + 1}</Txt>
-            <TextInput value={n} onChangeText={t => setNames(i ? [names[0], t] : [t, names[1]])} maxLength={NAME_MAX} autoCorrect={false} autoCapitalize="words" autoComplete="off" returnKeyType="done" maxFontSizeMultiplier={1.3}
-              selectTextOnFocus accessibilityLabelledBy={`p${i}`} accessibilityLabel={`Player ${i + 1} name`} placeholder={`Player ${i + 1}`} placeholderTextColor={C.chalk + '80'} style={[styles.input, land ? { width: 190 } : { flex: 1 }]} />
-          </View>
-        ))}
-      </Row>
-      <Row>
-        <Keys<Settings['game']> label="Game" value={set.game} pick={game => change({ game })} options={GAMES} />
-        <Keys label="Race to" value={set.race} pick={race => change({ race })} options={raceKeys} />
-      </Row>
-    </Stage>
-  );
-}
-
-function DailyStage({ go, daily, today, playDay }: HomeProps) {
-  const { current, best } = streak(daily.stars, today), k = starCount(daily.stars[today]), wd = THEMES[weekday(today)];
-  return (
-    <Stage title="Daily Table" line={`${dateOf(today)} · ${wd}. One table a day, the same for everyone.`}
-      cta={{ label: 'Play today', name: `Play today, ${wd}`, onPress: () => playDay(today) }} link={{ label: 'All days ›', name: 'All days', onPress: () => go('calendar') }}>
-      <Row gap={8}><Chip name={`${k} of 3 stars today`}>{starLine(k)}</Chip><Chip>{`${current}-day run`}</Chip><Chip>{`Best run ${best}`}</Chip></Row>
-    </Stage>
-  );
-}
-
-// The next table to play: the first open one not yet cleared, else the first open one short of three stars.
-function ScenarioStage({ go, stars, play }: HomeProps) {
-  const xp = profile().xp, open = SCENARIOS.map((_, i) => i).filter(i => isOpen(i, stars, xp));
-  const i = open.find(i => !((stars[SCENARIOS[i].id] ?? 0) & 1)) ?? open.find(i => starCount(stars[SCENARIOS[i].id]) < 3);
-  const all = { label: 'All packs', onPress: () => go('scenarios') };
-  if (i === undefined) return <Stage title="Scenarios" line="Every open table has all three stars." cta={all} />;
-  const s = SCENARIOS[i], pack = SCENARIOS.filter(t => t.pack === s.pack), got = pack.reduce((n, t) => n + starCount(stars[t.id]), 0);
-  return (
-    <Stage title={s.title} line={`${PACKS[s.pack][0]} · par ${par(s)} · ${s.say}`} cta={{ label: 'Play', name: `Play ${s.title}`, onPress: () => play(i) }} link={{ ...all, label: 'All packs ›' }}>
-      <Row gap={8}><Chip>{`${PACKS[s.pack][0]} ${got} of ${3 * pack.length} stars`}</Chip><Chip>{`All ${totalStars(stars)} of ${3 * SCENARIOS.length} stars`}</Chip></Row>
-    </Stage>
-  );
-}
-
-// Every lesson is open from the start; the first one not yet passed is only a suggestion.
-function LearnStage({ go, done, learn }: HomeProps) {
-  const i = LESSONS.findIndex(l => !done.includes(l.id)), all = { label: 'All lessons', onPress: () => go('learn') };
-  const chips = <Row gap={8}><Chip>{`${done.length} of ${LESSONS.length} passed`}</Chip><Chip>{`+${LESSON_PAY.xp} XP`}</Chip></Row>;
-  if (i < 0) return <Stage title="Learn" line="Every lesson passed. Replay any of them." cta={all}>{chips}</Stage>;
-  return (
-    <Stage title={LESSONS[i].title} line={`Lesson ${i + 1} of ${LESSONS.length}. Watch, try it guided, then do it ${SOLO_RUN} times in a row.`}
-      cta={{ label: 'Start', name: `Start ${LESSONS[i].title}`, onPress: () => learn(i) }} link={{ ...all, label: 'All lessons ›' }}>{chips}</Stage>
-  );
-}
-
 const styles = StyleSheet.create({
-  field: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  fieldLabel: { width: 48, fontFamily: FONT.bold, fontSize: 11, color: C.chalk, opacity: 0.7 },
-  input: { height: 34, paddingHorizontal: 10, borderRadius: 3, backgroundColor: C.chalk + '12', borderBottomWidth: 2, borderBottomColor: C.chalk, color: C.chalk, fontFamily: FONT.bold, fontSize: 13.5 },
+  pair: { flexDirection: 'row', gap: 8 },
+  hero: { padding: 12, gap: 10 },
+  heroTitle: { fontFamily: FONT.display, fontSize: 28, lineHeight: 30, color: C.ink, letterSpacing: -0.4 },
+  change: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 5 },
+  tag: { backgroundColor: '#16191A14', borderRadius: 3, paddingVertical: 5, paddingHorizontal: 8, flexShrink: 1 },
+  tagText: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 16, color: C.ink },
+  center: { alignItems: 'center', justifyContent: 'center' },
+  play: { fontFamily: FONT.display, fontSize: 30, lineHeight: 34, color: CREAM[0] },
+  line: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 16, color: C.ink, marginTop: 3 },
+  week: { flexDirection: 'row', gap: 3 },
+  day: { width: 17, height: 22, borderRadius: 2, alignItems: 'center', justifyContent: 'center' },
+  dayText: { fontFamily: FONT.bold, fontSize: 10, lineHeight: 12 },
+  dayTable: { position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center' },
+  count: { fontFamily: FONT.display, fontSize: 22, lineHeight: 24, ...TYPE.num },
+  of: { fontFamily: FONT.bold, fontSize: 13, opacity: 0.8 },
+  track: { height: 8, borderRadius: 2, backgroundColor: '#0003', overflow: 'hidden' },
+  fill: { height: '100%', backgroundColor: C.chalk },
+  spin: { position: 'absolute', right: 12, top: 54 },
+  pips: { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
+  pip: { width: 8, height: 12, borderRadius: 1.5, backgroundColor: '#0003' },
+  vs: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  vsText: { fontFamily: FONT.display, fontSize: 15, lineHeight: 18, color: C.ink },
+  owned: { position: 'absolute', right: 12, top: 10 },
+  cue: { position: 'absolute', left: 0, bottom: 0 },
 });
