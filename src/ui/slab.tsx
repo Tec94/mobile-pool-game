@@ -1,9 +1,8 @@
 // The hand design's pieces: a slab is a flat face on a solid lip of a darker colour (no border, no blur shadow). A press
-// moves the face down onto the lip, at once: no scale, no fade. Keys, chips and cards are slabs.
+// moves the face down onto the lip, at once: no scale, no fade. Keys, chips, tiles and panels are slabs.
 import * as Haptics from 'expo-haptics';
 import type { ReactNode } from 'react';
 import { Platform, Pressable, type StyleProp, StyleSheet, Text, type TextProps, View, type ViewStyle } from 'react-native';
-import Animated, { cubicBezier, Easing, type SharedValue, useAnimatedStyle, useReducedMotion, withTiming } from 'react-native-reanimated';
 import { BALLS, C, CREAM, DARK, FONT, type Paint } from '../theme';
 
 const PRESS = 3; // pt the face moves down when pressed
@@ -40,12 +39,12 @@ export function Slab({ paint: [face, lip], lip: h = 5, radius = 5, onPress, onLo
 }
 
 // A key of a key group (a radio): 34 pt, off = flat chalk at 11%, on = cream on its lip. name = what a screen reader says.
-export function Key({ label, name, on, off, onPress }: { label: string; name?: string; on: boolean; off?: boolean; onPress: () => void }) {
+export function Key({ label, name, on, off, onPress, icon }: { label: string; name?: string; on: boolean; off?: boolean; onPress: () => void; icon?: ReactNode }) {
   return (
     <Slab paint={on ? CREAM : [C.keyOff, 'transparent']} lip={on ? PRESS : 0} radius={3} onPress={() => { if (!on) feel(Haptics.selectionAsync); onPress(); }} disabled={off} hitSlop={SLOP}
       accessibilityRole="radio" accessibilityLabel={name ?? label} accessibilityState={{ checked: on, disabled: !!off }} aria-checked={on}
       style={{ marginBottom: on ? 0 : PRESS }} face={styles.key}>
-      <Txt style={[styles.keyText, { color: on ? C.ink : C.chalk }]}>{label}</Txt>
+      {icon}<Txt style={[styles.keyText, { color: on ? C.ink : C.chalk }]}>{label}</Txt>
     </Slab>
   );
 }
@@ -102,27 +101,6 @@ export function Hatch({ share, style }: { share: number; style?: StyleProp<ViewS
   return <View style={[styles.track, style]}><View style={[styles.fill, { width: `${100 * Math.min(1, Math.max(0, share))}%` }]} /></View>;
 }
 
-// A card of the hand. up = raised 22 pt with a chalk outline (the chosen one); tilt in degrees, from the middle of the hand.
-// With focus (a hand whose focus follows its scroll), card i rises while focus is i, on the UI thread: no render per frame.
-export function HandCard({ paint, up, tilt = 0, onPress, name, width, height, children, i = 0, focus }: { paint: Paint; up: boolean; tilt?: number; onPress: () => void; name: string; width: number; height: number; children: ReactNode; i?: number; focus?: SharedValue<number> }) {
-  const still = useReducedMotion();
-  const card = <Slab paint={paint} onPress={onPress} accessibilityLabel={name} accessibilityState={{ selected: up }} style={{ flex: 1 }}
-    face={[styles.card, up && !focus && styles.outline]}>{children}</Slab>;
-  if (focus) return <Follow i={i} focus={focus} tilt={tilt} width={width} height={height} still={still}>{card}</Follow>;
-  return (
-    <Animated.View style={{ width, height, transformOrigin: '50% 100%', transform: [{ translateY: up ? -22 : 0 }, { rotate: `${tilt}deg` }], zIndex: up ? 1 : 0,
-      transitionProperty: 'transform', transitionDuration: still ? 0 : 150, transitionTimingFunction: cubicBezier(0.23, 1, 0.32, 1) }}>{card}</Animated.View>
-  );
-}
-function Follow({ i, focus, tilt, width, height, still, children }: { i: number; focus: SharedValue<number>; tilt: number; width: number; height: number; still: boolean; children: ReactNode }) {
-  const lift = useAnimatedStyle(() => {
-    const y = focus.value === i ? -22 : 0;
-    return { zIndex: y ? 1 : 0, transform: [{ translateY: still ? y : withTiming(y, { duration: 150, easing: Easing.bezier(0.23, 1, 0.32, 1) }) }, { rotate: `${tilt}deg` }] };
-  });
-  const ring = useAnimatedStyle(() => ({ opacity: focus.value === i ? 1 : 0 }));
-  return <Animated.View style={[{ width, height, transformOrigin: '50% 100%' }, lift]}>{children}<Animated.View pointerEvents="none" style={[styles.ring, ring]} /></Animated.View>;
-}
-
 // The type of the design: titles in Bricolage Grotesque, the rest in Instrument Sans. Chalk; on a face, add { color: inkOn(paint) }.
 export const TYPE = StyleSheet.create({
   title: { fontFamily: FONT.display, fontSize: 34, lineHeight: 38, color: C.chalk, letterSpacing: -0.5 },
@@ -133,7 +111,7 @@ export const TYPE = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  key: { height: 34, paddingHorizontal: 8, minWidth: 36, alignItems: 'center', justifyContent: 'center', flexGrow: 0 },
+  key: { height: 34, paddingHorizontal: 8, minWidth: 36, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', flexGrow: 0 },
   keyText: { fontFamily: FONT.bold, fontSize: 12.5, lineHeight: 16, fontVariant: ['tabular-nums'] },
   keys: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 8, flexShrink: 1, maxWidth: '100%' },
   keyLabel: { fontFamily: FONT.bold, fontSize: 11, color: C.chalk, opacity: 0.7, marginRight: 4, marginBottom: 3 }, // centred on the key face, not face and lip
@@ -144,7 +122,4 @@ const styles = StyleSheet.create({
   block: { flex: 1, height: 10, borderRadius: 1, backgroundColor: C.chalk + '1F' },
   track: { height: 9, borderRadius: 2, backgroundColor: C.chalk + '1F', overflow: 'hidden' },
   fill: { height: '100%', backgroundColor: C.gold },
-  card: { paddingTop: 11, paddingLeft: 11, paddingRight: 8 },
-  outline: { outlineColor: C.chalk, outlineWidth: 2, outlineOffset: 2, outlineStyle: 'solid' },
-  ring: { position: 'absolute', left: -4, right: -4, top: -4, bottom: 1, borderWidth: 2, borderColor: C.chalk, borderRadius: 9 }, // the outline's place: the face ends 5 pt (the lip) above the card's foot
 });
