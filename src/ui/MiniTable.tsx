@@ -1,7 +1,8 @@
 // A small table drawn with plain Views (no Skia: a screen can hold 20 of them), in the engine's table frame (metres,
 // P.L x P.W, as Lesson.cue / balls / Goal.zone). The tile around it carries the name, so it hides from screen readers.
 import { View } from 'react-native';
-import { type Lesson, litCushions, nose } from '../learn/lessons';
+import { type Lesson, litCushions } from '../learn/lessons';
+import { nose } from '../rules/rules';
 import { HOLES, P, rack } from '../physics/engine';
 import { BALLS, C, CLOTHS } from '../theme';
 
