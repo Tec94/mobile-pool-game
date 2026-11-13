@@ -107,7 +107,6 @@ export function TipSheet({ store, land, keep, calm, felt, blend, onDone }: { sto
         </View>
         <View style={styles.side} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <Canvas style={styles.sideView}><Picture picture={side} /></Canvas>
-          <Text maxFontSizeMultiplier={1.3} style={styles.deg}>{t.elev}°</Text>
           {blend && <Text maxFontSizeMultiplier={1.3} style={styles.zone}>{zoneLabel(t)}</Text>}{/* one colour: the player learns the zones */}
         </View>
       </View>
@@ -124,6 +123,5 @@ const styles = StyleSheet.create({
   sheet: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, backgroundColor: DARK[0], borderBottomWidth: 5, borderColor: DARK[1], borderRadius: 5 },
   side: { width: SIDE.w, alignItems: 'center' },
   sideView: { width: SIDE.w, height: SIDE.h, marginTop: -12 }, // the picture is empty at the top until the cue is raised: that part lies over the sheet's padding, so the column is as tall as the ring
-  deg: { color: C.chalk, fontFamily: FONT.display, fontSize: 22, lineHeight: 26, paddingLeft: 5, fontVariant: ['tabular-nums'] }, // paddingLeft: the digits sit at the centre, not the digits and the degree sign
   zone: { color: C.chalk + 'B3', fontFamily: FONT.semi, fontSize: 11.5, lineHeight: 15, textAlign: 'center', minHeight: 30 }, // room for two lines, so the picture does not move when the text wraps
 });
