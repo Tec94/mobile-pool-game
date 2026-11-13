@@ -5,6 +5,7 @@
 import { type Ball, CUE, type Ev, step, strike } from '../physics/engine.ts';
 import { ENDS, newRec, type Rec, record } from '../rules/rules.ts';
 import { shotTip, type Tip } from '../render/tip.ts';
+import { VARIANTS } from './variants.ts';
 
 export interface Goal {
   pot?: number;       // this ball must go in
@@ -69,6 +70,15 @@ export const LESSONS: Lesson[] = [
 export function lessonTable(l: Lesson): { B: Ball[]; ids: number[] } {
   const mk = (x: number, y: number): Ball => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
   return { B: [mk(...l.cue), ...l.balls.map(([, x, y]) => mk(x, y))], ids: [0, ...l.balls.map(([id]) => id)] };
+}
+
+// The table of one solo shot (Jack: every practice shot from a new position, so the player has to think each time): the
+// lesson or one of its variants (scripts/make-lesson-variants.mjs), never the table just played. rnd for a test.
+const SOLO = new Map<string, Lesson[]>(); // made once: litCushions caches per table object
+export function soloTable(l: Lesson, last?: Lesson, rnd = Math.random): Lesson {
+  if (!SOLO.has(l.id)) SOLO.set(l.id, [l, ...(VARIANTS[l.id] ?? []).map(v => ({ ...l, ...v }))]);
+  const all = SOLO.get(l.id)!.filter(t => t !== last);
+  return all[Math.floor(rnd() * all.length)] ?? l;
 }
 
 // The record of a lesson shot: the rules' record (its cush says which cushions each ball touched), whether the cue ball

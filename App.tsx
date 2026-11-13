@@ -22,7 +22,7 @@ import { newPace, nextFrame, type Pace, refresh, type Slot, spent } from './src/
 import { drawCue, shotLayout } from './src/render/cue';
 import { BAR, drawAim, drawTable, onTable, toScreen, toTable } from './src/render/table';
 import { LEVEL, shotTip } from './src/render/tip';
-import { type Lesson, LESSON_PAY, LESSONS, lessonTable, type LessonRec, litCushions, newLessonRec, noteLesson, PENCIL_AT, SOLO_RUN, type Stage, verdict } from './src/learn/lessons';
+import { type Lesson, LESSON_PAY, LESSONS, lessonTable, type LessonRec, litCushions, newLessonRec, noteLesson, PENCIL_AT, SOLO_RUN, soloTable, type Stage, verdict } from './src/learn/lessons';
 import { loadDone, saveDone } from './src/learn/save';
 import { canCall, choose, handCue, judge, legalFirst, moveCue, newGame, newRec, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { thinkAsync } from './src/ai/think';
@@ -170,6 +170,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   const { width, height } = useWindowDimensions();
   const pad = useSafeAreaInsets(), calm = useReducedMotion();
   const L: Lesson | undefined = S ?? LESSONS[n];
+  const at = useRef(L); // the table up: in a lesson's solo step, a new one every shot
   const table = useRef(L ? newLesson(L) : newTable(newGame(game, 0, set.callAll, set.bank, Math.floor(Math.random() * 2 ** 31)))), HUD = L ? LESSON_HUD : hudHeight(table.current.rules.game); // screen units kept above the table for the HUD
   // The lesson's step, the passes in a row in the solo step, and the verdict on the last shot (a card over the table).
   const [stage, setStage] = useState<Stage>('watch'), [run, setRun] = useState(0), [said, setSaid] = useState<{ title: string; say: string; ok: boolean } | null>(null);
@@ -216,8 +217,8 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   mark.current = () => {
     const rec = Skia.PictureRecorder(), { B, rules: s, rec: shot } = table.current;
     const me = !shot && !bot(); // on the AI's turn the human's marks stay off
-    const c = rec.beginRecording(); drawBank(Skia, c, view, L ? litCushions(L) : s.lit); // a bank table's lit cushions, worked out once per table, or the bank shots of a match
-    drawMarks(Skia, c, view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call, ask: me && canCall(s), ms: performance.now(), at: called.current, zone: L?.goal.zone });
+    const c = rec.beginRecording(); drawBank(Skia, c, view, at.current ? litCushions(at.current) : s.lit); // a bank table's lit cushions, worked out once per table, or the bank shots of a match
+    drawMarks(Skia, c, view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call, ask: me && canCall(s), ms: performance.now(), at: called.current, zone: at.current?.goal.zone });
     return rec.finishRecordingAsPicture();
   };
   // Frames of play wait in queue and the UI thread shows one on each display refresh (see src/render/pace.ts).
@@ -452,14 +453,15 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
     onPanResponderTerminate: () => { if (grab.current) dirty(); touch.current = grab.current = null; },
   })).current;
 
-  // A lesson: the table is set again for every shot. Guided sets the reference spin; watch lines up the reference shot
-  // and plays it after a moment.
+  // A lesson: the table is set again for every shot, and in solo it is a new table each shot. Guided sets the reference
+  // spin; watch lines up the reference shot and plays it after a moment.
   const reset = (to: Stage) => {
     peeked.current = false;
-    const was = les.current.stage; // a try keeps the aim of the last try (the balls go back where they were); after watch it starts fresh
-    table.current = newLesson(L!); moving.current = false; setSaid(null); les.current = { ...les.current, stage: to, said: null }; setStage(to);
+    const was = les.current.stage; // a try on the same table keeps the aim of the last try; after watch or on a new table it starts fresh
+    const prev = at.current; at.current = to === 'solo' && !S ? soloTable(L!, prev) : L!;
+    table.current = newLesson(at.current); moving.current = false; setSaid(null); les.current = { ...les.current, stage: to, said: null }; setStage(to);
     tip.set(to === 'solo' ? LEVEL : L!.ref.tip);
-    shot.set(to === 'watch' ? { aim: L!.ref.ang, power: L!.ref.power, fine: false, locked: true } : { aim: was === 'watch' ? nearest(table.current.B) : shot.get().aim, power: 0, fine: false, locked: false });
+    shot.set(to === 'watch' ? { aim: L!.ref.ang, power: L!.ref.power, fine: false, locked: true } : { aim: was === 'watch' || at.current !== prev ? nearest(table.current.B) : shot.get().aim, power: 0, fine: false, locked: false });
     paint(); redraw();
   };
   useEffect(() => { if (L) reset(S ? 'solo' : 'watch'); }, []);
@@ -470,7 +472,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   }, [stage, said, paused]);
   const ended = useRef((r: LessonRec) => {});
   ended.current = r => {
-    const v = verdict(L!, r, table.current.B[0]), { stage: st, run: k } = les.current;
+    const v = verdict(at.current!, r, table.current.B[0]), { stage: st, run: k } = les.current;
     if (st !== 'watch') Haptics.notificationAsync(v.ok ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning);
     let out = { title: v.ok ? 'Nice' : 'Not this time', say: v.say, ok: v.ok };
     if (S) { // a miss is one more try; a clear says its stars, its pay and the star still to get
