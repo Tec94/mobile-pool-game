@@ -50,7 +50,7 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, false), phase: 'play', hand: fa
   eq(banner(play8({ callAll: true }), false), { note: '', foul: false, hint: 'Call a pocket.' }, 'Call every shot: every shot asks for a pocket');
   eq(banner(play8({ hand: 'any', note: 'Foul: scratch. Ball in hand.' }), false).hint, 'Drag the cue ball.', 'the ruling says ball in hand: the hint does not repeat it');
   eq(banner(play8({ callAll: true, hand: 'any' }), false).hint, 'Ball in hand: drag the cue ball. Call a pocket.', 'in hand: place the ball, then call');
-  eq(banner(play8({ callAll: true, lit: [1, 2] }), false).hint, 'Call a pocket. Bank off a lit cushion.', 'bank shots: the hint says so');
+  eq(banner(play8({ callAll: true, lit: [1, 2] }), false).hint, 'Call a pocket.', 'bank shots: the lit cushions say it, the banner would hide one');
   eq(banner(play8({ lit: [1, 2] }), false, '').hint, '', 'not on the AI turn');
   eq(banner({ ...newGame(9), phase: 'play', hand: false, push: true }, true).hint, 'Push out: no ball or rail needed.', 'push out on');
   eq(banner({ ...play8(), phase: 'over', note: 'The 8 is down.' }, false), { note: '', foul: false, hint: '' }, 'the results card says it, not the banner');
