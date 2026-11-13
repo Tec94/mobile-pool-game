@@ -83,7 +83,7 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
           </View>}
           {game === 8 && <View style={styles.group}>
             <Line label="Call"><Keys label="Call" value={set.callAll} pick={callAll => change({ callAll })} options={[['Every shot', true], ['Only the 8-ball', false]]} /></Line>
-            {/* bank rows go here (rules thread): Keys bound to its setting, and lit cushions on the preview */}
+            <Line label="Bank shots"><Keys<Settings['bank']> label="Bank shots" value={set.bank} pick={bank => change({ bank })} options={[['Off', 0], ['8-ball only', 1], ['Every ball', 2]]} /></Line>
           </View>}
           {quick && charges > 0 && <Line label="Chalk">
             <View style={styles.keys} accessibilityRole="radiogroup" accessibilityLabel="Fresh Chalk">
