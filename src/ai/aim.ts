@@ -162,6 +162,8 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   if (pick.type === 'foul') { // no pot or safety reaches a legal ball: hit the nearest one softly, through whatever is in the way
     const legal = legalFor(balls, group), near = balls.filter((o) => legal.includes(o.id)).reduce<Obj | null>((a, o) => (!a || dist(o, cue) < dist(a, cue) ? o : a), null);
     const shot = { ang: near ? Math.atan2(near.y - cue.y, near.x - cue.x) : 0, speed: SOFT, a: 0, b: 0 }; // no legal ball at all: the rack is over
+    // Bank shots: this ball may not go straight in (the 8 would lose the rack), so tap softer until it stays up.
+    if (ok && near) { const k = ids.indexOf(near.id); for (const v of [0.6, 0.35, 0.2]) { if (!rollout(B, shot, k, k, null, cue).pot) break; shot.speed = v; } }
     return { shot, aim: shot, pick, ms: [t1 - t0, 0] };
   }
   // Pro and Legend refine their best few pots (tier.tries) on the engine and play the one worth most with the leave it
