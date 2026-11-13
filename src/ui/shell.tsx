@@ -66,13 +66,13 @@ export function Strip({ title, back, settings, extra }: { title?: string; back?:
 }
 
 // The body of a screen with a panel: choices on the left (scrolling), the panel on the right. Portrait: the panel under them.
-// end = open scrolled to the end (the newest days).
-export function Split({ children, panel, end }: { children: ReactNode; panel: ReactNode; end?: boolean }) {
+// at = the offset to open scrolled to (Infinity = the end).
+export function Split({ children, panel, at }: { children: ReactNode; panel: ReactNode; at?: number }) {
   const { land, side, pad } = useFrame(), w = usePanel(), scroll = useRef<ScrollViewInstance>(null), opened = useRef(false);
   return (
     <View style={{ flex: 1, flexDirection: land ? 'row' : 'column', gap: 16, paddingHorizontal: side, paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16) }}>
       <ScrollView ref={scroll} style={{ flex: 1 }} keyboardShouldPersistTaps="handled" alwaysBounceVertical={false}
-        onContentSizeChange={() => { if (end && !opened.current) { opened.current = true; scroll.current?.scrollToEnd({ animated: false }); } }}>{children}</ScrollView>
+        onContentSizeChange={() => { if (at && !opened.current) { opened.current = true; if (at === Infinity) scroll.current?.scrollToEnd({ animated: false }); else scroll.current?.scrollTo({ y: at, animated: false }); } }}>{children}</ScrollView>
       <View style={land && { width: w }}>{panel}</View>
     </View>
   );
