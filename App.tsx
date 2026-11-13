@@ -200,7 +200,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   const line = useRef<Guide | null>(null), redo = useRef(false), took = useRef<[number, boolean]>([0, false]), gap = useRef(0);
   const guides = useRef(guidePacer<GuideAsk, Guide>(nearGuide, farGuide(), (g, ms, off) => { line.current = g; redo.current = true; took.current = [ms, off]; wake.current(); })).current;
   const [demo, setDemo] = useState(0);
-  const [hud, setHud] = useState(__DEV__), [rates, setRates] = useState(''); // frame rate readout: hold the Rack button to show or hide it
+  const [hud, setHud] = useState(false), [rates, setRates] = useState(''); // frame rate readout, dev builds only: hold the Rack button to show or hide it
   const tip = useRef(tipStore()).current, [sheet, setSheet] = useState(false), [tools, setTools] = useState(false);
   const moving = useRef(false), grab = useRef<{ x: number; y: number } | 'call' | null>(null), called = useRef(0); // called = when the player called a pocket: its ring settles from then
   // The balls and the aim guide are Skia pictures, recorded on the JS thread and handed to the canvas through shared
@@ -560,7 +560,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       {/* shortcut: the test buttons (Rack, Demo), behind one button. Not in quick match: a new rack would dodge a loss and a demo pot would pay. */}
       {tools && (
         <View onStartShouldSetResponder={() => true} style={[styles.tools, view.land ? { left: lay.tools.left + lay.tools.width + 12, bottom: height - lay.tools.top - lay.tools.height } : { left: lay.tools.left, bottom: height - lay.spin.top + 8 }]}>
-          <Btn label="Rack" onPress={() => rerack()} onLongPress={() => setHud(!hud)} />
+          <Btn label="Rack" onPress={() => rerack()} onLongPress={__DEV__ ? () => setHud(!hud) : undefined} />
           <Btn label={'Demo\n' + DEMOS[demo][0]} onLongPress={() => Alert.alert('AI think time', benchAI())} onPress={() => { // hold: time the AI (blocks the JS thread a few seconds); tap: a fresh rack, and the demo shot is its break
             rerack(); const t = table.current; t.B[0].y = P.W / 2; // the demo shots go straight down the middle
             t.rec = newRec(); strike(t.B[0], { ang: 0, speed: 1, a: 0, b: 0, ...DEMOS[demo][1] });
