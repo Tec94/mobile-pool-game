@@ -31,8 +31,8 @@ export function SettingsPage({ set, change, go }: Props) {
   return (
     <Shell title="Settings" back={() => go('home')}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: side, paddingTop: 10, paddingBottom: pad.bottom + 16, gap: land ? 8 : 20 }}>
-        <Line label="Shot calling" note="8-ball. Call every shot: tap the pocket before a bank or a combination.">
-          <Keys label="Shot calling" value={set.callAll} pick={callAll => change({ callAll })} options={[['Call every shot', true], ['Call the 8 only', false]]} />
+        <Line label="Calling">
+          <Keys label="Calling" value={set.callAll} pick={callAll => change({ callAll })} options={[['Call every shot', true], ['Call only the 8-ball', false]]} />
         </Line>
         <Line label="Table felt"><Keys label="Table felt" value={set.cloth} pick={cloth => change({ cloth })} options={CLOTHS.map((c, i) => [c.name, i])} /></Line>
         <Line label="Menu orientation">

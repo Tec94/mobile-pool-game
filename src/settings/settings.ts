@@ -3,7 +3,7 @@ import type { Mood } from '../progress/rival.ts';
 import { CLOTHS } from '../theme.ts';
 
 export interface Settings {
-  callAll: boolean;          // 8-ball shot calling: true = WPA, call every shot that is not obvious; false = call only the 8
+  callAll: boolean;          // 8-ball: true = call every shot, false = call only the 8-ball
   cloth: number;             // index into CLOTHS
   menus: 0 | 1;              // which way up the menus are: landscape, portrait
   orient: 0 | 1 | 2;         // in a match: auto (follows the phone, even mid-match), portrait, landscape
