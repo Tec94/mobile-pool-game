@@ -1,14 +1,13 @@
-import { Skia } from '@shopify/react-native-skia';
 import * as Haptics from 'expo-haptics';
 import { useState } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { PENCIL_AT } from '../../learn/lessons';
 import { keep, profile } from '../../progress';
 import { CUE_IDS, CUES, type CueId, type CueInfo, specs } from '../../progress/cues';
 import { MASTERY_XP, masteryLevel, masteryOf, points, STATS, statsOf, tunable, tuneDown, tuneUp, upCost, used } from '../../progress/mastery';
 import { buy, FEATS, featCount, type FeatId, type Profile, select } from '../../progress/profile';
 import { C, CREAM, DARK, FONT } from '../../theme';
-import { drawCueArt } from '../cueArt';
+import { CueArt, type Pose } from '../CuePicture';
 import type { Props } from '../Menus';
 import { type Card, Hand, Row, Shell, Stage, useFrame } from '../shell';
 import { Blocks, feel, Hatch, Slab, Txt, TYPE } from '../slab';
@@ -16,24 +15,6 @@ import { Blocks, feel, Hatch, Slab, Txt, TYPE } from '../slab';
 const W = 104; // the picture ends above the name (ART..ART + 17), the foot is ART + 22..ART + 46
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
-// A cue's own look (cueArt.ts) in a w x h box: tip at (x, y), turned deg, len long, k thick. Drawn once per cue and
-// pose on an offscreen Skia surface and shown as an image: a canvas per card would want a GL context each, and a
-// browser keeps only 16.
-type Pose = [w: number, h: number, x: number, y: number, deg: number, len: number, k: number];
-const pics = new Map<string, string>(), DPR = 3;
-function CueArt({ id, pose }: { id: CueId; pose: Pose }) {
-  const [w, h, x, y, deg, len, k] = pose, key = `${id} ${pose}`;
-  let uri = pics.get(key);
-  if (!uri) {
-    const surface = Skia.Surface.Make(Math.ceil(w * DPR), Math.ceil(h * DPR));
-    if (!surface) return null;
-    const c = surface.getCanvas();
-    c.scale(DPR, DPR); c.translate(x, y); c.rotate(deg, 0, 0);
-    drawCueArt(Skia, c, id, len, k);
-    pics.set(key, uri = `data:image/png;base64,${surface.makeImageSnapshot().encodeToBase64()}`);
-  }
-  return <Image source={{ uri }} style={{ width: w, height: h }} />;
-}
 const tall = (cut: number): Pose => [W, 106 - cut, W / 2, 6, 90, 100 - cut, 96 / 27]; // a card
 const small = (size: number): Pose => [size, size, 4, size - 4, -48, size * 1.1, size / 18]; // a portrait header
 
