@@ -40,12 +40,12 @@ export function Slab({ paint: [face, lip], lip: h = 5, radius = 5, onPress, onLo
 }
 
 // A key of a key group (a radio): 34 pt, off = flat chalk at 11%, on = cream on its lip. name = what a screen reader says.
-export function Key({ label, name, on, off, onPress }: { label: string; name?: string; on: boolean; off?: boolean; onPress: () => void }) {
+export function Key({ label, name, on, off, onPress, icon }: { label: string; name?: string; on: boolean; off?: boolean; onPress: () => void; icon?: ReactNode }) {
   return (
     <Slab paint={on ? CREAM : [C.keyOff, 'transparent']} lip={on ? PRESS : 0} radius={3} onPress={() => { if (!on) feel(Haptics.selectionAsync); onPress(); }} disabled={off} hitSlop={SLOP}
       accessibilityRole="radio" accessibilityLabel={name ?? label} accessibilityState={{ checked: on, disabled: !!off }} aria-checked={on}
       style={{ marginBottom: on ? 0 : PRESS }} face={styles.key}>
-      <Txt style={[styles.keyText, { color: on ? C.ink : C.chalk }]}>{label}</Txt>
+      {icon}<Txt style={[styles.keyText, { color: on ? C.ink : C.chalk }]}>{label}</Txt>
     </Slab>
   );
 }
@@ -133,7 +133,7 @@ export const TYPE = StyleSheet.create({
 });
 
 const styles = StyleSheet.create({
-  key: { height: 34, paddingHorizontal: 8, minWidth: 36, alignItems: 'center', justifyContent: 'center', flexGrow: 0 },
+  key: { height: 34, paddingHorizontal: 8, minWidth: 36, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', flexGrow: 0 },
   keyText: { fontFamily: FONT.bold, fontSize: 12.5, lineHeight: 16, fontVariant: ['tabular-nums'] },
   keys: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 8, flexShrink: 1, maxWidth: '100%' },
   keyLabel: { fontFamily: FONT.bold, fontSize: 11, color: C.chalk, opacity: 0.7, marginRight: 4, marginBottom: 3 }, // centred on the key face, not face and lip
