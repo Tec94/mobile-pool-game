@@ -9,19 +9,22 @@ import { NAME_MAX, RACES, RIVAL, type Settings } from '../../settings/settings';
 import { C, CREAM, DARK, FONT } from '../../theme';
 import type { DailyProps, Props } from '../Menus';
 import { MiniTable, rackOf } from '../MiniTable';
-import { Panel, Shell, Split, useFrame } from '../shell';
+import { Panel, Shell, Split, useFrame, usePanel } from '../shell';
 import { BallArt, Key, Keys, Slab, Txt } from '../slab';
 
 const GAMES: [string, 8 | 9][] = [['8-ball', 8], ['9-ball', 9]];
+const LABEL = 76;
 const RACE_KEYS = RACES.map((r): [string, typeof r] => [String(r), r]);
 
 // A row: its label, centred on the key face, then its keys. Under 430 pt wide the label goes above.
+// The keys' box has a set width and stretches its child: on a phone, Yoga sizes a wrapping row that shrinks to its
+// keys a fraction too narrow, so the last key wraps, and gives the row one line's height, so rows overlap.
 function Line({ label, children }: { label: string; children: ReactNode }) {
-  const narrow = useFrame().width < 430;
+  const { width, side, land } = useFrame(), narrow = width < 430, panel = usePanel();
   return (
-    <View style={[styles.line, narrow && { flexDirection: 'column', alignItems: 'flex-start', gap: 4 }]}>
+    <View style={[styles.line, narrow && { flexDirection: 'column', alignItems: 'stretch', gap: 4 }]}>
       <Txt style={[styles.label, !narrow && { marginBottom: 3 }]}>{label}</Txt>
-      <View style={styles.keys}>{children}</View>
+      <View style={!narrow && { width: width - 2 * side - LABEL - (land ? panel + 16 : 0) }}>{children}</View>
     </View>
   );
 }
@@ -35,7 +38,7 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
   const game = quick ? set.aiGame : set.game, rival = set.tier === RIVAL, rating = shown(profile().rival[set.aiGame].rating);
   const opp = quick ? (rival ? `Rival ${rating}` : TIERS[set.tier].name) : names[1].trim() || 'Player 2', me = quick ? 'You' : names[0].trim() || 'Player 1';
   const start = () => { if (quick) return go('ai'); change({ names: names.map((n, i) => n.trim() || `Player ${i + 1}`) as [string, string] }); go('match'); };
-  const { charges, armed } = daily.chalk, { width, side } = useFrame(), oppW = width < 430 ? Math.floor((width - 2 * side - 24) / 7) : 56; // portrait: all seven on one line
+  const { charges, armed } = daily.chalk;
   return (
     <Shell title={quick ? 'Quick match' : 'Pass and play'} back={() => go('home')}>
       <Split panel={
@@ -52,13 +55,13 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
           </View>
           {quick ? <View style={styles.group}>
             <Line label="Opponent">
-              <View style={styles.keys} accessibilityRole="radiogroup" accessibilityLabel="Opponent">
+              <View style={styles.opps} accessibilityRole="radiogroup" accessibilityLabel="Opponent">
                 {[RIVAL, ...TIERS.map((_, i) => i)].map(t => {
                   const on = set.tier === t, ink = { color: on ? C.ink : C.chalk };
                   return (
                     <Slab key={t} paint={on ? CREAM : [C.keyOff, 'transparent']} lip={on ? 3 : 0} radius={3} onPress={() => change({ tier: t })} hitSlop={{ top: 4, bottom: 4 }}
                       accessibilityRole="radio" accessibilityLabel={t === RIVAL ? `Rival, rating ${rating}` : TIERS[t].name} accessibilityState={{ checked: on }} aria-checked={on}
-                      style={{ marginBottom: on ? 0 : 3 }} face={[styles.opp, { width: oppW }]}>
+                      style={{ flex: 1, marginBottom: on ? 0 : 3 }} face={styles.opp}>
                       <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.oppName, ink]}>{t === RIVAL ? 'Rival' : TIERS[t].name}</Txt>
                       {t === RIVAL ? <Txt style={[styles.rating, ink]}>{rating}</Txt>
                         : <View style={styles.bars}>{TIERS.map((_, k) => <View key={k} style={[styles.bar, { backgroundColor: ink.color, opacity: k <= t ? 1 : 0.22 }]} />)}</View>}
@@ -67,12 +70,12 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
                 })}
               </View>
             </Line>
-            {rival && <Line label="Mood">
-              <Keys label="Rival mood" value={set.mood} pick={mood => change({ mood })} options={MOODS.map(m => [m[0].toUpperCase() + m.slice(1), m])} />
+            {rival && <Line label="Mood"><View style={styles.line}>
+              <View style={{ flex: 1 }}><Keys label="Rival mood" value={set.mood} pick={mood => change({ mood })} options={MOODS.map(m => [m[0].toUpperCase() + m.slice(1), m])} /></View>
               <Slab paint={DARK} lip={3} radius={3} onPress={reset} hitSlop={{ top: 5, bottom: 5, left: 4, right: 4 }} accessibilityLabel={sure ? `Tap again to reset the ${set.aiGame}-ball Rival` : 'Reset Rival rating'} style={{ marginLeft: 8 }} face={styles.reset}>
                 <Txt style={styles.resetText}>{sure ? 'Sure?' : 'Reset'}</Txt>
               </Slab>
-            </Line>}
+            </View></Line>}
           </View> : <View style={styles.group}>
             {names.map((n, i) => (
               <Line key={i} label={`Player ${i + 1}`}>
@@ -100,10 +103,11 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
 const styles = StyleSheet.create({
   group: { gap: 9 },
   line: { flexDirection: 'row', alignItems: 'center' },
-  label: { width: 76, fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, letterSpacing: 0.6, textTransform: 'uppercase', color: C.chalk, opacity: 0.6 },
-  keys: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 8, flexShrink: 1 },
-  opp: { height: 40, alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 2 },
-  oppName: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 14 },
+  label: { width: LABEL, fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, letterSpacing: 0.6, textTransform: 'uppercase', color: C.chalk, opacity: 0.6 },
+  keys: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 8 },
+  opps: { flexDirection: 'row', gap: 4, maxWidth: 416 }, // seven equal keys on one line, 56 pt each at most
+  opp: { height: 40, alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 1 },
+  oppName: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 14 },
   rating: { fontFamily: FONT.bold, fontSize: 10, lineHeight: 12, opacity: 0.7, fontVariant: ['tabular-nums'] },
   bars: { flexDirection: 'row', gap: 2 },
   bar: { width: 5, height: 3 },
