@@ -45,11 +45,13 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, false), phase: 'play', hand: fa
   eq(banner(newGame(8), false).hint, 'Ball in hand behind the line: drag the cue ball.', 'the break: in hand behind the head string');
   eq(banner(play8({ note: 'Solids.' }), false), { note: 'Solids.', foul: false, hint: '' }, 'a ruling that is not a foul');
   const eight = play8({ solids: 0, balls: [8, 9] });
-  eq(banner(eight, false).hint, 'Tap a pocket to call the 8.', 'on the 8 with no call: the player must call it');
+  eq(banner(eight, false), { note: '', foul: false, hint: 'Call a pocket.' }, 'on the 8 with no call: the player must call it');
   eq(banner(setCall(eight, 2), false).hint, '', 'once called, the ask is gone');
-  eq(banner(play8({ callAll: true }), false).note, 'Tap a pocket to call a bank or a combination.', 'call shot, nothing else to say: the call tip (a note, so transient on purpose)');
+  eq(banner(play8({ callAll: true }), false), { note: '', foul: false, hint: 'Call a pocket.' }, 'Call every shot: every shot asks for a pocket');
   eq(banner(play8({ hand: 'any', note: 'Foul: scratch. Ball in hand.' }), false).hint, 'Drag the cue ball.', 'the ruling says ball in hand: the hint does not repeat it');
-  eq(banner(play8({ callAll: true, hand: 'any' }), false).note, '', 'in hand the hand hint says enough');
+  eq(banner(play8({ callAll: true, hand: 'any' }), false).hint, 'Ball in hand: drag the cue ball. Call a pocket.', 'in hand: place the ball, then call');
+  eq(banner(play8({ callAll: true, lit: [1, 2] }), false).hint, 'Call a pocket.', 'bank shots: the lit cushions say it, the banner would hide one');
+  eq(banner(play8({ lit: [1, 2] }), false, '').hint, '', 'not on the AI turn');
   eq(banner({ ...newGame(9), phase: 'play', hand: false, push: true }, true).hint, 'Push out: no ball or rail needed.', 'push out on');
   eq(banner({ ...play8(), phase: 'over', note: 'The 8 is down.' }, false), { note: '', foul: false, hint: '' }, 'the results card says it, not the banner');
   eq(banner({ ...foul, choice: [{ label: 'Shoot' }] }, false).note, '', 'a decision card says it, not the banner');

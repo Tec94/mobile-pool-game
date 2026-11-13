@@ -4,7 +4,8 @@ import assert from 'node:assert';
 import { CUE, P, step, strike } from '../physics/engine.ts';
 import { shotTip } from '../render/tip.ts';
 import { cushions } from '../render/table.ts';
-import { LESSONS, lessonTable, litCushions, newLessonRec, noteLesson, nose, readDone, verdict } from './lessons.ts';
+import { LESSONS, lessonTable, litCushions, newLessonRec, noteLesson, readDone, verdict } from './lessons.ts';
+import { nose } from '../rules/rules.ts';
 
 const play = (l, ang, power, tip) => {
   const { B, ids } = lessonTable(l), r = newLessonRec(), ev = [];

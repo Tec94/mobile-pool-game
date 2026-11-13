@@ -158,3 +158,11 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   assert(legend9 > 2 * rookie9, `9-ball balls in 10 visits: Rookie ${rookie9}, Legend ${legend9}`);
   ok('Legend runs more balls than Shark, and Shark than Rookie, on the engine, and Legend than Rookie in 9-ball');
 }
+{ // Bank shots, on the 8 with no bank to play: the fallback tap must not send the 8 straight in (that loses the rack).
+  const B = [mk(P.L - 0.8, P.W - 0.8), mk(P.L - 0.3, P.W - 0.3)], none = () => false;
+  const { shot, pick } = aiShot(B, [0, 8], SOLIDS, STRIPES, TIERS[1], rng(1), 0, none);
+  assert.equal(pick.type, 'foul');
+  const S = B.map(b => ({ ...b })); strike(S[0], shot); for (let i = 0; i < 40000 && step(S, []); i++);
+  assert(S[1].on, 'the 8 stays on the table');
+  console.log('ok bank shots: the fallback tap keeps the 8 up');
+}

@@ -1,6 +1,6 @@
 // What the match HUD shows for a rules State: the two player plates, the 9-ball strip and the banner. Pure TS, so
 // src/ui/hud.test.mjs checks it; src/ui/MatchHud.tsx draws it.
-import { canCall, lowest, onEight, type State } from '../rules/rules.ts';
+import { canCall, lowest, type State } from '../rules/rules.ts';
 
 export interface Pip { id: number; gone: boolean } // gone = potted: the pip is drawn hollow
 // text = line 2 when it is words; warn = draw it in the foul red; label = the plate read aloud.
@@ -29,18 +29,16 @@ export function plates(s: State, names = ['Player 1', 'Player 2']): Plate[] {
 export const strip = (s: State) => (s.game === 9 ? range(1, 9).map(id => ({ id, gone: !s.balls.includes(id), next: id === lowest(s) })) : []);
 
 // The banner over the table. note = the ruling on the last shot (shown for a moment); hint = what the player must do
-// now (shown until it is done). The results card and a decision card show the ruling themselves. The bank/combination
-// call tip rides as a note on purpose: it is advice, not a must, so it shows for a moment and goes. wait = what the
+// now (shown until it is done). The results card and a decision card show the ruling themselves. wait = what the
 // other side is doing (the AI thinks, or '' while it shoots): it takes the place of the hint, even over a decision the
 // AI makes. undefined = the player's own turn.
 export function banner(s: State, push: boolean, wait?: string) {
   if (s.phase === 'over' || (s.choice && wait === undefined)) return { note: '', foul: false, hint: '' };
   if (wait !== undefined) return { note: s.choice ? '' : s.note, foul: !s.choice && s.foul, hint: wait };
-  const ask = canCall(s) && s.call < 0, eight = onEight(s);
-  const note = s.note || (ask && !eight && !s.hand ? 'Tap a pocket to call a bank or a combination.' : '');
+  const ask = canCall(s) && s.call < 0, note = s.note;
   const said = /ball in hand/i.test(note); // the ruling already says it: the hint only says what to do
   const hint = [s.hand === 'kitchen' ? (said ? 'Drag the cue ball behind the line.' : 'Ball in hand behind the line: drag the cue ball.') : s.hand ? (said ? 'Drag the cue ball.' : 'Ball in hand: drag the cue ball.') : '',
-    ask && eight ? 'Tap a pocket to call the 8.' : '', push ? 'Push out: no ball or rail needed.' : ''].filter(Boolean).join(' ');
+    ask ? 'Call a pocket.' : '', push ? 'Push out: no ball or rail needed.' : ''].filter(Boolean).join(' ');
   return { note, foul: s.foul, hint };
 }
 
