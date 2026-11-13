@@ -66,17 +66,19 @@ export function Strip({ title, back, settings, extra }: { title?: string; back?:
 }
 
 // The body of a screen with a panel: choices on the left (scrolling), the panel on the right. Portrait: the panel under them.
-export function Split({ children, panel }: { children: ReactNode; panel: ReactNode }) {
-  const { land, side, pad } = useFrame(), w = usePanel();
+// end = open scrolled to the end (the newest days).
+export function Split({ children, panel, end }: { children: ReactNode; panel: ReactNode; end?: boolean }) {
+  const { land, side, pad } = useFrame(), w = usePanel(), scroll = useRef<ScrollViewInstance>(null), opened = useRef(false);
   return (
     <View style={{ flex: 1, flexDirection: land ? 'row' : 'column', gap: 16, paddingHorizontal: side, paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16) }}>
-      <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" alwaysBounceVertical={false}>{children}</ScrollView>
+      <ScrollView ref={scroll} style={{ flex: 1 }} keyboardShouldPersistTaps="handled" alwaysBounceVertical={false}
+        onContentSizeChange={() => { if (end && !opened.current) { opened.current = true; scroll.current?.scrollToEnd({ animated: false }); } }}>{children}</ScrollView>
       <View style={land && { width: w }}>{panel}</View>
     </View>
   );
 }
 // The panel's width: at most 268 pt and 36% of the body in landscape, the body's width in portrait.
-function usePanel() { const { land, side, width } = useFrame(); return land ? Math.min(268, 0.36 * (width - 2 * side)) : width - 2 * side; }
+export function usePanel() { const { land, side, width } = useFrame(); return land ? Math.min(268, 0.36 * (width - 2 * side)) : width - 2 * side; }
 
 // The panel: a head row, a picture (picture(w) at the panel's inner width; in portrait only on a window 700 pt tall),
 // what else it holds (scrolls when tall), and the screen's one button at its foot.
