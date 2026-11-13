@@ -5,6 +5,7 @@
 import { type Ball, CUE, type Ev, step, strike } from '../physics/engine.ts';
 import { ENDS, newRec, type Rec, record } from '../rules/rules.ts';
 import { shotTip, type Tip } from '../render/tip.ts';
+import { VARIANTS } from './variants.ts';
 
 export interface Goal {
   pot?: number;       // this ball must go in
@@ -29,7 +30,7 @@ export const LESSON_PAY = { xp: 50, coins: 0 }; // the first pass only; replays 
 
 // Table frame: x along the table from the head rail (0) to the foot rail (P.L = 2.2352), y across it (P.W = 1.1176).
 export const LESSONS: Lesson[] = [
-  { id: 'aim', title: 'Aim and the ghost ball', say: 'Pot the 1 in the far corner.', how: 'Aim the cue ball at the ghost ball the guide draws, the spot it must reach to send the 1 in.',
+  { id: 'aim', title: 'Aim and the ghost ball', say: 'Pot the 1 in the marked corner.', how: 'Aim the cue ball at the ghost ball the guide draws, the spot it must reach to send the 1 in.',
     cue: [1.0, 0.45], balls: [[1, 1.8, 0.8]], goal: { pot: 1, pocket: 3 }, ref: { ang: 0.398, power: 0.4, tip: { x: 0, y: 0, elev: 0 } } },
   { id: 'power', title: 'Power control', say: 'Pot the 1 and stop the cue ball in the ring.', how: 'Soft power. Watch the rail: the cue ball only has to roll as far as the ring.',
     cue: [0.9, 0.56], balls: [[1, 1.7, 0.9]], goal: { pot: 1, pocket: 3, zone: [1.971, 1.079, 0.16] }, ref: { ang: 0.4067, power: 0.3, tip: { x: 0, y: 0, elev: 0 } },
@@ -47,7 +48,7 @@ export const LESSONS: Lesson[] = [
     cue: [1.4, 0.5], balls: [[1, 1.85, 0.85]], goal: { pot: 1, pocket: 3, zone: [1.904, 0.711, 0.16] }, ref: { ang: 0.6558, power: 0.5, tip: { x: 0.5, y: 0, elev: 0 } },
     short: 'More side, or a little more power.', long: 'Less side, or a little less power.' },
   // Banks off the y = W rail, so the cue lies away from the lesson strip in landscape.
-  { id: 'bank', title: 'One-cushion banks', say: 'Bank the 1 off a lit cushion into the far side pocket.', how: 'Send the 1 into the cushion so it comes off at the same angle it went in, a little shorter at speed.',
+  { id: 'bank', title: 'One-cushion banks', say: 'Bank the 1 off a lit cushion into the marked side pocket.', how: 'Send the 1 into the cushion so it comes off at the same angle it went in, a little shorter at speed.',
     cue: [0.7, 0.5176], balls: [[1, 0.76, 0.8176]], goal: { pot: 1, pocket: 4 }, ref: { ang: 1.3848, power: 0.45, tip: { x: 0, y: 0, elev: 0 } } },
   { id: 'kick', title: 'Kick shots', say: 'The 2 is in the way. Send the cue ball off a cushion to hit the 1 first.', how: 'Pick the point on the cushion halfway between the cue ball and the 1, mirrored, and aim there.',
     cue: [0.7, 0.56], balls: [[2, 1.2, 0.56], [1, 1.7, 0.56]], goal: { first: 1, kick: true }, ref: { ang: -0.4538, power: 0.45, tip: { x: 0, y: 0, elev: 0 } } },
@@ -69,6 +70,15 @@ export const LESSONS: Lesson[] = [
 export function lessonTable(l: Lesson): { B: Ball[]; ids: number[] } {
   const mk = (x: number, y: number): Ball => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
   return { B: [mk(...l.cue), ...l.balls.map(([, x, y]) => mk(x, y))], ids: [0, ...l.balls.map(([id]) => id)] };
+}
+
+// The table of one solo shot (Jack: every practice shot from a new position, so the player has to think each time): the
+// lesson or one of its variants (scripts/make-lesson-variants.mjs), never the table just played. rnd for a test.
+const SOLO = new Map<string, Lesson[]>(); // made once: litCushions caches per table object
+export function soloTable(l: Lesson, last?: Lesson, rnd = Math.random): Lesson {
+  if (!SOLO.has(l.id)) SOLO.set(l.id, [l, ...(VARIANTS[l.id] ?? []).map(v => ({ ...l, ...v }))]);
+  const all = SOLO.get(l.id)!.filter(t => t !== last);
+  return all[Math.floor(rnd() * all.length)] ?? l;
 }
 
 // The record of a lesson shot: the rules' record (its cush says which cushions each ball touched), whether the cue ball

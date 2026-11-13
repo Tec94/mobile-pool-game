@@ -4,7 +4,8 @@ import assert from 'node:assert';
 import { CUE, P, step, strike } from '../physics/engine.ts';
 import { shotTip } from '../render/tip.ts';
 import { cushions } from '../render/table.ts';
-import { LESSONS, lessonTable, litCushions, newLessonRec, noteLesson, readDone, verdict } from './lessons.ts';
+import { LESSONS, lessonTable, litCushions, newLessonRec, noteLesson, readDone, soloTable, verdict } from './lessons.ts';
+import { VARIANTS } from './variants.ts';
 import { nose } from '../rules/rules.ts';
 
 const play = (l, ang, power, tip) => {
@@ -56,6 +57,17 @@ assert.match(play(at('safety'), at('safety').ref.ang, 0.02, { x: 0, y: 0, elev: 
   assert.strictEqual(off(-1).say, 'Bank it off a lit cushion.', 'bank: potted with no bank');
   assert.strictEqual(off(-1, [P.L / 2 - 0.04, P.W - 0.01]).say, 'Bank it off a lit cushion.', 'bank: a pocket jaw next to a lit cushion is no bank');
   assert.strictEqual(play(l, 2.5781, 0.6, l.ref.tip).say, 'Bank it off a lit cushion.', 'bank: on the engine, a shot that drops the 1 with no bank');
+}
+{ // Solo deals a new table each shot (scripts/make-lesson-variants.mjs): every variant passes as its lesson must.
+  for (const l of LESSONS) {
+    assert(VARIANTS[l.id]?.length >= 4, `${l.id}: solo has tables to vary`);
+    for (const v of VARIANTS[l.id]) {
+      const t = { ...l, ...v }, ok = (d = 0, p = 0) => play(t, v.ref.ang + d, v.ref.power + p, v.ref.tip).ok;
+      assert(ok() && ok(-0.002) && ok(0.002) && ok(0, -0.03) && ok(0, 0.03), `${l.id}: variant ${JSON.stringify(v.cue)} too tight or failing`);
+    }
+    let t = soloTable(l);
+    for (let i = 0; i < 20; i++) { const u = soloTable(l, t); assert.notStrictEqual(u, t, `${l.id}: two solo shots in a row on one table`); t = u; }
+  }
 }
 console.log('lessons: all checks passed');
 {
