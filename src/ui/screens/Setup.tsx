@@ -35,7 +35,7 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
   const game = quick ? set.aiGame : set.game, rival = set.tier === RIVAL, rating = shown(profile().rival[set.aiGame].rating);
   const opp = quick ? (rival ? `Rival ${rating}` : TIERS[set.tier].name) : names[1].trim() || 'Player 2', me = quick ? 'You' : names[0].trim() || 'Player 1';
   const start = () => { if (quick) return go('ai'); change({ names: names.map((n, i) => n.trim() || `Player ${i + 1}`) as [string, string] }); go('match'); };
-  const { charges, armed } = daily.chalk;
+  const { charges, armed } = daily.chalk, { width, side } = useFrame(), oppW = width < 430 ? Math.floor((width - 2 * side - 24) / 7) : 56; // portrait: all seven on one line
   return (
     <Shell title={quick ? 'Quick match' : 'Pass and play'} back={() => go('home')}>
       <Split panel={
@@ -58,7 +58,7 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
                   return (
                     <Slab key={t} paint={on ? CREAM : [C.keyOff, 'transparent']} lip={on ? 3 : 0} radius={3} onPress={() => change({ tier: t })} hitSlop={{ top: 4, bottom: 4 }}
                       accessibilityRole="radio" accessibilityLabel={t === RIVAL ? `Rival, rating ${rating}` : TIERS[t].name} accessibilityState={{ checked: on }} aria-checked={on}
-                      style={{ marginBottom: on ? 0 : 3 }} face={styles.opp}>
+                      style={{ marginBottom: on ? 0 : 3 }} face={[styles.opp, { width: oppW }]}>
                       <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.oppName, ink]}>{t === RIVAL ? 'Rival' : TIERS[t].name}</Txt>
                       {t === RIVAL ? <Txt style={[styles.rating, ink]}>{rating}</Txt>
                         : <View style={styles.bars}>{TIERS.map((_, k) => <View key={k} style={[styles.bar, { backgroundColor: ink.color, opacity: k <= t ? 1 : 0.22 }]} />)}</View>}
@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
   line: { flexDirection: 'row', alignItems: 'center' },
   label: { width: 76, fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, letterSpacing: 0.6, textTransform: 'uppercase', color: C.chalk, opacity: 0.6 },
   keys: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4, rowGap: 8, flexShrink: 1 },
-  opp: { width: 56, height: 40, alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 2 },
+  opp: { height: 40, alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 2 },
   oppName: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 14 },
   rating: { fontFamily: FONT.bold, fontSize: 10, lineHeight: 12, opacity: 0.7, fontVariant: ['tabular-nums'] },
   bars: { flexDirection: 'row', gap: 2 },
