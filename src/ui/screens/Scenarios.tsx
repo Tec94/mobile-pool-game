@@ -1,65 +1,82 @@
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { profile } from '../../progress';
 import { levelOf, PACKS } from '../../progress/profile';
-import { isOpen, par, SCENARIOS, STAR_COINS, starCount } from '../../scenarios/scenarios';
+import { isOpen, SCENARIOS, starCount, totalStars } from '../../scenarios/scenarios';
 import { C, CREAM, DARK, FONT, MODE } from '../../theme';
 import type { Props, ScenarioProps } from '../Menus';
-import { type Card, Hand, Shell, Stage } from '../shell';
+import { MiniTable, tableOf } from '../MiniTable';
+import { Shell, Tile, useFrame } from '../shell';
 import { Slab, Txt, TYPE } from '../slab';
 
 const starLine = (k: number) => `${'★'.repeat(k)}${'☆'.repeat(3 - k)}`;
-let kept: number | undefined; // the chosen table outlives the screen, so a table returns to it
+const Lock = ({ color }: { color: string }) => (
+  <View style={{ alignItems: 'center' }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <View style={[styles.shackle, { borderColor: color }]} /><View style={[styles.lockBody, { backgroundColor: color }]} />
+  </View>
+);
+let kept: number | undefined; // the chosen pack outlives the screen, so a table returns to it
 
-// The packs in level order as a hand: red = open, dark = opens at a level. The stage holds the raised pack's tables
-// as number keys; in a pack a clear opens the next two tables.
+// The packs as tabs and the chosen pack's tables as a grid of drawn layouts: a tap on an open table plays it.
+// In a pack a clear opens the next two tables; a pack opens at a level.
 export function Scenarios({ go, stars, play }: Pick<Props, 'go'> & ScenarioProps) {
-  const { xp } = profile(), { level } = levelOf(xp), open = (i: number) => isOpen(i, stars, xp);
+  const { land, side, pad, width } = useFrame(), { xp } = profile(), { level } = levelOf(xp), open = (i: number) => isOpen(i, stars, xp);
   // The first open table not yet cleared, else the first open one short of three stars.
-  const next = () => {
-    const at = SCENARIOS.map((_, i) => i).filter(open);
-    return at.find(i => !((stars[SCENARIOS[i].id] ?? 0) & 1)) ?? at.find(i => starCount(stars[SCENARIOS[i].id]) < 3) ?? 0;
-  };
-  const [t, setT] = useState(() => kept ?? next()), choose = (i: number) => { kept = i; setT(i); };
-  const s = SCENARIOS[t], tables = SCENARIOS.flatMap((x, i) => (x.pack === s.pack ? [i] : []));
+  const at = SCENARIOS.map((_, i) => i).filter(open);
+  const next = at.find(i => !((stars[SCENARIOS[i].id] ?? 0) & 1)) ?? at.find(i => starCount(stars[SCENARIOS[i].id]) < 3);
+  const [pack, setPack] = useState(() => kept ?? SCENARIOS[next ?? 0].pack), pick = (p: number) => { kept = p; setPack(p); };
   const got = (p: number) => SCENARIOS.reduce((n, x) => n + (x.pack === p ? starCount(stars[x.id]) : 0), 0);
-  // A pack opens on its first open table not yet cleared, else its first.
-  const pick = (p: number) => {
-    const at = SCENARIOS.flatMap((x, i) => (x.pack === p ? [i] : []));
-    choose(at.find(i => open(i) && !((stars[SCENARIOS[i].id] ?? 0) & 1)) ?? at[0]);
-  };
-  const cards: Card[] = PACKS.map(([name, at], p) => level >= at
-    ? { key: name, paint: MODE.scenarios, name, title: name, line: `${got(p)} of ${3 * SCENARIOS.filter(x => x.pack === p).length} ★` }
-    : { key: name, paint: DARK, name: `${name}, opens at level ${at}`, title: name, line: `Level ${at}` });
-  const [pack, at] = PACKS[s.pack], packOpen = level >= at, n = tables.indexOf(t) + 1, k = starCount(stars[s.id]);
+  const size = (p: number) => SCENARIOS.filter(x => x.pack === p).length, total = totalStars(stars);
+  const cols = land ? 6 : 3, tw = (width - 2 * side - 8 * (cols - 1)) / cols, packOpen = level >= PACKS[pack][1];
+  const tables = SCENARIOS.flatMap((x, i) => (x.pack === pack ? [i] : []));
   return (
-    <Shell title="Scenarios" back={() => go('home')}>
-      <Stage title={pack} line={packOpen ? `${got(s.pack)} of ${3 * tables.length} stars. A clear opens the next two. A new star pays ${STAR_COINS} coins.` : `Opens at level ${at}.`}
-        cta={packOpen ? { label: `Play ${n}`, name: `Play ${s.title}`, onPress: () => play(t), off: !open(t) } : { label: 'Locked', name: `${pack}, locked`, onPress: () => {}, off: true }}>
-        <View style={styles.keys} accessibilityRole="radiogroup" accessibilityLabel={`${pack} tables`}>
-          {tables.map((i, j) => {
-            const x = SCENARIOS[i], on = i === t, ok = open(i), got = starCount(stars[x.id]);
+    <Shell title="Scenarios" back={() => go('home')} extra={<Txt style={styles.total}>{`★ ${total} / ${3 * SCENARIOS.length}`}</Txt>}>
+      <ScrollView contentContainerStyle={{ paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16), gap: 12 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: side, gap: 5 }}
+          accessibilityRole="radiogroup" accessibilityLabel="Packs">
+          {PACKS.map(([name, lv], p) => {
+            const on = p === pack, ok = level >= lv, ink = { color: C.chalk };
             return (
-              <Slab key={x.id} paint={on ? CREAM : [C.keyOff, 'transparent']} lip={on ? 3 : 0} radius={3} onPress={() => choose(i)} disabled={!ok} hitSlop={2}
-                accessibilityRole="radio" accessibilityLabel={`${x.title}, ${got} of 3 stars, ${ok ? 'open' : 'locked'}`} accessibilityState={{ checked: on, disabled: !ok }} aria-checked={on}
-                style={{ marginBottom: on ? 0 : 3 }} face={styles.key}>
-                <Txt style={[styles.num, on && { color: C.ink }]}>{j + 1}</Txt>
-                <Txt style={[styles.stars, on && { color: C.ink }]}>{starLine(got)}</Txt>
+              <Slab key={name} paint={on ? MODE.scenarios : [C.keyOff, 'transparent']} lip={on ? 3 : 0} radius={3} onPress={() => pick(p)} hitSlop={{ top: 5, bottom: 5 }}
+                accessibilityRole="radio" accessibilityLabel={ok ? `${name}, ${got(p)} of ${3 * size(p)} stars` : `${name}, opens at level ${lv}`} accessibilityState={{ checked: on }} aria-checked={on}
+                style={[{ marginBottom: on ? 0 : 3 }, !ok && { opacity: 0.5 }]} face={styles.tab}>
+                <Txt style={[styles.tabName, ink]}>{name}</Txt>
+                {ok ? <Txt style={[styles.tabSmall, ink]}>{`★ ${got(p)}/${3 * size(p)}`}</Txt> : <><Lock color={C.chalk} /><Txt style={[styles.tabSmall, ink]}>{`Lv ${lv}`}</Txt></>}
               </Slab>
             );
           })}
+        </ScrollView>
+        <View style={[styles.grid, { paddingHorizontal: side }]}>
+          {tables.map((i, j) => {
+            const x = SCENARIOS[i], ok = packOpen && open(i), k = starCount(stars[x.id]), paint = i === next ? CREAM : DARK, ink = { color: i === next ? C.ink : C.chalk };
+            return (
+              <Tile key={x.id} paint={paint} name={`${x.title}, ${k} of 3 stars${ok ? '' : ', locked'}`} onPress={ok ? () => play(i) : undefined}
+                style={[{ width: tw }, !ok && { opacity: 0.45 }]} face={styles.tile}>
+                <MiniTable width={tw - 14} {...tableOf(x)} />
+                <View style={styles.foot}>
+                  <Txt style={[styles.num, ink]}>{j + 1}</Txt>
+                  {ok ? <Txt style={[styles.stars, { color: i === next ? C.ink : C.gold }]}>{starLine(k)}</Txt>
+                    : packOpen ? <Lock color={C.chalk} /> : <Txt style={[styles.tabSmall, ink]}>{`Lv ${PACKS[pack][1]}`}</Txt>}
+                </View>
+              </Tile>
+            );
+          })}
         </View>
-        <Txt style={styles.say}>{`${s.title} · par ${par(s)} · ${packOpen ? `${s.say.replace(/\.$/, '')}${k ? ` · ${starLine(k)}` : ''}` : `Opens at level ${at}`}`}</Txt>
-      </Stage>
-      <Hand cards={cards} up={s.pack} pick={pick} width={88} />
+      </ScrollView>
     </Shell>
   );
 }
 
 const styles = StyleSheet.create({
-  keys: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 4, rowGap: 8 },
-  key: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
-  num: { fontFamily: FONT.display, fontSize: 16, lineHeight: 17, color: C.chalk, ...TYPE.num },
-  stars: { fontFamily: FONT.bold, fontSize: 10, lineHeight: 11, color: C.chalk, opacity: 0.85 },
-  say: { ...TYPE.body, opacity: 0.82 },
+  total: { fontFamily: FONT.bold, fontSize: 13, color: C.gold, ...TYPE.num },
+  tab: { height: 34, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tabName: { fontFamily: FONT.bold, fontSize: 13, lineHeight: 16 },
+  tabSmall: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, opacity: 0.75, ...TYPE.num },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, rowGap: 13 },
+  tile: { paddingVertical: 7, paddingHorizontal: 7 },
+  foot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 },
+  num: { fontFamily: FONT.display, fontSize: 17, lineHeight: 20, ...TYPE.num },
+  stars: { fontFamily: FONT.bold, fontSize: 13, lineHeight: 16 },
+  shackle: { width: 7, height: 5, borderWidth: 1.5, borderBottomWidth: 0, borderTopLeftRadius: 4, borderTopRightRadius: 4 },
+  lockBody: { width: 10, height: 7, borderRadius: 1.5 },
 });
