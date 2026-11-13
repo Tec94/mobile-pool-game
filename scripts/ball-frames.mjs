@@ -113,11 +113,11 @@ for (const [name, t, speed, ang, B] of [['jump', { x: 0, y: 0, elev: 40 }, 3.2, 
 for (const land of [true, false]) { const B = [ball(P.L / 4 - 0.001, mid)], ids = [0]; for (const [id, x, y] of rack(8)) { ids.push(id); B.push(ball(x, y)); }
   strip('hand-' + (land ? 'land' : 'port'), { B, ids, shots: [], n: 1, land, marks: { hand: 'kitchen' } }); }
 strip('hand-pulse', { B: [ball(1.2, mid), ball(1.3, mid + 0.03)], ids: [0, 6], shots: [], n: 5, w: 0.3, h: 0.24, at: [1.2, mid], marks: { hand: 'any' } });
-// The pockets: every one asks for a call (4 cells 300 ms apart: the arcs turn), one called while the others fall back,
+// The pockets: every one asks for a call (a still chalk ring), one called while the others fall back,
 // and a called or marked pocket alone with a ball on its way in; then the settle of a call, 50 ms a cell, at a corner
 // and at a side pocket; then the whole window, both ways up and on the blue cloth.
 { const T = () => ({ B: [ball(0.5, 0.35), ball(0.25, 0.2)], ids: [0, 8], shots: [], w: 0.9, h: 0.75, at: [0.3, 0.2] }), t0 = 500;
-  strip('call-ask', { ...T(), n: 4, marks: { ask: true } }); strip('call', { ...T(), n: 1, marks: { ask: true, call: 0 } });
+  strip('call-ask', { ...T(), n: 1, marks: { ask: true } }); strip('call', { ...T(), n: 1, marks: { ask: true, call: 0 } });
   strip('call-alone', { B: [ball(0.14, 0.14)], ids: [8], shots: [[0, { ang: -3 * Math.PI / 4, speed: 0.5, a: 0, b: 0.4 }]], n: 8, w: 0.24, h: 0.24, at: [0.03, 0.03], skip: 10, marks: { call: 0 } });
   for (const [k, at] of [[0, [0, 0]], [4, [P.L / 2, -0.03]]]) strip('call-settle-' + k, { B: [ball(0.5, 0.35)], ids: [0], shots: [], n: 7, every: 0, w: 0.24, h: 0.24, at, marks: { ask: true, call: k, at: t0 }, tick: 50 });
   strip('call-calm', { ...T(), n: 2, calm: true, marks: { ask: true } });

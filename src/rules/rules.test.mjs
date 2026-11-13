@@ -70,18 +70,43 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
   eq(judge(setCall(s, 2), rec(7, [[7, 2]])).call, -1, 'a call lasts one shot');
   ok('8-ball ends by 4.8');
 }
-{ // 1.7: call shot (the default), and the "8 only" setting
-  const s = judge(open8(true), rec(3, [[3, 1]], { direct: true })); eq([s.solids, s.turn], [1, 1], 'an obvious pot needs no call');
-  let a = judge(s, rec(1, [[1, 4]], { direct: false })); eq([a.turn, a.balls.includes(1)], [0, false], 'an uncalled bank or combination does not keep the table; the ball stays down');
-  eq(a.note, 'Not called: the turn passes.', 'and the screen says why');
-  a = judge(s, rec(2, [[1, 4]], { direct: false })); eq(a.turn, 0, 'a ball that was not the one aimed at, uncalled: turn over');
-  a = judge(setCall(s, 4), rec(2, [[1, 4]])); eq(a.turn, 1, 'the same shot counts when the pocket was called');
-  a = judge(setCall(s, 5), rec(1, [[1, 4]], { direct: true })); eq(a.turn, 0, 'a called pocket missed: turn over, even on a straight pot elsewhere');
-  a = judge(open8(true), rec(3, [[3, 1]], { direct: false })); eq([a.solids, a.turn], [-1, 0], 'an uncalled fluke on an open table decides nothing');
-  a = judge(open8(true), rec(11, [[3, 1], [11, 2]], { direct: true })); eq(a.solids, 0, 'with no call only the ball that was aimed at counts: stripes, though a solid fell first');
-  assert(canCall(s) && !canCall(solids1()) && !canCall(newGame(8)), 'pockets can be called on every shot but the break, and only on the 8 with call shot off');
-  eq(judge(solids1(), rec(2, [[1, 4]], { direct: false })).turn, 1, 'with call shot off a fluke keeps the table');
+{ // 1.7: "Call every shot" (callAll) and "Call only the 8-ball"
+  const s = judge(setCall(open8(true), 1), rec(3, [[3, 1]])); eq([s.solids, s.turn], [1, 1], 'a pot in the called pocket counts');
+  let a = judge(s, rec(1, [[1, 1]])); eq([a.turn, a.balls.includes(1)], [0, false], 'no call: even a straight pot does not keep the table; the ball stays down');
+  a = judge(setCall(s, 4), rec(1, [[1, 2]])); eq([a.turn, a.balls.includes(1), a.note], [0, false, 'Wrong pocket: the turn passes.'], 'a pot in another pocket: the turn passes, the ball stays down');
+  a = judge(setCall(s, 4), rec(2, [[1, 4]])); eq(a.turn, 1, 'a combination counts when its ball drops in the called pocket');
+  a = judge(setCall(s, 4), rec(1, [[1, 2], [2, 4]])); eq(a.turn, 1, 'one ball in the called pocket keeps the table');
+  a = judge(open8(true), rec(3, [[3, 1]])); eq([a.solids, a.turn], [-1, 0], 'an uncalled pot on an open table decides nothing');
+  a = judge(setCall(open8(true), 2), rec(11, [[3, 1], [11, 2]])); eq(a.solids, 0, 'only the ball in the called pocket counts: stripes, though a solid fell first');
+  assert(canCall(s) && !canCall(solids1()) && !canCall(newGame(8, 0, true)), 'a call is needed on every shot but the break, and only on the 8 with Call only the 8-ball');
+  eq(judge(solids1(), rec(2, [[1, 4]])).turn, 1, 'Call only the 8-ball: any pot keeps the table');
   ok('call shot follows 1.7, with a switch');
+}
+{ // Bank shots (an app option, not WPA): bank 1 = the 8 must be banked, 2 = every ball
+  const dry = rec(1, [], { rails: [1, 2, 3, 4] }), lit = s => s.lit;
+  eq(newGame(8, 0, true, 2, 7).lit, [], 'no bank on the break');
+  const a0 = judge(newGame(8, 0, false, 2, 7), dry);
+  assert(a0.lit.length === 2 && a0.lit[1] === (a0.lit[0] + 1) % 6, `two adjacent cushions (${a0.lit})`);
+  assert(new Set(Array.from({ length: 20 }, (_, i) => lit(judge(newGame(8, 0, false, 2, i), dry))[0])).size > 2, 'the pair changes with the seed');
+  assert(a0.seed !== 7, 'the seed moves on, so the next shot gets a new pair');
+  eq([lit(judge(newGame(8, 0, false, 0, 7), dry)), lit(judge(newGame(9, 0, false, 2, 7), dry))], [[], []], 'no bank when the option is off, and never in 9-ball');
+  const one = { ...solids1(), bank: 1 }; // player 1 has solids; player 0 has stripes
+  eq(lit(judge({ ...one, balls: [1, 8, 9] }, rec(1))), [], '8-ball only: the next player is not on the 8, no bank');
+  eq(lit(judge({ ...one, balls: [1, 8] }, rec(1))).length, 2, '8-ball only: the next player is on the 8, a bank');
+  eq(choose({ ...one, phase: 'play', lit: [], balls: [1, 8], choice: [{ label: 'x', turn: 0 }] }, 0).lit.length, 2, 'a choice that changes the turn lights the cushions again');
+  eq([choose({ ...judge(newGame(8, 0, true, 2, 5), rec(1, [], { rails: [1, 2, 3] })) }, 1).bank, choose(judge(newGame(8, 0, true, 2, 5), rec(1, [], { rails: [1, 2, 3] })), 1).callAll], [2, true], 'a new rack keeps the options');
+  const s = { ...solids1(), bank: 2, lit: [2, 3] }; // cushion 2 is the foot rail (pockets 1 and 3), 3 the foot half of the y = W rail (pockets 3 and 5)
+  let a = judge(s, rec(1, [[1, 0]])); eq([a.turn, a.balls.includes(1), a.note], [0, false, 'No bank: the turn passes.'], 'a pot with no bank: the turn passes, the ball stays down');
+  eq(judge(s, rec(1, [[1, 0]], { cush: [[1, 2]] })).turn, 1, 'the ball banked off a lit cushion keeps the table');
+  eq(judge(s, rec(1, [[1, 0]], { cush: [[0, 3]] })).turn, 1, 'a kick off a lit cushion keeps the table');
+  eq(judge(s, rec(1, [[1, 0]], { cush: [[1, 4]] })).turn, 0, 'a cushion that is not lit is no bank');
+  eq(judge(s, rec(1, [[1, 3]], { cush: [[1, 2]] })).turn, 0, 'a lit cushion that ends at the pocket is a shot down the rail, no bank');
+  eq(judge({ ...s, callAll: true, call: 4 }, rec(1, [[1, 0]], { cush: [[1, 2]] })).note, 'Wrong pocket: the turn passes.', 'the pocket is checked before the bank');
+  const e = { ...s, balls: [8, 9], call: 2 };
+  a = judge(e, rec(8, [[8, 2]])); eq([a.winner, a.note], [0, 'Lost the rack: the 8 went in without a bank.'], 'the 8 with no bank loses');
+  eq(judge(e, rec(8, [[8, 2]], { cush: [[8, 3]] })).winner, 1, 'the 8 banked in the called pocket wins');
+  const nine = judge(newGame(9, 0, false, 2, 3), rec(1, [[2, 0]])); eq([nine.lit, nine.turn], [[], 0], '9-ball: pots count with no bank');
+  ok('bank shots');
 }
 { // 5: 9-ball
   const s = newGame(9); eq([s.balls.length, s.hand], [9, 'kitchen'], '9 balls, break from above the head string');
@@ -106,17 +131,16 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
   const play = (B, ids, shot) => { const r = newRec(), ev = []; strike(B[0], shot); for (let i = 0, mv = true; mv && i < 60000; i++) { ev.length = 0; mv = step(B, ev); record(r, ev, B, ids); } return r; };
   const corner = Math.atan2(-0.4, -0.4); // towards the pocket at the origin
   let r = play([mk(0.6, 0.6), mk(0.4, 0.4)], [0, 3], { ang: corner, speed: 2, a: 0, b: 0 });
-  eq([r.first, r.pots.map(p => p.id).includes(3), r.pots[0].pocket, r.direct, r.rails.includes(3)], [3, true, 0, true, true], 'a straight pot: first ball, pocket, obvious, and driven to a rail');
+  eq([r.first, r.pots.map(p => p.id).includes(3), r.pots[0].pocket, r.rails.includes(3)], [3, true, 0, true], 'a straight pot: first ball, pocket, and driven to a rail');
   r = play([mk(0.6, 0.6), mk(0.4, 0.4)], [0, 3], { ang: corner, speed: 4, a: 0, b: 0.4 }); assert(r.pots.some(p => p.id === 0), 'a follow shot into the same pocket scratches');
   r = play([mk(0.5, 0.5), mk(0.4, 0.4), mk(0.3, 0.3)], [0, 3, 5], { ang: corner, speed: 3, a: 0, b: 0 });
-  eq([r.first, r.pots.some(p => p.id === 5), r.direct], [3, true, false], 'a combination pots the second ball');
+  eq([r.first, r.pots.some(p => p.id === 5)], [3, true], 'a combination pots the second ball');
   { const ox = P.L / 2 - 0.3, oy = 0.3, ang = Math.atan2(-(oy + P.W), 0.3); // off the near long rail into the far side pocket
     r = play([mk(ox - 0.2 * Math.cos(ang), oy - 0.2 * Math.sin(ang)), mk(ox, oy)], [0, 3], { ang, speed: 2, a: 0, b: 0 });
-    eq([r.pots.map(p => p.id), r.pots[0].pocket, r.direct], [[3], 5, false], 'a bank is not an obvious shot'); }
-  { const y = 0.963 * P.R + 0.005; r = play([mk(1.0, y + 0.01), mk(0.7, y)], [0, 3], { ang: Math.atan2(-0.01, -0.3), speed: 2, a: 0, b: 0 }); }
-  eq([r.pots.map(p => p.id), r.pots[0].pocket, r.banks.length > 0, r.direct], [[3], 0, true, true], 'a ball that runs down the rail into the corner is an obvious shot (1.7: cushions struck do not matter)');
+    eq([r.pots.map(p => p.id), r.pots[0].pocket, r.cush], [[3], 5, [[3, 0]]], 'a bank off the near long rail into the far side pocket: the cushion it touched'); }
   r = play([mk(0.8, 0.4), mk(0.06, 0.06)], [0, 3], { ang: -1.91, speed: 2.5, a: 0, b: 0 });
-  eq([r.first, r.pots.map(p => p.id), r.direct], [3, [3], false], 'a kick off a rail is not an obvious shot');
+  eq([r.first, r.cush[0]], [3, [0, 0]], 'a kick: the cushion the cue ball touched before the hit');
+  r = play([mk(0.6, 0.6), mk(0.4, 0.4)], [0, 3], { ang: Math.atan2(-0.2, -0.2), speed: 3, a: 0, b: 0 }); assert(!r.cush.some(c => c[0] === 3), 'the jaws of a pocket are no cushion');
   r = play([mk(0.9, 0.6), mk(1.0, 0.6)], [0, 3], { ang: 0, speed: 0.5, a: 0, b: 0 }); eq([r.first, r.railAfter, r.pots.length], [3, false, 0], 'a soft hit reaches no rail');
   r = play([mk(0.3, 0.6), mk(0.45, 0.6)], [0, 3], { ang: 0, speed: 1, a: 0, b: 0 }); eq(r.crossed, false, 'a ball above the head string hit from above it');
   r = play([mk(0.3, 0.6), mk(1.0, 0.6)], [0, 3], { ang: 0, speed: 1, a: 0, b: 0 }); eq(r.crossed, true, 'a ball below the head string');

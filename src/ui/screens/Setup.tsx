@@ -43,7 +43,7 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
           <BallArt n={1} size={26} label={quick ? undefined : me.slice(0, 2)} /><Txt numberOfLines={1} style={styles.name}>{me}</Txt>
           <View style={{ flex: 1 }} />
           <Txt numberOfLines={1} style={styles.name}>{opp}</Txt><BallArt n={8} size={26} label={opp[0]} />
-        </>} picture={w => <MiniTable width={w} {...rackOf(game)} rings={game === 8 && set.callAll} cloth={set.cloth} />}
+        </>} picture={w => <MiniTable width={w} {...rackOf(game)} rings={game === 8 && set.callAll} lit={game === 8 && set.bank ? [0, 1] : undefined} cloth={set.cloth} />}
           cta={{ label: 'Play', name: quick ? 'Play quick match' : 'Play pass and play', onPress: start }} />}>
         <View style={{ gap: 17 }}>
           <View style={styles.group}>
@@ -83,7 +83,7 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
           </View>}
           {game === 8 && <View style={styles.group}>
             <Line label="Call"><Keys label="Call" value={set.callAll} pick={callAll => change({ callAll })} options={[['Every shot', true], ['Only the 8-ball', false]]} /></Line>
-            {/* bank rows go here (rules thread): Keys bound to its setting, and lit cushions on the preview */}
+            <Line label="Bank shots"><Keys<Settings['bank']> label="Bank shots" value={set.bank} pick={bank => change({ bank })} options={[['Off', 0], ['8-ball only', 1], ['Every ball', 2]]} /></Line>
           </View>}
           {quick && charges > 0 && <Line label="Chalk">
             <View style={styles.keys} accessibilityRole="radiogroup" accessibilityLabel="Fresh Chalk">

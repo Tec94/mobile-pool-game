@@ -3,7 +3,7 @@
 // turn (break, group, cue ball in hand, call, shot); choiceFor() answers a decision the rules hand it; potPay() pays
 // the human's pots in a match against the AI.
 import { type Ball, CUE, HOLES, P, type Shot } from '../physics/engine.ts';
-import { canCall, legalSpot, onEight, type Hand, type Rec, type State } from '../rules/rules.ts';
+import { canCall, cushionAt, legalSpot, onEight, type Hand, type Rec, type State } from '../rules/rules.ts';
 import { aiShot } from './aim.ts';
 import { aiParams, chooseGroup, type Cand, enumerate, makeProb, NINE, type Obj, type Pick, rng, SIGMA_REF, SOLIDS, STRIPES } from './shot-ai.ts';
 import { type Pay, shotPay, type ShotType as PayType, type Vs } from '../progress/pay.ts';
@@ -69,6 +69,13 @@ export function callFor(s: State, pick: Pick, B: Ball[], ids: number[]) {
   const e = B[ids.indexOf(8)]; return nearHole(e.x, e.y);
 }
 
+// Bank shots: the pot banks the ball (or kicks the cue ball) off one of the lit cushions. The rail point is a ball
+// centre one radius off the nose, so it is matched a little wider than the engine's touch.
+export const onLit = (lit: number[], c: Cand) => {
+  const X = c.type === 'bank' ? c.paths[1][1] : c.type === 'kick' ? c.paths[0][1] : null;
+  return !!X && lit.includes(cushionAt(X.x / 1000, X.y / 1000, 1.5 * P.R));
+};
+
 // The AI's whole turn, it being player s.turn. B is changed (the cue ball in hand goes to its spot): pass a copy.
 // level = the AI's rating on the tier scale (aiParams: TIERS index + 1, or the Rival's). safeties = safetiesInRow for aiShot (see nextSafeties).
 export function think(B: Ball[], ids: number[], s: State, level: number, seed: number, safeties: number): Move {
@@ -83,7 +90,8 @@ export function think(B: Ball[], ids: number[], s: State, level: number, seed: n
     const at = placeCue(B, ids, s.hand, ahead(legalIds(s, g[0])));
     if (at) { B[0].x = at[0]; B[0].y = at[1]; }
   }
-  const { shot, pick } = aiShot(B, ids, s.game === 9 ? g[0] : ahead(g[0]), g[1], T, rnd, safeties);
+  const lit = s.lit, ok = lit.length ? (c: Cand) => onLit(lit, c) : undefined; // bank shots: no other pot counts
+  const { shot, pick } = aiShot(B, ids, s.game === 9 ? g[0] : ahead(g[0]), g[1], T, rnd, safeties, ok);
   return { shot, at: s.hand ? [B[0].x, B[0].y] : null, call: callFor(s, pick, B, ids), safety: pick.type === 'safety' };
 }
 

@@ -3,7 +3,7 @@ import type { Mood } from '../progress/rival.ts';
 import { CLOTHS } from '../theme.ts';
 
 export interface Settings {
-  callAll: boolean;          // 8-ball shot calling: true = WPA, call every shot that is not obvious; false = call only the 8
+  callAll: boolean;          // 8-ball: true = call every shot, false = call only the 8-ball
   cloth: number;             // index into CLOTHS
   menus: 0 | 1;              // which way up the menus are: landscape, portrait
   orient: 0 | 1 | 2;         // in a match: auto (follows the phone, even mid-match), portrait, landscape
@@ -15,8 +15,9 @@ export interface Settings {
   aiRace: 1 | 3 | 5;         // quick match: frames to win the match
   mood: Mood;                // the Rival's target win rate for the player (src/progress/rival.ts)
   zones: boolean;            // the cue angle ring: true = each zone in its own colour, blended; false = one colour
+  bank: 0 | 1 | 2;           // 8-ball bank shots in a match: 0 off, 1 the 8-ball, 2 every ball
 }
-export const DEFAULTS: Settings = { callAll: true, cloth: 0, menus: 0, orient: 0, names: ['Player 1', 'Player 2'], game: 8, race: 1, tier: 0, aiGame: 8, aiRace: 1, mood: 'even', zones: true };
+export const DEFAULTS: Settings = { callAll: true, cloth: 0, menus: 0, orient: 0, names: ['Player 1', 'Player 2'], game: 8, race: 1, tier: 0, aiGame: 8, aiRace: 1, mood: 'even', zones: true, bank: 0 };
 export const RACES = [1, 3, 5] as const, NAME_MAX = 14, TIER_COUNT = 6; // TIER_COUNT = TIERS.length, kept here so settings need no AI code
 export const RIVAL = TIER_COUNT; // the quick match opponent that adapts, after the six tiers
 
@@ -40,5 +41,6 @@ export function readSettings(text: string | null): Settings {
     aiRace: RACES.includes(o.aiRace) ? o.aiRace : DEFAULTS.aiRace,
     mood: ['relaxed', 'even', 'tough'].includes(o.mood) ? o.mood : DEFAULTS.mood,
     zones: typeof o.zones === 'boolean' ? o.zones : DEFAULTS.zones,
+    bank: [0, 1, 2].includes(o.bank) ? o.bank : DEFAULTS.bank,
   };
 }

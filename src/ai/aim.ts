@@ -2,7 +2,7 @@
 // The AI's shot on the real engine: correct the picker's ghost-ball aim for throw, squirt and swerve, refine aim, speed
 // and tip with noise-free rollouts within the tier's budget, and turn a pick into an engine Shot with the tier's strike noise. Port of the ai-progression prototype (engine-aim.js) plus the glue.
 import { type Ball, CUE, type Ev, P, type Shot, step, strike } from '../physics/engine.ts';
-import { decide, dist, enumerate, legalFor, nine, type Obj, type Pick, plays, POCKETS, potFor, potProb, type Pt, type Tier, winBall } from './shot-ai.ts';
+import { type Cand, decide, dist, enumerate, legalFor, nine, type Obj, type Pick, plays, POCKETS, potFor, potProb, type Pt, type Tier, winBall } from './shot-ai.ts';
 
 // Direction the object ball actually leaves in, for a given strike. Stops at first contact.
 function departure(cue: Ball, obj: Ball, shot: Shot) {
@@ -154,13 +154,16 @@ function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number
 
 // The AI's turn on the engine table. B and ids as rules.ts has them (ball i is number ids[i], ball 0 the cue ball), in
 // metres. Returns the Shot for strike(), the pick (picker units, mm) and the ms spent picking and correcting the aim.
-export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: number[], tier: Tier, rnd: () => number, safetiesInRow = 0): { shot: Shot; aim: Shot; pick: Pick; ms: [number, number] } {
+// ok = the pots it may try (decide); none = every pot.
+export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: number[], tier: Tier, rnd: () => number, safetiesInRow = 0, ok?: (c: Cand) => boolean): { shot: Shot; aim: Shot; pick: Pick; ms: [number, number] } {
   const t0 = now(), mm = (b: Ball, i: number): Obj => ({ id: ids[i], x: b.x * 1000, y: b.y * 1000 });
-  const cue = mm(B[0], 0), balls = B.map(mm).filter((_, i) => i && B[i].on), { pick, ranked } = decide(cue, balls, group, oppGroup, tier, rnd, safetiesInRow);
+  const cue = mm(B[0], 0), balls = B.map(mm).filter((_, i) => i && B[i].on), { pick, ranked } = decide(cue, balls, group, oppGroup, tier, rnd, safetiesInRow, ok);
   const t1 = now();
   if (pick.type === 'foul') { // no pot or safety reaches a legal ball: hit the nearest one softly, through whatever is in the way
     const legal = legalFor(balls, group), near = balls.filter((o) => legal.includes(o.id)).reduce<Obj | null>((a, o) => (!a || dist(o, cue) < dist(a, cue) ? o : a), null);
     const shot = { ang: near ? Math.atan2(near.y - cue.y, near.x - cue.x) : 0, speed: SOFT, a: 0, b: 0 }; // no legal ball at all: the rack is over
+    // Bank shots: this ball may not go straight in (the 8 would lose the rack), so tap softer until it stays up.
+    if (ok && near) { const k = ids.indexOf(near.id); for (const v of [0.6, 0.35, 0.2]) { if (!rollout(B, shot, k, k, null, cue).pot) break; shot.speed = v; } }
     return { shot, aim: shot, pick, ms: [t1 - t0, 0] };
   }
   // Pro and Legend refine their best few pots (tier.tries) on the engine and play the one worth most with the leave it

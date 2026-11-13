@@ -26,7 +26,7 @@ export const toTable = (v: View, px: number, py: number) => (v.land ? { x: (px -
 export const onTable = (v: View, px: number, py: number) => { const p = toTable(v, px, py); return p.x >= -RAIL && p.x <= P.L + RAIL && p.y >= -RAIL && p.y <= P.W + RAIL; };
 
 // The six cushions as polygons in table metres, cut at the WPA facing angles (the same numbers as SEGS in the engine),
-// numbered round the table as the bank cushions are (nose in src/learn/lessons.ts): the y = 0 rail's head half (0) and
+// numbered round the table as the bank cushions are (nose in src/rules/rules.ts): the y = 0 rail's head half (0) and
 // foot half (1), the foot rail (2), the y = W rail's foot half (3) and head half (4), the head rail (5).
 export function cushions() {
   const { L, W } = P, { cc, sc, deep, ca, sa } = POCKET, cj = deep / Math.tan(ca), sj = deep * Math.tan(sa), same = (q: number) => q;
