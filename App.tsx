@@ -24,7 +24,7 @@ import { BAR, drawAim, drawTable, onTable, toScreen, toTable } from './src/rende
 import { LEVEL, shotTip } from './src/render/tip';
 import { type Lesson, LESSON_PAY, LESSONS, lessonTable, type LessonRec, litCushions, newLessonRec, noteLesson, PENCIL_AT, SOLO_RUN, type Stage, verdict } from './src/learn/lessons';
 import { loadDone, saveDone } from './src/learn/save';
-import { canCall, choose, handCue, judge, legalFirst, moveCue, newGame, newRec, onEight, Rec, record, setCall, spotBall, State } from './src/rules/rules';
+import { canCall, choose, handCue, judge, legalFirst, moveCue, newGame, newRec, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { thinkAsync } from './src/ai/think';
 import { candsFor, choiceFor, type Move, nextSafeties, potPay, type Safeties, safetiesArg, softMove, think } from './src/ai/turn';
 import { type Cand, TIERS } from './src/ai/shot-ai';
@@ -217,7 +217,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
     const rec = Skia.PictureRecorder(), { B, rules: s, rec: shot } = table.current;
     const me = !shot && !bot(); // on the AI's turn the human's marks stay off
     const c = rec.beginRecording(); if (L) drawBank(Skia, c, view, litCushions(L)); // a bank table's lit cushions, worked out once per table
-    drawMarks(Skia, c, view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call, ask: me && onEight(s), ms: performance.now(), at: called.current, zone: L?.goal.zone });
+    drawMarks(Skia, c, view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call, ask: me && canCall(s), ms: performance.now(), at: called.current, zone: L?.goal.zone });
     return rec.finishRecordingAsPicture();
   };
   // Frames of play wait in queue and the UI thread shows one on each display refresh (see src/render/pace.ts).
@@ -251,9 +251,9 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the
   // rack is over. In a lesson: the shot plays itself, or the verdict card is up.
   const bot = () => vs && table.current.rules.turn === 1; // on the AI's turn nothing can be touched
-  // The marks move: the ring round the cue ball in hand pulses, the pockets ask for a call, a called pocket settles. A called pocket at rest does not.
+  // The marks move: the ring round the cue ball in hand pulses, a called pocket settles. A called pocket at rest does not.
   // Not under the pause card, which hides the table: the loop sleeps there.
-  const beats = () => { const { rules: r, rec } = table.current; return !map.current.calm && !held.current && ((r.hand && !r.choice) || (!rec && !bot() && onEight(r) && r.call < 0) || performance.now() - called.current < SETTLE); };
+  const beats = () => { const r = table.current.rules; return !map.current.calm && !held.current && ((r.hand && !r.choice) || performance.now() - called.current < SETTLE); };
   const shut = () => { const t = table.current; return moving.current || !!t.rec || !!t.rules.choice || t.rules.phase === 'over' || (!!L && (les.current.stage === 'watch' || !!les.current.said)) || bot(); };
   const watching = () => !!L && les.current.stage === 'watch' && !les.current.said && !moving.current && !table.current.rec; // the reference shot is lined up: its guide shows
   // Put a ruling on the table: a new rack, or the balls the rules spot and the cue ball in hand.
@@ -348,7 +348,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   // shortcut: no follow-through of the stick; the cue is off the table from the frame of the strike.
   const fire = (power: number) => {
     const t = table.current;
-    if (shut() || (onEight(t.rules) && t.rules.call < 0)) { shot.set({ power: 0 }); return; } // the 8 needs its pocket called first: the HUD asks for it
+    if (shut() || (canCall(t.rules) && t.rules.call < 0)) { shot.set({ power: 0 }); return; } // a pocket must be called first: the HUD asks for it
     Haptics.impactAsync(power > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
     if (vs) cands.current = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules); // shortcut: a full candidate search on the strike frame, cheap next to a guide
     t.rec = L ? newLessonRec() : newRec(); strike(t.B[0], shotOf(power), cue); moving.current = true; wake.current();
@@ -551,7 +551,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         </View>
       )}
       {/* The shot controls sit inside the safe area where shotLayout puts them. */}
-      <PowerRail store={shot} box={lay.rail} onStrike={fire} />
+      <PowerRail store={shot} box={lay.rail} onStrike={fire} wait={!bot() && canCall(rules) && rules.call < 0} />
       <AimDial store={shot} box={lay.dial} />
       {!(L && stage === 'watch') && <View style={[styles.at, lay.spin]}><TipButton store={tip} land={view.land} onPress={() => { setSheet(!sheet); setTools(false); }} /></View>}
       {!L && !vs && <View style={[styles.at, lay.tools]}><Btn label="•••" name="Table tools" onPress={() => { setTools(!tools); setSheet(false); }} /></View>}

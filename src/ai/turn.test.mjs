@@ -46,8 +46,8 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, true), phase: 'play', turn: 1, 
 }
 { // Calls: a pot names the pocket of its path; on the 8 a safety still calls the pocket nearest the 8.
   const pot = { type: 'direct', paths: [[{ x: 0, y: 0 }], [{ x: 1000, y: 500 }, { x: 44, y: 44 }]] }, B = [mk(1, 0.5), mk(P.L - 0.1, P.W - 0.1)], ids = [0, 8];
-  eq(callFor(play8(), pot, B, ids), 0, 'WPA calls every shot: the corner the path ends in');
-  eq(callFor(play8({ callAll: false }), pot, B, ids), -1, '8 only: no call off the 8');
+  eq(callFor(play8(), pot, B, ids), 0, 'Call every shot: the corner the path ends in');
+  eq(callFor(play8({ callAll: false }), pot, B, ids), -1, 'Call only the 8-ball: no call off the 8');
   const on8 = play8({ callAll: false, balls: [8, 1] }); eq(callFor(on8, { type: 'safety' }, B, ids), 3, 'on the 8: the pocket nearest the 8');
   eq(holeOf({ paths: [[{ x: HOLES[4][0] * 1000, y: 8 }]] }), 4, 'side pocket');
   ok('the AI calls its pocket');
@@ -66,7 +66,7 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, true), phase: 'play', turn: 1, 
 }
 { // Pay for the human (player 0, solids) at tier Regular: a pot matched to its candidate, a fluke, a foul, their ball.
   const s = { ...play8(), turn: 0 }, cands = enumerate({ x: 600, y: 560 }, [{ id: 1, x: 1100, y: 560 }], [1]), c = cands.find(k => k.type === 'direct');
-  const after = judge(s, rec(1, [[1, holeOf(c)]], { direct: true }));
+  const after = judge(setCall(s, holeOf(c)), rec(1, [[1, holeOf(c)]]));
   let r = potPay(cands, rec(1, [[1, holeOf(c)]]), s, after, 0, { tier: 2 }); assert(r.pay.xp > 0 && r.run === 1 && r.own === 1, 'a pot pays, counts as own and the run goes on');
   eq(potPay([], rec(1, [[1, holeOf(c)]]), s, after, 0, { tier: 2 }).pay, { xp: 9, coins: 4 }, 'no candidate: a fluke, Routine x0.9');
   const foul = judge(s, rec(1, [[1, 0], [0, 1]])); eq(potPay(cands, rec(1, [[1, 0], [0, 1]]), s, foul, 2, { tier: 2 }), { pay: { xp: 0, coins: 0 }, run: 0, own: 0 }, 'a foul pays nothing and ends the run');

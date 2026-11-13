@@ -32,10 +32,11 @@ const dim = (locked: boolean) => ({ opacity: locked ? 0.35 : 1, transitionProper
 // The label is drawn in the rail's picture: as React text it rendered and laid out the rail once per whole percent.
 // shortcut: one finger at a time, so the aim cannot be turned during a pull; that needs gesture-handler.
 // shortcut: no Strike control "Tap" mode; the settings screen adds it.
-export function PowerRail({ store, box, onStrike }: { store: ShotStore; box: Box; onStrike: (power: number) => void }) {
-  const locked = useSyncExternalStore(store.sub, () => store.get().locked), [, render] = useReducer((n: number) => n + 1, 0);
+// wait = a pocket must be called first: the rail alone looks and acts locked, the aim stays live.
+export function PowerRail({ store, box, onStrike, wait = false }: { store: ShotStore; box: Box; onStrike: (power: number) => void; wait?: boolean }) {
+  const locked = useSyncExternalStore(store.sub, () => store.get().locked) || wait, [, render] = useReducer((n: number) => n + 1, 0);
   const pic = useSharedValue(EMPTY), pull = useRef<{ from: number; hist: number[][]; id: number; y: number } | null>(null);
-  const now = useRef({ box, onStrike }); now.current = { box, onStrike }; // the pan responder is created once, so it reads the latest
+  const now = useRef({ box, onStrike, wait }); now.current = { box, onStrike, wait }; // the pan responder is created once, so it reads the latest
   useEffect(() => {
     let was = '';
     const draw = () => {
@@ -50,7 +51,7 @@ export function PowerRail({ store, box, onStrike }: { store: ShotStore; box: Box
     store.set({ power: p });
   };
   const pan = useRef(PanResponder.create({
-    onStartShouldSetPanResponder: () => !store.get().locked,
+    onStartShouldSetPanResponder: () => !store.get().locked && !now.current.wait,
     onPanResponderGrant: e => { pull.current = { from: store.get().power, hist: [], id: e.nativeEvent.identifier, y: e.nativeEvent.pageY }; },
     onPanResponderMove: e => { // the pull is the travel of the finger that went down on the rail: a second finger elsewhere does not change the power
       const d = pull.current, f = d && e.nativeEvent.touches.find(t => t.identifier === d.id); if (!d || !f) return;
@@ -71,12 +72,12 @@ export function PowerRail({ store, box, onStrike }: { store: ShotStore; box: Box
   // The value is read when the rail renders: on a lock change and on these actions, not on every step of a pull.
   const pct = Math.round(store.get().power * 100);
   const act = (name: string) => {
-    const p = store.get().power; if (store.get().locked) return;
+    const p = store.get().power; if (store.get().locked || wait) return;
     if (name === 'activate') { if (p > 0.05) onStrike(p); }
     else { setPower(Math.min(1, Math.max(0, Math.round(p * 10 + (name === 'increment' ? 1 : -1)) / 10))); render(); }
   };
   return (
-    <Animated.View {...pan.panHandlers} style={[styles.at, box, dim(useSyncExternalStore(store.sub, dimmed(store)))]} accessible accessibilityRole="adjustable" accessibilityLabel="Power" accessibilityHint="Pull down and release to shoot"
+    <Animated.View {...pan.panHandlers} style={[styles.at, box, dim(useSyncExternalStore(store.sub, dimmed(store)) || wait)]} accessible accessibilityRole="adjustable" accessibilityLabel="Power" accessibilityHint="Pull down and release to shoot"
       accessibilityState={{ disabled: locked }} accessibilityValue={{ min: 0, max: 100, now: pct, text: `${pct} percent` }}
       accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }, { name: 'activate', label: 'Shoot' }]} onAccessibilityAction={e => act(e.nativeEvent.actionName)}>
       <Canvas style={StyleSheet.absoluteFill} pointerEvents="none"><Picture picture={pic} /></Canvas>
