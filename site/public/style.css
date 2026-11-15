@@ -1,5 +1,4 @@
-/* The game's look: Quiet Slate colours, Slabs chrome (a flat face on a solid lip, no blur, no borders).
-   body[data-v] picks one of three layouts of the same page: a = Felt, b = Poster, c = Blocks. */
+/* The game's look: Quiet Slate colours, Slabs chrome (a flat face on a solid lip, no blur, no borders). */
 :root {
   --menu: #0E1B19; --dark: #1B3530; --dark-lip: #0A1513; --chalk: #EEF2EA; --ink: #16191A; --felt: #27504A; --maple: #D9A866;
   --cream: #EFE6D2; --cream-lip: #B9AD92; --gold: #F2C230; --gold-lip: #B98F12; --blue: #4B98EE; --blue-lip: #2A69B8; --red: #E0483C;
@@ -7,7 +6,6 @@
   --out: cubic-bezier(.22, 1, .36, 1); --gut: max(16px, 4vw);
   --ground: var(--menu); --fg: var(--chalk); --key: #EEF2EA1C;
 }
-[data-v=b] { --ground: var(--cream); --fg: var(--ink); --key: #16191A1A; }
 * { box-sizing: border-box; margin: 0; }
 [hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
@@ -32,9 +30,9 @@ button.slab[disabled] { opacity: .45; cursor: default; }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 22px; letter-spacing: -.02em; } .brand img { border-radius: 8px; }
 
 /* Balls: flat disc, hard offset shadow, chalk rim, number on a white dot. Sized by width. */
-.ball, .disc { --c: var(--ink); aspect-ratio: 1; border-radius: 50%; background: var(--c); display: grid; place-items: center; container-type: inline-size; }
+.ball { --c: var(--ink); aspect-ratio: 1; border-radius: 50%; background: var(--c); display: grid; place-items: center; container-type: inline-size; }
 .ball { width: 44px; box-shadow: 0 0 0 1px #EEF2EA73; }
-.ball > i, .disc > i { width: 46%; height: 46%; border-radius: 50%; background: #F6F4EC; color: var(--ink); font: 800 26cqw/1 var(--display); font-style: normal; display: grid; place-items: center; }
+.ball > i { width: 46%; height: 46%; border-radius: 50%; background: #F6F4EC; color: var(--ink); font: 800 26cqw/1 var(--display); font-style: normal; display: grid; place-items: center; }
 .b2 { --c: #4B98EE; } .b3 { --c: #E0483C; } .b4 { --c: #8448C8; } .b5 { --c: #EC7428; } .b6 { --c: #3FBF7F; }
 
 /* A table: the cloth canvas under, the balls canvas over. */
@@ -53,7 +51,7 @@ label i { font-style: normal; font-weight: 500; opacity: .6; }
 .join input:not([type=hidden]):focus { background: #fff; box-shadow: inset 0 -5px 0 0 var(--mark); }
 .join input::placeholder { color: #16191A66; }
 .join input[aria-invalid=true] { box-shadow: inset 0 -5px 0 0 #C7382C; }
-.join .go { --face: var(--ink); --lip: #000; color: var(--cream); }
+.join .go { --face: var(--blue); --lip: var(--blue-lip); color: var(--ink); }
 .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 .note { font-size: 14px; font-weight: 700; color: #A52B22; } .note:empty { display: none; }
 .done { display: flex; align-items: center; gap: 14px; padding: 8px 4px; } .done b { font-size: 26px; letter-spacing: -.02em; line-height: 1; }
@@ -65,61 +63,26 @@ label i { font-style: normal; font-weight: 500; opacity: .6; }
 .hero { position: relative; overflow: hidden; }
 .hero .brand { position: relative; z-index: 4; }
 .hero h1 { position: relative; z-index: 1; }
-.disc { display: none; }
 
-/* a = Felt: the first screen is the table itself. The headline is printed on the cloth and the balls roll over it. */
-[data-v=a] .hero { --tw: 100vw; height: max(100svh, 55.57vw); min-height: 600px; background: var(--maple); }
-[data-v=a] .hero .rig { position: absolute; width: var(--tw); left: calc(50% - var(--tw) / 2); top: calc(50% - var(--tw) * .27785); }
-[data-v=a] .hero .rig { position: static; aspect-ratio: auto; } /* the canvases place themselves in the hero, so the headline can sit between them */
-[data-v=a] .hero .rig canvas { inset: auto; width: var(--tw); height: auto; aspect-ratio: 2.5152 / 1.3976; left: calc(50% - var(--tw) / 2); top: calc(50% - var(--tw) * .27785); }
-[data-v=a] .hero .brand { position: absolute; left: 8vw; top: calc(50% - 21vw); color: var(--chalk); }
-[data-v=a] .hero h1 { position: absolute; left: 7.5vw; top: calc(50% - 16vw); font-size: 15.5vw; color: #EEF2EAE6; }
-[data-v=a] .hero .card { position: absolute; right: 8vw; top: calc(50% + 9.5vw); rotate: 2deg; box-shadow: 0 6px 0 var(--cream-lip), 10px 18px 0 #06120F66; }
+/* The first screen is the table itself. The headline is printed on the cloth and the balls roll over it. */
+.hero { --tw: 100vw; height: max(100svh, 55.57vw); min-height: 600px; background: var(--maple); }
+.hero .rig { position: static; aspect-ratio: auto; } /* the canvases place themselves in the hero, so the headline can sit between them */
+.hero .rig canvas { inset: auto; width: var(--tw); height: auto; aspect-ratio: 2.5152 / 1.3976; left: calc(50% - var(--tw) / 2); top: calc(50% - var(--tw) * .27785); }
+.hero .brand { position: absolute; left: 8vw; top: calc(50% - 21vw); color: var(--chalk); }
+.hero h1 { position: absolute; left: 7.5vw; top: calc(50% - 16vw); font-size: 15.5vw; color: #EEF2EAE6; }
+.hero .card { position: absolute; right: 8vw; top: calc(50% + 9.5vw); rotate: 2deg; box-shadow: 0 6px 0 var(--cream-lip), 10px 18px 0 #06120F66; }
 @media (max-aspect-ratio: 1/1) { /* a tall screen shows a slice of the table, with the rack in it */
-  [data-v=a] .hero { --tw: calc(100svh * 1.8); height: 100svh; }
-  [data-v=a] .hero .rig canvas { left: calc(50% - var(--tw) * .685); }
-  [data-v=a] .hero .brand { left: 16px; top: 70px; }
-  [data-v=a] .hero h1 { left: 14px; top: auto; bottom: 236px; font-size: 22vw; }
-  [data-v=a] .hero .card { left: 16px; right: 16px; top: auto; bottom: 28px; width: auto; rotate: 0deg; }
+  .hero { --tw: calc(100svh * 1.8); height: 100svh; }
+  .hero .rig canvas { left: calc(50% - var(--tw) * .685); }
+  .hero .brand { left: 16px; top: 70px; }
+  .hero h1 { left: 14px; top: auto; bottom: 236px; font-size: 22vw; }
+  .hero .card { left: 16px; right: 16px; top: auto; bottom: 28px; width: auto; rotate: 0deg; }
 }
 
-/* b = Poster: cream paper, ink type that runs across a giant 8-ball and turns light where it does, a tilted table off the edge. */
-[data-v=b] .hero { height: max(100svh, 640px); padding: 3vw var(--gut) 0; }
-[data-v=b] .disc { display: grid; position: absolute; width: 58vw; right: -9vw; top: -17vw; }
-[data-v=b] .hero h1 { font-size: min(18.6vw, 30svh); margin: 2.5vw 0 0 -.04em; color: var(--cream); mix-blend-mode: difference; z-index: 3; }
-[data-v=b] .hero .rig { position: absolute; width: 60vw; right: -7vw; bottom: -9vw; rotate: -8deg; z-index: 4; filter: drop-shadow(14px 18px 0 #16191A33); }
-[data-v=b] .hero .card, [data-v=c] .card, [data-v=b] .last .card { --mark: var(--blue); background: var(--ink); color: var(--cream); box-shadow: 0 6px 0 #000; }
-[data-v=b] .join .go, [data-v=c] .join .go { --face: var(--blue); --lip: var(--blue-lip); color: var(--ink); }
-[data-v=b] .hero .card { position: absolute; left: var(--gut); bottom: 4vh; }
-@media (max-width: 760px) {
-  [data-v=b] .hero { height: auto; padding-top: max(16px, env(safe-area-inset-top)); padding-bottom: 12vw; }
-  [data-v=b] .disc { width: 96vw; right: -38vw; top: -30vw; }
-  [data-v=b] .hero h1 { margin-top: 26px; font-size: 18.6vw; }
-  [data-v=b] .hero .card { position: relative; left: 0; bottom: 0; margin-top: 22px; }
-  [data-v=b] .hero .rig { position: relative; width: 150vw; right: 0; bottom: 0; margin: 46px 0 9vw -14vw; }
-}
 
-/* c = Blocks: one huge yellow slab carries the headline and the form; the table and a blue block lean on it. */
-[data-v=c] .hero { min-height: max(100svh, 58vw); padding: calc(3vw + 28px) 0 0 calc(3vw + 34px); }
-[data-v=c] .hero::before { content: ''; position: absolute; left: 3vw; top: 3vw; width: 64vw; bottom: calc(3vw + 10px); background: var(--gold); border-radius: 6px; box-shadow: 0 10px 0 var(--gold-lip); }
-[data-v=c] .hero .brand, [data-v=c] .hero h1 { color: var(--ink); }
-[data-v=c] .hero h1 { font-size: 11.6vw; margin-top: 5vw; z-index: 3; }
-[data-v=c] .hero .card { position: absolute; left: calc(3vw + 34px); bottom: calc(3vw + 44px); }
-[data-v=c] .hero .rig { position: absolute; width: 56vw; right: -5vw; bottom: 9vw; z-index: 2; filter: drop-shadow(12px 16px 0 #0009); }
-[data-v=c] .disc { display: grid; position: absolute; right: 3vw; top: 3vw; width: 22vw; border-radius: 6px; background: var(--blue); box-shadow: 0 10px 0 var(--blue-lip); rotate: 3deg; }
-[data-v=c] .disc > i { width: 74%; height: 74%; background: var(--ink); color: transparent; position: relative; }
-[data-v=c] .disc > i::after { content: '8'; position: absolute; inset: 27%; border-radius: 50%; background: #F6F4EC; color: var(--ink); display: grid; place-items: center; font-size: 13cqw; }
-@media (max-width: 760px) {
-  [data-v=c] .hero { min-height: 0; padding: 28px 28px 0; }
-  [data-v=c] .hero::before { left: 12px; right: 12px; top: 12px; width: auto; bottom: 40vw; }
-  [data-v=c] .hero h1 { font-size: 16.4vw; margin-top: 34px; }
-  [data-v=c] .hero .card { position: relative; left: 0; bottom: 0; margin-top: 24px; }
-  [data-v=c] .hero .rig { position: relative; width: 132vw; right: 0; bottom: 0; margin: 30px 0 30px -4vw; }
-  [data-v=c] .disc { display: none; }
-}
 
-/* ---------- The practice table: the heading tucks behind the frame, the controls sit on its lower edge ---------- */
-.lab h2 { margin-bottom: -.2em; }
+/* ---------- The practice table: the controls sit on its lower edge ---------- */
+.lab h2 { margin-bottom: .14em; }
 .lab .rig { width: min(1320px, 100vw - 2 * var(--gut)); margin-inline: auto; z-index: 1; }
 #table { cursor: crosshair; }
 .keys { position: absolute; z-index: 3; right: max(var(--gut), (100vw - 1320px) / 2); translate: -18px -50%; display: flex; gap: 6px; }
@@ -139,7 +102,7 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 @media (max-width: 900px) {
   .lab .rig { width: calc(100vw - 12px); }
   .keys { position: relative; right: 0; translate: 0 0; justify-content: flex-end; margin: 0 var(--gut) -22px; }
-  .lab h2 { margin-bottom: .12em; }
+  .lab h2 { margin-bottom: .3em; }
   .console { width: calc(100vw - 2 * var(--gut)); margin-top: -14px; grid-template-columns: auto minmax(0, 1fr); gap: 12px 16px; }
   .console .tilt, .console .go { grid-column: 1 / -1; }
   .console .cell:has(.spin) { grid-row: span 2; }
@@ -157,10 +120,8 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 /* ---------- The cues: all 17 in a rack. The picked one steps up 22px in 180ms, as a card does in the app. ---------- */
 .pick { padding: clamp(20px, 3vw, 40px) var(--gut) 0; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 14px 40px; }
 .pick b { font-size: clamp(38px, 8vw, 120px); color: var(--gold); white-space: nowrap; -webkit-text-stroke: 0; }
-[data-v=b] .pick b { color: var(--ink); }
 .bars { display: grid; grid-template-columns: auto clamp(150px, 20vw, 280px); gap: 8px 12px; align-items: center; font: 700 14px/1 var(--ui); }
 .bars u { display: block; height: 12px; background: linear-gradient(90deg, var(--gold) calc(var(--n) * 10%), #8885 0); -webkit-mask: repeating-linear-gradient(90deg, #000 0 calc(10% - 3px), transparent 0 10%); mask: repeating-linear-gradient(90deg, #000 0 calc(10% - 3px), transparent 0 10%); transition: background .18s; }
-[data-v=b] .bars u { background: linear-gradient(90deg, var(--ink) calc(var(--n) * 10%), #16191A33 0); }
 .rack { --h: min(420px, (100vw - 2 * var(--gut)) / 17 * 9.2); display: flex; margin: 34px var(--gut) 0; padding: 0 1.5%; border-bottom: clamp(10px, 1.4vw, 18px) solid var(--maple); border-radius: 0 0 6px 6px; touch-action: pan-y; }
 .rack button { flex: 1; min-width: 0; padding: 0; border: 0; background: none; display: grid; place-items: end center; transition: transform .18s var(--out); outline-offset: -2px; }
 .rack canvas { height: var(--h); aspect-ratio: 44 / 420; display: block; }
@@ -170,15 +131,8 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 .last { margin-top: clamp(72px, 12vw, 160px); padding: clamp(28px, 5vw, 80px) 0 0; background: var(--blue); box-shadow: 0 10px 0 var(--blue-lip); color: var(--ink); }
 .last h2 { font-size: clamp(60px, 16.5vw, 250px); }
 .last .card { margin: clamp(20px, 3vw, 48px) var(--gut) 0 auto; translate: 0 34%; rotate: -2deg; position: relative; box-shadow: 0 6px 0 var(--cream-lip), 10px 16px 0 #16191A40; }
-[data-v=b] .last .card { box-shadow: 0 6px 0 #000, 10px 16px 0 #16191A40; }
-[data-v=c] .last { background: var(--gold); box-shadow: 0 10px 0 var(--gold-lip); }
 @media (max-width: 520px) { .last .card { margin-inline: var(--gut); width: auto; rotate: -1deg; } }
 footer { padding: clamp(110px, 16vw, 200px) var(--gut) max(40px, env(safe-area-inset-bottom)); font-size: 13px; font-weight: 500; opacity: .6; }
 
-/* The prototype's layout picker. */
-.picker { position: fixed; z-index: 9; left: 50%; translate: -50% 0; bottom: max(12px, env(safe-area-inset-bottom)); display: flex; gap: 4px; padding: 5px; background: var(--ink); border-radius: 6px; box-shadow: 0 4px 0 #000, 0 0 0 1px #EEF2EA33; }
-.picker button { height: 36px; padding: 0 14px; border: 0; border-radius: 3px; background: none; color: var(--chalk); font: 700 14px var(--ui); }
-.picker button[aria-pressed=true] { background: var(--cream); color: var(--ink); }
 
 @media (prefers-reduced-motion: reduce) { .rack button, .join.sent .done, .join input { transition: none !important; animation: none; } }
-[data-v=b] .modes .cream { --face: var(--dark); --lip: var(--dark-lip); color: var(--chalk); } /* cream on cream paper has no edge */

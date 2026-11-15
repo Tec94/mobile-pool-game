@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/app.js --define:PROTO=false --bundle --format=esm --minify --target=es2020 --outfile=public/app.js",
+    "build": "esbuild src/app.js --bundle --format=esm --minify --target=es2020 --outfile=public/app.js",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "export": "wrangler d1 execute runout-waitlist --remote --json --command \"SELECT email, name, ref, country, created_at FROM signups ORDER BY created_at\""

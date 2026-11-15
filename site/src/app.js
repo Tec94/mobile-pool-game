@@ -128,13 +128,13 @@ function makeTable(top, felt) {
     ctx.globalAlpha = 1;
   }
 
-  // The cue, as stick in the app's render/cue.ts, 0.48 m long. c = { x, y, ang, elev, back, a }: (x, y) = the ball it
+  // The cue, as stick in the app's render/cue.ts, but 0.7 m long (0.48 m looks stubby on a table this wide). c = { x, y, ang, elev, back, a }: (x, y) = the ball it
   // strikes, back = metres from the ball's edge to the tip (negative = through where the ball was). A raised cue is
   // seen from above, so it is shorter by cos(elev), and its shadow falls further from it the higher the butt is.
   function drawCue(c) {
-    const ux = Math.cos(c.ang), uy = Math.sin(c.ang), gap = P.R + 0.0015 + c.back, len = Math.max(0.1, 0.48 * Math.cos(c.elev));
+    const ux = Math.cos(c.ang), uy = Math.sin(c.ang), gap = P.R + 0.0015 + c.back, len = 0.7 * Math.max(0.6, Math.cos(c.elev));
     const ax = X(c.x - ux * gap), ay = Y(c.y - uy * gap), bx = X(c.x - ux * (gap + len)), by = Y(c.y - uy * (gap + len));
-    const w0 = Math.max(2, 0.012 * s), w1 = Math.max(3, 0.026 * s), px = -(by - ay), py = bx - ax, n = Math.hypot(px, py), h = Math.sin(c.elev) * 0.48 * s;
+    const w0 = Math.max(2, 0.012 * s), w1 = Math.max(3, 0.026 * s), px = -(by - ay), py = bx - ax, n = Math.hypot(px, py), h = Math.sin(c.elev) * 0.7 * s;
     const quad = (f, t, col, ox, oy) => {
       const at = (q, side) => { const hw = side * (w0 + (w1 - w0) * q) / 2, o = q * h * 0.45 / (P.R * s); return [ax + (bx - ax) * q + px / n * hw + ox * (1 + o), ay + (by - ay) * q + py / n * hw + oy * (1 + o)]; };
       ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(...at(f, 1)); ctx.lineTo(...at(t, 1)); ctx.lineTo(...at(t, -1)); ctx.lineTo(...at(f, -1)); ctx.fill();
@@ -352,7 +352,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   const forms = document.querySelectorAll('form.join'), q = new URLSearchParams(location.search);
   const ref = (q.get('ref') || q.get('utm_source') || '').slice(0, 40);
   const done = keep => { for (const f of forms) { f.classList.add('sent'); f.querySelector('.done').hidden = false; } if (keep) try { localStorage.setItem('joined', '1'); } catch {} };
-  let was = q.has('joined'); try { was ||= !PROTO && localStorage.getItem('joined'); } catch {}
+  let was = q.has('joined'); try { was ||= localStorage.getItem('joined'); } catch {}
   if (was) done(false);
   for (const f of forms) {
     const note = f.querySelector('.note'), email = f.elements.email, btn = f.querySelector('button');
@@ -362,7 +362,6 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     f.addEventListener('submit', async e => {
       e.preventDefault();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.value.trim())) return bad(email.value.trim() ? 'That email does not look right.' : 'Type your email to join.');
-      if (PROTO) return done(false); // a prototype stores nothing
       btn.disabled = true;
       try {
         const r = await fetch('/api/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Object.fromEntries(new FormData(f))) });
@@ -373,10 +372,4 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   }
 }
 
-// The prototype's picker: three layouts of the same page.
-if (PROTO) {
-  const bar = $('picker'), set = k => { document.body.dataset.v = k; for (const b of bar.children) b.setAttribute('aria-pressed', b.dataset.v === k); try { history.replaceState(null, '', '#' + k); } catch {} scrollTo(0, 0); };
-  bar.hidden = false; for (const b of bar.children) b.onclick = () => set(b.dataset.v);
-  set('abc'.includes(location.hash.slice(1)) && location.hash.length === 2 ? location.hash.slice(1) : 'a');
-}
 requestAnimationFrame(frame);
