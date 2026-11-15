@@ -1,0 +1,9 @@
+{
+  // The waitlist site: static page in public/, one endpoint (worker.js) that stores signups in D1. No email is sent.
+  "name": "runout-waitlist",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  "d1_databases": [{ "binding": "DB", "database_name": "runout-waitlist", "database_id": "aa62e36e-f59a-492a-b17f-abad799fcdf0" }],
+  "build": { "command": "npm run build" }
+}
