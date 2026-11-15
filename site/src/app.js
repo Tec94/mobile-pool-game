@@ -1,28 +1,67 @@
-// The waitlist page. The tables run the game's own engine (src/physics/engine.ts) and are drawn on a 2D canvas to the
-// same numbers as the app's Skia table (src/render/table.ts). esbuild bundles this file to public/app.js.
-import { breakSpot, CUE, HOLES, P, POCKET as CUT, predict, rack, step, strike } from '../../src/physics/engine.ts';
+// The waitlist page. The tables run the game's own engine (src/physics/engine.ts), turn the balls with the game's
+// own code (src/render/balls.ts: advance) and show the game's own aim guide (src/shot/aim.ts: aimGuide). They are
+// drawn on a 2D canvas to the same numbers as the app's Skia pictures. esbuild bundles this file to public/app.js.
+import { breakSpot, CUE, HOLES, P, POCKET as CUT, rack, strike } from '../../src/physics/engine.ts';
 import { CUES } from '../../src/progress/cues.ts';
+import { advance, newLook } from '../../src/render/balls.ts';
 import { cushions, RAIL } from '../../src/render/table.ts';
 import { zone } from '../../src/render/tip.ts';
+import { aimGuide } from '../../src/shot/aim.ts';
 import { BALLS, C, CLOTHS } from '../../src/theme.ts';
 import { CUE_ART } from '../../src/ui/cueArt.ts';
 import { ball, POCKET, PRESETS, shotOf } from './presets.mjs';
 
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $ = id => document.getElementById(id);
-const TW = P.L + 2 * RAIL, TH = P.W + 2 * RAIL, HOUSE = CUE_ART.house.seg;
+const TW = P.L + 2 * RAIL, TH = P.W + 2 * RAIL;
+const rgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+const step01 = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+const SPOT = Math.cos(Math.asin(0.52)), CUE_SPOT = Math.cos(Math.asin(0.17)); // the number spot and the cue ball's six spots, as in balls.ts
 
-// A table on a canvas. It keeps the picture of the empty table and draws balls, the aim guide and the cue over it.
-function makeTable(canvas) {
-  const ctx = canvas.getContext('2d'), felt = document.createElement('canvas');
+// A ball as the game draws it: a real sphere seen from above, turned by its spin. m = its orientation (look.m[i]).
+// The game does this in a shader; here the same sums run for each pixel of the ball, which is a few hundred pixels.
+const scratch = document.createElement('canvas'), sctx = scratch.getContext('2d'); let img = null;
+function sphere(ctx, id, m, x, y, rad, a, dpr) {
+  const R = rad * dpr, n = Math.ceil(R) + 1, size = 2 * n;
+  if (scratch.width < size) scratch.width = scratch.height = size;
+  if (!img || img.width !== size) img = sctx.createImageData(size, size);
+  const d = img.data, X = [m[0], -m[3], m[6]], Y = [m[1], -m[4], m[7]], Z = [m[2], -m[5], m[8]]; // the ball's axes in view space: x right, y down, z to the eye
+  const stripe = id > 8, hue = id ? BALLS[(id - 1) % 8] : C.white, body = rgb(id === 0 || stripe ? C.white : hue), band = rgb(hue), spot = rgb(id === 0 ? C.accent : C.white);
+  const cut = id === 0 ? CUE_SPOT : SPOT, e = 1.2 / R, w = e * Math.sqrt(1 - cut * cut);
+  for (let py = 0, k = 0; py < size; py++) for (let px = 0; px < size; px++, k += 4) {
+    const u = (px + 0.5 - n) / R, v = (py + 0.5 - n) / R, q = u * u + v * v, cov = (1 - Math.sqrt(q)) * R + 0.5;
+    if (cov <= 0) { d[k + 3] = 0; continue; }
+    const z = Math.sqrt(Math.max(0, 1 - q)), nx = Math.abs(X[0] * u + X[1] * v + X[2] * z), ny = Math.abs(Y[0] * u + Y[1] * v + Y[2] * z), nz = Math.abs(Z[0] * u + Z[1] * v + Z[2] * z);
+    const t = stripe ? 1 - step01(0.58 - e, 0.58 + e, ny) : 0, s = step01(cut - w, cut + w, id === 0 ? Math.max(nx, ny, nz) : nz);
+    for (let c = 0; c < 3; c++) { const base = body[c] + (band[c] - body[c]) * t; d[k + c] = base + (spot[c] - base) * s; }
+    d[k + 3] = 255 * Math.min(1, cov);
+  }
+  sctx.putImageData(img, 0, 0);
+  ctx.globalAlpha = a; ctx.drawImage(scratch, 0, 0, size, size, x - n / dpr, y - n / dpr, size / dpr, size / dpr);
+  if (id > 0) for (const k of [1, -1]) { // the number lies flat on its spot, so it turns and foreshortens with the ball
+    const show = Math.min(1, (k * Z[2] - 0.35) / 0.15); if (show <= 0) continue;
+    const f = rad * (id > 9 ? 0.06 : 0.074);
+    ctx.save(); ctx.transform(k * X[0] * f, k * X[1] * f, -Y[0] * f, -Y[1] * f, x + k * Z[0] * rad, y + k * Z[1] * rad);
+    ctx.globalAlpha = a * show; ctx.fillStyle = C.ink; ctx.font = '800 10px "Bricolage Grotesque", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(id, 0, 0.6); ctx.restore();
+  }
+  ctx.globalAlpha = 0.5 * a; ctx.strokeStyle = C.chalk; ctx.lineWidth = rad * 0.1; ctx.beginPath(); ctx.arc(x, y, rad * 0.95, 0, 7); ctx.stroke(); // rim
+  ctx.globalAlpha = 0.8 * a; ctx.strokeStyle = '#fff'; ctx.lineWidth = rad * 0.14; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(x, y, rad * 0.76, 202 * Math.PI / 180, 248 * Math.PI / 180); ctx.stroke(); // the highlight stays put: the pattern moves under it
+  ctx.globalAlpha = 1;
+}
+
+// A table on two canvases: `felt` holds the empty table, `top` the balls, the guide and the cue. They are two so that
+// a page can put type between them, printed on the cloth with the balls rolling over it.
+function makeTable(top, felt) {
+  const ctx = top.getContext('2d');
   let s = 1, dpr = 1;
   const X = x => (RAIL + x) * s, Y = y => (RAIL + P.W - y) * s;
   const disc = (x, y, r) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); };
 
   function size() {
-    const w = canvas.clientWidth; if (!w) return;
+    const w = top.clientWidth; if (!w) return;
     dpr = Math.min(devicePixelRatio || 1, 2); s = w / TW;
-    felt.width = canvas.width = Math.round(w * dpr); felt.height = canvas.height = Math.round(w * TH / TW * dpr);
+    felt.width = top.width = Math.round(w * dpr); felt.height = top.height = Math.round(w * TH / TW * dpr);
     const g = felt.getContext('2d'), k = s * dpr, { L, W } = P, { deep } = CUT, cloth = CLOTHS[0];
     g.setTransform(k, 0, 0, -k, RAIL * k, (RAIL + W) * k); // table metres, y up
     const frame = () => { g.beginPath(); g.roundRect(-RAIL, -RAIL, TW, TH, 0.12); };
@@ -44,76 +83,111 @@ function makeTable(canvas) {
     g.fillStyle = C.pocket; for (const [x, y, r] of HOLES) { g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); }
   }
 
-  // id 0 = the cue ball, 9 to 15 = stripes. k shrinks a ball that is dropping into a pocket.
-  function drawBall(b, id, k = 1) {
-    const z = b.z || 0, r = P.R * s * k * (1 + z / 0.22), x = X(b.x), y = Y(b.y), lift = z * s * 1.6;
-    ctx.fillStyle = 'rgba(6,18,15,0.6)'; disc(x + r * 0.2 + lift, y + r * 0.24 + lift, P.R * s * k); ctx.fill();
-    const col = id ? BALLS[(id - 1) % 8] : C.white;
-    ctx.fillStyle = id > 8 ? C.white : col; disc(x, y, r); ctx.fill();
-    if (id > 8) { ctx.save(); disc(x, y, r); ctx.clip(); ctx.fillStyle = col; ctx.fillRect(x - r, y - r * 0.56, 2 * r, r * 1.12); ctx.restore(); }
-    ctx.strokeStyle = C.chalk + '73'; ctx.lineWidth = Math.max(0.8, r * 0.08); disc(x, y, r); ctx.stroke();
-    if (id) {
-      ctx.fillStyle = C.white; disc(x, y, r * 0.5); ctx.fill();
-      ctx.fillStyle = C.ink; ctx.font = `800 ${r * (id > 9 ? 0.56 : 0.68)}px "Bricolage Grotesque", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(id, x, y + r * 0.04);
+  const lift = z => 1 + 2.5 * z; // a ball in the air is drawn larger: 10 cm up = 25%
+  const shadow = (x, y, z, a = 1) => { const r = P.R * s, o = 0.5 * z * s; ctx.globalAlpha = a * Math.max(0.2, 0.45 - 2 * z); ctx.fillStyle = C.shade; disc(x + 0.28 * r + o, y + 0.36 * r + o, r); ctx.fill(); ctx.globalAlpha = 1; };
+  // The balls, as drawBalls in the app: speed smears, landing rings and balls falling into pockets under everything,
+  // then every shadow, then the balls, lowest first so a jumping ball passes over.
+  function drawBalls(v) {
+    const { B, ids, look } = v, r = P.R * s, hue = id => (id ? BALLS[(id - 1) % 8] : C.white);
+    if (!calm) for (let i = 0; i < B.length; i++) {
+      const b = B[i]; if (!b.on) continue;
+      const px = X(b.x), py = Y(b.y), qx = X(look.last[2 * i]), qy = Y(look.last[2 * i + 1]);
+      if (Math.hypot(px - qx, py - qy) > 1.5 * r) { ctx.globalAlpha = 0.16; ctx.strokeStyle = hue(ids[i]); ctx.lineWidth = 2 * r * lift(b.z || 0); ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(qx, qy); ctx.lineTo(px, py); ctx.stroke(); ctx.globalAlpha = 1; }
     }
-    ctx.strokeStyle = id ? 'rgba(246,244,236,0.75)' : 'rgba(22,25,26,0.18)'; ctx.lineWidth = r * 0.13; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.arc(x, y, r * 0.74, -2.5, -1.95); ctx.stroke();
+    for (const f of look.fx) {
+      const t = f.age / (f.t === 'pocket' ? 220 : 240);
+      if (f.t === 'land' && !calm) { ctx.globalAlpha = 0.6 * (1 - t); ctx.strokeStyle = C.chalk; ctx.lineWidth = 1; disc(X(f.x), Y(f.y), r * (1 + 0.9 * (1 - (1 - t) ** 3))); ctx.stroke(); ctx.globalAlpha = 1; }
+      if (f.t !== 'pocket' || t >= 1) continue;
+      // The ball runs on to the middle of the hole (it arrives with speed) while it falls away (gravity).
+      let H = HOLES[0]; for (const h of HOLES) if (Math.hypot(h[0] - f.x, h[1] - f.y) < Math.hypot(H[0] - f.x, H[1] - f.y)) H = h;
+      const e = 1 - (1 - t) ** 3, cx = X(f.x + (H[0] - f.x) * e), cy = Y(f.y + (H[1] - f.y) * e), rad = r * (1 - 0.3 * t * t);
+      sphere(ctx, ids[f.i], look.m[f.i], cx, cy, rad, 1, dpr);
+      ctx.globalAlpha = t * t; ctx.fillStyle = C.pocket; disc(cx, cy, rad + 0.5); ctx.fill(); ctx.globalAlpha = 1;
+    }
+    const order = B.map((_, i) => i).filter(i => B[i].on).sort((a, b) => (B[a].z || 0) - (B[b].z || 0));
+    for (const i of order) shadow(X(B[i].x), Y(B[i].y), B[i].z || 0);
+    for (const i of order) sphere(ctx, ids[i], look.m[i], X(B[i].x), Y(B[i].y), r * lift(B[i].z || 0), 1, dpr);
+    for (const f of look.fx) if (f.t === 'off') { // carries on over the rail on its arc and fades as it leaves
+      const sec = f.age / 1000, t = f.age / 350, z = Math.max(0, f.z + f.vz * sec - P.g * sec * sec / 2), px = X(f.x + f.vx * sec), py = Y(f.y + f.vy * sec), a = 1 - t * t;
+      if (a > 0) { shadow(px, py, z, a); sphere(ctx, ids[f.i], look.m[f.i], px, py, r * lift(z), a, dpr); }
+    }
   }
 
-  // The chalk guide, as drawAim in the app: a gap in the line is the ball in the air, a small ring is where it lands,
-  // the big ring is the cue ball where it first meets a ball, and the second line is that ball's path.
+  // The chalk guide, as drawAim in the app: the cue ball's line to its first contact (a gap is the ball in the air, a
+  // small ring is where it lands), the ghost ball there, and a short line for the ball it meets. g = aimGuide's result.
   function drawAim(g) {
-    const r = P.R * s; ctx.strokeStyle = C.chalk; ctx.globalAlpha = 0.92; ctx.lineWidth = Math.max(1.2, 0.19 * r); ctx.lineCap = ctx.lineJoin = 'round';
+    const r = P.R * s; ctx.strokeStyle = C.chalk; ctx.lineCap = ctx.lineJoin = 'round'; ctx.globalAlpha = 0.92; ctx.lineWidth = Math.max(1.2, 0.19 * r);
     const line = pts => { if (pts.length > 1) { ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y)))); ctx.stroke(); } };
-    // Unlike the app, the flight is drawn too, as a fainter line: a visitor has not learnt yet that a gap means "in the air".
-    let run = [], up = false;
-    const end = () => { ctx.globalAlpha = up ? 0.3 : 0.92; line(run); run = run.slice(-1); };
-    for (const q of g.cue.slice(0, g.split < 0 ? undefined : g.split + 1)) { const air = (q[2] || 0) > 0.05 * P.R; if (air !== up) { end(); up = air; } run.push(q); }
-    end(); ctx.globalAlpha = 0.92; line(g.ob);
+    let run = [];
+    for (const q of g.path) if ((q[2] || 0) > 0.05 * P.R) { line(run); run = []; } else run.push(q);
+    line(run); line(g.ob);
+    ctx.globalAlpha = 0.9; ctx.lineWidth = Math.max(1, 0.16 * r);
     for (const [x, y] of g.lands) { disc(X(x), Y(y), 0.7 * r); ctx.stroke(); }
-    if (g.hit) { const q = g.cue[g.split]; disc(X(q[0]), Y(q[1]), 0.92 * r); ctx.stroke(); }
+    if (g.ghost) { disc(X(g.ghost[0]), Y(g.ghost[1]), 0.92 * r); ctx.stroke(); }
+    if (g.lost) { const q = g.path[g.path.length - 1]; ctx.strokeStyle = C.warn; disc(X(q[0]), Y(q[1]), 0.92 * r); ctx.stroke(); }
     ctx.globalAlpha = 1;
   }
 
-  // The house cue behind the cue ball. A raised cue is seen from above, so it looks shorter by cos(elev).
-  function drawCue(b, ang, elev, back) {
-    const len = 1.45 * Math.cos(elev) * s, k = 0.0125 * s, dx = -Math.cos(ang), dy = Math.sin(ang), x0 = X(b.x) + dx * (P.R * 1.25 + back) * s, y0 = Y(b.y) + dy * (P.R * 1.25 + back) * s;
-    const w = f => (0.5 + 0.65 * f) * k, at = (f, side) => [x0 + dx * f * len - dy * side * w(f), y0 + dy * f * len + dx * side * w(f)];
-    for (const [a, c, col] of HOUSE) {
-      ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(...at(a, 1)); ctx.lineTo(...at(c, 1)); ctx.lineTo(...at(c, -1)); ctx.lineTo(...at(a, -1)); ctx.fill();
-    }
+  // The cue, as stick in the app's render/cue.ts, 0.48 m long. c = { x, y, ang, elev, back, a }: (x, y) = the ball it
+  // strikes, back = metres from the ball's edge to the tip (negative = through where the ball was). A raised cue is
+  // seen from above, so it is shorter by cos(elev), and its shadow falls further from it the higher the butt is.
+  function drawCue(c) {
+    const ux = Math.cos(c.ang), uy = Math.sin(c.ang), gap = P.R + 0.0015 + c.back, len = Math.max(0.1, 0.48 * Math.cos(c.elev));
+    const ax = X(c.x - ux * gap), ay = Y(c.y - uy * gap), bx = X(c.x - ux * (gap + len)), by = Y(c.y - uy * (gap + len));
+    const w0 = Math.max(2, 0.012 * s), w1 = Math.max(3, 0.026 * s), px = -(by - ay), py = bx - ax, n = Math.hypot(px, py), h = Math.sin(c.elev) * 0.48 * s;
+    const quad = (f, t, col, ox, oy) => {
+      const at = (q, side) => { const hw = side * (w0 + (w1 - w0) * q) / 2, o = q * h * 0.45 / (P.R * s); return [ax + (bx - ax) * q + px / n * hw + ox * (1 + o), ay + (by - ay) * q + py / n * hw + oy * (1 + o)]; };
+      ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(...at(f, 1)); ctx.lineTo(...at(t, 1)); ctx.lineTo(...at(t, -1)); ctx.lineTo(...at(f, -1)); ctx.fill();
+    };
+    ctx.globalAlpha = 0.4 * c.a; quad(0, 1, C.shade, 0.28 * P.R * s, 0.36 * P.R * s);
+    ctx.globalAlpha = c.a;
+    for (const [f, t, col] of [[0.6, 1, C.ink], [0.035, 0.6, C.frame], [0.015, 0.035, C.white], [0, 0.015, C.accent]]) quad(f, t, col, 0, 0);
+    ctx.globalAlpha = 1;
   }
 
-  // v = { B, ids, fx, guide, cue: { ang, elev, back }, ring: HOLES index, fade }
+  // v = { B, ids, look, guide, cue, puff: { x, y, age }, ring: HOLES index, fade }
   function draw(v) {
-    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(felt, 0, 0);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, top.width, top.height);
     if (v.ring != null) { const [x, y, r] = HOLES[v.ring]; ctx.strokeStyle = C.white; ctx.lineWidth = r * s * 0.2; disc(X(x), Y(y), r * s * 0.62); ctx.stroke(); }
-    ctx.globalAlpha = v.fade ?? 1;
-    for (const f of v.fx) drawBall(f, f.id, 1 - f.age / 220);
+    top.style.opacity = v.fade ?? 1;
     if (v.guide) drawAim(v.guide);
-    // Balls on the cloth first, a ball in the air on top.
-    v.B.map((b, i) => [b, v.ids[i]]).filter(q => q[0].on).sort((a, b) => (a[0].z || 0) - (b[0].z || 0)).forEach(q => drawBall(...q));
-    if (v.cue) drawCue(v.B[0], v.cue.ang, v.cue.elev, v.cue.back);
-    ctx.globalAlpha = 1;
+    drawBalls(v);
+    if (v.puff && v.puff.age < 260) { // chalk off the tip at the hit
+      const t = v.puff.age / 260; ctx.globalAlpha = 0.55 * (1 - t); ctx.strokeStyle = C.chalk; ctx.lineWidth = 1.5; disc(X(v.puff.x), Y(v.puff.y), P.R * s * (0.5 + 1.6 * (1 - (1 - t) ** 3))); ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    if (v.cue && v.cue.a > 0) drawCue(v.cue);
   }
-  const toTable = e => { const q = canvas.getBoundingClientRect(); return [(e.clientX - q.left) / s - RAIL, P.W - ((e.clientY - q.top) / s - RAIL)]; };
+  const toTable = e => { const q = top.getBoundingClientRect(), k = q.width / top.clientWidth || 1; return [(e.clientX - q.left) / k / s - RAIL, P.W - ((e.clientY - q.top) / k / s - RAIL)]; };
   size();
-  return { size, draw, toTable, canvas };
+  return { size, draw, toTable, canvas: top, felt };
 }
 
-// Run a view's balls for ms of play (one engine step = 1 ms). A ball that drops leaves a 220 ms shrinking picture.
-const ev = [];
-function advance(v, ms) {
-  let moving = true;
-  for (let i = 0; i < ms && moving; i++) {
-    ev.length = 0; moving = step(v.B, ev);
-    for (const e of ev) if (e.t === 'pocket' || e.t === 'off') v.fx.push({ x: e.x, y: e.y, id: v.ids[e.a], age: 0 });
-  }
-  for (const f of v.fx) f.age += ms;
-  v.fx = v.fx.filter(f => f.age < 220);
-  return moving;
+// The stroke. The game has no stroke yet (the stick leaves the table on the frame of the strike), so this one is the
+// page's own: the cue draws back a little more, drives through the ball faster the harder the shot, stops dead a
+// short way past where the ball was (or digs in and springs back when it is raised), rests, and lifts off.
+// It stays where it struck: the ball leaves it behind. Returns what the scene calls each frame.
+function stroke(v, table, shot, power, hit) {
+  const c = v.cue, from = c.back, wind = from + 0.035 + 0.03 * power, T1 = 150, T2 = 105 - 45 * power, up = Math.sin(c.elev);
+  const through = (0.02 + 0.07 * power) * (1 - up) + 0.004, spring = 0.018 * up * power;
+  let t = 0, struck = false;
+  return ms => {
+    t += ms;
+    if (calm && !struck) t = T1 + T2;
+    if (t < T1) c.back = from + (wind - from) * (1 - (1 - t / T1) ** 2);
+    else if (t < T1 + T2) c.back = wind * (1 - ((t - T1) / T2) ** 3); // it gathers speed all the way into the ball
+    else {
+      if (!struck) {
+        struck = true; hit(); v.puff = { x: c.x, y: c.y, age: 0 };
+        // The table takes the hit: a short shove along the shot that springs back.
+        if (!calm && power > 0.3) { const k = 1 + 3 * power; for (const el of [table.canvas, table.felt]) el.animate([{ translate: `${Math.cos(shot.ang) * k}px ${-Math.sin(shot.ang) * k}px` }, { translate: '0 0' }], { duration: 260, easing: 'cubic-bezier(.2,1.8,.4,1)' }); }
+      }
+      const q = t - T1 - T2; v.puff.age = q;
+      c.back = -through * (1 - (1 - Math.min(1, q / 140)) ** 3) + spring * Math.sin(Math.min(1, q / 180) * Math.PI);
+      c.a = q < 520 ? 1 : Math.max(0, 1 - (q - 520) / 180);
+      if (q > 520) c.back += 0.04 * ((q - 520) / 180) ** 2;
+    }
+    return struck;
+  };
 }
 
 // One loop for both tables; a table off the screen (or a hidden tab) costs nothing.
@@ -134,57 +208,59 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
 
 // ---- Hero: a break, again and again. With reduced motion it is a still rack. ----
 {
-  const table = makeTable($('hero')), v = { B: [], ids: [], fx: [], cue: null };
-  let state, t;
+  const table = makeTable($('hero'), $('hero-felt')), v = { B: [], ids: [], look: null, cue: null };
+  let state, t, swing;
   const AIM = [0, 0.006, -0.008]; let n = 0; // three breaks, a hair apart, so the loop does not look like a film
   function set() {
     const r = rack(8), [cx, cy] = breakSpot();
-    v.B = [ball(cx, cy), ...r.map(q => ball(q[1], q[2]))]; v.ids = [0, ...r.map(q => q[0])]; v.fx = [];
-    const ang = Math.atan2(r[0][2] - cy, r[0][1] - cx) + AIM[n++ % 3];
-    v.cue = { ang, elev: CUE.minElev, back: 0.05 }; state = 'aim'; t = 0;
+    v.B = [ball(cx, cy), ...r.map(q => ball(q[1], q[2]))]; v.ids = [0, ...r.map(q => q[0])]; v.look = newLook(v.B); v.puff = null;
+    const shot = { ang: Math.atan2(r[0][2] - cy, r[0][1] - cx) + AIM[n++ % 3], speed: 0.9 * CUE.breakSpeed, a: 0, b: 0 };
+    v.cue = { x: cx, y: cy, ang: shot.ang, elev: CUE.minElev, back: 0.02, a: 0 }; state = 'aim'; t = 0;
+    swing = stroke(v, table, shot, 1, () => { strike(v.B[0], shot); state = 'run'; });
   }
   set();
   scene(table, (ms, sc) => {
     if (calm) { if (sc.dirty) { table.draw(v); sc.dirty = false; } return; }
     t += ms; v.fade = 1;
-    if (state === 'aim') { // pull back, then through the ball
-      v.cue.back = t < 1100 ? 0.05 + 0.2 * Math.min(1, t / 900) ** 2 : 0.25 * (1 - (t - 1100) / 70);
-      if (t >= 1170) { strike(v.B[0], { ang: v.cue.ang, speed: 0.9 * CUE.breakSpeed, a: 0, b: 0 }); v.cue = null; state = 'run'; }
-    } else if (state === 'run') { if (!advance(v, ms)) { state = 'rest'; t = 0; } }
+    if (state === 'aim') { // the cue comes in and draws back, then the stroke
+      v.cue.a = Math.min(1, t / 200);
+      if (t < 900) v.cue.back = 0.02 + 0.2 * (1 - (1 - Math.min(1, t / 700)) ** 3); else swing(ms);
+    } else if (state === 'run') { swing(ms); if (!advance(v.B, v.look, ms, true)) { state = 'rest'; t = 0; } }
     else if (t > 3200) set();
-    else if (t > 2400) v.fade = Math.max(0, 1 - (t - 2400) / 500);
+    else { advance(v.B, v.look, ms, false); if (t > 2400) v.fade = Math.max(0, 1 - (t - 2400) / 500); }
     table.draw(v);
   });
 }
 
 // ---- The practice table ----
 {
-  const table = makeTable($('table')), v = { B: [], ids: [], fx: [], ring: POCKET }, say = $('say');
+  const table = makeTable($('table'), $('table-felt')), v = { B: [], ids: [], look: null, ring: POCKET }, say = $('say');
   const inp = { elev: $('elev'), aim: $('aim'), power: $('power') }, shoot = $('shoot'), dot = $('dot'), side = $('side').getContext('2d');
-  let p = PRESETS[1], st, state = 'aim', t = 0, sc;
+  const AIM_STAT = CUES.house.aim; // the guide is as long as the House Cue's in the game
+  let p = PRESETS[1], st, state = 'aim', t = 0, sc, swing, acc = 0, pace = 1, down = [];
 
-  const rackUp = () => { v.B = p.balls.map(q => ball(...q)); v.ids = p.ids; v.fx = []; state = 'aim'; shoot.disabled = false; guide(); };
+  const rackUp = () => { v.B = p.balls.map(q => ball(...q)); v.ids = p.ids; v.look = newLook(v.B); v.puff = null; state = 'aim'; shoot.disabled = false; guide(); };
   function guide() {
-    v.guide = predict(v.B, shotOf(st), 0.7);
-    v.cue = { ang: shotOf(st).ang, elev: st.elev * Math.PI / 180, back: 0.02 + 0.2 * st.power };
+    const shot = shotOf(st), c = v.B[0];
+    v.guide = aimGuide(v.B, shot, AIM_STAT);
+    v.cue = { x: c.x, y: c.y, ang: shot.ang, elev: shot.elev, back: st.power * 0.22, a: 1 };
     if (sc) sc.dirty = true;
   }
   function show() { // the controls' pictures and labels
-    $('zone').textContent = `${st.elev}° · ${zone(st.elev)}`;
+    $('zone').textContent = `${st.elev}° ${zone(st.elev)}`;
     dot.style.transform = `translate(${st.x * 26}px, ${-st.y * 26}px)`;
     const g = side, e = st.elev * Math.PI / 180, bx = 150, by = 112, r = 22, cx = bx - Math.cos(e) * r, cy = by - Math.sin(e) * r;
-    g.clearRect(0, 0, 208, 150); g.lineCap = 'round';
+    g.clearRect(0, 0, 208, 150);
     g.strokeStyle = C.chalk + '66'; g.lineWidth = 2; g.beginPath(); g.moveTo(8, by + r + 1); g.lineTo(200, by + r + 1); g.stroke();
     g.fillStyle = C.white; g.beginPath(); g.arc(bx, by, r, 0, 7); g.fill();
-    const seg = (a, b, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'butt'; g.beginPath(); g.moveTo(cx - Math.cos(e) * a, cy - Math.sin(e) * a); g.lineTo(cx - Math.cos(e) * b, cy - Math.sin(e) * b); g.stroke(); };
-    seg(3, 9, C.accent, 5); seg(9, 16, C.white, 5); seg(16, 190, '#E3BE85', 6);
+    const seg = (a, b, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(cx - Math.cos(e) * a, cy - Math.sin(e) * a); g.lineTo(cx - Math.cos(e) * b, cy - Math.sin(e) * b); g.stroke(); };
+    seg(3, 9, C.accent, 5); seg(9, 16, C.white, 5); seg(16, 120, C.frame, 6); seg(120, 190, C.ink, 7);
   }
   function load(q, keep) {
     p = q; if (!keep) st = { ...q };
     inp.elev.value = st.elev; inp.aim.value = st.off; inp.power.value = st.power;
     for (const k of $('presets').children) k.setAttribute('aria-checked', k.textContent === p.name);
-    if (!keep) say.textContent = p.say;
-    show(); rackUp();
+    say.textContent = ''; show(); rackUp();
   }
   for (const q of PRESETS) {
     const k = document.createElement('button'); k.type = 'button'; k.textContent = q.name; k.setAttribute('role', 'radio');
@@ -212,37 +288,48 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   pad.addEventListener('pointerdown', e => { pad.setPointerCapture(e.pointerId); spin(e); });
   pad.addEventListener('pointermove', e => { if (pad.hasPointerCapture(e.pointerId)) spin(e); });
 
-  shoot.onclick = () => { if (state !== 'aim') return; state = 'swing'; t = 0; shoot.disabled = true; v.guide = null; };
+  shoot.onclick = () => {
+    if (state !== 'aim') return;
+    const shot = shotOf(st); state = 'swing'; shoot.disabled = true; v.guide = null; down = []; acc = 0; pace = 1;
+    swing = stroke(v, table, shot, st.power, () => { strike(v.B[0], shot); state = 'run'; });
+  };
   sc = scene(table, (ms, me) => {
     if (state === 'aim') { if (me.dirty) { table.draw(v); me.dirty = false; } return; }
-    t += ms;
-    if (state === 'swing') {
-      v.cue.back = (0.02 + 0.2 * st.power) * Math.max(0, 1 - t / 80);
-      if (t >= 80 || calm) { strike(v.B[0], shotOf(st)); state = 'run'; t = 0; }
-    } else if (state === 'run') {
-      if (t > 150) v.cue = null;
-      if (!advance(v, ms)) {
-        const n = v.B.length - 1, lost = !v.B[0].on;
-        say.textContent = lost ? 'The cue ball is gone. Rack it again.' : !v.B[n].on ? `The ${v.ids[n]} is down.` : 'Missed. Change the aim, the angle or the spin.';
+    swing(ms);
+    if (state === 'run') {
+      // A hop is over in a fifth of a second: while a ball is in the air the table runs at a third of the speed, so the eye can follow it.
+      const want = !calm && v.B.some(b => b.on && (b.z || 0) > 0.002) ? 0.33 : 1; pace += (want - pace) * Math.min(1, ms / 60);
+      acc += ms * pace; const n = Math.floor(acc); acc -= n;
+      if (!advance(v.B, v.look, n, true, ev => { for (const e of ev) if (e.t === 'pocket' || e.t === 'off') down.push(e.a); })) {
+        const last = v.B.length - 1;
+        say.textContent = down.includes(0) ? 'The cue ball left the table.' : down.includes(last) ? `The ${v.ids[last]} is down.` : 'Missed.'; // for a screen reader: the page shows it
         state = 'rest'; t = 0;
       }
-    } else if (t > 1300) { rackUp(); me.dirty = true; }
+    } else if (state === 'rest') { t += ms; advance(v.B, v.look, ms, false); if (t > 1300) { rackUp(); me.dirty = true; } }
     table.draw(v);
   });
   load(p);
 }
 
-// ---- The cues: each card draws its cue from the app's own outlines (CUE_ART), tip up and to the right. ----
+// ---- The cues: all 17 stand in a rack, drawn from the app's own outlines (CUE_ART). The one under the pointer, the
+// finger or the arrow keys steps forward and its name and stats show large. ----
 {
-  const hand = $('hand'), dpr = Math.min(devicePixelRatio || 1, 2), S = 124;
-  for (const [id, cue] of Object.entries(CUES)) {
-    const li = document.createElement('li'), cv = document.createElement('canvas'), g = cv.getContext('2d'), { p: P_, seg, split } = CUE_ART[id];
-    li.className = 'slab'; cv.width = cv.height = S * dpr;
-    const w = f => { for (let j = 1; j < P_.length; j++) if (f <= P_[j][0]) { const [a, wa] = P_[j - 1], [b, wb] = P_[j]; return b === a ? wb : wa + (wb - wa) * (f - a) / (b - a); } return P_.at(-1)[1]; };
-    const len = S * 1.2, k = 3.4;
-    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.translate(S * 0.9, S * 0.1); g.rotate(Math.PI * 0.75);
-    for (const [a, b, col] of seg) {
-      const f = [a, ...P_.map(q => q[0]).filter(x => x > a && x < b), b], hole = split && b > split[0] ? split[1] : 0;
+  const rackEl = $('rack'), name = $('cue-name'), bars = $('cue-bars'), dpr = Math.min(devicePixelRatio || 1, 2), W = 44, H = 420, ids = Object.keys(CUES);
+  let at = -1;
+  const pick = i => {
+    if (i === at) return; at = i;
+    [...rackEl.children].forEach((b, j) => b.setAttribute('aria-pressed', j === i));
+    const cue = CUES[ids[i]]; name.textContent = cue.name;
+    bars.querySelectorAll('u').forEach((u, k) => { const n = cue[['power', 'spin', 'aim'][k]]; u.style.setProperty('--n', n); u.setAttribute('aria-label', `${n} of 10`); });
+  };
+  ids.forEach((id, i) => {
+    const b = document.createElement('button'), cv = document.createElement('canvas'), g = cv.getContext('2d'), { p: P_, seg, split } = CUE_ART[id];
+    b.type = 'button'; b.setAttribute('aria-label', CUES[id].name); cv.width = W * dpr; cv.height = H * dpr;
+    const w = f => { for (let j = 1; j < P_.length; j++) if (f <= P_[j][0]) { const [a, wa] = P_[j - 1], [c, wc] = P_[j]; return c === a ? wc : wa + (wc - wa) * (f - a) / (c - a); } return P_.at(-1)[1]; };
+    const len = H - 16, k = 6.2;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.translate(W / 2, 8); g.rotate(Math.PI / 2); // tip up
+    for (const [a, c, col] of seg) {
+      const f = [a, ...P_.map(q => q[0]).filter(x => x > a && x < c), c], hole = split && c > split[0] ? split[1] : 0;
       g.fillStyle = col;
       for (const sgn of hole ? [1, -1] : [1]) {
         g.beginPath();
@@ -251,47 +338,45 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
         g.fill();
       }
     }
-    const b = document.createElement('b'); b.textContent = cue.name;
-    const bars = document.createElement('div'); bars.className = 'bars';
-    for (const stat of ['power', 'spin', 'aim']) bars.insertAdjacentHTML('beforeend', `<span>${stat[0].toUpperCase() + stat.slice(1)}</span><u style="--n:${cue[stat]}" role="img" aria-label="${cue[stat]} of 10"></u>`);
-    li.append(cv, b, bars);
-    li.onclick = () => { for (const o of hand.children) o.classList.toggle('up', o === li && !li.classList.contains('up')); };
-    hand.append(li);
-  }
-  hand.children[0].classList.add('up');
+    b.append(cv); b.onpointerenter = b.onfocus = b.onclick = () => pick(i);
+    rackEl.append(b);
+  });
+  // A finger slid along the rack picks the cue under it (pointerenter does not fire for a touch that moves).
+  rackEl.addEventListener('pointermove', e => { const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('button'); if (el?.parentElement === rackEl) pick([...rackEl.children].indexOf(el)); });
+  rackEl.addEventListener('keydown', e => { const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (d) { e.preventDefault(); const i = (at + d + ids.length) % ids.length; pick(i); rackEl.children[i].focus(); } });
+  pick(ids.indexOf('rocket'));
 }
 
 // ---- The waitlist forms ----
 {
   const forms = document.querySelectorAll('form.join'), q = new URLSearchParams(location.search);
   const ref = (q.get('ref') || q.get('utm_source') || '').slice(0, 40);
-  const done = () => { for (const f of forms) { f.classList.add('sent'); f.querySelector('.done').hidden = false; } try { localStorage.setItem('joined', '1'); } catch {} };
-  let was = q.has('joined'); try { was ||= localStorage.getItem('joined'); } catch {}
-  if (was) done();
+  const done = keep => { for (const f of forms) { f.classList.add('sent'); f.querySelector('.done').hidden = false; } if (keep) try { localStorage.setItem('joined', '1'); } catch {} };
+  let was = q.has('joined'); try { was ||= !PROTO && localStorage.getItem('joined'); } catch {}
+  if (was) done(false);
   for (const f of forms) {
-    const note = f.querySelector('.note'), email = f.elements.email, btn = f.querySelector('button'), idle = note.textContent;
+    const note = f.querySelector('.note'), email = f.elements.email, btn = f.querySelector('button');
     f.elements.ref.value = ref;
-    const bad = text => { note.textContent = text; note.classList.add('bad'); email.setAttribute('aria-invalid', 'true'); email.focus(); };
-    email.addEventListener('input', () => { note.textContent = idle; note.classList.remove('bad'); email.removeAttribute('aria-invalid'); });
+    const bad = text => { note.textContent = text; email.setAttribute('aria-invalid', 'true'); email.focus(); };
+    email.addEventListener('input', () => { note.textContent = ''; email.removeAttribute('aria-invalid'); });
     f.addEventListener('submit', async e => {
       e.preventDefault();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.value.trim())) return bad(email.value.trim() ? 'That email does not look right.' : 'Type your email to join.');
+      if (PROTO) return done(false); // a prototype stores nothing
       btn.disabled = true;
       try {
         const r = await fetch('/api/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Object.fromEntries(new FormData(f))) });
-        if (r.ok) done(); else if (r.status === 400) bad('That email does not look right.'); else throw 0;
-      } catch { note.textContent = 'That did not go through. Try again.'; note.classList.add('bad'); }
+        if (r.ok) done(true); else if (r.status === 400) bad('That email does not look right.'); else throw 0;
+      } catch { note.textContent = 'That did not go through. Try again.'; }
       btn.disabled = false;
     });
   }
 }
 
-// Sections come up once as they scroll in.
-if (!calm) {
-  const io = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { e.target.classList.add('seen'); io.unobserve(e.target); } }, { rootMargin: '0px 0px -8% 0px' });
-  document.querySelectorAll('main h2, main .lede, .bench, .deal li, .price, .again form').forEach((el, i) => {
-    if (el.getBoundingClientRect().top < innerHeight) return; // already on the screen: leave it
-    el.classList.add('in'); if (el.matches('.deal li')) el.style.setProperty('--i', i % 6); io.observe(el);
-  });
+// The prototype's picker: three layouts of the same page.
+if (PROTO) {
+  const bar = $('picker'), set = k => { document.body.dataset.v = k; for (const b of bar.children) b.setAttribute('aria-pressed', b.dataset.v === k); try { history.replaceState(null, '', '#' + k); } catch {} scrollTo(0, 0); };
+  bar.hidden = false; for (const b of bar.children) b.onclick = () => set(b.dataset.v);
+  set('abc'.includes(location.hash.slice(1)) && location.hash.length === 2 ? location.hash.slice(1) : 'a');
 }
 requestAnimationFrame(frame);
