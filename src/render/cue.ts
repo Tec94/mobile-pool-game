@@ -16,10 +16,12 @@ function stick(api: typeof Skia, canvas: SkCanvas, ax: number, ay: number, bx: n
     canvas.drawPath(api.Path.Polygon([at(from, 1), at(to, 1), at(to, -1), at(from, -1)], true), fill(api, hex));
 }
 
+// LEN: a real cue is ~1.47 m, but drawn that long from above it covered too much of the table; 0.48 m reads as a cue and stays clear.
+const LEN = 0.48;
 // The cue on the table, behind the cue ball at (x, y) along the aim and pulled back by the power (0..1).
 // shortcut: seen from above at full length whatever the elevation; the side picture in the tip sheet shows the tilt.
 export function drawCue(api: typeof Skia, canvas: SkCanvas, v: View, x: number, y: number, ang: number, power: number) {
-  const ux = Math.cos(ang), uy = Math.sin(ang), gap = P.R + 0.0015 + power * 0.22, a = toScreen(v, x - ux * gap, y - uy * gap), b = toScreen(v, x - ux * (gap + 0.77), y - uy * (gap + 0.77));
+  const ux = Math.cos(ang), uy = Math.sin(ang), gap = P.R + 0.0015 + power * 0.22, a = toScreen(v, x - ux * gap, y - uy * gap), b = toScreen(v, x - ux * (gap + LEN), y - uy * (gap + LEN));
   stick(api, canvas, a.x, a.y, b.x, b.y, Math.max(2, 0.012 * v.s), Math.max(3, 0.026 * v.s));
 }
 
