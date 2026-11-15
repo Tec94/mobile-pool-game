@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#0E1B19">
 <meta property="og:title" content="Runout: All about Pool">
 <meta property="og:description" content="Real physics. Jump shots. Massé. 17 wild cues. Pay once, no ads. Join the waitlist.">
-<meta property="og:image" content="/og.png">
+<meta property="og:image" content="https://runout-waitlist.jack-cao.workers.dev/og.png">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/icon.png">
@@ -19,90 +19,75 @@
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<header class="hero wrap">
-  <div class="pitch">
-    <p class="brand"><img src="/icon.png" alt="" width="40" height="40"> Runout <span class="chip">Coming to iPhone</span></p>
-    <h1>Get the first rack.</h1>
-    <p class="lede">Runout is all about pool: real physics, jump shots, massé, 17 wild cues. Pay once. No ads.</p>
-    <form class="join slab cream" id="join" method="post" action="/api/join" novalidate>
-      <div class="fields">
-        <label><span>First name <i>optional</i></span><input name="name" autocomplete="given-name" maxlength="60" enterkeyhint="next"></label>
-        <label><span>Email</span><input name="email" type="email" inputmode="email" autocomplete="email" required maxlength="254" placeholder="you@example.com" enterkeyhint="send"></label>
-        <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
-        <input type="hidden" name="ref">
-      </div>
-      <button class="slab ink go"><b>Join the waitlist</b></button>
-      <p class="note" role="status" aria-live="polite">One email, the day it is on the App Store.</p>
-      <div class="done" hidden><span class="ball b8" aria-hidden="true"><i>8</i></span><div><b>You are on the list.</b><span>We will write once, on launch day.</span></div></div>
+<header class="hero">
+  <div class="rig"><canvas id="hero-felt" aria-hidden="true"></canvas><canvas id="hero" role="img" aria-label="A pool table: the cue ball breaks a rack of fifteen balls."></canvas></div>
+  <p class="brand"><img src="/icon.png" alt="" width="36" height="36"> Runout <span class="chip">Coming to iPhone</span></p>
+  <h1><span>Get the</span> <span>first rack.</span></h1>
+  <div class="card">
+    <form class="join" method="post" action="/api/join" novalidate>
+      <label><span>First name <i>optional</i></span><input name="name" autocomplete="given-name" maxlength="60" enterkeyhint="next"></label>
+      <label><span>Email</span><input name="email" type="email" inputmode="email" autocomplete="email" required maxlength="254" placeholder="you@example.com" enterkeyhint="send"></label>
+      <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
+      <input type="hidden" name="ref">
+      <button class="slab go"><b>Join the waitlist</b></button>
+      <p class="note" role="alert"></p>
+      <div class="done" hidden><span class="ball b8" aria-hidden="true"><i>8</i></span><b>You are on the list.</b></div>
     </form>
   </div>
-  <canvas id="hero" class="table" role="img" aria-label="A pool table: the cue ball breaks a rack of fifteen balls."></canvas>
 </header>
 
 <main>
-<section class="wrap lab" id="lab">
+<section class="lab" id="lab">
   <h2>Tilt the cue.</h2>
-  <p class="lede">Jump a ball. Bend around one. This table runs the game's own physics: try it.</p>
-  <div class="bench">
-    <div class="stage">
-      <canvas id="table" class="table" role="img" aria-label="Practice table. Tap the table to aim, then press Shoot."></canvas>
-      <p class="say" id="say" role="status" aria-live="polite"></p>
-    </div>
-    <div class="controls">
-      <div class="keys" role="radiogroup" aria-label="Shot" id="presets"></div>
-      <div class="row tilt">
-        <canvas id="side" width="208" height="150" aria-hidden="true"></canvas>
-        <label class="grow"><span>Cue angle <b id="zone"></b></span><input id="elev" type="range" min="0" max="80" step="1"></label>
-      </div>
-      <div class="row">
-        <div class="spin" id="spin" role="img" aria-label="Spin: drag the dot to choose where the tip meets the cue ball"><i id="dot"></i></div>
-        <div class="grow">
-          <label><span>Aim</span><input id="aim" type="range" min="-45" max="45" step="0.25"></label>
-          <label><span>Power</span><input id="power" type="range" min="0.1" max="1" step="0.01"></label>
-        </div>
-      </div>
-      <button class="slab cream go" id="shoot"><b>Shoot</b></button>
-    </div>
+  <div class="keys" role="radiogroup" aria-label="Shot" id="presets"></div>
+  <div class="rig"><canvas id="table-felt" aria-hidden="true"></canvas><canvas id="table" role="img" aria-label="Practice table. Tap the table to aim, then press Shoot."></canvas></div>
+  <div class="console slab">
+    <div class="cell tilt"><canvas id="side" width="208" height="150" aria-hidden="true"></canvas><label><span>Cue angle <b id="zone"></b></span><input id="elev" type="range" min="0" max="80" step="1"></label></div>
+    <div class="cell"><div class="spin" id="spin" role="img" aria-label="Spin: drag the dot to choose where the tip meets the cue ball"><i id="dot"></i></div></div>
+    <label class="cell"><span>Aim</span><input id="aim" type="range" min="-45" max="45" step="0.25"></label>
+    <label class="cell"><span>Power</span><input id="power" type="range" min="0.1" max="1" step="0.01"></label>
+    <button class="slab cream go" id="shoot"><b>Shoot</b></button>
   </div>
+  <p class="sr" id="say" role="status" aria-live="polite"></p>
 </section>
 
-<section class="wrap modes">
-  <h2>What is in the box.</h2>
-  <ul class="deal">
-    <li class="slab cream"><b>Quick match</b><span>8-ball and 9-ball against an AI that banks, plays combos and learns your game.</span><span class="ball b8"><i>8</i></span></li>
-    <li class="slab m2"><b>Daily Table</b><span>One new table every day.</span><span class="ball b2"><i>2</i></span></li>
-    <li class="slab m3"><b>Scenarios</b><span>108 trick tables. 324 stars.</span><span class="ball b3"><i>3</i></span></li>
-    <li class="slab m4"><b>Learn</b><span>Lessons that start at the ghost ball.</span><span class="ball b4"><i>4</i></span></li>
-    <li class="slab m5"><b>Pass and play</b><span>Two players, one phone.</span><span class="ball b5"><i>5</i></span></li>
-    <li class="slab m6"><b>Cues</b><span>17 to earn. None for sale with real money.</span><span class="ball b6"><i>6</i></span></li>
+<section class="modes">
+  <h2>In the box.</h2>
+  <ul>
+    <li class="slab cream"><b>Quick match</b><span>8-ball and 9-ball</span><i class="ball b8"><i>8</i></i></li>
+    <li class="slab m2"><b>Daily Table</b><span>New every day</span><i class="ball b2"><i>2</i></i></li>
+    <li class="slab m3"><b>Scenarios</b><span>324 stars to win</span><i class="ball b3"><i>3</i></i></li>
+    <li class="slab m4"><b>Learn</b><span>Ghost ball to massé</span><i class="ball b4"><i>4</i></i></li>
+    <li class="slab m5"><b>Pass and play</b><span>Two on one phone</span><i class="ball b5"><i>5</i></i></li>
+    <li class="slab m6"><b>Cues</b><span>17 to win</span><i class="ball b6"><i>6</i></i></li>
   </ul>
 </section>
 
 <section class="cues">
-  <div class="wrap"><h2>17 wild cues.</h2><p class="lede">Each one plays differently. Win them with coins and feats.</p></div>
-  <ul class="hand" id="hand" tabindex="0" aria-label="The cues"></ul>
+  <h2>17 wild cues.</h2>
+  <div class="pick"><b id="cue-name"></b>
+    <div class="bars" id="cue-bars"><span>Power</span><u role="img"></u><span>Spin</span><u role="img"></u><span>Aim</span><u role="img"></u></div>
+  </div>
+  <div class="rack" id="rack" role="group" aria-label="The cues"></div>
 </section>
 
-<section class="wrap last">
-  <div class="slab m2 price"><h2>Pay once.<br>No ads.</h2><p>No coins to buy. No loot boxes. No timers.</p></div>
-  <div class="again">
-    <h2>Be there for the break.</h2>
-    <form class="join slab cream" method="post" action="/api/join" novalidate>
-      <div class="fields">
-        <label><span>First name <i>optional</i></span><input name="name" autocomplete="given-name" maxlength="60" enterkeyhint="next"></label>
-        <label><span>Email</span><input name="email" type="email" inputmode="email" autocomplete="email" required maxlength="254" placeholder="you@example.com" enterkeyhint="send"></label>
-        <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
-        <input type="hidden" name="ref">
-      </div>
-      <button class="slab ink go"><b>Join the waitlist</b></button>
-      <p class="note" role="status" aria-live="polite">One email, the day it is on the App Store.</p>
-      <div class="done" hidden><span class="ball b8" aria-hidden="true"><i>8</i></span><div><b>You are on the list.</b><span>We will write once, on launch day.</span></div></div>
+<section class="last">
+  <h2><span>Pay once.</span> <span>No ads.</span></h2>
+  <div class="card">
+    <form class="join" method="post" action="/api/join" novalidate>
+      <label><span>First name <i>optional</i></span><input name="name" autocomplete="given-name" maxlength="60" enterkeyhint="next"></label>
+      <label><span>Email</span><input name="email" type="email" inputmode="email" autocomplete="email" required maxlength="254" placeholder="you@example.com" enterkeyhint="send"></label>
+      <label class="hp" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
+      <input type="hidden" name="ref">
+      <button class="slab go"><b>Join the waitlist</b></button>
+      <p class="note" role="alert"></p>
+      <div class="done" hidden><span class="ball b8" aria-hidden="true"><i>8</i></span><b>You are on the list.</b></div>
     </form>
   </div>
 </section>
 </main>
 
-<footer class="wrap"><p>Runout: All about Pool. For iPhone, not out yet.</p><p>We keep your first name and email only to tell you when it is out.</p></footer>
+<footer><p>Runout: All about Pool. For iPhone, not out yet. Your name and email are kept only to tell you when it is.</p></footer>
 <script type="module" src="/app.js"></script>
 </body>
 </html>
