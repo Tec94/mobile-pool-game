@@ -42,3 +42,7 @@ yarn-error.*
 
 # default output of npm run frames
 ball-frames/
+
+# waitlist site: wrangler state and the bundle esbuild makes
+site/.wrangler/
+site/public/app.js
