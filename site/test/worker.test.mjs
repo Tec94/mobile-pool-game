@@ -3,8 +3,9 @@ import { test } from 'node:test';
 import { join } from '../worker.js';
 
 const rows = [];
-const env = { DB: { prepare: () => ({ bind: (...v) => ({ run: async () => { if (!rows.some(r => r[0] === v[0])) rows.push(v); } }) }) } };
-const post = (body, type = 'application/json') => join(new Request('https://x.test/api/join', { method: 'POST', headers: { 'content-type': type }, body }), env);
+let tries = 0;
+const env = { LIMIT: { limit: async () => ({ success: ++tries <= 100 }) }, DB: { prepare: () => ({ bind: (...v) => ({ run: async () => { if (!rows.some(r => r[0] === v[0])) rows.push(v); } }) }) } };
+const post = (body, type = 'application/json', more = {}) => join(new Request('https://x.test/api/join', { method: 'POST', headers: { 'content-type': type, ...more }, body }), env);
 
 test('stores a signup once, in lower case, name optional', async () => {
   assert.equal((await post(JSON.stringify({ email: ' Jo@Example.com ', name: 'Jo', ref: 'ig' }))).status, 200);
@@ -24,4 +25,14 @@ test('a plain form post is stored and sent back to the page', async () => {
   const r = await post('email=a%40b.co&name=', 'application/x-www-form-urlencoded');
   assert.equal(r.status, 303); assert.match(r.headers.get('location'), /joined=1/);
   assert.equal(rows.length, 2); assert.equal(rows[1][1], null);
+});
+test('a post from another site is refused, one from the page is not', async () => {
+  assert.equal((await post('{"email":"c@d.co"}', 'application/json', { origin: 'https://evil.test' })).status, 403);
+  assert.equal((await post('{"email":"c@d.co"}', 'application/json', { origin: 'https://x.test' })).status, 200);
+  assert.equal(rows.length, 3);
+});
+test('past the limit nothing is stored', async () => {
+  tries = 100;
+  assert.equal((await post('{"email":"e@f.co"}')).status, 429);
+  assert.equal(rows.length, 3);
 });
