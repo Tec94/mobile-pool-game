@@ -18,9 +18,9 @@ function stick(api: typeof Skia, canvas: SkCanvas, ax: number, ay: number, bx: n
     canvas.drawPath(api.Path.Polygon([at(from, 1), at(to, 1), at(to, -1), at(from, -1)], true), fill(api, hex));
 }
 
-// A real cue (Jack 2026-11-16: 0.48 m read as too short on the phone): 1.47 m, 13 mm tip to 30 mm butt; 1.2 cm tip,
-// 2.5 cm ferrule, maple shaft and forearm, the wrap in the lower butt and a maple butt cap, so the end still shows off the table.
-const LEN = 1.47, CUE_PARTS: Part[] = [[0, 0.008, C.accent], [0.008, 0.025, C.white], [0.025, 0.66, C.frame], [0.66, 0.88, C.ink], [0.88, 1, C.frame]];
+// A real cue's look (Jack 2026-11-16: 0.48 m too short, 1.47 m way too long; ~75% of real): 1.10 m, 13 mm tip to 30 mm butt;
+// tip, ferrule, maple shaft and forearm, the wrap in the lower butt and a maple butt cap, so the end still shows off the table.
+const LEN = 1.1, CUE_PARTS: Part[] = [[0, 0.008, C.accent], [0.008, 0.025, C.white], [0.025, 0.66, C.frame], [0.66, 0.88, C.ink], [0.88, 1, C.frame]];
 // The cue on the table, behind the cue ball at (x, y) along the aim and pulled back by the power (0..1).
 // shortcut: seen from above at full length whatever the elevation; the side picture in the tip sheet shows the tilt.
 export function drawCue(api: typeof Skia, canvas: SkCanvas, v: View, x: number, y: number, ang: number, power: number) {
