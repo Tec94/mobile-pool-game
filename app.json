@@ -104,6 +104,12 @@
           }
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "2e778a00-0f84-49e4-b0c0-b1d1329af034"
+      }
+    },
+    "owner": "jackcao"
   }
 }
