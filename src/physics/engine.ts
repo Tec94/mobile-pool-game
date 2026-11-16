@@ -76,10 +76,10 @@ export function rack(game:Game,g=2*P.R+3e-4,play=(g-2*P.R)/3){
   RACKS[game].forEach((r,i)=>r.forEach((id,k)=>out.push([id,0.75*P.L+(i-(game===9?2:0))*g*Math.cos(Math.PI/6)+off(),P.W/2+(k-(r.length-1)/2)*g+off()])));
   return out;
 }
-// Where the cue ball starts for the break: on the head string, 11 cm from the side cushion, where real players break from.
+// Where the cue ball starts for the break: the head spot, centre of the head string (Jack's call 2026-11-16).
 // Measured on this table (1,500 breaks a spot, power 75 to 100%, aim within half a degree of the head ball): a break from
-// here pots a ball with no foul on 35% of 8-ball breaks and 62% of 9-ball breaks; from the middle of the head string, 27% and 48%.
-export const breakSpot=():[number,number]=>[P.L/4,P.W-0.11];
+// here pots a ball with no foul on 27% of 8-ball breaks and 48% of 9-ball breaks; from 11 cm off the side cushion, 35% and 62%.
+export const breakSpot=():[number,number]=>[P.L/4,P.W/2];
 
 // A ball meets the slate at downward speed -vz: it rebounds at e times that, and cloth friction acts on the slipping
 // contact point for the length of the impact (impulse mu * normal impulse, capped at the no-slip value).
