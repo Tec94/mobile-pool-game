@@ -9,20 +9,23 @@ import type { Inset, View } from './table.ts';
 const fill = (api: typeof Skia, hex: string, a = 1) => { const p = api.Paint(); p.setAntiAlias(true); p.setColor(api.Color(hex)); p.setAlphaf(a); return p; };
 // A cue from its tip (ax, ay) to the end of its butt (bx, by), w0 wide at the tip and w1 at the butt: the chalked tip,
 // the ferrule, the maple shaft and the dark wrap, the same parts as the approved rail picture.
-function stick(api: typeof Skia, canvas: SkCanvas, ax: number, ay: number, bx: number, by: number, w0: number, w1: number) {
+type Part = [from: number, to: number, hex: string]; // a band of the cue, as fractions of its length from the tip
+const RAIL_PARTS: Part[] = [[0.6, 1, C.ink], [0.035, 0.6, C.frame], [0.015, 0.035, C.white], [0, 0.015, C.accent]];
+function stick(api: typeof Skia, canvas: SkCanvas, ax: number, ay: number, bx: number, by: number, w0: number, w1: number, parts = RAIL_PARTS) {
   const len = Math.hypot(bx - ax, by - ay), ux = (bx - ax) / len, uy = (by - ay) / len;
   const at = (t: number, side: number) => { const h = side * (w0 + (w1 - w0) * t) / 2; return { x: ax + ux * len * t - uy * h, y: ay + uy * len * t + ux * h }; };
-  for (const [from, to, hex] of [[0.6, 1, C.ink], [0.035, 0.6, C.frame], [0.015, 0.035, C.white], [0, 0.015, C.accent]] as [number, number, string][])
+  for (const [from, to, hex] of parts)
     canvas.drawPath(api.Path.Polygon([at(from, 1), at(to, 1), at(to, -1), at(from, -1)], true), fill(api, hex));
 }
 
-// LEN: a real cue is ~1.47 m, but drawn that long from above it covered too much of the table; 0.48 m reads as a cue and stays clear.
-const LEN = 0.48;
+// A real cue (Jack 2026-11-16: 0.48 m read as too short on the phone): 1.47 m, 13 mm tip to 30 mm butt; 1.2 cm tip,
+// 2.5 cm ferrule, maple shaft and forearm, the wrap in the lower butt and a maple butt cap, so the end still shows off the table.
+const LEN = 1.47, CUE_PARTS: Part[] = [[0, 0.008, C.accent], [0.008, 0.025, C.white], [0.025, 0.66, C.frame], [0.66, 0.88, C.ink], [0.88, 1, C.frame]];
 // The cue on the table, behind the cue ball at (x, y) along the aim and pulled back by the power (0..1).
 // shortcut: seen from above at full length whatever the elevation; the side picture in the tip sheet shows the tilt.
 export function drawCue(api: typeof Skia, canvas: SkCanvas, v: View, x: number, y: number, ang: number, power: number) {
   const ux = Math.cos(ang), uy = Math.sin(ang), gap = P.R + 0.0015 + power * 0.22, a = toScreen(v, x - ux * gap, y - uy * gap), b = toScreen(v, x - ux * (gap + LEN), y - uy * (gap + LEN));
-  stick(api, canvas, a.x, a.y, b.x, b.y, Math.max(2, 0.012 * v.s), Math.max(3, 0.026 * v.s));
+  stick(api, canvas, a.x, a.y, b.x, b.y, Math.max(2, 0.013 * v.s), Math.max(3, 0.03 * v.s), CUE_PARTS);
 }
 
 // The rail and the dial are slabs: a face on a solid lip of a darker colour under it, squared corners, no outline.
