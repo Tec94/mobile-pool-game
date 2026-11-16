@@ -6,6 +6,10 @@ export async function join(req, env) {
   const json = (req.headers.get('content-type') || '').includes('json');
   const reply = (ok, status, error) => (json ? Response.json({ ok, error }, { status })
     : Response.redirect(new URL(ok ? '/?joined=1#join' : '/?error=1#join', req.url), 303));
+  // Another site's page must not post here in a visitor's name, and one address gets five tries a minute.
+  const origin = req.headers.get('origin');
+  if (origin && origin !== new URL(req.url).origin) return reply(false, 403, 'origin');
+  if (!(await env.LIMIT.limit({ key: req.headers.get('cf-connecting-ip') || 'none' })).success) return reply(false, 429, 'slow');
   if (+req.headers.get('content-length') > 4000) return reply(false, 413, 'size');
   const form = json ? await req.json().catch(() => null) : await req.formData().then(Object.fromEntries, () => null);
   if (!form || typeof form !== 'object') return reply(false, 400, 'body');
@@ -17,7 +21,7 @@ export async function join(req, env) {
   await env.DB.prepare('INSERT INTO signups (email, name, ref, country, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(email) DO NOTHING')
     .bind(email, text(form.name, 60) || null, text(form.ref, 40) || null, req.cf?.country || null, new Date().toISOString()).run();
   return reply(true, 200);
-  // shortcut: no rate limit, so a script can fill the table with made-up addresses; add Turnstile or a rate limit rule if junk shows up.
+  // shortcut: the limit is per address and per Cloudflare location, so many addresses can still add made-up emails; add Turnstile if junk shows up.
 }
 
 export default {
