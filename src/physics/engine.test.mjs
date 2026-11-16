@@ -366,13 +366,13 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   CUE.squirt = 0; CUE.minElev = 0;
   console.log(`swerve ok (full side spin leaves at ${(fast.leave * D).toFixed(2)} deg and bends ${bend.toFixed(2)}; 1 m on, ${(slow.shift * 1e3).toFixed(0)} mm off the aim line slow, ${(fast.shift * 1e3).toFixed(0)} fast; full break hops ${(brk.apex * 1e3).toFixed(1)} mm, lands after ${brk.land.toFixed(2)} m)`); }
 
-// 30. The break spot: on the head string, clear of the side cushion, and from it the break pots at a believable rate.
+// 30. The break spot: centred on the head string, and from it the break pots at a believable rate.
 // 120 breaks a game with the real cue, power 75 to 100%, aimed within half a degree of the head ball. The floors are
-// well under the measured rates (35% of 8-ball breaks and 62% of 9-ball breaks pot a ball with no foul), so they catch
+// well under the measured rates (27% of 8-ball breaks and 48% of 9-ball breaks pot a ball with no foul), so they catch
 // a break that has stopped working, not a small change.
 { CUE.squirt = SQUIRT; CUE.minElev = TILT;
   const [x, y] = breakSpot(), rate = [], N = 120;
-  assert(x === L / 4 && y > W / 2 + 0.3 && y < W - 3 * R, 'the break spot is on the head string, to one side, clear of the cushion');
+  assert(x === L / 4 && y === W / 2, 'the break spot is the head spot: on the head string, centred');
   for (const [game, floor] of [[8, 0.2], [9, 0.4]]) { let good = 0; const [, hx, hy] = rack(game, undefined, 0)[0]; // the head ball
     for (let k = 0; k < N; k++) { const r = simulate([mk(x, y), ...rack(game).map(s => mk(s[1], s[2]))],
         { ang: Math.atan2(hy - y, hx - x) + ((k * 0.6180339887498949) % 1 - 0.5) * Math.PI / 180, speed: CUE.breakSpeed * (0.75 + 0.25 * (k + 0.5) / N), a: 0, b: 0 }, CUE, 60000);
