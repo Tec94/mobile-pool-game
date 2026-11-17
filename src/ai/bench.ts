@@ -2,9 +2,11 @@
 // from the app (hold Demo in the tools panel) or Node (scripts/ai-bench.mjs). It runs on the calling thread, so on the
 // phone it blocks the JS thread for the whole run. pick = the geometric search (decide), aim = the aim correction and
 // the rollouts on the engine (refine). One uncounted table runs first, so the first tier does not pay for the warm-up.
-import { type Ball, simulate } from '../physics/engine.ts';
+import { type Ball, type Ev, HOLES, P, simulate, step, strike } from '../physics/engine.ts';
+import { cushionAt, ENDS } from '../rules/rules.ts';
+import { holeOf, onLit } from './turn.ts';
 import { aiShot } from './aim.ts';
-import { NINE, randomLayout, rng, SOLIDS, STRIPES, type Tier, TIERS } from './shot-ai.ts';
+import { type Cand, NINE, randomLayout, rng, SOLIDS, STRIPES, type Tier, TIERS } from './shot-ai.ts';
 
 const pct = (a: number[], p: number) => a.slice().sort((x, y) => x - y)[Math.min(a.length - 1, Math.floor(a.length * p))];
 const ms = (a: number[]) => [0.5, 1].map((p) => pct(a, p).toFixed(1)).join('/');
@@ -45,4 +47,35 @@ export function visit(tier: Tier, seed: number, nine = false) {
     B = sim.balls.map((b) => ({ ...b, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0 }));
   }
   return { potted, clear, first, think };
+}
+
+// Make rate per shot type: on n seeded random 8-ball tables (5 a side, AI on solids) the AI may only try pots of one type
+// (ok) and must take a pot (safetiesInRow 2: no safety), and the engine says whether the ball dropped where it was called. 'lit' = Bank shots mode with a random lit pair.
+// Same tables for every tier, so the rates compare. Run with scripts/ai-types.mjs.
+export const TYPES = ['direct', 'bank', 'kick', 'combo', 'carom', 'billiard', 'lit'] as const;
+export function makeRates(tier: Tier, n: number, types: readonly (typeof TYPES)[number][] = TYPES, safeties = 2) {
+  const out = Object.fromEntries(types.map((t) => [t, { tries: 0, made: 0, est: 0, shots: [] as { type: string; tol: number; made: boolean }[] }]));
+  for (let i = 0; i < n; i++) for (const type of types) {
+    const rnd = rng(5000 + i), { cue, balls } = randomLayout(rnd, 5), B = [cue, ...balls].map(mk), ids = [0, ...balls.map((b) => b.id)];
+    const k = Math.floor(rnd() * 6), lit = [k, (k + 1) % 6];
+    const ok = type === 'lit' ? (c: Cand) => onLit(lit, c) : (c: Cand) => c.type === type;
+    const r = aiShot(B, ids, SOLIDS, STRIPES, tier, rng(9000 + i), safeties, ok), pick = r.pick;
+    if (pick.type === 'safety' || pick.type === 'foul' || (type !== 'lit' && pick.type !== type)) continue;
+    const o = out[type]; o.tries++; o.est += pick.p;
+    const S = B.map((b) => ({ ...b })), ev: Ev[] = [], hole = holeOf(pick), j = ids.indexOf(pick.ball);
+    let first = -1, pocket = -1, scratch = false, banked = false;
+    strike(S[0], r.shot);
+    for (let s = 0; s < 30000 && step(S, ev); s++) {
+      for (const e of ev) {
+        if (e.t === 'bb' && e.a === 0 && first < 0) first = e.b!;
+        if (e.t === 'pocket' && e.a === 0) scratch = true;
+        if (e.t === 'pocket' && e.a === j) pocket = HOLES.reduce((m, h, q) => ((h[0] - e.x!) ** 2 + (h[1] - e.y!) ** 2 < (HOLES[m][0] - e.x!) ** 2 + (HOLES[m][1] - e.y!) ** 2 ? q : m), 0);
+        if (e.t === 'rail' && (e.a === j || (e.a === 0 && first < 0))) { const c = cushionAt(e.x!, e.y!, 1.5 * P.R); if (lit.includes(c) && (e.a === 0 || !ENDS[c].includes(hole))) banked = true; }
+      }
+      ev.length = 0;
+    }
+    const made = first >= 0 && SOLIDS.includes(ids[first]) && pocket === hole && !scratch && (type !== 'lit' || banked);
+    o.made += +made; o.shots.push({ type: pick.type, tol: pick.tol, made });
+  }
+  return out;
 }

@@ -1,7 +1,7 @@
 // Run: npm test   (checks the rules against the WPA Rules of Play, 2026-10-21; rule numbers are that edition's)
 import assert from 'node:assert';
 import { P, rack, step, strike } from '../physics/engine.ts';
-import { canCall, choose, handCue, judge, legalFirst, legalSpot, lowest, moveCue, newGame, newRec, onEight, record, setCall, spotBall } from './rules.ts';
+import { canCall, choose, cushionAt, handCue, judge, legalFirst, legalSpot, lowest, moveCue, newGame, newRec, nose, onEight, record, setCall, spotBall } from './rules.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
@@ -138,6 +138,29 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
   { const ox = P.L / 2 - 0.3, oy = 0.3, ang = Math.atan2(-(oy + P.W), 0.3); // off the near long rail into the far side pocket
     r = play([mk(ox - 0.2 * Math.cos(ang), oy - 0.2 * Math.sin(ang)), mk(ox, oy)], [0, 3], { ang, speed: 2, a: 0, b: 0 });
     eq([r.pots.map(p => p.id), r.pots[0].pocket, r.cush], [[3], 5, [[3, 0]]], 'a bank off the near long rail into the far side pocket: the cushion it touched'); }
+  { // Bank shots end to end: the engine's bank above, judged with cushion 0 lit and with it dark
+    const ox = P.L / 2 - 0.3, oy = 0.3, ang = Math.atan2(-(oy + P.W), 0.3), shoot = id => play([mk(ox - 0.2 * Math.cos(ang), oy - 0.2 * Math.sin(ang)), mk(ox, oy)], [0, id], { ang, speed: 2, a: 0, b: 0 });
+    const s = { ...solids1(), bank: 2, callAll: true, call: 5 };
+    eq([judge({ ...s, lit: [0, 1] }, shoot(2)).turn, judge({ ...s, lit: [2, 3] }, shoot(2)).turn], [1, 0], 'a real bank off a lit cushion keeps the table; off a dark one the turn passes');
+    const e = { ...s, balls: [8, 9], lit: [5, 0] };
+    eq([judge(e, shoot(8)).winner, judge({ ...e, lit: [2, 3] }, shoot(8)).winner], [1, 0], 'the 8 banked off a lit cushion wins; off a dark one it loses');
+  }
+  { // every cushion is told apart: a cue ball driven into it anywhere along it, at any angle and pace, records that cushion
+    let bad = [];
+    for (let k = 0; k < 6; k++) {
+      const [a, b, c, d] = nose(k); let nx = b - d, ny = c - a; const l = Math.hypot(nx, ny); nx /= l; ny /= l;
+      if ((P.L / 2 - a) * nx + (P.W / 2 - b) * ny < 0) { nx = -nx; ny = -ny; } // into the table
+      for (const t of [0.08, 0.5, 0.92]) for (const deg of [-50, 0, 50]) for (const speed of [0.6, 4]) {
+        const px = a + (c - a) * t + nx * P.R, py = b + (d - b) * t + ny * P.R, th = Math.atan2(-ny, -nx) + deg * Math.PI / 180;
+        const x = px - 0.3 * Math.cos(th), y = py - 0.3 * Math.sin(th);
+        if (x < P.R || x > P.L - P.R || y < P.R || y > P.W - P.R) continue;
+        const r = play([mk(x, y)], [0], { ang: th, speed, a: 0, b: 0 });
+        if (!r.pots.length && (r.cush[0] || [])[1] !== k) bad.push([k, t, deg, speed, r.cush[0]]);
+      }
+    }
+    eq(bad, [], 'every cushion touch is recorded as its own cushion');
+    eq([cushionAt(P.L / 2, 0), cushionAt(0.01, 0)], [-1, -1], 'a pocket mouth is no cushion');
+  }
   r = play([mk(0.8, 0.4), mk(0.06, 0.06)], [0, 3], { ang: -1.91, speed: 2.5, a: 0, b: 0 });
   eq([r.first, r.cush[0]], [3, [0, 0]], 'a kick: the cushion the cue ball touched before the hit');
   r = play([mk(0.6, 0.6), mk(0.4, 0.4)], [0, 3], { ang: Math.atan2(-0.2, -0.2), speed: 3, a: 0, b: 0 }); assert(!r.cush.some(c => c[0] === 3), 'the jaws of a pocket are no cushion');

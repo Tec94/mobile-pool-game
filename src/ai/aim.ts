@@ -2,7 +2,7 @@
 // The AI's shot on the real engine: correct the picker's ghost-ball aim for throw, squirt and swerve, refine aim, speed
 // and tip with noise-free rollouts within the tier's budget, and turn a pick into an engine Shot with the tier's strike noise. Port of the ai-progression prototype (engine-aim.js) plus the glue.
 import { type Ball, CUE, type Ev, P, type Shot, step, strike } from '../physics/engine.ts';
-import { type Cand, decide, dist, enumerate, legalFor, nine, type Obj, type Pick, plays, POCKETS, potFor, potProb, type Pt, type Tier, winBall } from './shot-ai.ts';
+import { type Cand, decide, dist, enumerate, legalFor, nine, type Obj, type Pick, plays, POCKETS, potFor, type Pt, type Tier, tierProb, winBall } from './shot-ai.ts';
 
 // Direction the object ball actually leaves in, for a given strike. Stops at first contact.
 function departure(cue: Ball, obj: Ball, shot: Shot) {
@@ -97,7 +97,7 @@ function nextP(B: Ball[], S: Ball[], ids: number[], group: number[], tier: Tier)
   if (w > 0 && B[w].on && !S[w].on) return nine(group) || !balls.some((b) => group.includes(b.id)) ? 1 : -1;
   const legal = legalFor(balls, group), all = enumerate({ x: S[0].x * 1000, y: S[0].y * 1000 }, balls, legal, potFor(balls, group));
   const mine = all.filter((c) => plays(tier, c, balls));
-  return Math.max(0, ...(mine.length ? mine : all.filter((c) => c.type !== 'carom' && c.type !== 'billiard')).map((c) => potProb(c, tier.sigma * Math.PI / 180)));
+  return Math.max(0, ...(mine.length ? mine : all.filter((c) => c.type !== 'carom' && c.type !== 'billiard')).map((c) => tierProb(tier, c)));
 }
 type Roll = ReturnType<typeof rollout> & { shot: Shot; score: number; next: number };
 const SPEEDS = [1, 1.3, 0.8, 1.7, 0.65, 2.2, 0.5]; // a safety's speeds, tried in this order, times the starting speed
@@ -191,7 +191,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   const t2 = now(), g = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd()); // Box-Muller
   const tip = (x: number) => Math.max(-CUE.tipLimit, Math.min(CUE.tipLimit, x + g() * tier.tipErr)); // tipErr is in ball radii, as a and b are
   // side tip error squirts the cue ball off line (strike() adds a * squirt), so the aim itself scatters by the rest of sigma
-  const rad = tier.sigma * Math.PI / 180, aimSd = Math.sqrt(Math.max(0, rad * rad - (tier.tipErr * CUE.squirt) ** 2));
+  const rad = tier.sigma * (played.type === 'direct' || played.type === 'safety' ? 1 : tier.hard) * Math.PI / 180, aimSd = Math.sqrt(Math.max(0, rad * rad - (tier.tipErr * CUE.squirt) ** 2));
   const shot = { ang: aim.ang + g() * aimSd, speed: Math.min(CUE.maxSpeed, Math.max(0.5, aim.speed * (1 + g() * tier.speedErr / 100))), a: tip(0), b: tip(aim.b) };
   return { shot, aim, pick: played, ms: [t1 - t0, t2 - t1] };
 }
