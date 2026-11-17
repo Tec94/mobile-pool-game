@@ -215,3 +215,18 @@ const heads = (from, G, X, T, slide = 0) => { const e = rollsOff(from, G, X, sli
   near(planned, 0.25, 'turns planned at 2.5 = the share alone, not share x the depth draw');
   ok('aiParams: a rating on the tier scale gives the dials, a whole one its tier');
 }
+{ // Every shot type gets harder to miss tier by tier, in the planner's eyes as on the engine (npm run bench:types)
+  const rnd = S.rng(11), seen = {};
+  for (let i = 0; i < 300; i++) {
+    const { cue, balls } = S.randomLayout(rnd, 4);
+    for (const c of S.enumerate(cue, balls, [1, 2, 3, 4])) seen[c.type] ??= c;
+  }
+  for (const type of ['direct', 'bank', 'kick', 'combo', 'carom', 'billiard']) {
+    assert(seen[type], `a ${type} on some table`);
+    const p = S.TIERS.map((t) => S.tierProb(t, seen[type]));
+    assert(p.every((x, i) => !i || x > p[i - 1]), `${type}: each tier more likely than the one below (${p.map((x) => x.toFixed(3))})`);
+  }
+  for (const k of [0, 1]) assert(S.TIERS.every((t, i) => !i || t.rail[k] < S.TIERS[i - 1].rail[k]), `cushion error ${k ? 'kick' : 'bank'} falls every tier`);
+  assert(S.TIERS.every((t, i) => !i || t.sigma * t.hard < S.TIERS[i - 1].sigma * S.TIERS[i - 1].hard), 'combo and carom aim error falls every tier');
+  ok('tierProb rises every tier for every shot type');
+}
