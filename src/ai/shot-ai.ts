@@ -19,15 +19,15 @@ export interface Planned extends Cand { p: number; score: number; value: number;
 // G, v and u are kept on a safety (the prototype dropped them) so the engine glue maps it like a pot.
 export interface Safety { type: 'safety'; ball: number; aim: number; paths: Pt[][]; leave: Leave; oppBest: number; hooked: boolean; G: Pt; v: Pt; u: Pt }
 export type Pick = Planned | Safety | { type: 'foul' };
-export interface Tier { name: string; sigma: number; types: ShotType[]; flair: number; temp: number; depth: number; planShare?: number; wPos: number; posErr: number; speedErr: number; tipErr: number; ctrl: number; wLeave: number; rack?: boolean; safetyAngles: number[]; budget: number; tries?: number; caromGap: number }
+export interface Tier { name: string; sigma: number; types: ShotType[]; flair: number; temp: number; depth: number; planShare?: number; wPos: number; posErr: number; speedErr: number; tipErr: number; ctrl: number; wLeave: number; rack?: boolean; safetyAngles: number[]; budget: number; tries?: number; caromGap: number; rail: [number, number]; hard: number }
 interface Pocket extends Pt { ax: [number, number]; m: number; c: number; back: number }
 interface Rail { k: 'x' | 'y'; v: number }
 
 // Margin kept after one cushion, measured on the engine (critique/probe5.js C, H). The window itself is 0.91 (bank) and 1.05 (kick)
 // of the mirror geometry, but the rebound angle moves with speed, so under a tier's own speed error 0.76 to 0.87 is what it pots at.
 export const RAIL_FACTOR = 0.8;
-// Aim error a cushion adds on top of the striker's, measured on the engine (scripts/ai-visit.mjs, Shark and Legend both
-// fit 0.3 degrees): with RAIL_FACTOR alone, banks and kicks potted 0.6 to 0.7 of the chance the planner gave them.
+// Aim error a cushion adds on top of the reference player's (SIGMA_REF), for pricing the opponent's reply and pay. The
+// AI's own tiers use their measured cushion error instead (Tier.rail, tierProb).
 const RAIL_SIGMA = 0.3 * Math.PI / 180;
 export const SIGMA_REF = 0.30 * Math.PI / 180; // "average player" aim error with a long aim line, used to price the reply of the opponent
 // Pocket model measured on the engine's WPA pockets (critique/probe5.js A). x, y = centre of the window a ball must
@@ -54,6 +54,12 @@ function erf(x: number) { // Abramowitz-Stegun 7.1.26, |error| < 1.5e-7
 export const makeProb = (tol: number, sigma: number) => erf(tol / (sigma * Math.SQRT2));
 // Chance a striker with aim error sigma (radians) pots shot s.
 export const potProb = (s: Cand, sigma: number) => makeProb(s.tol, s.type === 'bank' || s.type === 'kick' ? Math.hypot(sigma, RAIL_SIGMA) : sigma);
+// Chance this tier pots shot s, as the engine measures it (npm run bench:types): banks and kicks at the tier's own
+// cushion error (rail), any other shot but a straight pot at its aim error times hard.
+export function tierProb(tier: Tier, s: Cand) {
+  const d = Math.PI / 180;
+  return makeProb(s.tol, s.type === 'bank' ? tier.rail[0] * d : s.type === 'kick' ? tier.rail[1] * d : tier.sigma * (s.type === 'direct' ? 1 : tier.hard) * d);
+}
 
 // Half-width of the window a ball arriving along `dir` must pass through, or 0 if it cannot drop.
 export function slack(pk: Pocket, dir: Pt) {
@@ -239,14 +245,22 @@ function leaves(G: Pt, v: Pt, u: Pt, balls: Obj[], ignore: number[], powers = PO
 // mistake): at 150-200 tables 1.31, 1.75, 2.61, 3.81, 5.25, 6.21 in 8-ball (clears 0, 2, 2, 10, 30, 46%), 0.40, 0.51,
 // 0.70, 1.41, 2.57, 3.99 in 9-ball. With no noise at all Legend runs 6.45 and clears 65%: the planner's ceiling.
 // Keep tipErr x CUE.squirt (rad) at or under sigma: aim.ts takes the squirt out of the aim error, and past sigma it is all squirt.
+// rail = the aim error (degrees) a bank and a kick really pot at, fitted on the engine (npm run bench:types): Rookie and
+// Regular have no engine time to correct a cushion, so theirs is large; Pro and Legend refine it out. hard = aim error
+// times this on any pot but a straight one (Rookie, Regular), so those rise every tier too. Make % at 200-450 tables, each
+// type forced (Rookie..Legend): straight 62 74 78 88 94 99, bank 8 12 24 35 46 65, kick 7 9 21 33 58 78, combo 5 12 15 23
+// 34 54, Bank shots mode 6 9 14 31 44 70, carom (Hustler up) 29 29 38 66, billiard (Shark up) 13 24 42. The planner's
+// chance matches within a few points, but for caroms and billiards, which it rates at 0.6 of what Shark and up make.
+// Hustler's speedErr of 6 (not 8): a forced bank's rebound swings with speed (lit cushions 11% at 8).
+// Balls a visit after this (2026-11-17, 200 tables): 8-ball 1.32 1.69 2.62 3.64 5.08 6.01, 9-ball 0.48 0.64 0.96 1.57 2.73 4.64.
 // Shark's budget of 12 (not 17) and Pro's wLeave of 0.6 (not 0.9: fewer safeties) keep Shark, Pro and Legend apart.
 export const TIERS: Tier[] = [
-  { name: 'Rookie',  sigma: 0.52, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1, caromGap: 0 },
-  { name: 'Regular', sigma: 0.42, types: ['direct', 'bank'],                  flair: 0.03, temp: 0.08, depth: 0, wPos: 0,   posErr: 0.16, speedErr: 12, tipErr: 0.08, ctrl: 1, wLeave: 0, safetyAngles: [], budget: 2, caromGap: 0 },
-  { name: 'Hustler', sigma: 0.34, types: ['direct', 'bank', 'combo', 'carom'], flair: 0.05, temp: 0.08, depth: 1, planShare: 0.5, wPos: 0.5, posErr: 0.11, speedErr: 8, tipErr: 0.06, ctrl: 1, wLeave: 0.3, safetyAngles: [0], budget: 9, caromGap: 60 },
-  { name: 'Shark',   sigma: 0.20, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.05, temp: 0.04, depth: 1, tries: 2, wPos: 0.8, posErr: 0.08, speedErr: 5, tipErr: 0.035, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-30, 0, 30], budget: 12, caromGap: 10000 },
-  { name: 'Pro',     sigma: 0.12, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.04, temp: 0.02, depth: 1, tries: 3, wPos: 0.9, posErr: 0.05, speedErr: 2.5, tipErr: 0.02, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 24, caromGap: 10000 },
-  { name: 'Legend',  sigma: 0.05, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1,   posErr: 0.03, speedErr: 1, tipErr: 0.01, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 33, caromGap: 10000 },
+  { name: 'Rookie',  sigma: 0.52, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1, caromGap: 0, rail: [0.91, 1.43], hard: 1.5 },
+  { name: 'Regular', sigma: 0.42, types: ['direct', 'bank'],                  flair: 0.03, temp: 0.08, depth: 0, wPos: 0,   posErr: 0.16, speedErr: 12, tipErr: 0.08, ctrl: 1, wLeave: 0, safetyAngles: [], budget: 2, caromGap: 0, rail: [0.76, 1.29], hard: 1.2 },
+  { name: 'Hustler', sigma: 0.34, types: ['direct', 'bank', 'combo', 'carom'], flair: 0.05, temp: 0.08, depth: 1, planShare: 0.5, wPos: 0.5, posErr: 0.11, speedErr: 6, tipErr: 0.06, ctrl: 1, wLeave: 0.3, safetyAngles: [0], budget: 9, caromGap: 60, rail: [0.39, 0.63], hard: 1 },
+  { name: 'Shark',   sigma: 0.20, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.05, temp: 0.04, depth: 1, tries: 2, wPos: 0.8, posErr: 0.08, speedErr: 5, tipErr: 0.035, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-30, 0, 30], budget: 12, caromGap: 10000, rail: [0.22, 0.34], hard: 1 },
+  { name: 'Pro',     sigma: 0.12, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.04, temp: 0.02, depth: 1, tries: 3, wPos: 0.9, posErr: 0.05, speedErr: 2.5, tipErr: 0.02, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 24, caromGap: 10000, rail: [0.14, 0.16], hard: 1 },
+  { name: 'Legend',  sigma: 0.05, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1,   posErr: 0.03, speedErr: 1, tipErr: 0.01, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 33, caromGap: 10000, rail: [0.07, 0.08], hard: 1 },
 ];
 // The AI for a rating s on the tier scale (1 Rookie .. 6 Legend; the Rival plays 0.5 to 6.5): numeric dials on the line
 // through the two nearest rows, past 1 and 6 along the end pair's slope. Whole settings come from the upper row with
@@ -262,7 +276,7 @@ export function aiParams(s: number, rnd?: () => number): Tier {
   return {
     ...w, sigma: at(lo.sigma, hi.sigma), speedErr: at(lo.speedErr, hi.speedErr), tipErr: at(lo.tipErr, hi.tipErr), posErr: at(lo.posErr, hi.posErr),
     flair: at(lo.flair, hi.flair), temp: at(lo.temp, hi.temp), wPos: Math.min(1, at(lo.wPos, hi.wPos)), wLeave: Math.min(1, at(lo.wLeave, hi.wLeave)),
-    planShare: Math.min(1, at(share(lo), share(hi))), budget: Math.max(1, at(lo.budget, hi.budget)), depth: lo.depth ? w.depth : hi.depth,
+    planShare: Math.min(1, at(share(lo), share(hi))), rail: [at(lo.rail[0], hi.rail[0]), at(lo.rail[1], hi.rail[1])], hard: at(lo.hard, hi.hard), budget: Math.max(1, at(lo.budget, hi.budget)), depth: lo.depth ? w.depth : hi.depth,
   };
 }
 // 9-ball: pass NINE as the group for both sides. The lowest ball must be hit first, any ball may drop, the 9 wins.
@@ -293,14 +307,14 @@ export function plays(tier: Tier, s: Cand, balls: Obj[]) {
 }
 // ok = the pots this shot may try (bank shots: a bank or kick off a lit cushion); the shots after it are not filtered.
 export function plan(cue: Pt, balls: Obj[], group: number[], tier: Tier, depth: number, width: number, oppGroup?: number[], kisses = true, ok?: (c: Cand) => boolean): Planned[] {
-  const sigma = tier.sigma * Math.PI / 180, win = winBall(group);
+  const win = winBall(group);
   let cands = enumerate(cue, balls, legalFor(balls, group), potFor(balls, group), kisses);
   if (ok) cands = cands.filter(ok);
   const inRepertoire = cands.filter((s) => plays(tier, s, balls));
   // outside the repertoire only when nothing else exists, and never a carom or a billiard
   cands = inRepertoire.length ? inRepertoire : cands.filter((s) => s.type !== 'carom' && s.type !== 'billiard');
   const shots: Planned[] = cands.map((s) => {
-    const p = potProb(s, sigma);
+    const p = tierProb(tier, s);
     return { ...s, p, value: 0, score: p * (s.ball === win ? WIN : 1) * (1 + (s.type === 'direct' || s.type === 'kick' ? 0 : tier.flair)) };
   }).sort((a, b) => b.score - a.score).slice(0, width);
   for (const s of shots) {
