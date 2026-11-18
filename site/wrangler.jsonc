@@ -7,5 +7,6 @@
   "d1_databases": [{ "binding": "DB", "database_name": "runout-waitlist", "database_id": "aa62e36e-f59a-492a-b17f-abad799fcdf0" }],
   // Five signups a minute from one address (worker.js). namespace_id is any number not used by another limiter in the account.
   "ratelimits": [{ "name": "LIMIT", "namespace_id": "2601", "simple": { "limit": 5, "period": 60 } }],
-  "build": { "command": "npm run build" }
+  "build": { "command": "npm run build" },
+  "observability": { "logs": { "enabled": true, "invocation_logs": true } }
 }
