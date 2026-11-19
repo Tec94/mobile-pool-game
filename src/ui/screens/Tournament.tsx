@@ -93,10 +93,11 @@ function TourSetup({ set, change, go, start }: Props & { start: (o: Opts) => voi
 // Match m of round r, k-th in its round.
 const matchOf = (size: number, r: number, k: number) => { let m = 0; for (let i = 0; i < r; i++) m += size >> (i + 1); return m + k; };
 const won = (run: Run, m: number) => { const r = run.res[m]; return r ? sides(run, m)[r.w] : null; };
-const ROW = 34, GAP = 2, BLOCK = 2 * ROW + GAP, UNIT = BLOCK + 8, LINE = 2; // eight players fit a phone in landscape
+const ROW = 34, GAP = 2, LINE = 2;
 
 function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { run: Run; again: () => void }) {
-  const { land, side, width } = useFrame(), panelW = usePanel(), R = rounds(run.opts.size), next = nextMatch(run);
+  const { land, side, width, height } = useFrame(), panelW = usePanel(), R = rounds(run.opts.size), next = nextMatch(run);
+  const row = land && height < 430 ? 28 : ROW, BLOCK = 2 * row + GAP, UNIT = BLOCK + 8; // short rows so eight players fit a phone in landscape
   const areaW = land ? width - 2 * side - panelW - 16 : width - 2 * side, gapX = land ? 20 : 12, colW = (areaW - (R - 1) * gapX) / R;
   const x = (r: number) => r * (colW + gapX), mid = (r: number, k: number) => (k + 0.5) * (1 << r) * UNIT - 7;
   const names = R === 3 ? (land ? ['Quarterfinal', 'Semifinal', 'Final'] : ['Quarters', 'Semis', 'Final']) : ['Semifinal', 'Final'];
@@ -106,14 +107,14 @@ function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { ru
     const m = matchOf(run.opts.size, r, k), y = mid(r, k) - BLOCK / 2, res = run.res[m];
     parts.push(<View key={`m${m}`} style={{ position: 'absolute', left: x(r), top: y, width: colW, gap: GAP }}>
       {sides(run, m).map((i, s) => {
-        if (i === null) return <View key={s} style={[styles.slot, styles.unknown]} accessible accessibilityLabel="Not decided yet" />;
+        if (i === null) return <View key={s} style={[styles.slot, styles.unknown, { height: row }]} accessible accessibilityLabel="Not decided yet" />;
         // A forfeit ends short of the race: the winner's box says W/O (walkover), the loser's is blank.
         const walk = !!res && Math.max(...res.score) < raceOf(run.opts.best), mark = res ? (walk ? (res.w === s ? 'W/O' : '–') : String(res.score[s])) : '';
         const e = run.field[i], you = !!e.human, foe = m === next && !you, lost = !!res && res.w !== s, gold = run.state === 'champion' && m === run.res.length - 1 && you;
         const paint = you ? CREAM[0] : foe ? MODE.tour[0] : '#EEF2EA14', ink = you ? C.ink : C.chalk;
         return (
           <View key={s} accessible accessibilityLabel={`${e.name}${e.style ? `, ${NICK[e.style]}` : ''}${you ? '' : `, rating ${e.rating.toFixed(1)}`}${res ? `, ${walk ? (res.w === s ? 'won by forfeit' : 'forfeited') : res.score[s]}` : ''}${foe ? ', your next opponent' : ''}`}
-            style={[styles.slot, { backgroundColor: paint, opacity: lost ? 0.6 : 1 }]}>
+            style={[styles.slot, { height: row, backgroundColor: paint, opacity: lost ? 0.6 : 1 }]}>
             <View style={{ flex: 1, gap: 2 }}>
               <View style={styles.row}><Txt numberOfLines={1} style={[styles.slotName, { color: ink }]}>{e.name}</Txt>{e.style && <Glyph id={e.style} size={11} color={ink} />}</View>
               {!you && <Bars rating={e.rating} color={ink} w={6} />}
@@ -215,7 +216,7 @@ const styles = StyleSheet.create({
   lockText: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 13, color: C.chalk, opacity: 0.7 },
   head: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, letterSpacing: 0.6, textTransform: 'uppercase', color: C.chalk, opacity: 0.6 },
   prizeNote: { fontFamily: FONT.semi, fontSize: 11.5, lineHeight: 15, color: C.chalk, opacity: 0.75, textAlign: 'center' },
-  slot: { height: ROW, borderRadius: 3, paddingHorizontal: 7, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  slot: { borderRadius: 3, paddingHorizontal: 7, flexDirection: 'row', alignItems: 'center', gap: 4 },
   unknown: { backgroundColor: '#EEF2EA0A', borderWidth: 1, borderStyle: 'dashed', borderColor: '#EEF2EA26' },
   slotName: { fontFamily: FONT.bold, fontSize: 13, lineHeight: 15, flexShrink: 1 },
   score: { minWidth: 18, height: 18, borderRadius: 2, alignItems: 'center', justifyContent: 'center' },
