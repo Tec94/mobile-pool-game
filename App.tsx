@@ -658,7 +658,11 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
         <View style={[styles.sheet, styles.dim]} onStartShouldSetResponder={() => true}>
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>Paused</Text>
-            {!L && race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${tour ? `${tour.round} · pays ×${tour.stakes}\n` : ''}${names[0]} – ${names[1]}\n${score.current[0]} – ${score.current[1]}\nRace to ${race}`}</Text>}
+            {!L && (race > 1 || tour) && (
+              <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>
+                {[tour && `${tour.round} · pays ×${tour.stakes}`, race > 1 && `${names[0]} – ${names[1]}\n${score.current[0]} – ${score.current[1]}\nRace to ${race}`].filter(Boolean).join('\n')}
+              </Text>
+            )}
             <Act paint={CREAM} label="Resume" onPress={() => { setPaused(false); setSure(false); }} />
             {tour && !done ? <>
               <Act label="Save and leave" onPress={onQuit} />{/* every strike and ruling is saved: Play on the bracket picks the match up */}
