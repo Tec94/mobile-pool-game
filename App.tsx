@@ -30,9 +30,10 @@ import { candsFor, choiceFor, type Move, nextSafeties, potPay, type Safeties, sa
 import { type Cand, rng, TIERS } from './src/ai/shot-ai';
 import { type Ledger, newLedger, noteShot, type Pay, settle, type Settled } from './src/progress/pay';
 import type { StyleId } from './src/ai/styles';
-import { breakerOf, endMatch, type Live, medalOf, newRun, nextMatch, type Opts, plays, prize, raceOf, recordMatch, roundName, roundOf, roundTitle, type Run, sides, stakes, wins } from './src/tournament/bracket';
+import { medalOf, newRun, type Opts, type Run } from './src/tournament/bracket';
 import { loadRun, saveRun } from './src/tournament/save';
 import { fits, type Snap } from './src/tournament/snap';
+import { tourMatch as tm, type TourMatch as TM } from './src/tournament/match';
 import { DRAG, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { farGuide, type Guide, type GuideAsk, nearGuide } from './src/shot/far';
 import { guidePacer } from './src/shot/pacer';
@@ -75,15 +76,7 @@ const newTable = (rules: State) => {
 };
 // A lesson's table. No rules play: the state only marks the lesson's pocket, and the lesson judges the shot.
 const resumed = (t: unknown) => { const s = t as Snap, B = s.B.map(b => ({ ...b })); return { B, ids: [...s.ids], look: newLook(B), rules: s.rules, rec: null as Rec | null, push: s.push }; };
-// What Game needs to play a tournament match (App's Tour wiring): the opponent, the rules, the breaker of the first rack,
-// the saved state, save() after every strike and ruling, done() at the end (saves the result, returns the prize), forfeit().
-export interface TourMatch {
-  level: number; style?: StyleId; name: string; round: string; game: 8 | 9; race: number; callAll: boolean; bank: 0 | 1 | 2; breaker: 0 | 1;
-  live: Live | null; save: (l: Live) => void; next: string | null; // next = the round a win goes to, null in the final
-  stakes: number; prize: (won: boolean) => Pay | null; // the round's pay multiplier; the prize the end of this match would pay, if it ends the run
-  done: (won: boolean, score: [number, number], pay: Pay, cue: CueId) => ReturnType<typeof award> | null; // cue = the cue the match was played with, for its mastery
-  forfeit: (score: [number, number]) => void;
-}
+type TourMatch = TM<ReturnType<typeof payRun>>;
 const newLesson = (l: Lesson) => {
   const { B, ids } = lessonTable(l), rules: State = { ...newGame(8, 0, false), phase: 'play', hand: false, balls: ids.slice(1), call: l.goal.pocket ?? -1 };
   return { B, ids, look: newLook(B), rules, rec: null as Rec | null, push: false };
@@ -161,20 +154,7 @@ function Root() {
   // at the next launch, and nothing twice. A champion's trophy goes in that save too.
   const payOut = (r: Run, cue?: CueId) => payRun({ seed: r.seed, earned: r.earned, medal: r.state === 'champion' ? [r.opts.cup, medalOf(r.opts)] : null }, cue);
   useEffect(() => { if (run) payOut(run); }, []); // at launch: anything a crash left unpaid, as XP with no cue mastery (the cue played is not known)
-  const tourMatch = (): TourMatch | undefined => {
-    const r = runRef.current, m = r ? nextMatch(r) : -1;
-    if (!r || m < 0) return;
-    const [a, b] = sides(r, m), o = r.field[r.field[a!].human ? b! : a!], last = m === r.res.length - 1;
-    // Only this match ends: a forfeit from a card left open after the result must not lose the next one. A run that
-    // could not be saved pays nothing now; the launch pays it once it is on disk.
-    const end = (won: boolean, score: [number, number], pay: Pay, cue?: CueId) => { const x = runRef.current && endMatch(runRef.current, m, won, score, pay); return x && putRun(x) ? payOut(x, cue) : null; };
-    return {
-      level: plays(o), style: o.style ?? undefined, name: o.name, round: roundName(r, m), next: last ? null : roundTitle(r.opts.size, roundOf(r, m) + 1), game: r.opts.game, race: raceOf(r.opts.best), callAll: r.opts.callAll, bank: r.opts.bank,
-      breaker: breakerOf(r, m), live: r.live, stakes: stakes(r, m), prize: (won: boolean) => { const x = recordMatch(r, won, [0, 0], { xp: 0, coins: 0 }); return x.state === 'playing' ? null : prize(x.opts, wins(x)); },
-      save: l => { const x = runRef.current; if (x) { runRef.current = { ...x, live: l }; saveRun(runRef.current); } },
-      done: end, forfeit: score => { end(false, score, { xp: 0, coins: 0 }); },
-    };
-  };
+  const tourMatch = () => tm({ get: () => runRef.current, put: putRun, pay: payOut, keep: (x) => { runRef.current = x; saveRun(x); } });
   const match = useRef<TourMatch | undefined>(undefined); // fixed while the match screen is up: the run changes under it
   const change = (p: Partial<Settings>) => setSet(s => ({ ...s, ...p }));
   const first = useRef(true);
@@ -237,7 +217,12 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   const won = useRef(snap0 ? { ...snap0.ledger, shots: { ...snap0.ledger.shots } } : newLedger()), cands = useRef<Cand[]>([]), end = useRef<Settled | null>(null), prize = useRef<Pay | null>(null);
   const safe = useRef<Safeties>(snap0?.safe ?? { row: 0, rack: 0 }), seed = useRef(snap0?.seed ?? Math.floor(Math.random() * 2 ** 31)), [thinking, setThinking] = useState(false);
   // A tournament match is saved at every strike (with the shot, so a relaunch plays the same shot again) and ruling.
-  const snap = (shot?: Shot) => { if (!tour) return; const t = table.current; tour.save({ score: [...score.current], table: { v: 1, B: t.B.map(b => ({ ...b })), ids: [...t.ids], rules: t.rules, push: t.push, ledger: won.current, safe: safe.current, seed: seed.current, cue: own, stats: mine, shot } satisfies Snap }); };
+  const snap = (shot?: Shot) => {
+    if (!tour) return;
+    const t = table.current, B = t.B.map(b => ({ ...b }));
+    const saved: Snap = { v: 1, B, ids: [...t.ids], rules: t.rules, push: t.push, ledger: won.current, safe: safe.current, seed: seed.current, cue: own, stats: mine, shot };
+    tour.save({ score: [...score.current], table: saved });
+  };
   const [sure, setSure] = useState(false); // a tournament match is left by forfeit, a second tap
   useEffect(() => setSure(false), [paused]); // closing the card disarms it
   useEffect(() => { if (tour && !snap0) snap(); }, []); // a new rack (the first, or one in place of a save that did not fit) is saved before its break, so a relaunch never re-racks it
