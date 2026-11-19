@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { CUE, P, simulate, step, strike } from '../physics/engine.ts';
 import { aiShot, correctAim } from './aim.ts';
 import { visit } from './bench.ts';
-import { enumerate, potProb, SOLIDS, STRIPES, TIERS, randomLayout, rng } from './shot-ai.ts';
+import { enumerate, NINE, potProb, SOLIDS, STRIPES, TIERS, randomLayout, rng } from './shot-ai.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 // Direction the object ball leaves in, measured on the engine, independent of aim.ts.
@@ -165,4 +165,12 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   const S = B.map(b => ({ ...b })); strike(S[0], shot); for (let i = 0; i < 40000 && step(S, []); i++);
   assert(S[1].on, 'the 8 stays on the table');
   console.log('ok bank shots: the fallback tap keeps the 8 up');
+}
+{ // 9-ball on the engine: the rollouts weigh a 9 that dropped against the best route (nineValue), as plan() does
+  const rails = [[1.9, 0.03], [1.4, 1.09], [2.2, 0.56], [0.9, 0.03], [1.5, 0.2], [1.8, 0.9], [2.2, 0.8]];
+  const B = [mk(0.6, 0.6), mk(0.33, 0.33), ...rails.map(([x, y]) => mk(x, y)), mk(0.11, 0.11)], ids = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+  assert.equal(aiShot(B, ids, NINE, NINE, TIERS[4], rng(1)).pick.ball, 9, 'Pro plays the hanging 9');
+  const E = [mk(0.227, 0.589), mk(1.142, 0.589), mk(1.347, 0.649), mk(1.862, 0.597)];
+  assert.equal(aiShot(E, [0, 1, 9, 2], NINE, NINE, TIERS[5], rng(1)).pick.ball, 1, 'Legend runs the 1 and the 2 over the long combo');
+  ok('9-ball: the engine rollouts keep the planner\'s 9-or-route choice');
 }
