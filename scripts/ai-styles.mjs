@@ -1,5 +1,5 @@
 // Tournament AI styles against the plain tier at the same rating (src/ai/styles.ts), on the real engine and rules.
-// Run: npm run bench:styles [racks] [8|9] [rating...] [-- style...]   (default 200 racks, 8-ball, ratings 1.5 3 4.5 6, every style
+// Run: npm run bench:styles [racks] [8|9] [rating...] [-- style...]   (default 200 racks, 8-ball, ratings 1.5 3 4.5 6, the plain row and every style
 // dealt at that rating, STYLE_RANGE)
 // Per style and rating: the style's head-to-head rack wins against the plain tier (the breaker alternates, the same seeds
 // for every style), then its game: shots a visit that pot, safeties per 100 visits, the opponent's pots after them,
@@ -48,7 +48,7 @@ const pct = (x, d) => (d ? (100 * x / d).toFixed(0) : '-').padStart(5);
 const ci = (x, d) => (d ? `${(100 * x / d).toFixed(1)}±${(196 * Math.sqrt((x / d) * (1 - x / d) / d)).toFixed(1)}` : '-').padStart(10); // 95% interval
 for (const level of ratings) {
   console.log(`\n${game}-ball, rating ${level}, ${n} seeds a pair, each played with the style in both seats\nstyle        win% (95%)  pots/visit  safe/100v  pots after safe%  last2 made%  bank%  combo%  spin%`);
-  for (const st of [undefined, ...only.filter(k => level >= STYLE_RANGE[k][0] && level <= STYLE_RANGE[k][1])]) {
+  for (const st of [...(cut < 0 ? [undefined] : []), ...only.filter(k => level >= STYLE_RANGE[k][0] && level <= STYLE_RANGE[k][1])]) { // named styles: no plain row (it is 50% by construction)
     const t = { last: 0, lastMade: 0, won: 0, done: 0, visits: 0, pots: 0, safeties: 0, after: 0, broke: 0, bank: 0, combo: 0, spin: 0, potShots: 0 };
     for (let i = 0; i < n; i++) { // each seed twice, the style in either seat, so a seat's edge cancels out; its numbers from seat 0
       const d = duel(level, st, undefined, 7000 + i), e = duel(level, undefined, st, 7000 + i);

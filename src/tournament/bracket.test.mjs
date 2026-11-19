@@ -3,7 +3,7 @@
 import assert from 'node:assert';
 import test from 'node:test';
 import { STYLE_RANGE } from '../ai/styles.ts';
-import { breakerOf, cupOpen, CUPS, ROSTER, medalOf, newRun, nextMatch, plays, prize, raceOf, readRun, recordMatch, roundName, sides, simMatch, stakes, wins } from './bracket.ts';
+import { breakerOf, cupOpen, endMatch, CUPS, ROSTER, medalOf, newRun, nextMatch, plays, prize, raceOf, readRun, recordMatch, roundName, sides, simMatch, stakes, wins } from './bracket.ts';
 
 const opts = (o = {}) => ({ cup: 1, size: 8, best: 3, game: 8, callAll: true, bank: 0, ...o });
 const none = { xp: 0, coins: 0 };
@@ -107,4 +107,10 @@ test('a saved run that cannot be played is no run', () => {
     { ...r, res: [{ w: 0, score: [2, 'x'] }, ...r.res.slice(1)] }, { ...r, field: r.field.map(e => ({ ...e, human: true })) },
     { ...r, field: r.field.map(e => ({ ...e, human: false })) }, { ...r, slots: r.slots.map(() => 0) }]) assert.equal(readRun(JSON.stringify(bad)), null);
   assert.deepStrictEqual(readRun(JSON.stringify({ ...r, live: { score: [1, 0], table: { any: 1 } } })).live.score, [1, 0], 'the table inside is the game\'s to check');
+});
+
+test('only the match in play can end: a forfeit after the result does not lose the next one', () => {
+  const r = newRun(opts(), 4), x = endMatch(r, 0, true, [2, 1], none);
+  assert.equal(nextMatch(x), 4); assert.equal(endMatch(x, 0, false, [0, 0], none), null, 'match 0 is over');
+  assert.equal(endMatch(x, 4, false, [0, 1], none).state, 'out');
 });

@@ -30,8 +30,9 @@ import { candsFor, choiceFor, type Move, nextSafeties, potPay, type Safeties, sa
 import { type Cand, rng, TIERS } from './src/ai/shot-ai';
 import { type Ledger, newLedger, noteShot, type Pay, settle, type Settled } from './src/progress/pay';
 import type { StyleId } from './src/ai/styles';
-import { breakerOf, type Live, medalOf, newRun, nextMatch, type Opts, plays, prize, raceOf, recordMatch, roundName, roundOf, roundTitle, type Run, sides, stakes, wins } from './src/tournament/bracket';
+import { breakerOf, endMatch, type Live, medalOf, newRun, nextMatch, type Opts, plays, prize, raceOf, recordMatch, roundName, roundOf, roundTitle, type Run, sides, stakes, wins } from './src/tournament/bracket';
 import { loadRun, saveRun } from './src/tournament/save';
+import { fits, type Snap } from './src/tournament/snap';
 import { DRAG, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { farGuide, type Guide, type GuideAsk, nearGuide } from './src/shot/far';
 import { guidePacer } from './src/shot/pacer';
@@ -73,15 +74,6 @@ const newTable = (rules: State) => {
   return { B, ids, look: newLook(B), rules, rec: null as Rec | null, push: false };
 };
 // A lesson's table. No rules play: the state only marks the lesson's pocket, and the lesson judges the shot.
-// A tournament match as it was saved (snap in Game): the table, the rules, the pay so far, the AI's counters and the shot
-// struck, if one was in flight. The engine is deterministic, so that shot plays out the same again.
-interface Snap { v: 1; B: Ball[]; ids: number[]; rules: State; push: boolean; ledger: Ledger; safe: Safeties; seed: number; cue: CueId; stats: ReturnType<typeof ownStats>; shot?: Shot } // stats = the cue as tuned at the strike
-// A snapshot from another app version may not fit: then the match starts a fresh rack at its saved score.
-const fits = (t: unknown, game: 8 | 9): t is Snap => {
-  const s = t as Snap, num = (x: unknown) => Number.isFinite(x);
-  return !!s && s.v === 1 && Array.isArray(s.B) && Array.isArray(s.ids) && s.B.length === s.ids.length && s.B.every(b => num(b?.x) && num(b.y) && typeof b.on === 'boolean')
-    && s.rules?.game === game && typeof s.rules.phase === 'string' && Array.isArray(s.rules.balls) && !!s.ledger?.shots && num(s.seed) && !!CUES[s.cue] && num(s.stats?.power) && num(s.stats.spin) && num(s.stats.aim);
-};
 const resumed = (t: unknown) => { const s = t as Snap, B = s.B.map(b => ({ ...b })); return { B, ids: [...s.ids], look: newLook(B), rules: s.rules, rec: null as Rec | null, push: s.push }; };
 // What Game needs to play a tournament match (App's Tour wiring): the opponent, the rules, the breaker of the first rack,
 // the saved state, save() after every strike and ruling, done() at the end (saves the result, returns the prize), forfeit().
@@ -172,7 +164,7 @@ function Root() {
     const [a, b] = sides(r, m), o = r.field[r.field[a!].human ? b! : a!], last = m === r.res.length - 1;
     // Only this match ends: a forfeit from a card left open after the result must not lose the next one. A run that
     // could not be saved pays nothing now; the launch pays it once it is on disk.
-    const end = (won: boolean, score: [number, number], pay: Pay) => { const r0 = runRef.current; if (!r0 || nextMatch(r0) !== m) return null; const x = recordMatch(r0, won, score, pay); return putRun(x) ? payOut(x, profile().cue) : null; };
+    const end = (won: boolean, score: [number, number], pay: Pay) => { const x = runRef.current && endMatch(runRef.current, m, won, score, pay); return x && putRun(x) ? payOut(x, profile().cue) : null; };
     return {
       level: plays(o), style: o.style ?? undefined, name: o.name, round: roundName(r, m), next: last ? null : roundTitle(r.opts.size, roundOf(r, m) + 1), game: r.opts.game, race: raceOf(r.opts.best), callAll: r.opts.callAll, bank: r.opts.bank,
       breaker: breakerOf(r, m), live: r.live, stakes: stakes(r, m), prize: (won: boolean) => { const x = recordMatch(r, won, [0, 0], { xp: 0, coins: 0 }); return x.state === 'playing' ? null : prize(x.opts, wins(x)); },

@@ -112,6 +112,9 @@ export function recordMatch(run: Run, won: boolean, score: [number, number], pay
   const next = simReady({ ...run, res, live: null, state, earned: add(run.earned, pay) });
   return state === 'playing' ? next : { ...next, earned: add(next.earned, prize(run.opts, wins(next))) };
 }
+// The end of match m, as the match screen saw it: null when m is no longer the player's match (a forfeit tapped on a
+// card left open after the result), so only the match that was played can end.
+export const endMatch = (run: Run, m: number, won: boolean, score: [number, number], pay: Pay) => (nextMatch(run) === m ? recordMatch(run, won, score, pay) : null);
 const add = (a: Pay, b: Pay): Pay => ({ xp: a.xp + b.xp, coins: a.coins + b.coins });
 
 // Matches won by the player.
