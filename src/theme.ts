@@ -13,10 +13,10 @@ export const CLOTHS = [{ name: 'Slate', felt: '#27504A', cushion: '#1C3A35' }, {
 export type Paint = readonly [string, string];
 export const CREAM: Paint = ['#EFE6D2', '#B9AD92'], DARK: Paint = ['#1B3530', '#0A1513'];
 // Each mode takes its ball's colour. Quick match is cream.
-export const MODE = { daily: ['#4B98EE', '#2A69B8'], scenarios: ['#E0483C', '#A52B22'], learn: ['#8448C8', '#5A2B93'], pass: ['#EC7428', '#B04F12'], cues: ['#3FBF7F', '#2A8C5A'] } satisfies Record<string, Paint>;
-// Text on a face: ink on light faces (cream, daily, pass, cues), chalk on scenarios, learn and dark.
+export const MODE = { daily: ['#4B98EE', '#2A69B8'], scenarios: ['#E0483C', '#A52B22'], learn: ['#8448C8', '#5A2B93'], pass: ['#EC7428', '#B04F12'], cues: ['#3FBF7F', '#2A8C5A'], tour: ['#A8323F', '#74202A'] } satisfies Record<string, Paint>;
+// Text on a face: ink on light faces (cream, daily, pass, cues), chalk on scenarios, learn, tournament and dark.
 // By the face, so a mixed paint (a dark face on a learn lip) reads right too.
-export const inkOn = (p: Paint) => ([MODE.scenarios[0], MODE.learn[0], DARK[0]].includes(p[0]) ? C.chalk : C.ink);
+export const inkOn = (p: Paint) => ([MODE.scenarios[0], MODE.learn[0], MODE.tour[0], DARK[0]].includes(p[0]) ? C.chalk : C.ink);
 
 // One family name per face, so no fontWeight is ever needed: the names are the PostScript names, which iOS finds in the
 // embedded files; app.json gives Android the same names, and src/ui/fonts.web.ts loads them on the web.

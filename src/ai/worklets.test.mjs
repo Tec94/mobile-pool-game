@@ -10,7 +10,7 @@ const babel = require('@babel/core'), preset = require.resolve('babel-preset-exp
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 
 globalThis.__DEV__ = false;
-const done = {}, FILES = ['physics/engine', 'rules/rules', 'ai/shot-ai', 'ai/aim', 'ai/turn', 'progress/pay', 'progress/cues', 'shot/aim'];
+const done = {}, FILES = ['physics/engine', 'rules/rules', 'ai/shot-ai', 'ai/styles', 'ai/aim', 'ai/turn', 'progress/pay', 'progress/cues', 'shot/aim'];
 function load(name) { // a compiled file as a CommonJS module; the other files of FILES come compiled too
   if (done[name]) return done[name].exports;
   const file = path.join(root, 'src', name + '.ts'), m = done[name] = { exports: {} };
