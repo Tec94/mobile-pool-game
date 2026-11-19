@@ -177,7 +177,7 @@ function Root() {
     {screen === 'match' || screen === 'ai' ? <Game key={screen} set={set} ai={screen === 'ai' ? set.tier : -1} chalk={screen === 'ai' ? chalk : undefined} onQuit={() => go('home')} />
       : screen === 'lesson' ? <Game key={lesson} set={set} lesson={lesson} fresh={!done.includes(LESSONS[lesson].id)} onPass={pass} onNext={() => setLesson(lesson + 1)} onQuit={() => go('learn')} />
       : screen === 'scenario' ? <Game key={`s${scen}`} set={set} scen={SCENARIOS[scen]} onClear={(t, off) => cleared(SCENARIOS[scen], t, off)} onNext={nextScen ? () => setScen(scen + 1) : undefined} onQuit={() => go('scenarios')} />
-      : screen === 'tourMatch' && match.current ? <Game key="tour" set={set} tour={match.current} onQuit={() => go('tour')} />
+      : screen === 'tourMatch' && match.current ? <Game key="tour" set={set} tour={match.current} onQuit={() => { setRun(runRef.current); go('tour'); }} />
       : screen === 'daily' ? <Game key={`d${day}`} set={set} scen={dayScen} back="Daily Table" onClear={dayCleared} onQuit={() => go('calendar')} />
       : <Menus screen={screen === 'tourMatch' ? 'tour' : screen} set={set} change={change} go={go} done={done} learn={learn} stars={stars} play={play} daily={daily} today={today} day={day} playDay={playDay} arm={arm} run={run} damaged={loaded.damaged} startRun={startRun} abandon={() => tourMatch()?.forfeit()} playTour={() => { match.current = tourMatch(); if (match.current) go('tourMatch'); }} />}
   </>;

@@ -163,6 +163,7 @@ function Card({ run, next, abandon, play, again }: { run: Run; next: number; aba
     );
   }
   const [a, b] = sides(run, next), e = run.field[run.field[a!].human ? b! : a!];
+  const sc = run.live?.score; // a match left part way: its frames so far, yours first
   return (
     <Slab paint={DARK} style={land && { flex: 1 }} face={face}>
       <View style={styles.row}>
@@ -182,7 +183,7 @@ function Card({ run, next, abandon, play, again }: { run: Run; next: number; aba
       <View style={[styles.row, { gap: 8 }]}>
         <Slab paint={sure ? [C.warn, '#A33A30'] : DARK} lip={4} radius={4} onPress={() => { if (sure) abandon(); setSure(!sure); }} accessibilityLabel={sure ? 'Tap again to abandon: a loss' : 'Abandon the tournament'}
           style={{ height: 58 }} face={styles.abandon}><Txt style={[styles.abandonText, sure && { color: C.ink }]}>{sure ? 'Tap again:\na loss' : 'Abandon'}</Txt></Slab>
-        <View style={{ flex: 1 }}><Cta label="Play" name={`Play the ${roundName(run, next).toLowerCase()} against ${e.name}`} onPress={play} /></View>
+        <View style={{ flex: 1 }}><Cta label={sc ? `Resume ${sc[0]}–${sc[1]}` : 'Play'} name={`${sc ? `Resume at ${sc[0]} to ${sc[1]}` : 'Play'} the ${roundName(run, next).toLowerCase()} against ${e.name}`} onPress={play} /></View>
       </View>
     </Slab>
   );
