@@ -55,6 +55,7 @@ function TourSetup({ set, change, go, start, run, damaged }: Props & TourProps &
           <View accessible accessibilityLabel={`About ${minutes(o)} minutes`} style={styles.clock}><Glyph id="clock" size={14} color={C.chalk} /><Txt style={styles.clockText}>{`${minutes(o)} min`}</Txt></View>
         </>} picture={w => <View style={{ alignItems: 'center', gap: 6 }}>
           <Trophy medal={medalOf(o)} size={Math.min(w, 110)} />
+          <Txt style={styles.prizeNote}>{`The title wins ${['', 'bronze', 'silver', 'gold'][medalOf(o)]}`}</Txt>
           <View style={styles.pay} accessible accessibilityLabel={`Medals won in the ${cupName(o.cup)}: ${['none', 'bronze', 'silver', 'gold'][me.trophies[o.cup]]}`}>
             <Txt style={styles.prizeNote}>Medals won</Txt>
             {[1, 2, 3].map(k => <Trophy key={k} medal={me.trophies[o.cup] >= k ? k : 0} size={20} />)}
@@ -84,7 +85,7 @@ function TourSetup({ set, change, go, start, run, damaged }: Props & TourProps &
           <Line label="Game"><Keys<Opts['game']> label="Game" value={o.game} pick={game => pick({ game })} options={[['8-ball', 8], ['9-ball', 9]]} /></Line>
           {o.game === 8 && <>
             <Line label="Call"><Keys label="Call" value={o.callAll} pick={callAll => pick({ callAll })} options={[['Every shot', true], ['Only the 8-ball', false]]} /></Line>
-            <Line label="Bank shots"><Keys<Settings['bank']> label="Bank shots" value={o.bank} pick={bank => pick({ bank })} options={[['Off', 0], ['8-ball only', 1], ['Every ball', 2]]} /></Line>
+            <Line label="Banks"><Keys<Settings['bank']> label="Bank shots" value={o.bank} pick={bank => pick({ bank })} options={[['Off', 0], ['8-ball only', 1], ['Every ball', 2]]} /></Line>
           </>}
         </View>
       </Split>
@@ -117,7 +118,7 @@ function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { ru
         const e = run.field[i], you = !!e.human, foe = m === next && !you, lost = !!res && res.w !== s, gold = run.state === 'champion' && m === run.res.length - 1 && you;
         const paint = you ? CREAM[0] : foe ? MODE.tour[0] : '#EEF2EA14', ink = you ? C.ink : C.chalk;
         return (
-          <View key={s} accessible accessibilityLabel={`${e.name}${e.style ? `, ${NICK[e.style]}` : ''}${you ? '' : `, rating ${e.rating.toFixed(1)}`}${res ? `, ${walk ? (res.w === s ? 'won by forfeit' : 'forfeited') : res.score[s]}` : ''}${foe ? ', your next opponent' : ''}`}
+          <View key={s} accessible accessibilityLabel={`${e.name}${e.style ? `, ${NICK[e.style]}, ${TELL[e.style].toLowerCase()}` : ''}${you ? '' : `, rating ${e.rating.toFixed(1)}`}${res ? `, ${walk ? (res.w === s ? 'won by forfeit' : 'forfeited') : res.score[s]}` : ''}${foe ? ', your next opponent' : ''}`}
             style={[styles.slot, { height: row, backgroundColor: paint, opacity: lost ? 0.6 : 1 }]}>
             <View style={{ flex: 1, gap: 2 }}>
               <View style={styles.row}><Txt numberOfLines={1} style={[styles.slotName, { color: ink }]}>{e.name}</Txt>{e.style && <Glyph id={e.style} size={11} color={ink} />}</View>
@@ -140,6 +141,14 @@ function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { ru
       <Split panel={<Card run={run} next={next} abandon={abandon} play={playTour} again={again} />}>
         <View style={{ height: 14, marginBottom: 10 }}>{names.map((t, r) => <Txt key={t} style={[styles.head, styles.abs, { left: x(r) }]}>{t}</Txt>)}</View>
         <View style={{ height: (run.opts.size / 2) * UNIT }}>{parts}</View>
+        {/* what the glyphs in the bracket mean: the styles in this field and their tells */}
+        <View style={{ marginTop: 14, gap: 6 }}>
+          {[...new Set(run.field.map(f => f.style).filter((x): x is NonNullable<typeof x> => !!x))].map(st => (
+            <View key={st} style={[styles.row, { gap: 8 }]} accessible accessibilityLabel={`${NICK[st]}: ${TELL[st]}`}>
+              <Glyph id={st} size={12} color={C.chalk} /><Txt style={[styles.tell, { flex: 1 }]}><Txt style={[styles.tell, { opacity: 1 }]}>{NICK[st]}</Txt>{`  ${TELL[st]}`}</Txt>
+            </View>
+          ))}
+        </View>
       </Split>
     </Shell>
   );
