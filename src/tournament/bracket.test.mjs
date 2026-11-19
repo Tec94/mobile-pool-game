@@ -106,7 +106,10 @@ test('a saved run that cannot be played is no run', () => {
   const r = newRun(opts(), 2);
   for (const bad of [{ ...r, opts: { ...r.opts, cup: 'length' } }, { ...r, live: { score: [1.5, 0] } }, { ...r, res: r.res.map(() => ({ w: 0, score: [2, 0] })) },
     { ...r, res: [{ w: 0, score: [2, 'x'] }, ...r.res.slice(1)] }, { ...r, field: r.field.map(e => ({ ...e, human: true })) },
-    { ...r, field: r.field.map(e => ({ ...e, human: false })) }, { ...r, slots: r.slots.map(() => 0) }]) assert.equal(readRun(JSON.stringify(bad)), null);
+    { ...r, field: r.field.map(e => ({ ...e, human: false })) }, { ...r, slots: r.slots.map(() => 0) },
+    { ...r, res: [...r.res.slice(0, -1), { w: 0, score: [1, 0] }] }, // a final with neither finalist known
+    { ...r, live: { score: [raceOf(r.opts.best), 0] } }, { ...r, res: [{ w: 0, score: [9, 0] }, ...r.res.slice(1)] }, // a live match already won, a score past the race
+    { ...r, field: r.field.map((e, i) => (i === 1 ? { ...e, rating: 9 } : e)) }]) assert.equal(readRun(JSON.stringify(bad)), null);
   assert.deepStrictEqual(readRun(JSON.stringify({ ...r, live: { score: [1, 0], table: { any: 1 } } })).live.score, [1, 0], 'the table inside is the game\'s to check');
 });
 

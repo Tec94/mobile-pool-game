@@ -138,14 +138,23 @@ export const cupOpen = (cup: number, trophies: number[], level: number) => !cup 
 export function readRun(text: string | null): Run | null {
   let o: any = null;
   try { o = JSON.parse(text ?? 'null'); } catch { return null; }
+  const op = o?.opts, int = Number.isInteger;
+  if (!o || o.v !== 1 || !int(o.seed) || !int(op?.cup) || !CUPS[op.cup] || ![4, 8].includes(op.size) || ![1, 3, 5].includes(op.best)
+    || ![8, 9].includes(op.game) || typeof op.callAll !== 'boolean' || ![0, 1, 2].includes(op.bank)) return null;
+  const n = op.size, race = raceOf(op.best);
   const pay = (p: any) => p && Number.isFinite(p.xp) && Number.isFinite(p.coins) && p.xp >= 0 && p.coins >= 0;
-  if (!o || o.v !== 1 || !Number.isInteger(o.seed) || !Number.isInteger(o.opts?.cup) || !CUPS[o.opts.cup] || ![4, 8].includes(o.opts.size) || ![1, 3, 5].includes(o.opts.best) || ![8, 9].includes(o.opts.game)
-    || typeof o.opts.callAll !== 'boolean' || ![0, 1, 2].includes(o.opts.bank)) return null;
-  const n = o.opts.size, ok = (e: any) => e && typeof e.name === 'string' && Number.isFinite(e.rating) && (e.style === null || STYLE_IDS.includes(e.style));
-  if (!Array.isArray(o.field) || o.field.length !== n || !o.field.every(ok) || o.field.filter((e: any) => e.human).length !== 1) return null;
+  const score = (s: any, top: number) => Array.isArray(s) && s.length === 2 && s.every((x: any) => int(x) && x >= 0 && x <= top);
+  const entrant = (e: any) => e && typeof e.name === 'string' && Number.isFinite(e.rating) && e.rating >= 0 && e.rating <= 7
+    && (e.style === null || STYLE_IDS.includes(e.style));
+  if (!Array.isArray(o.field) || o.field.length !== n || !o.field.every(entrant) || o.field.filter((e: any) => e.human).length !== 1) return null;
   if (!Array.isArray(o.slots) || o.slots.length !== n || [...o.slots].sort((x: number, y: number) => x - y).some((v: number, i: number) => v !== i)) return null;
-  if (!Array.isArray(o.res) || o.res.length !== n - 1 || !o.res.every((r: any) => r === null || ((r.w === 0 || r.w === 1) && Array.isArray(r.score) && r.score.length === 2 && r.score.every(Number.isInteger)))) return null;
+  if (!Array.isArray(o.res) || o.res.length !== n - 1) return null;
+  // a result only where both entrants are known (sides reads the earlier results, so check in order)
+  for (let m = 0; m < n - 1; m++) {
+    const r = o.res[m];
+    if (r !== null && !((r.w === 0 || r.w === 1) && score(r.score, race) && sides(o, m).every((i) => i !== null))) return null;
+  }
   if (!['playing', 'out', 'champion'].includes(o.state) || !pay(o.earned)) return null;
-  if (o.live !== null && !(Array.isArray(o.live?.score) && o.live.score.length === 2 && o.live.score.every(Number.isInteger))) return null;
+  if (o.live !== null && !score(o.live?.score, race - 1)) return null; // a live match has not been won yet
   return o.state === 'playing' && nextMatch(o) < 0 ? null : (o as Run); // a run in play always has a match for the player
 }
