@@ -81,7 +81,8 @@ export interface TourMatch {
   level: number; style?: StyleId; name: string; round: string; game: 8 | 9; race: number; callAll: boolean; bank: 0 | 1 | 2; breaker: 0 | 1;
   live: Live | null; save: (l: Live) => void; next: string | null; // next = the round a win goes to, null in the final
   stakes: number; prize: (won: boolean) => Pay | null; // the round's pay multiplier; the prize the end of this match would pay, if it ends the run
-  done: (won: boolean, score: [number, number], pay: Pay) => ReturnType<typeof award> | null; forfeit: (score: [number, number]) => void;
+  done: (won: boolean, score: [number, number], pay: Pay, cue: CueId) => ReturnType<typeof award> | null; // cue = the cue the match was played with, for its mastery
+  forfeit: (score: [number, number]) => void;
 }
 const newLesson = (l: Lesson) => {
   const { B, ids } = lessonTable(l), rules: State = { ...newGame(8, 0, false), phase: 'play', hand: false, balls: ids.slice(1), call: l.goal.pocket ?? -1 };
@@ -150,6 +151,8 @@ function Root() {
   };
   // The tournament run (src/tournament): in a ref too, since a match saves it after every shot without a render.
   const [run, setRun] = useState(() => loadRun().run), runRef = useRef(run);
+  // The run moves on in memory even if the save fails: disk keeps the match before its result, and a relaunch plays
+  // the saved shot again to the same result, so nothing is lost and the pay goes out then.
   const putRun = (r: Run | null) => { runRef.current = r; setRun(r); return saveRun(r); };
   // The next run's seed comes from the last run's (kept on disk until a new one starts), so abandoning a field and
   // starting again cannot re-roll it. Only the first run, or one after a damaged save, is random.
@@ -164,7 +167,7 @@ function Root() {
     const [a, b] = sides(r, m), o = r.field[r.field[a!].human ? b! : a!], last = m === r.res.length - 1;
     // Only this match ends: a forfeit from a card left open after the result must not lose the next one. A run that
     // could not be saved pays nothing now; the launch pays it once it is on disk.
-    const end = (won: boolean, score: [number, number], pay: Pay) => { const x = runRef.current && endMatch(runRef.current, m, won, score, pay); return x && putRun(x) ? payOut(x, profile().cue) : null; };
+    const end = (won: boolean, score: [number, number], pay: Pay, cue?: CueId) => { const x = runRef.current && endMatch(runRef.current, m, won, score, pay); return x && putRun(x) ? payOut(x, cue) : null; };
     return {
       level: plays(o), style: o.style ?? undefined, name: o.name, round: roundName(r, m), next: last ? null : roundTitle(r.opts.size, roundOf(r, m) + 1), game: r.opts.game, race: raceOf(r.opts.best), callAll: r.opts.callAll, bank: r.opts.bank,
       breaker: breakerOf(r, m), live: r.live, stakes: stakes(r, m), prize: (won: boolean) => { const x = recordMatch(r, won, [0, 0], { xp: 0, coins: 0 }); return x.state === 'playing' ? null : prize(x.opts, wins(x)); },
@@ -314,7 +317,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
         : { match: PASS_PLAY, shots: { xp: 0, coins: 0 }, chalk: null, total: PASS_PLAY };
       // A tournament saves the result, then pays it (with any prize) marked in the profile: tour.done.
       if (tour) { const p = tour.prize(s.winner === 0); prize.current = p && (p.xp || p.coins) ? p : null; }
-      end.current = r; gained.current = tour ? tour.done(s.winner === 0, [...score.current], r.total) : award(r.total, vs ? own : undefined); // quick match played the player's own cue
+      end.current = r; gained.current = tour ? tour.done(s.winner === 0, [...score.current], r.total, own) : award(r.total, vs ? own : undefined); // quick match played the player's own cue
       // The loser's own balls left (8-ball; 7 on an open table) say how close the match was.
       if (rival) { const lose = 1 - s.winner, left = s.solids < 0 ? 7 : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === lose)).length, [a, b] = rivalDone(game, s.winner === 0, left, set.mood); moved.current = `Rival ${shown(a)} to ${shown(b)}`; }
     } }
@@ -655,7 +658,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
         <View style={[styles.sheet, styles.dim]} onStartShouldSetResponder={() => true}>
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>Paused</Text>
-            {!L && race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} – ${names[1]}\n${score.current[0]} – ${score.current[1]}\nRace to ${race}`}</Text>}
+            {!L && race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${tour ? `${tour.round} · pays ×${tour.stakes}\n` : ''}${names[0]} – ${names[1]}\n${score.current[0]} – ${score.current[1]}\nRace to ${race}`}</Text>}
             <Act paint={CREAM} label="Resume" onPress={() => { setPaused(false); setSure(false); }} />
             {tour && !done ? <>
               <Act label="Save and leave" onPress={onQuit} />{/* every strike and ruling is saved: Play on the bracket picks the match up */}

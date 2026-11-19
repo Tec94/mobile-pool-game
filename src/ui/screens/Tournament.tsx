@@ -59,7 +59,7 @@ function TourSetup({ set, change, go, start }: Props & { start: (o: Opts) => voi
             {[1, 2, 3].map(k => <Trophy key={k} medal={me.trophies[o.cup] >= k ? k : 0} size={20} />)}
           </View>
         </View>} cta={{ label: 'Start', name: `Start the ${cupName(o.cup)}`, onPress: () => start(o) }}>
-          <View style={{ alignItems: 'center', paddingVertical: 6 }}><Pay {...won} /></View>
+          <View style={{ alignItems: 'center', paddingVertical: 6, gap: 6 }}><Txt style={styles.prizeNote}>The title prize, on top of match pay ×1 to ×2</Txt><Pay {...won} /></View>
         </Panel>}>
         <View style={{ gap: 9 }}>
           <Line label="Cup">
@@ -93,7 +93,7 @@ function TourSetup({ set, change, go, start }: Props & { start: (o: Opts) => voi
 // Match m of round r, k-th in its round.
 const matchOf = (size: number, r: number, k: number) => { let m = 0; for (let i = 0; i < r; i++) m += size >> (i + 1); return m + k; };
 const won = (run: Run, m: number) => { const r = run.res[m]; return r ? sides(run, m)[r.w] : null; };
-const ROW = 36, GAP = 2, BLOCK = 2 * ROW + GAP, UNIT = BLOCK + 14, LINE = 2;
+const ROW = 34, GAP = 2, BLOCK = 2 * ROW + GAP, UNIT = BLOCK + 8, LINE = 2; // eight players fit a phone in landscape
 
 function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { run: Run; again: () => void }) {
   const { land, side, width } = useFrame(), panelW = usePanel(), R = rounds(run.opts.size), next = nextMatch(run);
@@ -213,6 +213,7 @@ const styles = StyleSheet.create({
   cupKeyName: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 15 },
   lockText: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 13, color: C.chalk, opacity: 0.7 },
   head: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, letterSpacing: 0.6, textTransform: 'uppercase', color: C.chalk, opacity: 0.6 },
+  prizeNote: { fontFamily: FONT.semi, fontSize: 11.5, lineHeight: 15, color: C.chalk, opacity: 0.75, textAlign: 'center' },
   slot: { height: ROW, borderRadius: 3, paddingHorizontal: 7, flexDirection: 'row', alignItems: 'center', gap: 4 },
   unknown: { backgroundColor: '#EEF2EA0A', borderWidth: 1, borderStyle: 'dashed', borderColor: '#EEF2EA26' },
   slotName: { fontFamily: FONT.bold, fontSize: 13, lineHeight: 15, flexShrink: 1 },
