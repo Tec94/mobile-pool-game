@@ -33,7 +33,7 @@ export function rivalDone(game: 8 | 9, won: boolean, left: number, mood: Mood): 
 export function rivalReset(game: 8 | 9) { const p = profile(); keep({ ...p, rival: { ...p.rival, [game]: { ...START } } }); }
 // A tournament run's pay: what it earned less what the profile says it already paid this run (Profile.tour), in one
 // save with the new mark and the trophy, so a crash anywhere pays the rest at the next launch and never twice.
-export function payRun(r: { seed: number; earned: Pay; medal: [number, number] | null }, cue: CueId) {
+export function payRun(r: { seed: number; earned: Pay; medal: [number, number] | null }, cue?: CueId) {
   const o = runOwe(profile(), r);
   return o && award(o.owe, cue, o.mark);
 }

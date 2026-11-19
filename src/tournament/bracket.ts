@@ -7,7 +7,7 @@ import type { Pay } from '../progress/pay.ts';
 
 export interface Cup { name: string; lo: number; hi: number; level: number; prize: number }
 // lo..hi = the field's ratings on the tier scale (1 Rookie .. 6 Legend); level = the player level that opens it without
-// winning the cup before; prize = coins a round won as champion of a best-of-1 (prize()).
+// winning a silver or gold in the cup below; prize = XP a round won as champion of a best-of-1 (prize()).
 export const CUPS: Cup[] = [
   { name: 'Club', lo: 1.0, hi: 2.4, level: 0, prize: 60 },
   { name: 'City', lo: 2.3, hi: 3.8, level: 10, prize: 180 },
@@ -33,8 +33,10 @@ export interface Run {
 export interface Live { score: [number, number]; table?: unknown }
 
 export const NICK: Record<StyleId, string> = { banker: 'The Banker', spin: 'Spin Doctor', wall: 'The Wall', gun: 'Gunslinger', closer: 'The Closer' };
-// Original first names, none a real player's.
-const NAMES = ['Mara', 'Dez', 'Ollie', 'Juno', 'Rafe', 'Tess', 'Kit', 'Niko', 'Bea', 'Sol', 'Ivo', 'Wren', 'Abe', 'Lula', 'Cass', 'Remy',
+// Each style is one character, met again from run to run; the plain players are drawn from NAMES.
+export const ROSTER: Record<StyleId, string> = { banker: 'Rafe', spin: 'Juno', wall: 'Dez', gun: 'Kit', closer: 'Mara' };
+// Original first names, none a real player's, none a ROSTER name.
+const NAMES = ['Ollie', 'Tess', 'Niko', 'Bea', 'Sol', 'Ivo', 'Wren', 'Abe', 'Lula', 'Cass', 'Remy',
   'Pip', 'Hugo', 'Nell', 'Otis', 'Vera', 'Ezra', 'Fen', 'Gus', 'Ida', 'Jules', 'Kiki', 'Lev', 'Mo', 'Noor', 'Pia', 'Quin', 'Rosa', 'Sully',
   'Tam', 'Uma', 'Vic', 'Yara', 'Zed', 'Ari'];
 
@@ -54,7 +56,7 @@ export function newRun(opts: Opts, seed: number): Run {
   const field: Entrant[] = base.map((rating, i) => ({ name: names[i], style: null, rating }));
   for (let i = n - 1; i >= Math.floor(n / 2); i--) { // strongest first, so the final is always a character
     const fits = left.find((k) => base[i] >= STYLE_RANGE[k][0] && base[i] <= STYLE_RANGE[k][1]);
-    if (fits) { left = left.filter((k) => k !== fits); field[i].style = fits; }
+    if (fits) { left = left.filter((k) => k !== fits); field[i] = { ...field[i], style: fits, name: ROSTER[fits] }; }
   }
   field.unshift({ name: 'You', style: null, rating: 0, human: true });
   return { v: 1, seed, opts, field, slots: ORDER[opts.size], res: Array(opts.size - 1).fill(null), live: null, state: 'playing', earned: { xp: 0, coins: 0 } };

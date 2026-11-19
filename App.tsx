@@ -75,9 +75,13 @@ const newTable = (rules: State) => {
 // A lesson's table. No rules play: the state only marks the lesson's pocket, and the lesson judges the shot.
 // A tournament match as it was saved (snap in Game): the table, the rules, the pay so far, the AI's counters and the shot
 // struck, if one was in flight. The engine is deterministic, so that shot plays out the same again.
-interface Snap { B: Ball[]; ids: number[]; rules: State; push: boolean; ledger: Ledger; safe: Safeties; seed: number; cue: CueId; shot?: Shot }
+interface Snap { v: 1; B: Ball[]; ids: number[]; rules: State; push: boolean; ledger: Ledger; safe: Safeties; seed: number; cue: CueId; stats: ReturnType<typeof ownStats>; shot?: Shot } // stats = the cue as tuned at the strike
 // A snapshot from another app version may not fit: then the match starts a fresh rack at its saved score.
-const fits = (t: unknown): t is Snap => { const s = t as Snap; return !!s && Array.isArray(s.B) && Array.isArray(s.ids) && s.B.length === s.ids.length && typeof s.rules?.phase === 'string' && !!s.ledger?.shots && Number.isFinite(s.seed) && !!CUES[s.cue]; };
+const fits = (t: unknown, game: 8 | 9): t is Snap => {
+  const s = t as Snap, num = (x: unknown) => Number.isFinite(x);
+  return !!s && s.v === 1 && Array.isArray(s.B) && Array.isArray(s.ids) && s.B.length === s.ids.length && s.B.every(b => num(b?.x) && num(b.y) && typeof b.on === 'boolean')
+    && s.rules?.game === game && typeof s.rules.phase === 'string' && Array.isArray(s.rules.balls) && !!s.ledger?.shots && num(s.seed) && !!CUES[s.cue] && num(s.stats?.power) && num(s.stats.spin) && num(s.stats.aim);
+};
 const resumed = (t: unknown) => { const s = t as Snap, B = s.B.map(b => ({ ...b })); return { B, ids: [...s.ids], look: newLook(B), rules: s.rules, rec: null as Rec | null, push: s.push }; };
 // What Game needs to play a tournament match (App's Tour wiring): the opponent, the rules, the breaker of the first rack,
 // the saved state, save() after every strike and ruling, done() at the end (saves the result, returns the prize), forfeit().
@@ -160,15 +164,15 @@ function Root() {
   const startRun = (o: Opts) => { const old = runRef.current; putRun(newRun(o, Math.floor((old ? rng(old.seed + 1)() : Math.random()) * 2 ** 31))); };
   // The run's pay goes out after the run is saved, marked paid in the same profile save (payRun): a crash pays the rest
   // at the next launch, and nothing twice. A champion's trophy goes in that save too.
-  const payOut = (r: Run) => payRun({ seed: r.seed, earned: r.earned, medal: r.state === 'champion' ? [r.opts.cup, medalOf(r.opts)] : null }, profile().cue);
-  useEffect(() => { if (run) payOut(run); }, []); // at launch: anything a crash left unpaid
+  const payOut = (r: Run, cue?: CueId) => payRun({ seed: r.seed, earned: r.earned, medal: r.state === 'champion' ? [r.opts.cup, medalOf(r.opts)] : null }, cue);
+  useEffect(() => { if (run) payOut(run); }, []); // at launch: anything a crash left unpaid, as XP with no cue mastery (the cue played is not known)
   const tourMatch = (): TourMatch | undefined => {
     const r = runRef.current, m = r ? nextMatch(r) : -1;
     if (!r || m < 0) return;
     const [a, b] = sides(r, m), o = r.field[r.field[a!].human ? b! : a!], last = m === r.res.length - 1;
     // Only this match ends: a forfeit from a card left open after the result must not lose the next one. A run that
     // could not be saved pays nothing now; the launch pays it once it is on disk.
-    const end = (won: boolean, score: [number, number], pay: Pay) => { const r0 = runRef.current; if (!r0 || nextMatch(r0) !== m) return null; const x = recordMatch(r0, won, score, pay); return putRun(x) ? payOut(x) : null; };
+    const end = (won: boolean, score: [number, number], pay: Pay) => { const r0 = runRef.current; if (!r0 || nextMatch(r0) !== m) return null; const x = recordMatch(r0, won, score, pay); return putRun(x) ? payOut(x, profile().cue) : null; };
     return {
       level: plays(o), style: o.style ?? undefined, name: o.name, round: roundName(r, m), next: last ? null : roundTitle(r.opts.size, roundOf(r, m) + 1), game: r.opts.game, race: raceOf(r.opts.best), callAll: r.opts.callAll, bank: r.opts.bank,
       breaker: breakerOf(r, m), live: r.live, stakes: stakes(r, m), prize: (won: boolean) => { const x = recordMatch(r, won, [0, 0], { xp: 0, coins: 0 }); return x.state === 'playing' ? null : prize(x.opts, wins(x)); },
@@ -206,7 +210,7 @@ type Clear = ReturnType<typeof clear> & { saved: boolean; gained?: ReturnType<ty
 // ai = the AI tier (index into TIERS) in player 1's seat, or RIVAL; -1 = pass and play. tour = a tournament match
 // against a styled AI (src/tournament): its own rules, saved after every strike and ruling so it resumes exactly.
 function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNext, scen: S, onClear, back = 'Scenarios', chalk }: { set: Settings; ai?: number; tour?: TourMatch; chalk?: (won: boolean, matchPay: Pay) => Pay; back?: string; onQuit: () => void; lesson?: number; fresh?: boolean; onPass?: (id: string) => boolean; onNext?: () => void; scen?: Scenario; onClear?: (tries: number, guideOff: boolean) => Clear }) {
-  const vs = ai >= 0 || !!tour, rival = ai === RIVAL, snap0 = fits(tour?.live?.table) ? tour.live.table : undefined;
+  const vs = ai >= 0 || !!tour, rival = ai === RIVAL, snap0 = tour && fits(tour.live?.table, tour.game) ? tour.live.table : undefined;
   const game = tour ? tour.game : vs ? set.aiGame : set.game, race = tour ? tour.race : vs ? set.aiRace : set.race;
   const callAll = tour ? tour.callAll : set.callAll, bankRule = tour ? tour.bank : set.bank;
   // The AI's rating on the tier scale. The Rival's is frozen for the match and read again for a rematch; a tournament
@@ -238,10 +242,10 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   const won = useRef(snap0 ? { ...snap0.ledger, shots: { ...snap0.ledger.shots } } : newLedger()), cands = useRef<Cand[]>([]), end = useRef<Settled | null>(null), prize = useRef<Pay | null>(null);
   const safe = useRef<Safeties>(snap0?.safe ?? { row: 0, rack: 0 }), seed = useRef(snap0?.seed ?? Math.floor(Math.random() * 2 ** 31)), [thinking, setThinking] = useState(false);
   // A tournament match is saved at every strike (with the shot, so a relaunch plays the same shot again) and ruling.
-  const snap = (shot?: Shot) => { if (!tour) return; const t = table.current; tour.save({ score: [...score.current], table: { B: t.B.map(b => ({ ...b })), ids: [...t.ids], rules: t.rules, push: t.push, ledger: won.current, safe: safe.current, seed: seed.current, cue: own, shot } satisfies Snap }); };
+  const snap = (shot?: Shot) => { if (!tour) return; const t = table.current; tour.save({ score: [...score.current], table: { v: 1, B: t.B.map(b => ({ ...b })), ids: [...t.ids], rules: t.rules, push: t.push, ledger: won.current, safe: safe.current, seed: seed.current, cue: own, stats: mine, shot } satisfies Snap }); };
   const [sure, setSure] = useState(false); // a tournament match is left by forfeit, a second tap
   useEffect(() => setSure(false), [paused]); // closing the card disarms it
-  useEffect(() => { if (tour && !tour.live) snap(); }, []); // the first rack is saved before its break, so a relaunch never re-racks it
+  useEffect(() => { if (tour && !snap0) snap(); }, []); // a new rack (the first, or one in place of a save that did not fit) is saved before its break, so a relaunch never re-racks it
   useEffect(() => { const sub = BackHandler.addEventListener('hardwareBackPress', () => { setPaused(p => !p); return true; }); return () => sub.remove(); }, []); // Android back opens and closes the pause card
   const rules = table.current.rules, [, redraw] = useReducer((n: number) => n + 1, 0); // the rules live with the table; redraw shows a change
   const shot = useRef(shotStore(nearest(table.current.B))).current; // the held aim and the power on the rail
@@ -299,7 +303,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   useEffect(() => { held.current = paused; wake.current(); }, [paused]); // the marks stop under the pause card, and move again after it
   // A lesson plays with the engine's own cue, the one its reference shots are tuned on (src/learn/lessons.test.mjs).
   // A scenario and quick match play with the player's own cue and its aim guide (stick stats count in challenges).
-  const own = useMemo(() => snap0?.cue ?? profile().cue, []), mine = useMemo(() => ownStats(own), []), cue = useMemo(() => (S || vs ? stick(own, false, mine) : L ? CUE : STICK), []), pen = !!(S || vs) && sketch(own); // fixed for the life of the screen: a cue change takes effect at the next table
+  const own = useMemo(() => snap0?.cue ?? profile().cue, []), mine = useMemo(() => snap0?.stats ?? ownStats(own), []), cue = useMemo(() => (S || vs ? stick(own, false, mine) : L ? CUE : STICK), []), pen = !!(S || vs) && sketch(own); // fixed for the life of the screen: a cue change takes effect at the next table
   const shotOf = (power: number): Shot => ({ ang: shot.get().aim, speed: Math.max(0.05, power * (table.current.rules.phase === 'break' ? cue.breakSpeed : cue.maxSpeed)), ...shotTip(tip.get(), cue) });
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the
   // rack is over. In a lesson: the shot plays itself, or the verdict card is up.
@@ -644,6 +648,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
           {paid && prize.current && <PayRow label="Prize" xp={prize.current.xp} coins={prize.current.coins} />}
           {paid && <PayTotal xp={paid.total.xp + (prize.current?.xp ?? 0)} coins={paid.total.coins + (prize.current?.coins ?? 0)} />}
           {done && gained.current && <Gained {...gained.current} />}
+          {done && tour && !gained.current && !!paid?.total.xp && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>Not saved yet: this pay comes at the next launch.</Text>}
           {done && !!gained.current?.mastery && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{gained.current.mastery}</Text>}
           <View style={styles.acts}>
             {tour && done ? <Act paint={CREAM} label="Bracket" onPress={onQuit} /> : <>
@@ -660,7 +665,10 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>Paused</Text>
             {!L && race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} – ${names[1]}\n${score.current[0]} – ${score.current[1]}\nRace to ${race}`}</Text>}
             <Act paint={CREAM} label="Resume" onPress={() => { setPaused(false); setSure(false); }} />
-            {tour && !done ? <Act label={sure ? 'Forfeit? Tap again' : 'Forfeit match'} onPress={() => { if (!sure) return setSure(true); tour.forfeit([...score.current]); onQuit(); }} />
+            {tour && !done ? <>
+              <Act label="Save and leave" onPress={onQuit} />{/* every strike and ruling is saved: Play on the bracket picks the match up */}
+              <Act paint={sure ? [C.warn, '#A33A30'] : undefined} label={sure ? 'Forfeit: a loss. Tap again' : 'Forfeit match'} onPress={() => { if (!sure) return setSure(true); tour.forfeit([...score.current]); onQuit(); }} />
+            </>
               : <Act label={tour ? 'Bracket' : S ? 'Leave scenario' : L ? 'Leave lesson' : 'Leave match'} onPress={onQuit} />}
           </View>
         </View>

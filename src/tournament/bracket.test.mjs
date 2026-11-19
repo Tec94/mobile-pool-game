@@ -3,7 +3,7 @@
 import assert from 'node:assert';
 import test from 'node:test';
 import { STYLE_RANGE } from '../ai/styles.ts';
-import { breakerOf, cupOpen, CUPS, medalOf, newRun, nextMatch, plays, prize, raceOf, readRun, recordMatch, roundName, sides, simMatch, stakes, wins } from './bracket.ts';
+import { breakerOf, cupOpen, CUPS, ROSTER, medalOf, newRun, nextMatch, plays, prize, raceOf, readRun, recordMatch, roundName, sides, simMatch, stakes, wins } from './bracket.ts';
 
 const opts = (o = {}) => ({ cup: 1, size: 8, best: 3, game: 8, callAll: true, bank: 0, ...o });
 const none = { xp: 0, coins: 0 };
@@ -18,6 +18,7 @@ test('the field: in the cup band, styles only in the top half and never twice, e
     assert(ai.slice(0, Math.floor(ai.length / 2)).every(e => !e.style), 'the bottom half plays plain');
     for (const e of ai) { assert(e.rating >= c.lo - 0.1 && e.rating <= c.hi + 0.1, `${e.rating} in ${c.lo}..${c.hi}`); if (e.style) assert(e.rating >= STYLE_RANGE[e.style][0] && e.rating <= STYLE_RANGE[e.style][1]); }
     assert.deepStrictEqual(newRun(opts({ size, cup }), seed), r);
+    for (const e of ai) assert(e.style ? e.name === ROSTER[e.style] : !Object.values(ROSTER).includes(e.name), 'a style is always its one character');
   }
 });
 
@@ -103,6 +104,7 @@ test('medals and cups: bronze for 4, silver for 8 best of 1, gold for 8 longer; 
 test('a saved run that cannot be played is no run', () => {
   const r = newRun(opts(), 2);
   for (const bad of [{ ...r, opts: { ...r.opts, cup: 'length' } }, { ...r, live: { score: [1.5, 0] } }, { ...r, res: r.res.map(() => ({ w: 0, score: [2, 0] })) },
-    { ...r, res: [{ w: 0, score: [2, 'x'] }, ...r.res.slice(1)] }]) assert.equal(readRun(JSON.stringify(bad)), null);
+    { ...r, res: [{ w: 0, score: [2, 'x'] }, ...r.res.slice(1)] }, { ...r, field: r.field.map(e => ({ ...e, human: true })) },
+    { ...r, field: r.field.map(e => ({ ...e, human: false })) }, { ...r, slots: r.slots.map(() => 0) }]) assert.equal(readRun(JSON.stringify(bad)), null);
   assert.deepStrictEqual(readRun(JSON.stringify({ ...r, live: { score: [1, 0], table: { any: 1 } } })).live.score, [1, 0], 'the table inside is the game\'s to check');
 });
