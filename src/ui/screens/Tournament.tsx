@@ -59,7 +59,7 @@ function TourSetup({ set, change, go, start }: Props & { start: (o: Opts) => voi
             {[1, 2, 3].map(k => <Trophy key={k} medal={me.trophies[o.cup] >= k ? k : 0} size={20} />)}
           </View>
         </View>} cta={{ label: 'Start', name: `Start the ${cupName(o.cup)}`, onPress: () => start(o) }}>
-          <View style={{ alignItems: 'center', paddingVertical: 6, gap: 6 }}><Txt style={styles.prizeNote}>The title prize, on top of match pay ×1 to ×2</Txt><Pay {...won} /></View>
+          <View style={{ alignItems: 'center', paddingVertical: 6, gap: 6 }}><Txt style={styles.prizeNote}>{`The title prize, on top of match pay ×1 to ×${1 + 0.5 * (rounds(o.size) - 1)}`}</Txt><Pay {...won} /></View>
         </Panel>}>
         <View style={{ gap: 9 }}>
           <Line label="Cup">
@@ -71,7 +71,7 @@ function TourSetup({ set, change, go, start }: Props & { start: (o: Opts) => voi
                     accessibilityRole="radio" accessibilityLabel={ok ? cupName(i) : `${cupName(i)}, opens at level ${c.level}, or with a silver or gold in the ${cupName(i - 1)}`} accessibilityState={{ checked: on, disabled: !ok }} aria-checked={on}
                     hitSlop={{ top: 4, bottom: 4 }} style={{ flex: 1, marginBottom: on ? 0 : 3 }} face={styles.cupKey}>
                     <View style={styles.row}>{!ok && <Glyph id="lock" size={12} color={C.chalk + 'B3'} />}<Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.cupKeyName, { color: ink, opacity: ok ? 1 : 0.7 }]}>{c.name}</Txt></View>
-                    {ok ? <Bars rating={c.hi} color={ink} /> : <Txt style={styles.lockText}>{`Level ${c.level}`}</Txt>}
+                    {ok ? <Bars rating={c.hi} color={ink} /> : <Txt style={styles.lockText}>{`Level ${c.level}\nor a silver`}</Txt>}
                   </Slab>
                 );
               })}
@@ -119,7 +119,7 @@ function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { ru
             style={[styles.slot, { height: row, backgroundColor: paint, opacity: lost ? 0.6 : 1 }]}>
             <View style={{ flex: 1, gap: 2 }}>
               <View style={styles.row}><Txt numberOfLines={1} style={[styles.slotName, { color: ink }]}>{e.name}</Txt>{e.style && <Glyph id={e.style} size={11} color={ink} />}</View>
-              {!you && <Bars rating={e.rating} color={ink} w={6} />}
+              {!you && <Bars rating={e.rating} color={ink} w={8} />}
             </View>
             {res && <View style={[styles.score, { backgroundColor: gold ? C.gold : you ? '#16191A1F' : '#0004' }]}><Txt style={[styles.scoreText, { color: gold || you ? C.ink : C.chalk }]}>{mark}</Txt></View>}
           </View>
@@ -154,6 +154,7 @@ function Card({ run, next, abandon, play, again }: { run: Run; next: number; aba
         <View style={styles.center}>
           <Trophy medal={champ ? medalOf(run.opts) : 0} size={land ? 110 : 80} />
           <Txt accessibilityRole="header" style={styles.end}>{champ ? 'Champion' : `Out in the ${roundName(run, lostAt).toLowerCase()}`}</Txt>
+          <Txt style={styles.prizeNote}>Earned this run</Txt>
           <Pay {...run.earned} />
         </View>
         <Cta label="New cup" onPress={again} />
@@ -179,7 +180,7 @@ function Card({ run, next, abandon, play, again }: { run: Run; next: number; aba
       </View>
       <View style={[styles.row, { gap: 8 }]}>
         <Slab paint={sure ? [C.warn, '#A33A30'] : DARK} lip={4} radius={4} onPress={() => { if (sure) abandon(); setSure(!sure); }} accessibilityLabel={sure ? 'Tap again to abandon: a loss' : 'Abandon the tournament'}
-          style={{ height: 58 }} face={styles.abandon}><Txt style={[styles.abandonText, sure && { color: C.ink }]}>{sure ? 'Abandon?' : 'Abandon'}</Txt></Slab>
+          style={{ height: 58 }} face={styles.abandon}><Txt style={[styles.abandonText, sure && { color: C.ink }]}>{sure ? 'Tap again:\na loss' : 'Abandon'}</Txt></Slab>
         <View style={{ flex: 1 }}><Cta label="Play" name={`Play the ${roundName(run, next).toLowerCase()} against ${e.name}`} onPress={play} /></View>
       </View>
     </Slab>
@@ -215,7 +216,7 @@ const styles = StyleSheet.create({
   cups: { flexDirection: 'row', gap: 4, maxWidth: 416 },
   cupKey: { height: 44, alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 2 },
   cupKeyName: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 15 },
-  lockText: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 13, color: C.chalk, opacity: 0.7 },
+  lockText: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 13, color: C.chalk, opacity: 0.7, textAlign: 'center' },
   head: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, letterSpacing: 0.6, textTransform: 'uppercase', color: C.chalk, opacity: 0.6 },
   prizeNote: { fontFamily: FONT.semi, fontSize: 11.5, lineHeight: 15, color: C.chalk, opacity: 0.75, textAlign: 'center' },
   slot: { borderRadius: 3, paddingHorizontal: 7, flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -229,5 +230,5 @@ const styles = StyleSheet.create({
   nick: { fontFamily: FONT.bold, fontSize: 14, lineHeight: 18, color: C.chalk, opacity: 0.7 },
   tell: { fontFamily: FONT.semi, fontSize: 12, lineHeight: 15, color: C.chalk, opacity: 0.7 },
   abandon: { width: 92, alignItems: 'center', justifyContent: 'center' },
-  abandonText: { fontFamily: FONT.bold, fontSize: 13, lineHeight: 16, color: C.chalk, opacity: 0.85 },
+  abandonText: { fontFamily: FONT.bold, fontSize: 13, lineHeight: 16, color: C.chalk, opacity: 0.85, textAlign: 'center' },
 });
