@@ -149,7 +149,12 @@ function Root() {
   const putRun = (r: Run | null) => { runRef.current = r; setRun(r); return saveRun(r); };
   // The next run's seed comes from the last run's (kept on disk until a new one starts), so abandoning a field and
   // starting again cannot re-roll it. Only the first run, or one after a damaged save, is random.
-  const startRun = (o: Opts) => { const old = runRef.current; putRun(newRun(o, Math.floor((old ? rng(old.seed + 1)() : Math.random()) * 2 ** 31))); };
+  // Anything the old run still owes is paid first: once the new run is saved, the old one's pay mark no longer matches.
+  const startRun = (o: Opts) => {
+    const old = runRef.current;
+    if (old) payOut(old);
+    putRun(newRun(o, Math.floor((old ? rng(old.seed + 1)() : Math.random()) * 2 ** 31)));
+  };
   // The run's pay goes out after the run is saved, marked paid in the same profile save (payRun): a crash pays the rest
   // at the next launch, and nothing twice. A champion's trophy goes in that save too.
   const payOut = (r: Run, cue?: CueId) => payRun({ seed: r.seed, earned: r.earned, medal: r.state === 'champion' ? [r.opts.cup, medalOf(r.opts)] : null }, cue);
