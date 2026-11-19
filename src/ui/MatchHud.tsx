@@ -1,6 +1,7 @@
 // The match HUD (screens spec: player plates, the 9-ball strip, the banner) and the results card. What they show comes
 // from src/ui/hud.ts; this file only draws it.
 import type { StyleId } from '../ai/styles';
+import { NICK } from '../tournament/bracket';
 import { Glyph } from './Glyph';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { type LayoutChangeEvent, ScrollView, StyleSheet, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
@@ -77,7 +78,7 @@ export function MatchHud({ rules, names, push, view, pad, calm, wait, score, pau
 function PlateView({ p, land, onX, style }: { p: Plate; land: boolean; onX?: (x: number) => void; style?: StyleId }) {
   const ink = p.on ? C.ink : C.chalk, edge = p.on ? C.ink + '66' : LINE;
   return (
-    <View onLayout={onX && (e => onX(e.nativeEvent.layout.x))} accessible accessibilityLabel={p.label} style={land ? styles.plateLand : styles.plate}>
+    <View onLayout={onX && (e => onX(e.nativeEvent.layout.x))} accessible accessibilityLabel={style ? `${p.label}, ${NICK[style]}` : p.label} style={land ? styles.plateLand : styles.plate}>
       <Slab paint={p.on ? CREAM : DARK} lip={LIP} radius={3} style={{ flex: 1 }} face={styles.plateFace}>
         <View style={styles.l1}><Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.name, { color: ink, flexShrink: 1 }]}>{p.name}</Text>{style && <Glyph id={style} size={12} color={ink} />}</View>
         {(p.pips.length > 0 || !!p.text) && <View style={styles.l2}>{/* 9-ball has no line 2 until the foul warning: the name sits at the centre */}
