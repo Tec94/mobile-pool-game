@@ -1,7 +1,7 @@
-import type { StyleId } from '../ai/styles';
-import type { CueId } from '../progress/cues';
-import type { Pay } from '../progress/pay';
-import { breakerOf, endMatch, type Live, nextMatch, plays, prize, raceOf, recordMatch, roundName, roundOf, roundTitle, type Run, sides, stakes, wins } from './bracket';
+import type { StyleId } from '../ai/styles.ts';
+import type { CueId } from '../progress/cues.ts';
+import type { Pay } from '../progress/pay.ts';
+import { breakerOf, endMatch, type Live, nextMatch, plays, prize, raceOf, recordMatch, roundName, roundOf, roundTitle, type Run, sides, stakes, wins } from './bracket.ts';
 
 // What Game needs to play a tournament match: the opponent, the rules, the breaker of the first rack, the saved state,
 // save() after every strike and ruling, done() at the end (saves the result, returns what it paid), forfeit().
