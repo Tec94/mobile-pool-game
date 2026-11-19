@@ -6,7 +6,7 @@ import { StyleSheet, View } from 'react-native';
 import { profile } from '../../progress';
 import { levelOf } from '../../progress/profile';
 import type { Settings } from '../../settings/settings';
-import { CUPS, cupOpen, medalOf, NICK, nextMatch, type Opts, prize, raceOf, roundName, rounds, type Run, sides } from '../../tournament/bracket';
+import { CUPS, cupOpen, medalOf, NICK, nextMatch, type Opts, prize, raceOf, roundName, rounds, type Run, sides, stakes } from '../../tournament/bracket';
 import { C, CREAM, DARK, FONT, MODE } from '../../theme';
 import { Glyph, Trophy } from '../Glyph';
 import type { Props } from '../Menus';
@@ -68,7 +68,7 @@ function TourSetup({ set, change, go, start }: Props & { start: (o: Opts) => voi
                 const on = o.cup === i, ok = open(i), ink = on ? C.ink : C.chalk;
                 return (
                   <Slab key={c.name} paint={on ? CREAM : [ok ? C.keyOff : '#EEF2EA0D', 'transparent']} lip={on ? 3 : 0} radius={3} onPress={ok ? () => pick({ cup: i }) : undefined} disabled={!ok}
-                    accessibilityRole="radio" accessibilityLabel={ok ? cupName(i) : `${cupName(i)}, opens at level ${c.level}`} accessibilityState={{ checked: on, disabled: !ok }} aria-checked={on}
+                    accessibilityRole="radio" accessibilityLabel={ok ? cupName(i) : `${cupName(i)}, opens at level ${c.level}, or with a silver or gold in the ${cupName(i - 1)}`} accessibilityState={{ checked: on, disabled: !ok }} aria-checked={on}
                     hitSlop={{ top: 4, bottom: 4 }} style={{ flex: 1, marginBottom: on ? 0 : 3 }} face={styles.cupKey}>
                     <View style={styles.row}>{!ok && <Glyph id="lock" size={12} color={C.chalk + 'B3'} />}<Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.cupKeyName, { color: ink, opacity: ok ? 1 : 0.7 }]}>{c.name}</Txt></View>
                     {ok ? <Bars rating={c.hi} color={ink} /> : <Txt style={styles.lockText}>{`Level ${c.level}`}</Txt>}
@@ -93,7 +93,7 @@ function TourSetup({ set, change, go, start }: Props & { start: (o: Opts) => voi
 // Match m of round r, k-th in its round.
 const matchOf = (size: number, r: number, k: number) => { let m = 0; for (let i = 0; i < r; i++) m += size >> (i + 1); return m + k; };
 const won = (run: Run, m: number) => { const r = run.res[m]; return r ? sides(run, m)[r.w] : null; };
-const ROW = 30, GAP = 2, BLOCK = 2 * ROW + GAP, UNIT = BLOCK + 14, LINE = 2;
+const ROW = 36, GAP = 2, BLOCK = 2 * ROW + GAP, UNIT = BLOCK + 14, LINE = 2;
 
 function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { run: Run; again: () => void }) {
   const { land, side, width } = useFrame(), panelW = usePanel(), R = rounds(run.opts.size), next = nextMatch(run);
@@ -116,7 +116,7 @@ function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { ru
             style={[styles.slot, { backgroundColor: paint, opacity: lost ? 0.6 : 1 }]}>
             <View style={{ flex: 1, gap: 2 }}>
               <View style={styles.row}><Txt numberOfLines={1} style={[styles.slotName, { color: ink }]}>{e.name}</Txt>{e.style && <Glyph id={e.style} size={11} color={ink} />}</View>
-              {!you && <Bars rating={e.rating} color={ink} w={4} />}
+              {!you && <Bars rating={e.rating} color={ink} w={6} />}
             </View>
             {res && <View style={[styles.score, { backgroundColor: gold ? C.gold : you ? '#16191A1F' : '#0004' }]}><Txt style={[styles.scoreText, { color: gold || you ? C.ink : C.chalk }]}>{mark}</Txt></View>}
           </View>
@@ -153,7 +153,7 @@ function Card({ run, next, abandon, play, again }: { run: Run; next: number; aba
           <Txt accessibilityRole="header" style={styles.end}>{champ ? 'Champion' : `Out in the ${roundName(run, lostAt).toLowerCase()}`}</Txt>
           <Pay {...run.earned} />
         </View>
-        <Cta label="New cup" name="New tournament" onPress={again} />
+        <Cta label="New cup" onPress={again} />
       </Slab>
     );
   }
@@ -162,6 +162,7 @@ function Card({ run, next, abandon, play, again }: { run: Run; next: number; aba
     <Slab paint={DARK} style={land && { flex: 1 }} face={face}>
       <View style={styles.row}>
         <Txt style={styles.head}>{roundName(run, next)}</Txt><View style={{ flex: 1 }} />
+        {stakes(run, next) > 1 && <Chip name={`This round pays times ${stakes(run, next)}`}>{`Pays ×${stakes(run, next)}`}</Chip>}
         <Chip>{`Best of ${run.opts.best}`}</Chip>
       </View>
       <View style={[styles.row, { gap: 14, flex: land ? 1 : undefined, paddingVertical: land ? 0 : 6 }]} accessible accessibilityLabel={`Next: ${e.name}${e.style ? `, ${NICK[e.style]}` : ''}, rating ${e.rating.toFixed(1)}, race to ${raceOf(run.opts.best)}`}>
@@ -214,7 +215,7 @@ const styles = StyleSheet.create({
   head: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, letterSpacing: 0.6, textTransform: 'uppercase', color: C.chalk, opacity: 0.6 },
   slot: { height: ROW, borderRadius: 3, paddingHorizontal: 7, flexDirection: 'row', alignItems: 'center', gap: 4 },
   unknown: { backgroundColor: '#EEF2EA0A', borderWidth: 1, borderStyle: 'dashed', borderColor: '#EEF2EA26' },
-  slotName: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 14, flexShrink: 1 },
+  slotName: { fontFamily: FONT.bold, fontSize: 13, lineHeight: 15, flexShrink: 1 },
   score: { minWidth: 18, height: 18, borderRadius: 2, alignItems: 'center', justifyContent: 'center' },
   scoreText: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 13, ...TYPE.num },
   card: { padding: 12, gap: 12 },

@@ -64,7 +64,7 @@ export function Home({ set, go, done, stars, daily, today, run: tourRun }: HomeP
       <Tile paint={MODE.tour} name={`Tournament, ${live ? `${tourLine} next` : 'no cup in play'}`} title="Tournament" onPress={() => go('tour')} style={{ flex: 1, minHeight: 120 }} face={{ gap: 4 }}>
         <Txt numberOfLines={1} style={[styles.line, { color: C.chalk }]}>{tourLine}</Txt>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: live ? 'flex-start' : 'center' }}>
-          {live ? <MiniBracket run={live} w={Math.max(60, smallW - 24)} h={Math.max(40, Math.min(110, tileH - 70))} /> : <Trophy medal={me.trophies[top] || 3} size={Math.max(36, Math.min(72, tileH - 74))} />}
+          {live ? <MiniBracket run={live} w={Math.max(60, smallW - 24)} h={Math.max(40, Math.min(110, tileH - 70))} /> : <Trophy medal={me.trophies[top]} size={Math.max(36, Math.min(72, tileH - 74))} />}
         </View>
       </Tile>
     ),
