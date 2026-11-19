@@ -3,7 +3,8 @@
 import assert from 'node:assert';
 import test from 'node:test';
 import { breakSpot, rack, step, strike } from '../physics/engine.ts';
-import { newGame } from '../rules/rules.ts';
+import { judge, newGame, newRec, record } from '../rules/rules.ts';
+import { think } from '../ai/turn.ts';
 import { breakShot } from '../ai/turn.ts';
 import { rng } from '../ai/shot-ai.ts';
 import { newLedger } from '../progress/pay.ts';
@@ -24,4 +25,14 @@ test('a snapshot fits only its own game, version and shape', () => {
   assert(fits(s, 8)); assert(!fits(s, 9)); assert(!fits(null, 8));
   for (const bad of [{ ...s, v: 2 }, { ...s, B: s.B.slice(1) }, { ...s, B: [{ ...s.B[0], x: null }, ...s.B.slice(1)] }, { ...s, cue: 'gone' }, { ...s, stats: undefined }, { ...s, rules: { ...s.rules, balls: 3 } }])
     assert(!fits(bad, 8));
+});
+
+test('a match saved after a ruling goes on the same: the next AI move and its shot', () => {
+  // Break, rule on it, save as Game does, read back; then the AI thinks and strikes from both copies.
+  const s = snapshot(8), r = newRec(), B = s.B.map((b) => ({ ...b })), ev = [];
+  strike(B[0], s.shot); for (let k = 0; k < 60000 && (ev.length = 0, step(B, ev)); k++) record(r, ev, B, s.ids);
+  const after = { ...s, B, rules: judge(s.rules, r), shot: undefined }, back = JSON.parse(JSON.stringify(after));
+  assert(fits(back, 8));
+  const next = (x) => { const m = think(x.B.map((b) => ({ ...b })), x.ids, x.rules, 3, x.seed, 0, 'banker'); return play({ ...x, shot: m.shot }); };
+  assert.equal(JSON.stringify(next(back)), JSON.stringify(next(after)), "the same table (JSON writes -0 as 0, which changes nothing)");
 });
