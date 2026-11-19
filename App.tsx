@@ -202,7 +202,9 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   const pad = useSafeAreaInsets(), calm = useReducedMotion();
   const L: Lesson | undefined = S ?? LESSONS[n];
   const at = useRef(L); // the table up: in a lesson's solo step, a new one every shot
-  const table = useRef(L ? newLesson(L) : snap0 ? resumed(snap0) : newTable(newGame(game, tour?.breaker ?? 0, callAll, bankRule, Math.floor(Math.random() * 2 ** 31)))), HUD = L ? LESSON_HUD : hudHeight(table.current.rules.game); // screen units kept above the table for the HUD
+  // a fresh rack in a match that has frames already (its saved table did not fit): the break alternates by frame (WPA 1.3)
+  const fresh0 = (((tour?.breaker ?? 0) + (tour?.live ? tour.live.score[0] + tour.live.score[1] : 0)) % 2) as 0 | 1;
+  const table = useRef(L ? newLesson(L) : snap0 ? resumed(snap0) : newTable(newGame(game, fresh0, callAll, bankRule, Math.floor(Math.random() * 2 ** 31)))), HUD = L ? LESSON_HUD : hudHeight(table.current.rules.game); // screen units kept above the table for the HUD
   // The lesson's step, the passes in a row in the solo step, and the verdict on the last shot (a card over the table).
   const [stage, setStage] = useState<Stage>('watch'), [run, setRun] = useState(0), [said, setSaid] = useState<{ title: string; say: string; ok: boolean } | null>(null);
   // A scenario counts its tries; the third star wants a try with the aim guide never on screen (peeked = it was).
