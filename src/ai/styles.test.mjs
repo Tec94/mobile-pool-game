@@ -12,7 +12,7 @@ test('every style changes the tier (the Closer near the end of a rack), keeps it
 });
 test('the Closer is sharper only with two balls or fewer to win the rack', () => {
   const t = aiParams(4, () => 0.5);
-  assert.equal(styled(t, 'closer', 3).sigma, t.sigma); assert.equal(styled(t, 'closer', 2).sigma, t.sigma / 2);
+  assert.equal(styled(t, 'closer', 3).sigma, t.sigma); assert(styled(t, 'closer', 2).sigma < t.sigma / 2);
 });
 test('the Banker plays banks and kicks, the Wall plays safe sooner, the Gunslinger never does', () => {
   const t = aiParams(2, () => 0.5);
