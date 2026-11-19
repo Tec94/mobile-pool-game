@@ -70,7 +70,7 @@ function TourSetup({ set, change, go, start }: Props & { start: (o: Opts) => voi
                   <Slab key={c.name} paint={on ? CREAM : [ok ? C.keyOff : '#EEF2EA0D', 'transparent']} lip={on ? 3 : 0} radius={3} onPress={ok ? () => pick({ cup: i }) : undefined} disabled={!ok}
                     accessibilityRole="radio" accessibilityLabel={ok ? cupName(i) : `${cupName(i)}, opens at level ${c.level}`} accessibilityState={{ checked: on, disabled: !ok }} aria-checked={on}
                     hitSlop={{ top: 4, bottom: 4 }} style={{ flex: 1, marginBottom: on ? 0 : 3 }} face={styles.cupKey}>
-                    <View style={styles.row}>{!ok && <Glyph id="lock" size={12} color={C.chalk + '80'} />}<Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.cupKeyName, { color: ink, opacity: ok ? 1 : 0.5 }]}>{c.name}</Txt></View>
+                    <View style={styles.row}>{!ok && <Glyph id="lock" size={12} color={C.chalk + 'B3'} />}<Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.cupKeyName, { color: ink, opacity: ok ? 1 : 0.7 }]}>{c.name}</Txt></View>
                     {ok ? <Bars rating={c.hi} color={ink} /> : <Txt style={styles.lockText}>{`Level ${c.level}`}</Txt>}
                   </Slab>
                 );
@@ -106,17 +106,19 @@ function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { ru
     const m = matchOf(run.opts.size, r, k), y = mid(r, k) - BLOCK / 2, res = run.res[m];
     parts.push(<View key={`m${m}`} style={{ position: 'absolute', left: x(r), top: y, width: colW, gap: GAP }}>
       {sides(run, m).map((i, s) => {
-        if (i === null) return <View key={s} style={[styles.slot, styles.unknown]} accessibilityLabel="Not decided yet" />;
+        if (i === null) return <View key={s} style={[styles.slot, styles.unknown]} accessible accessibilityLabel="Not decided yet" />;
+        // A forfeit ends short of the race: the winner's box says W/O (walkover), the loser's is blank.
+        const walk = !!res && Math.max(...res.score) < raceOf(run.opts.best), mark = res ? (walk ? (res.w === s ? 'W/O' : '–') : String(res.score[s])) : '';
         const e = run.field[i], you = !!e.human, foe = m === next && !you, lost = !!res && res.w !== s, gold = run.state === 'champion' && m === run.res.length - 1 && you;
         const paint = you ? CREAM[0] : foe ? MODE.tour[0] : '#EEF2EA14', ink = you ? C.ink : C.chalk;
         return (
-          <View key={s} accessible accessibilityLabel={`${e.name}${e.style ? `, ${NICK[e.style]}` : ''}${res ? `, ${res.score[s]}` : ''}${foe ? ', your next opponent' : ''}`}
-            style={[styles.slot, { backgroundColor: paint, opacity: lost ? 0.45 : 1 }]}>
+          <View key={s} accessible accessibilityLabel={`${e.name}${e.style ? `, ${NICK[e.style]}` : ''}${you ? '' : `, rating ${e.rating.toFixed(1)}`}${res ? `, ${walk ? (res.w === s ? 'won by forfeit' : 'forfeited') : res.score[s]}` : ''}${foe ? ', your next opponent' : ''}`}
+            style={[styles.slot, { backgroundColor: paint, opacity: lost ? 0.6 : 1 }]}>
             <View style={{ flex: 1, gap: 2 }}>
               <View style={styles.row}><Txt numberOfLines={1} style={[styles.slotName, { color: ink }]}>{e.name}</Txt>{e.style && <Glyph id={e.style} size={11} color={ink} />}</View>
               {!you && <Bars rating={e.rating} color={ink} w={4} />}
             </View>
-            {res && <View style={[styles.score, { backgroundColor: gold ? C.gold : you ? '#16191A1F' : '#0004' }]}><Txt style={[styles.scoreText, { color: gold || you ? C.ink : C.chalk }]}>{res.score[s]}</Txt></View>}
+            {res && <View style={[styles.score, { backgroundColor: gold ? C.gold : you ? '#16191A1F' : '#0004' }]}><Txt style={[styles.scoreText, { color: gold || you ? C.ink : C.chalk }]}>{mark}</Txt></View>}
           </View>
         );
       })}
@@ -129,7 +131,7 @@ function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { ru
     }
   }
   return (
-    <Shell title={cupName(run.opts.cup)} back={() => go('home')}>
+    <Shell title={cupName(run.opts.cup)} back={() => go('home')} extra={<Trophy medal={run.state === 'champion' ? medalOf(run.opts) : 0} size={24} />}>
       <Split panel={<Card run={run} next={next} abandon={abandon} play={playTour} again={again} />}>
         <View style={{ height: 14, marginBottom: 10 }}>{names.map((t, r) => <Txt key={t} style={[styles.head, styles.abs, { left: x(r) }]}>{t}</Txt>)}</View>
         <View style={{ height: (run.opts.size / 2) * UNIT }}>{parts}</View>
@@ -208,7 +210,7 @@ const styles = StyleSheet.create({
   cups: { flexDirection: 'row', gap: 4, maxWidth: 416 },
   cupKey: { height: 44, alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 2 },
   cupKeyName: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 15 },
-  lockText: { fontFamily: FONT.bold, fontSize: 10, lineHeight: 12, color: C.chalk, opacity: 0.5 },
+  lockText: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 13, color: C.chalk, opacity: 0.7 },
   head: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, letterSpacing: 0.6, textTransform: 'uppercase', color: C.chalk, opacity: 0.6 },
   slot: { height: ROW, borderRadius: 3, paddingHorizontal: 7, flexDirection: 'row', alignItems: 'center', gap: 4 },
   unknown: { backgroundColor: '#EEF2EA0A', borderWidth: 1, borderStyle: 'dashed', borderColor: '#EEF2EA26' },
