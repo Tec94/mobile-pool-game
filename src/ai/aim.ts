@@ -2,7 +2,7 @@
 // The AI's shot on the real engine: correct the picker's ghost-ball aim for throw, squirt and swerve, refine aim, speed
 // and tip with noise-free rollouts within the tier's budget, and turn a pick into an engine Shot with the tier's strike noise. Port of the ai-progression prototype (engine-aim.js) plus the glue.
 import { type Ball, CUE, type Ev, P, type Shot, step, strike } from '../physics/engine.ts';
-import { type Cand, decide, dist, enumerate, legalFor, nine, type Obj, type Pick, plays, POCKETS, potFor, type Pt, type Tier, tierProb, winBall } from './shot-ai.ts';
+import { type Cand, decide, dist, enumerate, legalFor, nine, type Obj, type Pick, type Planned, plays, POCKETS, potFor, type Pt, nineValue, rackOdds, type Tier, tierProb, winBall } from './shot-ai.ts';
 
 // Direction the object ball actually leaves in, for a given strike. Stops at first contact.
 function departure(cue: Ball, obj: Ball, shot: Shot) {
@@ -88,18 +88,21 @@ function rollout(B: Ball[], shot: Shot, k: number, first: number, pk: Pt | null,
   return { pot: pot && !scratch, legal: hit === first, rail: rail || drop > 0.25, scratch, err: pk || hit !== first ? err : 0, S };
 }
 // Chance the tier pots its best next shot from where a rollout left the table (S, metres): the leave, measured on the
-// engine instead of planned. 1 when the 8 (the 9) dropped legally, -1 when the 8 dropped early. 9-ball: on the lowest ball left.
+// engine instead of planned. 1 when the 8 (the 9) dropped legally, -1 when the 8 dropped early. 9-ball: on the lowest ball left,
+// and nine = that best next shot is itself on the 9 (rackOdds).
 // shortcut: scores the noise-free rest spot only; sampling the tier's posErr scatter around it and a depth-1 plan from it
 // moved balls a visit by less than the bench's noise (0.15) at 300 tables, try again if the leave search changes.
 function nextP(B: Ball[], S: Ball[], ids: number[], group: number[], tier: Tier) {
   const balls: Obj[] = [], w = ids.indexOf(winBall(group));
   S.forEach((b, i) => i && b.on && balls.push({ id: ids[i], x: b.x * 1000, y: b.y * 1000 }));
-  if (w > 0 && B[w].on && !S[w].on) return nine(group) || !balls.some((b) => group.includes(b.id)) ? 1 : -1;
+  if (w > 0 && B[w].on && !S[w].on) return { p: nine(group) || !balls.some((b) => group.includes(b.id)) ? 1 : -1, nine: false };
   const legal = legalFor(balls, group), all = enumerate({ x: S[0].x * 1000, y: S[0].y * 1000 }, balls, legal, potFor(balls, group));
   const mine = all.filter((c) => plays(tier, c, balls));
-  return Math.max(0, ...(mine.length ? mine : all.filter((c) => c.type !== 'carom' && c.type !== 'billiard')).map((c) => tierProb(tier, c)));
+  let p = 0, k = false;
+  for (const c of mine.length ? mine : all.filter((c) => c.type !== 'carom' && c.type !== 'billiard')) { const q = tierProb(tier, c); if (q > p) { p = q; k = c.ball === 9; } }
+  return { p, nine: k };
 }
-type Roll = ReturnType<typeof rollout> & { shot: Shot; score: number; next: number };
+type Roll = ReturnType<typeof rollout> & { shot: Shot; score: number; next: number; nextNine: boolean };
 const SPEEDS = [1, 1.3, 0.8, 1.7, 0.65, 2.2, 0.5]; // a safety's speeds, tried in this order, times the starting speed
 const DRAW = -(CUE.tipLimit - 0.05);
 // A pot's speeds (times the starting speed) and tip heights, spread out first so a small budget still sees draw, follow
@@ -120,10 +123,10 @@ function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number
   const slope = [0, 0]; // d err / d aim, before the right first hit and after it
   const run = (s: Shot): Roll => {
     sims--;
-    const r = rollout(B, s, k, first, to, g), c = r.S[0], p = pk && r.pot && r.legal ? nextP(B, r.S, ids, group, tier) : 0;
+    const r = rollout(B, s, k, first, to, g), c = r.S[0], np = pk && r.pot && r.legal ? nextP(B, r.S, ids, group, tier) : { p: 0, nine: false }, p = np.p;
     if (p < 0) r.pot = false; // the 8 went down early: the rack is lost
     const off = Math.abs(r.err) * 5 + (pk ? 1 - Math.max(0, p) : Math.hypot(c.x * 1000 - leave.x, c.y * 1000 - leave.y) / 4000);
-    const out = { ...r, shot: s, next: p, score: 8 * +(r.pot && r.legal) + 4 * +!r.scratch + 2 * +r.legal + +r.rail - Math.min(0.99, off) };
+    const out = { ...r, shot: s, next: p, nextNine: np.nine, score: 8 * +(r.pot && r.legal) + 4 * +!r.scratch + 2 * +r.legal + +r.rail - Math.min(0.99, off) };
     if (!best || out.score > best.score) best = out;
     return out;
   };
@@ -175,17 +178,26 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   const runs = cands.map((c) => {
     const lv = (c.leave ??= { spin: 0, power: 700, x: c.G.x, y: c.G.y, path: [c.G], travelled: 0, scratch: false }), b = c.type === 'billiard' ? ROLL : TIP * lv.spin, speed = speedFor(c.paths, lv.power, c.v, c.u, b, 1 - 1.5 * tier.speedErr / 100);
     const first = ids.indexOf(c.type === 'safety' ? c.ball : c.first), start = { ang: correctAim(B[0], B[first], c, speed, 0, b) ?? c.aim, speed, a: 0, b };
-    return { c, more: sims < 2 ? null : refine(B, ids, group, tier, ids.indexOf(c.ball), first, c.type === 'safety' ? null : POCKETS[c.pocket], c.G, lv, start, t0 + THINK), v: -Infinity, shot: start };
+    return { c, more: sims < 2 ? null : refine(B, ids, group, tier, ids.indexOf(c.ball), first, c.type === 'safety' ? null : POCKETS[c.pocket], c.G, lv, start, t0 + THINK), v: -Infinity, shot: start, r: null as Roll | null };
   });
   const score = (x: (typeof runs)[number], n: number) => {
     const r = x.more!(n), c = x.c;
-    x.v = c.type !== 'safety' && r.pot && r.legal && !r.scratch ? c.p * (1 + r.next) : r.score / 16 - 1; x.shot = r.shot;
+    x.v = c.type !== 'safety' && r.pot && r.legal && !r.scratch ? c.p * (1 + r.next) : r.score / 16 - 1; x.shot = r.shot; x.r = r;
   };
   if (runs[0].more) {
     const first = cands.length > 1 ? Math.min(6, Math.floor(sims / (cands.length + 1))) : sims; // shortcut: the 6 a try is a guess, retune with bench:visit
-    for (const x of runs) if (x.c.type === 'safety' || 2 * x.c.p > Math.max(...runs.map((y) => y.v))) { score(x, first); sims -= first; } // a sure next shot could not beat the best
+    // a sure next shot could not beat the best; a 9 is weighed on its own terms below, so it is always rolled out
+    for (const x of runs) if (x.c.type === 'safety' || (nine(group) && x.c.ball === 9) || 2 * x.c.p > Math.max(...runs.map((y) => y.v))) { score(x, first); sims -= first; }
     const top = runs.reduce((a, x) => (x.v > a.v ? x : a));
     if (sims > 0 && cands.length > 1) score(top, sims);
+    // 9-ball: a 9 that went down early against the best route that potted, as plan() weighs them (nineValue), from the
+    // leaves the engine really gave. shortcut: the route's next shot is the noise-free rest spot's, a little optimistic.
+    // Hustler (tries 1) has no second rollout to weigh: plan() alone decides for it.
+    const ref = nine(group) ? runs.filter((x) => x.c.ball !== 9 && x.r?.pot && x.v > 0).reduce<(typeof runs)[number] | null>((a, x) => (!a || x.v > a.v ? x : a), null) : null;
+    if (ref) {
+      const w9 = ids.indexOf(9), odds = rackOdds(tier, (ref.c as Planned).p, ref.r!.next, ref.r!.S[w9].on ? ref.r!.S.filter((b, i) => i && b.on).length : 0, ref.r!.nextNine); // the 9 knocked in: wins with p
+      for (const x of runs) if (x.c.ball === 9 && x.v > 0) x.v = nineValue(x.v, (x.c as Planned).p, ref.v, odds);
+    }
   }
   const won = runs.reduce((a, x) => (x.v > a.v ? x : a)), aim = won.shot, played = won.c;
   const t2 = now(), g = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd()); // Box-Muller

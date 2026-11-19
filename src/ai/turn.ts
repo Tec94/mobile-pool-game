@@ -5,7 +5,7 @@
 import { type Ball, CUE, HOLES, P, type Shot } from '../physics/engine.ts';
 import { canCall, cushionAt, legalSpot, onEight, type Hand, type Rec, type State } from '../rules/rules.ts';
 import { aiShot } from './aim.ts';
-import { aiParams, chooseGroup, type Cand, enumerate, makeProb, NINE, type Obj, type Pick, rng, SIGMA_REF, SOLIDS, STRIPES } from './shot-ai.ts';
+import { aiParams, chooseGroup, type Cand, EDGE, enumerate, makeProb, NINE, type Obj, type Pick, plan, rng, shotOdds, SIGMA_REF, SOLIDS, STRIPES } from './shot-ai.ts';
 import { type Pay, shotPay, type ShotType as PayType, type Vs } from '../progress/pay.ts';
 
 // The AI's turn. at = where it puts the cue ball in hand (null = where it lies); call = the pocket it calls (-1 none);
@@ -53,6 +53,27 @@ export function placeCue(B: Ball[], ids: number[], hand: Hand, legal: number[]):
   return at;
 }
 
+// 9-ball ball in hand: a spot behind the lowest ball (lo, an id) lined up to drive the 9 into a pocket, a combo of at
+// most a 60 degree cut on the 9, the shorter the better. think() takes it when the picker values the table from there more.
+export function comboSpot(B: Ball[], ids: number[], hand: Hand, lo: number): [number, number] | null {
+  const i = ids.indexOf(lo), j = ids.indexOf(9), a = B[i], n = B[j];
+  let best = -Infinity, at: [number, number] | null = null;
+  if (i < 0 || j < 0 || !a.on || !n.on || lo === 9) return null;
+  HOLES.forEach((h, k) => {
+    const dx = h[0] - n.x, dy = h[1] - n.y, l = Math.sqrt(dx * dx + dy * dy), ux = dx / l, uy = dy / l;
+    if (k >= 4 && Math.abs(uy) < 0.7) return; // a side pocket takes no ball from a shallow angle
+    if (!lane(B, n.x, n.y, h[0], h[1], [0, j])) return;
+    const gx = n.x - 2 * P.R * ux, gy = n.y - 2 * P.R * uy, ex = gx - a.x, ey = gy - a.y, m = Math.sqrt(ex * ex + ey * ey), wx = ex / m, wy = ey / m;
+    if (wx * ux + wy * uy < 0.5 || !lane(B, a.x, a.y, gx, gy, [0, i, j])) return;
+    const fx = a.x - 2 * P.R * wx, fy = a.y - 2 * P.R * wy;
+    for (const d of [0.15, 0.35]) {
+      const x = fx - d * wx, y = fy - d * wy, score = -(d + m + l);
+      if (score > best && legalSpot(B, x, y, hand) && lane(B, x, y, fx, fy, [0, i])) { best = score; at = [x, y]; }
+    }
+  });
+  return at;
+}
+
 // The break: full break speed from where the cue ball lies, at the 1 (the apex ball in both racks), with a little aim
 // noise so racks differ.
 export function breakShot(B: Ball[], ids: number[], rnd: () => number): Shot {
@@ -87,7 +108,14 @@ export function think(B: Ball[], ids: number[], s: State, level: number, seed: n
   // shortcut: 9-ball keeps NINE whole (the picker knows it by its length), so a lowest ball behind the line is still a foul.
   const ahead = (l: number[]) => { const k = s.hand === 'kitchen' ? l.filter(id => { const b = B[ids.indexOf(id)]; return b && b.on && b.x >= P.L / 4; }) : l; return k.length ? k : l; };
   if (s.hand) { // place first, then shoot from there
-    const at = placeCue(B, ids, s.hand, ahead(legalIds(s, g[0])));
+    let at = placeCue(B, ids, s.hand, ahead(legalIds(s, g[0])));
+    const combo = s.game === 9 && T.types.includes('combo') ? comboSpot(B, ids, s.hand, legalIds(s, g[0])[0]) : null;
+    if (combo) { // the combo spot when the 9 is its best shot and wins the rack more often (by EDGE, as nineValue) than the
+      // best shot from the straight-in spot (or where the cue ball lies). shortcut: two more plan() calls, about 7 ms (Node JIT).
+      const balls = mm(B, ids), top = (p: [number, number] | null) => plan(p ? { x: p[0] * 1000, y: p[1] * 1000 } : { x: B[0].x * 1000, y: B[0].y * 1000 }, balls, NINE, T, T.depth, 4, NINE)[0];
+      const c = top(combo), r = top(at);
+      if (c?.ball === 9 && (!r || shotOdds(T, c, balls.length) > shotOdds(T, r, balls.length) + EDGE)) at = combo;
+    }
     if (at) { B[0].x = at[0]; B[0].y = at[1]; }
   }
   const lit = s.lit, ok = lit.length ? (c: Cand) => onLit(lit, c) : undefined; // bank shots: no other pot counts
