@@ -40,7 +40,7 @@ function Pay({ xp, coins }: { xp: number; coins: number }) {
 }
 // Six bars for a rating on the 1 to 6 tier scale; a part bar for a part of a tier.
 function Bars({ rating, color, w = 5 }: { rating: number; color: string; w?: number }) {
-  return <View style={styles.bars}>{Array.from({ length: 6 }, (_, k) => <View key={k} style={{ width: w, height: Math.max(3, w * 0.6), backgroundColor: color, opacity: rating >= k + 1 ? 1 : rating > k ? 0.55 : 0.22 }} />)}</View>;
+  return <View style={styles.bars}>{Array.from({ length: 6 }, (_, k) => <View key={k} style={{ width: w, height: Math.max(3, w * 0.6), backgroundColor: color, opacity: rating >= k + 1 ? 1 : rating > k ? 0.6 : 0.35 }} />)}</View>;
 }
 
 function TourSetup({ set, change, go, start }: Props & { start: (o: Opts) => void }) {
@@ -172,7 +172,7 @@ function Card({ run, next, abandon, play, again }: { run: Run; next: number; aba
           <View style={styles.row}><Txt numberOfLines={1} style={styles.foe}>{e.name}</Txt>{e.style && <Glyph id={e.style} size={20} color={C.chalk} />}</View>
           {e.style && <Txt style={styles.nick}>{NICK[e.style]}</Txt>}
           {e.style && <Txt numberOfLines={2} style={styles.tell}>{TELL[e.style]}</Txt>}
-          <Bars rating={e.rating} color={C.chalk} w={12} />
+          <View style={[styles.row, { gap: 8 }]}><Bars rating={e.rating} color={C.chalk} w={12} /><Txt style={styles.tell}>{`Rating ${e.rating.toFixed(1)}`}</Txt></View>
         </View>
       </View>
       <View style={[styles.row, { gap: 8 }]}>
