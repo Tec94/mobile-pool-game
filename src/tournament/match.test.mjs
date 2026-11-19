@@ -4,6 +4,7 @@ import assert from 'node:assert';
 import test from 'node:test';
 import { newRun, recordMatch } from './bracket.ts';
 import { tourMatch } from './match.ts';
+import { snapshot } from './fixtures.mjs';
 
 const opts = { cup: 0, size: 4, best: 3, game: 8, callAll: true, bank: 0 };
 const none = { xp: 0, coins: 0 };
@@ -35,4 +36,11 @@ test('the live match saves without ending; the prize shows only for a match that
   const fin = io(recordMatch(newRun(opts, 5), true, [2, 0], none));
   assert(tourMatch(fin).prize(true).xp > tourMatch(fin).prize(false).xp, 'the title pays more than the final lost');
   assert.equal(tourMatch(io(recordMatch(newRun(opts, 5), false, [0, 2], none))), undefined, 'no match once the run is over');
+});
+
+test('a forfeit pays the shots already played, as the saved table has them', () => {
+  const t = snapshot(8); t.ledger.shots = { xp: 40, coins: 20 };
+  const a = io({ ...newRun(opts, 5), live: { score: [1, 0], table: JSON.parse(JSON.stringify(t)) } });
+  tourMatch(a).forfeit([1, 0]);
+  assert.deepStrictEqual(a.run.earned, { xp: 40, coins: 20 }); assert.equal(a.run.state, 'out');
 });

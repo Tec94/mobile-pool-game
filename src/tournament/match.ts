@@ -2,6 +2,7 @@ import type { StyleId } from '../ai/styles.ts';
 import type { CueId } from '../progress/cues.ts';
 import type { Pay } from '../progress/pay.ts';
 import { breakerOf, endMatch, type Live, nextMatch, plays, prize, raceOf, recordMatch, roundName, roundOf, roundTitle, type Run, sides, stakes, wins } from './bracket.ts';
+import { fits } from './snap.ts';
 
 // What Game needs to play a tournament match: the opponent, the rules, the breaker of the first rack, the saved state,
 // save() after every strike and ruling, done() at the end (saves the result, returns what it paid), forfeit().
@@ -30,6 +31,8 @@ export function tourMatch<Paid>(io: { get: () => Run | null; put: (r: Run) => bo
     game: r.opts.game, race: raceOf(r.opts.best), callAll: r.opts.callAll, bank: r.opts.bank, breaker: breakerOf(r, m), live: r.live, stakes: stakes(r, m),
     prize: (won) => { const x = recordMatch(r, won, [0, 0], { xp: 0, coins: 0 }); return x.state === 'playing' ? null : prize(x.opts, wins(x)); },
     save: (l) => { const x = io.get(); if (x) io.keep({ ...x, live: l }); },
-    done: end, forfeit: (score) => { end(false, score, { xp: 0, coins: 0 }); },
+    done: end,
+    // a forfeit still pays the shots played, as the saved table's ledger has them (stakes already in)
+    forfeit: (score) => { const t = io.get()?.live?.table; end(false, score, fits(t, r.opts.game) ? { ...t.ledger.shots } : { xp: 0, coins: 0 }); },
   };
 }
