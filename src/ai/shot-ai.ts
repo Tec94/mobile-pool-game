@@ -15,7 +15,7 @@ export type ShotType = 'direct' | 'bank' | 'kick' | 'combo' | 'carom' | 'billiar
 // ball's id, via = a combo's first ball or a carom's helper ball, tol = the striker's angular tolerance (radians), paths = polylines for drawing.
 export interface Cand { type: ShotType; ball: number; pocket: number; aim: number; tol: number; cut: number; paths: Pt[][]; G: Pt; v: Pt; u: Pt; first: number; via?: number }
 export interface Leave extends Pt { spin: number; power: number; path: Pt[]; travelled: number; scratch: boolean }
-export interface Planned extends Cand { p: number; score: number; value: number; leave?: Leave; next?: Planned }
+export interface Planned extends Cand { p: number; score: number; value: number; leave?: Leave; next?: Planned; deep?: boolean } // deep: plan() searched its leaves
 // G, v and u are kept on a safety (the prototype dropped them) so the engine glue maps it like a pot.
 export interface Safety { type: 'safety'; ball: number; aim: number; paths: Pt[][]; leave: Leave; oppBest: number; hooked: boolean; G: Pt; v: Pt; u: Pt }
 export type Pick = Planned | Safety | { type: 'foul' };
@@ -260,7 +260,12 @@ function leaves(G: Pt, v: Pt, u: Pt, balls: Obj[], ignore: number[], powers = PO
 // Taking the 9 early, new against before at the same tier (2026-11-19, a seed played twice with sides swapped; seeds new
 // won both ways / old won both ways): open table, 1600 racks: 53.4 51.8 50.7 50.4% (Hustler..Legend, +-2.5), 82/29
 // 78/49 43/36 48/46; first shot with ball in hand, 1000 racks: 53.6 55.1 53.0 52.3% (+-3.1), 80/44 87/36 58/31 49/27.
-// Pro and Legend run out so often that a 9 beating their route by EDGE is rare: their gain is in ball in hand.
+// Pro and Legend run out so often that a 9 beating their route by EDGE is rare: their gain is in ball in hand. On open
+// tables the choice flips under 1% of decisions, each +0.06 of a visit's clears (about 0.05 points a decision): 1600 racks
+// cannot show it, about 100k would. Hustler's open-table 53.4 comes from ball in hand after fouls (50.9 without the combo
+// spot). EDGE 0 to 0.15 clear alike within noise. Route odds after the run fit, predicted / cleared (500 tables): Hustler
+// .011 / .015, Shark .068 / .057, Pro .200 / .193, Legend .520 / .509. Combo p9 runs high (Shark .19 / .12, Legend .49 / .40):
+// tierProb for combos, also 8-ball's, a follow-up.
 // Shark's budget of 12 (not 17) and Pro's wLeave of 0.6 (not 0.9: fewer safeties) keep Shark, Pro and Legend apart.
 export const TIERS: Tier[] = [
   { name: 'Rookie',  sigma: 0.52, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1, caromGap: 0, rail: [0.91, 1.43], hard: 1.5, run: 0.45 },
@@ -321,9 +326,12 @@ export function nineValue(v9: number, p9: number, ref: number, odds: number) {
   return p9 > odds + EDGE ? Math.max(v9, ref + RACK * (p9 - odds)) : p9 < odds ? Math.min(v9, ref + RACK * (p9 - odds)) : v9;
 }
 // 9-ball: the chance shot s, planned on a table of n balls, wins the rack this visit: p on the 9, else its route's rackOdds.
-// A route planned to a leave with no shot (hooked) goes on with 0; one not planned (depth 0, a combo) at the run rate.
+// A route goes on at its planned next shot's chance, 0 when plan() searched its leaves and found no shot (hooked), and
+// at the run rate when it did not search (depth 0; a combo, carom or billiard moves a second ball). By deep, not by
+// leave: decide() and aiShot give every pick a leave.
 export function shotOdds(tier: Tier, s: Planned, n: number) {
-  return s.ball === 9 ? s.p : rackOdds(tier, s.p, s.leave ? s.next?.p ?? 0 : tier.run, n - 1, s.next?.ball === 9);
+  const next = s.next ? s.next.p : s.deep ? 0 : tier.run;
+  return s.ball === 9 ? s.p : rackOdds(tier, s.p, next, n - 1, s.next?.ball === 9);
 }
 const need = (balls: Obj[], group: number[]) => (nine(group) ? balls.length : balls.filter((b) => group.includes(b.id)).length + 1);
 const replyCost = (tier: Tier, balls: Obj[], oppGroup: number[]) => REPLY + (tier.rack ? RACK * Math.pow(R_REF, need(balls, oppGroup) - 1) : 0);
@@ -351,7 +359,7 @@ export function plan(cue: Pt, balls: Obj[], group: number[], tier: Tier, depth: 
     s.value = s.score;
     if (depth && s.type !== 'combo' && s.type !== 'carom' && s.type !== 'billiard') { // these move a second ball, so the table after them is unknown here
       const after = balls.filter((b) => b.id !== s.ball);
-      s.value = -Infinity;
+      s.value = -Infinity; s.deep = true;
       for (const lv of leaves(s.G, s.v, s.u, balls, [s.first, s.ball], oppGroup ? POWERS : [300, 1300])) {
         // the next shot is priced without caroms and billiards: they took half of decide()'s time and are rarely the best
         const sub = lv.scratch ? null : plan({ x: lv.x, y: lv.y }, after, group, tier, depth - 1, Math.max(1, width - 2), undefined, false);

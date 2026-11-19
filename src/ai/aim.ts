@@ -195,7 +195,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
     // Hustler (tries 1) has no second rollout to weigh: plan() alone decides for it.
     const ref = nine(group) ? runs.filter((x) => x.c.ball !== 9 && x.r?.pot && x.v > 0).reduce<(typeof runs)[number] | null>((a, x) => (!a || x.v > a.v ? x : a), null) : null;
     if (ref) {
-      const odds = rackOdds(tier, (ref.c as Planned).p, ref.r!.next, ref.r!.S.filter((b, i) => i && b.on).length, ref.r!.nextNine);
+      const w9 = ids.indexOf(9), odds = rackOdds(tier, (ref.c as Planned).p, ref.r!.next, ref.r!.S[w9].on ? ref.r!.S.filter((b, i) => i && b.on).length : 0, ref.r!.nextNine); // the 9 knocked in: wins with p
       for (const x of runs) if (x.c.ball === 9 && x.v > 0) x.v = nineValue(x.v, (x.c as Planned).p, ref.v, odds);
     }
   }
