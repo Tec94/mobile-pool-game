@@ -13,9 +13,10 @@ export const profile = () => (me ??= loadProfile());
 export function keep(p: Profile) { me = p; saveProfile(p); }
 // Add the pay and save. cue = the player's own cue played for it (not a matched cue), which earns the XP as mastery.
 // Gives the levels before and after, the coins of the level-ups and the mastery line, for the results card.
-export function award(pay: Pay, cue?: CueId) {
+// then = a change saved in the same write (a tournament's paid mark and trophy), so the two cannot part.
+export function award(pay: Pay, cue?: CueId, then = (p: Profile) => p) {
   const g = gain(profile(), pay), m = cue ? cueGain(g.profile, cue, pay.xp) : null;
-  keep(m ? m.profile : g.profile);
+  keep(then(m ? m.profile : g.profile));
   return { ...g, mastery: m && cue ? masteryNote(cue, m) : '' };
 }
 // The player's own cue as it plays now, with its tuning.
@@ -30,3 +31,11 @@ export function rivalDone(game: 8 | 9, won: boolean, left: number, mood: Mood): 
 }
 // Back to the start rating, as a new save has it.
 export function rivalReset(game: 8 | 9) { const p = profile(); keep({ ...p, rival: { ...p.rival, [game]: { ...START } } }); }
+// A tournament run's pay: what it earned less what the profile says it already paid this run (Profile.tour), in one
+// save with the new mark and the trophy, so a crash anywhere pays the rest at the next launch and never twice.
+export function payRun(r: { seed: number; earned: Pay; medal: [number, number] | null }, cue: CueId) {
+  const had = profile().tour, before = had && had.seed === r.seed ? had : { xp: 0, coins: 0 };
+  const owe = { xp: Math.max(0, r.earned.xp - before.xp), coins: Math.max(0, r.earned.coins - before.coins) };
+  if (!owe.xp && !owe.coins && !r.medal) return null;
+  return award(owe, cue, p => ({ ...p, tour: { seed: r.seed, ...r.earned }, trophies: r.medal ? p.trophies.map((t, i) => (i === r.medal![0] ? Math.max(t, r.medal![1]) : t)) : p.trophies }));
+}
