@@ -27,12 +27,15 @@ import { loadDone, saveDone } from './src/learn/save';
 import { canCall, choose, handCue, judge, legalFirst, moveCue, newGame, newRec, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { thinkAsync } from './src/ai/think';
 import { candsFor, choiceFor, type Move, nextSafeties, potPay, type Safeties, safetiesArg, softMove, think } from './src/ai/turn';
-import { type Cand, TIERS } from './src/ai/shot-ai';
-import { newLedger, noteShot, type Pay, settle, type Settled } from './src/progress/pay';
+import { type Cand, rng, TIERS } from './src/ai/shot-ai';
+import { type Ledger, newLedger, noteShot, type Pay, settle, type Settled } from './src/progress/pay';
+import type { StyleId } from './src/ai/styles';
+import { breakerOf, type Live, medalOf, newRun, nextMatch, type Opts, plays, prize, raceOf, recordMatch, roundName, roundOf, roundTitle, type Run, sides, stakes, wins } from './src/tournament/bracket';
+import { loadRun, saveRun } from './src/tournament/save';
 import { DRAG, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { farGuide, type Guide, type GuideAsk, nearGuide } from './src/shot/far';
 import { guidePacer } from './src/shot/pacer';
-import { award, keep, ownStats, PASS_PLAY, profile, rivalDone, unlockCue } from './src/progress';
+import { award, keep, ownStats, PASS_PLAY, payRun, profile, rivalDone, unlockCue } from './src/progress';
 import { shown, tenth } from './src/progress/rival';
 import { clear, clearFeats, isOpen, par, SCENARIOS, type Scenario, starCount, starsFor } from './src/scenarios/scenarios';
 import { armChalk, chalkResult, dailyClear, dailyPick, dayKey, grantChalk } from './src/daily/daily';
@@ -70,6 +73,18 @@ const newTable = (rules: State) => {
   return { B, ids, look: newLook(B), rules, rec: null as Rec | null, push: false };
 };
 // A lesson's table. No rules play: the state only marks the lesson's pocket, and the lesson judges the shot.
+// A tournament match as it was saved (snap in Game): the table, the rules, the pay so far, the AI's counters and the shot
+// struck, if one was in flight. The engine is deterministic, so that shot plays out the same again.
+interface Snap { B: Ball[]; ids: number[]; rules: State; push: boolean; ledger: Ledger; safe: Safeties; seed: number; shot?: Shot }
+const resumed = (t: unknown) => { const s = t as Snap, B = s.B.map(b => ({ ...b })); return { B, ids: [...s.ids], look: newLook(B), rules: s.rules, rec: null as Rec | null, push: s.push }; };
+// What Game needs to play a tournament match (App's Tour wiring): the opponent, the rules, the breaker of the first rack,
+// the saved state, save() after every strike and ruling, done() at the end (saves the result, returns the prize), forfeit().
+export interface TourMatch {
+  level: number; style?: StyleId; name: string; round: string; game: 8 | 9; race: number; callAll: boolean; bank: 0 | 1 | 2; breaker: 0 | 1;
+  live: Live | null; save: (l: Live) => void; next: string | null; // next = the round a win goes to, null in the final
+  stakes: number; prize: (won: boolean) => Pay | null; // the round's pay multiplier; the prize the end of this match would pay, if it ends the run
+  done: (won: boolean, score: [number, number], pay: Pay) => ReturnType<typeof award> | null; forfeit: (score: [number, number]) => void;
+}
 const newLesson = (l: Lesson) => {
   const { B, ids } = lessonTable(l), rules: State = { ...newGame(8, 0, false), phase: 'play', hand: false, balls: ids.slice(1), call: l.goal.pocket ?? -1 };
   return { B, ids, look: newLook(B), rules, rec: null as Rec | null, push: false };
@@ -81,7 +96,7 @@ export default function App() {
 }
 
 const LOCKS = [ScreenOrientation.OrientationLock.DEFAULT, ScreenOrientation.OrientationLock.PORTRAIT_UP, ScreenOrientation.OrientationLock.LANDSCAPE];
-const PLAY = ['match', 'ai', 'lesson', 'scenario', 'daily'] as const; // the screens that are a table, not a menu
+const PLAY = ['match', 'ai', 'lesson', 'scenario', 'daily', 'tourMatch'] as const; // the screens that are a table, not a menu
 const MENU_LOCKS = [ScreenOrientation.OrientationLock.LANDSCAPE, ScreenOrientation.OrientationLock.PORTRAIT_UP];
 
 // The screen on show and the settings. A match reads its setup when it starts.
@@ -135,6 +150,29 @@ function Root() {
     if (now.length >= PENCIL_AT) unlockCue('pencil');
     return saved;
   };
+  // The tournament run (src/tournament): in a ref too, since a match saves it after every shot without a render.
+  const [run, setRun] = useState(() => loadRun().run), runRef = useRef(run);
+  const putRun = (r: Run | null) => { runRef.current = r; setRun(r); return saveRun(r); };
+  // The next run's seed comes from the last run's (kept on disk until a new one starts), so abandoning a field and
+  // starting again cannot re-roll it. Only the first run, or one after a damaged save, is random.
+  const startRun = (o: Opts) => { const old = runRef.current; putRun(newRun(o, Math.floor((old ? rng(old.seed + 1)() : Math.random()) * 2 ** 31))); };
+  // The run's pay goes out after the run is saved, marked paid in the same profile save (payRun): a crash pays the rest
+  // at the next launch, and nothing twice. A champion's trophy goes in that save too.
+  const payOut = (r: Run) => payRun({ seed: r.seed, earned: r.earned, medal: r.state === 'champion' ? [r.opts.cup, medalOf(r.opts)] : null }, profile().cue);
+  useEffect(() => { if (run) payOut(run); }, []); // at launch: anything a crash left unpaid
+  const tourMatch = (): TourMatch | undefined => {
+    const r = runRef.current, m = r ? nextMatch(r) : -1;
+    if (!r || m < 0) return;
+    const [a, b] = sides(r, m), o = r.field[r.field[a!].human ? b! : a!], last = m === r.res.length - 1;
+    const end = (won: boolean, score: [number, number], pay: Pay) => { const x = recordMatch(runRef.current!, won, score, pay); putRun(x); return payOut(x); };
+    return {
+      level: plays(o), style: o.style ?? undefined, name: o.name, round: roundName(r, m), next: last ? null : roundTitle(r.opts.size, roundOf(r, m) + 1), game: r.opts.game, race: raceOf(r.opts.best), callAll: r.opts.callAll, bank: r.opts.bank,
+      breaker: breakerOf(r, m), live: r.live, stakes: stakes(r, m), prize: (won: boolean) => { const x = recordMatch(r, won, [0, 0], { xp: 0, coins: 0 }); return x.state === 'playing' ? null : prize(x.opts, wins(x)); },
+      save: l => { const x = runRef.current; if (x) { runRef.current = { ...x, live: l }; saveRun(runRef.current); } },
+      done: end, forfeit: score => { end(false, score, { xp: 0, coins: 0 }); },
+    };
+  };
+  const match = useRef<TourMatch | undefined>(undefined); // fixed while the match screen is up: the run changes under it
   const change = (p: Partial<Settings>) => setSet(s => ({ ...s, ...p }));
   const first = useRef(true);
   useEffect(() => { if (first.current) first.current = false; else saveSettings(set); }, [set]);
@@ -151,8 +189,9 @@ function Root() {
     {screen === 'match' || screen === 'ai' ? <Game key={screen} set={set} ai={screen === 'ai' ? set.tier : -1} chalk={screen === 'ai' ? chalk : undefined} onQuit={() => go('home')} />
       : screen === 'lesson' ? <Game key={lesson} set={set} lesson={lesson} fresh={!done.includes(LESSONS[lesson].id)} onPass={pass} onNext={() => setLesson(lesson + 1)} onQuit={() => go('learn')} />
       : screen === 'scenario' ? <Game key={`s${scen}`} set={set} scen={SCENARIOS[scen]} onClear={(t, off) => cleared(SCENARIOS[scen], t, off)} onNext={nextScen ? () => setScen(scen + 1) : undefined} onQuit={() => go('scenarios')} />
+      : screen === 'tourMatch' && match.current ? <Game key="tour" set={set} tour={match.current} onQuit={() => go('tour')} />
       : screen === 'daily' ? <Game key={`d${day}`} set={set} scen={dayScen} back="Daily Table" onClear={dayCleared} onQuit={() => go('calendar')} />
-      : <Menus screen={screen} set={set} change={change} go={go} done={done} learn={learn} stars={stars} play={play} daily={daily} today={today} day={day} playDay={playDay} arm={arm} />}
+      : <Menus screen={screen === 'tourMatch' ? 'tour' : screen} set={set} change={change} go={go} done={done} learn={learn} stars={stars} play={play} daily={daily} today={today} day={day} playDay={playDay} arm={arm} run={run} startRun={startRun} abandon={() => tourMatch()?.forfeit(run?.live?.score ?? [0, 0])} playTour={() => { match.current = tourMatch(); if (match.current) go('tourMatch'); }} />}
   </>;
 }
 
@@ -160,18 +199,22 @@ type Clear = ReturnType<typeof clear> & { saved: boolean; gained?: ReturnType<ty
 // A match, a lesson (lesson), or a scenario (scen, any table: the daily table plays one too). fresh = the lesson has not
 // been passed before; onPass = it was just passed; onClear = the scenario was just cleared, with its tries and whether
 // the whole try was played with the guide off. back = the page onQuit returns to, named on the result card.
-// ai = the AI tier (index into TIERS) in player 1's seat, or RIVAL; -1 = pass and play.
-function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, scen: S, onClear, back = 'Scenarios', chalk }: { set: Settings; ai?: number; chalk?: (won: boolean, matchPay: Pay) => Pay; back?: string; onQuit: () => void; lesson?: number; fresh?: boolean; onPass?: (id: string) => boolean; onNext?: () => void; scen?: Scenario; onClear?: (tries: number, guideOff: boolean) => Clear }) {
-  const vs = ai >= 0, game = vs ? set.aiGame : set.game, race = vs ? set.aiRace : set.race, rival = ai === RIVAL;
-  // The AI's rating on the tier scale. The Rival's is frozen for the match and read again for a rematch.
-  const level = useRef(rival ? profile().rival[game].rating : ai + 1), moved = useRef('');
+// ai = the AI tier (index into TIERS) in player 1's seat, or RIVAL; -1 = pass and play. tour = a tournament match
+// against a styled AI (src/tournament): its own rules, saved after every strike and ruling so it resumes exactly.
+function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNext, scen: S, onClear, back = 'Scenarios', chalk }: { set: Settings; ai?: number; tour?: TourMatch; chalk?: (won: boolean, matchPay: Pay) => Pay; back?: string; onQuit: () => void; lesson?: number; fresh?: boolean; onPass?: (id: string) => boolean; onNext?: () => void; scen?: Scenario; onClear?: (tries: number, guideOff: boolean) => Clear }) {
+  const vs = ai >= 0 || !!tour, rival = ai === RIVAL;
+  const game = tour ? tour.game : vs ? set.aiGame : set.game, race = tour ? tour.race : vs ? set.aiRace : set.race;
+  const callAll = tour ? tour.callAll : set.callAll, bankRule = tour ? tour.bank : set.bank;
+  // The AI's rating on the tier scale. The Rival's is frozen for the match and read again for a rematch; a tournament
+  // opponent plays its style's bump on top of the rating it is shown at.
+  const level = useRef(tour ? tour.level : rival ? profile().rival[game].rating : ai + 1), moved = useRef('');
   // Shot pay (in the frame loop, which reads level.current so a rematch pays at the new rating): the Rival pays 0.7 + 0.1 x rating, as a boss does.
-  const names = vs ? [set.names[0], rival ? `Rival ${shown(level.current)}` : TIERS[ai].name] : set.names;
+  const names = tour ? [set.names[0], tour.name] : vs ? [set.names[0], rival ? `Rival ${shown(level.current)}` : TIERS[ai].name] : set.names;
   const { width, height } = useWindowDimensions();
   const pad = useSafeAreaInsets(), calm = useReducedMotion();
   const L: Lesson | undefined = S ?? LESSONS[n];
   const at = useRef(L); // the table up: in a lesson's solo step, a new one every shot
-  const table = useRef(L ? newLesson(L) : newTable(newGame(game, 0, set.callAll, set.bank, Math.floor(Math.random() * 2 ** 31)))), HUD = L ? LESSON_HUD : hudHeight(table.current.rules.game); // screen units kept above the table for the HUD
+  const table = useRef(L ? newLesson(L) : tour?.live?.table ? resumed(tour.live.table) : newTable(newGame(game, tour?.breaker ?? 0, callAll, bankRule, Math.floor(Math.random() * 2 ** 31)))), HUD = L ? LESSON_HUD : hudHeight(table.current.rules.game); // screen units kept above the table for the HUD
   // The lesson's step, the passes in a row in the solo step, and the verdict on the last shot (a card over the table).
   const [stage, setStage] = useState<Stage>('watch'), [run, setRun] = useState(0), [said, setSaid] = useState<{ title: string; say: string; ok: boolean } | null>(null);
   // A scenario counts its tries; the third star wants a try with the aim guide never on screen (peeked = it was).
@@ -183,13 +226,17 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   // The table never changes during play: one picture, drawn again only when the window does.
   const felt = useMemo(() => { const rec = Skia.PictureRecorder(); drawTable(Skia, rec.beginRecording(), view, CLOTHS[cloth]); return rec.finishRecordingAsPicture(); }, [...where, cloth]);
 
-  const score = useRef<[number, number]>([0, 0]), [paused, setPaused] = useState(false), held = useRef(false); // score = frames won; held = paused, for the frame loop
+  const score = useRef<[number, number]>(tour?.live ? [...tour.live.score] : [0, 0]), [paused, setPaused] = useState(false), held = useRef(false); // score = frames won; held = paused, for the frame loop
   const gained = useRef<ReturnType<typeof award> | null>(null); // the award of the match, for the results card
   // Quick match: the pay so far (src/progress/pay.ts), the pots on the table at the strike (for pRef), and the pay lines
   // of the finished match.
   // shortcut: a match left from the pause card pays nothing, not even its shots; no safety pay (needs the AI's reply).
-  const won = useRef(newLedger()), cands = useRef<Cand[]>([]), end = useRef<Settled | null>(null);
-  const safe = useRef<Safeties>({ row: 0, rack: 0 }), seed = useRef(Math.floor(Math.random() * 2 ** 31)), [thinking, setThinking] = useState(false);
+  const snap0 = tour?.live?.table as Snap | undefined;
+  const won = useRef(snap0 ? { ...snap0.ledger, shots: { ...snap0.ledger.shots } } : newLedger()), cands = useRef<Cand[]>([]), end = useRef<Settled | null>(null), prize = useRef<Pay | null>(null);
+  const safe = useRef<Safeties>(snap0?.safe ?? { row: 0, rack: 0 }), seed = useRef(snap0?.seed ?? Math.floor(Math.random() * 2 ** 31)), [thinking, setThinking] = useState(false);
+  // A tournament match is saved at every strike (with the shot, so a relaunch plays the same shot again) and ruling.
+  const snap = (shot?: Shot) => { if (!tour) return; const t = table.current; tour.save({ score: [...score.current], table: { B: t.B.map(b => ({ ...b })), ids: [...t.ids], rules: t.rules, push: t.push, ledger: won.current, safe: safe.current, seed: seed.current, shot } satisfies Snap }); };
+  const [sure, setSure] = useState(false); // a tournament match is left by forfeit, a second tap
   useEffect(() => { const sub = BackHandler.addEventListener('hardwareBackPress', () => { setPaused(p => !p); return true; }); return () => sub.remove(); }, []); // Android back opens and closes the pause card
   const rules = table.current.rules, [, redraw] = useReducer((n: number) => n + 1, 0); // the rules live with the table; redraw shows a change
   const shot = useRef(shotStore(nearest(table.current.B))).current; // the held aim and the power on the rail
@@ -262,15 +309,18 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   apply.current = (s: State) => {
     const t = table.current;
     if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++; if (score.current[s.winner] === race) {
-      const r = vs ? settle(won.current, { tier: rival ? tenth(level.current) : ai + 1, won: s.winner === 0, early: s.winner === 1 && s.early }, chalk) // only an early 8 pays nothing
+      const r = vs ? settle(won.current, { tier: rival || tour ? tenth(level.current) : ai + 1, won: s.winner === 0, early: s.winner === 1 && s.early, tour: tour && tour.stakes * race }, chalk) // only an early 8 pays nothing
         : { match: PASS_PLAY, shots: { xp: 0, coins: 0 }, chalk: null, total: PASS_PLAY };
-      end.current = r; gained.current = award(r.total, vs ? own : undefined); // quick match played the player's own cue
+      // A tournament saves the result, then pays it (with any prize) marked in the profile: tour.done.
+      if (tour) { const p = tour.prize(s.winner === 0); prize.current = p && (p.xp || p.coins) ? p : null; }
+      end.current = r; gained.current = tour ? tour.done(s.winner === 0, [...score.current], r.total) : award(r.total, vs ? own : undefined); // quick match played the player's own cue
       // The loser's own balls left (8-ball; 7 on an open table) say how close the match was.
       if (rival) { const lose = 1 - s.winner, left = s.solids < 0 ? 7 : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === lose)).length, [a, b] = rivalDone(game, s.winner === 0, left, set.mood); moved.current = `Rival ${shown(a)} to ${shown(b)}`; }
     } }
     if (s.phase === 'break') { table.current = newTable(s); moving.current = false; safe.current = { row: 0, rack: 0 }; won.current.run = 0; }
     else { for (const id of s.spot) spotBall(t.B, t.ids.indexOf(id)); if (s.hand) handCue(t.B, s.hand); Object.assign(t, { rules: s, rec: null, push: false }); }
     paint(); redraw();
+    if (!(s.phase === 'over' && s.winner >= 0 && score.current[s.winner as 0 | 1] === race)) snap(); // the match end was saved by tour.done
     shot.set({ aim: nearest(table.current.B, shot.get().aim), power: 0, fine: false, locked: shut() }); // the cue points at the nearest ball and the controls unlock
   };
 
@@ -318,7 +368,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         if (!queue.value.length && L) { table.current.rec = null; ended.current(rec as LessonRec); }
         else if (!queue.value.length) {
           const next = judge(s, rec, pushOut);
-          if (vs && s.turn === 0) noteShot(won.current, potPay(cands.current, rec, s, next, won.current.run, rival ? { boss: level.current } : { tier: ai + 1 }), next.foul && next.phase !== 'over'); // a foul that ends the rack does not cost the clean-match bonus
+          if (vs && s.turn === 0) noteShot(won.current, potPay(cands.current, rec, s, next, won.current.run, rival || tour ? { boss: level.current, tour: tour?.stakes } : { tier: ai + 1 }), next.foul && next.phase !== 'over'); // a foul that ends the rack does not cost the clean-match bonus
           if (next.phase === 'over' || next.foul) Haptics.notificationAsync(next.winner < 0 ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
           apply.current(next);
         }
@@ -352,7 +402,8 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
     if (shut() || (canCall(t.rules) && t.rules.call < 0)) { shot.set({ power: 0 }); return; } // a pocket must be called first: the HUD asks for it
     Haptics.impactAsync(power > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
     if (vs) cands.current = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules); // shortcut: a full candidate search on the strike frame, cheap next to a guide
-    t.rec = L ? newLessonRec() : newRec(); strike(t.B[0], shotOf(power), cue); moving.current = true; wake.current();
+    const sh = shotOf(power); snap(sh);
+    t.rec = L ? newLessonRec() : newRec(); strike(t.B[0], sh, cue); moving.current = true; wake.current();
     tip.set(LEVEL); setSheet(false); setTools(false); shot.set({ power: 0, fine: false, locked: true });
   };
   // The AI's shot: its cue ball in hand, its line-up, its call, then the strike as fire() makes it. The AI plans on the
@@ -366,8 +417,16 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
     if (stage < 2) { if (m.at) moveCue(t.B, m.at[0], m.at[1], t.rules.hand); lineUp(m.shot, top, hold, () => play(m, 2)); return; }
     if (m.call >= 0) t.rules = setCall(t.rules, m.call); // at the strike: a new ruling now would start the AI's turn again
     safe.current = nextSafeties(safe.current, m.safety);
-    t.rec = newRec(); strike(t.B[0], { ...m.shot, speed: Math.min(m.shot.speed, top), a: hold(m.shot.a), b: hold(m.shot.b) }, STICK); moving.current = true; paint(); redraw();
+    const sh = { ...m.shot, speed: Math.min(m.shot.speed, top), a: hold(m.shot.a), b: hold(m.shot.b) }; snap(sh);
+    t.rec = newRec(); strike(t.B[0], sh, STICK); moving.current = true; paint(); redraw();
   };
+  // A tournament match reopened with a shot in flight: the same shot again from the same table.
+  useEffect(() => {
+    const t = table.current, sh = snap0?.shot;
+    if (!sh) return;
+    if (t.rules.turn === 0) cands.current = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules);
+    t.rec = newRec(); strike(t.B[0], sh, t.rules.turn === 0 ? cue : STICK); moving.current = true; shot.set({ power: 0, locked: true }); paint(); redraw();
+  }, []);
   // The AI's moves on the table play out over time: tween runs f(eased 0..1) each frame for ms, rests, then done().
   // drop() ends a tween the turn left (a pause, a new ruling, leaving the match) and runs its undo.
   const drop = useRef(() => {});
@@ -410,12 +469,12 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
     setThinking(true);
     if (s.choice) then(() => apply.current(choose(s, choiceFor(s))));
     else {
-      const args = [t.B, t.ids, s, level.current, seed.current++, safetiesArg(safe.current)] as const;
+      const args = [t.B, t.ids, s, level.current, seed.current++, safetiesArg(safe.current), tour?.style] as const;
       thinkAsync(...args).then(m => then(() => play(m)), e => { // the runtime failed: think on the JS thread rather than stall the match
         if (__DEV__) console.warn('AI think failed off the JS thread', e);
         then(() => {
           let m: Move;
-          try { m = think(args[0].map(b => ({ ...b })), [...args[1]], s, args[3], args[4], args[5]); }
+          try { m = think(args[0].map(b => ({ ...b })), [...args[1]], s, args[3], args[4], args[5], args[6]); }
           catch (e2) { if (__DEV__) console.warn('AI think failed', e2); m = softMove(t.B, t.ids, s); }
           play(m);
         });
@@ -501,7 +560,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
   const paid = done ? end.current : null;
   const rerack = (breaker = over ? 1 - rules.breaker : rules.breaker) => {
     if (done) { score.current = [0, 0]; if (rival) { level.current = profile().rival[game].rating; moved.current = ''; } won.current = newLedger(); cands.current = []; end.current = null; }
-    apply.current(newGame(game, breaker as 0 | 1, set.callAll, set.bank, Math.floor(Math.random() * 2 ** 31)));
+    apply.current(newGame(game, breaker as 0 | 1, callAll, bankRule, Math.floor(Math.random() * 2 ** 31)));
   };
 
   const cardAt = !view.land && { right: width - lay.rail.left, padding: 8 }; // portrait: a card over the table sits at the middle of the table, clear of the rail
@@ -523,7 +582,7 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
         {S && <Btn label={guideOff ? 'Guide off' : 'Guide on'} name="Aim guide" on={!guideOff} onPress={() => { setGuideOff(!guideOff); les.current.guideOff = !guideOff; dirty(); }} />}
       </LessonHud>}
       {/* The player plates, the 9-ball strip and the banner with the last ruling (src/ui/MatchHud.tsx). */}
-      {!L && <MatchHud rules={rules} names={names} push={table.current.push} view={view} pad={pad} calm={calm} wait={bot() && !over ? (thinking ? `${names[1]} is thinking…` : '') : undefined} score={race > 1 ? score.current : undefined}
+      {!L && <MatchHud style={tour?.style} rules={rules} names={names} push={table.current.push} view={view} pad={pad} calm={calm} wait={bot() && !over ? (thinking ? `${names[1]} is thinking…` : '') : undefined} score={race > 1 ? score.current : undefined}
         pause={<Btn label="II" name="Pause" onPress={() => { setPaused(true); setTools(false); setSheet(false); }} />}>
         {rules.push && !rules.choice && !(vs && rules.turn === 1) && <Btn label={table.current.push ? 'Push out: on' : 'Push out'} onPress={() => { if (!table.current.rec) { table.current.push = !table.current.push; redraw(); } }} />}
       </MatchHud>}
@@ -572,17 +631,20 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
       {sheet && !card && <TipSheet store={tip} land={view.land} keep={width - lay.rail.left} calm={calm} felt={CLOTHS[cloth].felt} blend={set.zones} onDone={() => setSheet(false)} />}
       {/* The end of the rack: the frame score in a race, the pay at the end of the match. Over the controls, which wait. */}
       {over && !paused && (
-        <Results rules={rules} kind={vs ? 'Quick match' : undefined} title={`${names[win]} wins${race > 1 ? done ? ' the match' : ' the frame' : ''}`} gold={!vs || win === 0}
+        <Results rules={rules} kind={tour ? `Tournament · ${tour.round}` : vs ? 'Quick match' : undefined} title={tour && done ? (win ? 'Knocked out' : tour.next ? `Through to the ${tour.next.toLowerCase()}` : 'Champion') : `${names[win]} wins${race > 1 ? done ? ' the match' : ' the frame' : ''}`} gold={!vs || win === 0}
           score={race > 1 ? score.current : undefined} names={names} foot={done ? moved.current : ''}>
           {!done && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{`${names[1 - rules.breaker]} breaks`}</Text>}
           {paid && <PayRow label={!vs ? 'Pass and play' : win === 0 ? 'Match win' : 'Match'} xp={paid.match.xp} coins={paid.match.coins} twice={!!paid.chalk} />}
           {paid && vs && <PayRow label="Shots" xp={paid.shots.xp} coins={paid.shots.coins} />}
-          {paid && <PayTotal xp={paid.total.xp} coins={paid.total.coins} />}
+          {paid && prize.current && <PayRow label="Prize" xp={prize.current.xp} coins={prize.current.coins} />}
+          {paid && <PayTotal xp={paid.total.xp + (prize.current?.xp ?? 0)} coins={paid.total.coins + (prize.current?.coins ?? 0)} />}
           {done && gained.current && <Gained {...gained.current} />}
           {done && !!gained.current?.mastery && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{gained.current.mastery}</Text>}
           <View style={styles.acts}>
-            <Act paint={CREAM} label={done ? 'Rematch' : 'Next rack'} onPress={() => rerack()} />
-            {done && <Act paint={DARK} label="Menu" onPress={onQuit} />}
+            {tour && done ? <Act paint={CREAM} label="Bracket" onPress={onQuit} /> : <>
+              <Act paint={CREAM} label={done ? 'Rematch' : 'Next rack'} onPress={() => rerack()} />
+              {done && <Act paint={DARK} label="Menu" onPress={onQuit} />}
+            </>}
           </View>
         </Results>
       )}
@@ -592,8 +654,9 @@ function Game({ set, ai = -1, onQuit, lesson: n = -1, fresh, onPass, onNext, sce
           <View style={styles.card} accessibilityViewIsModal>
             <Text maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.cardTitle}>Paused</Text>
             {!L && race > 1 && <Text maxFontSizeMultiplier={1.3} style={styles.cardNote}>{`${names[0]} – ${names[1]}\n${score.current[0]} – ${score.current[1]}\nRace to ${race}`}</Text>}
-            <Act paint={CREAM} label="Resume" onPress={() => setPaused(false)} />
-            <Act label={S ? 'Leave scenario' : L ? 'Leave lesson' : 'Leave match'} onPress={onQuit} />
+            <Act paint={CREAM} label="Resume" onPress={() => { setPaused(false); setSure(false); }} />
+            {tour ? <Act label={sure ? 'Forfeit? Tap again' : 'Forfeit match'} onPress={() => { if (!sure) return setSure(true); tour.forfeit([...score.current]); onQuit(); }} />
+              : <Act label={S ? 'Leave scenario' : L ? 'Leave lesson' : 'Leave match'} onPress={onQuit} />}
           </View>
         </View>
       )}
