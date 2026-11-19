@@ -179,7 +179,7 @@ function Root() {
       : screen === 'scenario' ? <Game key={`s${scen}`} set={set} scen={SCENARIOS[scen]} onClear={(t, off) => cleared(SCENARIOS[scen], t, off)} onNext={nextScen ? () => setScen(scen + 1) : undefined} onQuit={() => go('scenarios')} />
       : screen === 'tourMatch' && match.current ? <Game key="tour" set={set} tour={match.current} onQuit={() => go('tour')} />
       : screen === 'daily' ? <Game key={`d${day}`} set={set} scen={dayScen} back="Daily Table" onClear={dayCleared} onQuit={() => go('calendar')} />
-      : <Menus screen={screen === 'tourMatch' ? 'tour' : screen} set={set} change={change} go={go} done={done} learn={learn} stars={stars} play={play} daily={daily} today={today} day={day} playDay={playDay} arm={arm} run={run} damaged={loaded.damaged} startRun={startRun} abandon={() => tourMatch()?.forfeit(run?.live?.score ?? [0, 0])} playTour={() => { match.current = tourMatch(); if (match.current) go('tourMatch'); }} />}
+      : <Menus screen={screen === 'tourMatch' ? 'tour' : screen} set={set} change={change} go={go} done={done} learn={learn} stars={stars} play={play} daily={daily} today={today} day={day} playDay={playDay} arm={arm} run={run} damaged={loaded.damaged} startRun={startRun} abandon={() => tourMatch()?.forfeit()} playTour={() => { match.current = tourMatch(); if (match.current) go('tourMatch'); }} />}
   </>;
 }
 

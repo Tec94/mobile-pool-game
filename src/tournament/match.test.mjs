@@ -2,7 +2,7 @@
 // save pays nothing, only the match in play can end, and the prize preview.
 import assert from 'node:assert';
 import test from 'node:test';
-import { newRun, recordMatch } from './bracket.ts';
+import { newRun, nextMatch, recordMatch, sides } from './bracket.ts';
 import { tourMatch } from './match.ts';
 import { snapshot } from './fixtures.mjs';
 
@@ -43,4 +43,11 @@ test('a forfeit pays the shots already played, as the saved table has them', () 
   const a = io({ ...newRun(opts, 5), live: { score: [1, 0], table: JSON.parse(JSON.stringify(t)) } });
   tourMatch(a).forfeit([1, 0]);
   assert.deepStrictEqual(a.run.earned, { xp: 40, coins: 20 }); assert.equal(a.run.state, 'out');
+});
+
+test('Abandon from the bracket records the score the match was saved at', () => {
+  const a = io(newRun(opts, 5)), m = nextMatch(a.run);
+  tourMatch(a).save({ score: [1, 0] }); tourMatch(a).forfeit();
+  const r = a.run.res[m], you = sides(a.run, m).findIndex((i) => a.run.field[i].human);
+  assert.equal(r.w, 1 - you); assert.equal(r.score[you], 1, 'the frame the player won stands');
 });

@@ -11,7 +11,7 @@ export interface TourMatch<Paid = unknown> {
   live: Live | null; save: (l: Live) => void; next: string | null; // next = the round a win goes to, null in the final
   stakes: number; prize: (won: boolean) => Pay | null; // the round's pay multiplier; the prize the end of this match would pay, if it ends the run
   done: (won: boolean, score: [number, number], pay: Pay, cue: CueId) => Paid | null; // cue = the cue the match was played with, for its mastery
-  forfeit: (score: [number, number]) => void;
+  forfeit: (score?: [number, number]) => void; // score: the match's saved score unless given
 }
 
 // The player's next match of the run io.get() holds, or undefined when the run is over. io.put saves a run (false if
@@ -33,6 +33,6 @@ export function tourMatch<Paid>(io: { get: () => Run | null; put: (r: Run) => bo
     save: (l) => { const x = io.get(); if (x) io.keep({ ...x, live: l }); },
     done: end,
     // a forfeit still pays the shots played, as the saved table's ledger has them (stakes already in)
-    forfeit: (score) => { const t = io.get()?.live?.table; end(false, score, fits(t, r.opts.game) ? { ...t.ledger.shots } : { xp: 0, coins: 0 }); },
+    forfeit: (score = io.get()?.live?.score ?? [0, 0]) => { const t = io.get()?.live?.table; end(false, score, fits(t, r.opts.game) ? { ...t.ledger.shots } : { xp: 0, coins: 0 }); },
   };
 }
