@@ -4,6 +4,9 @@
 import { STYLE_BUMP, STYLE_IDS, STYLE_RANGE, type StyleId } from '../ai/styles.ts';
 import { rng } from '../ai/shot-ai.ts';
 import type { Pay } from '../progress/pay.ts';
+import type { TourOpts as Opts } from '../settings/settings.ts';
+
+export type { Opts };
 
 export interface Cup { name: string; lo: number; hi: number; level: number; prize: number }
 // lo..hi = the field's ratings on the tier scale (1 Rookie .. 6 Legend); level = the player level that opens it without
@@ -14,8 +17,6 @@ export const CUPS: Cup[] = [
   { name: 'Masters', lo: 3.6, hi: 5.0, level: 20, prize: 400 },
   { name: 'Legends', lo: 4.8, hi: 5.7, level: 30, prize: 750 }, // top 5.7: with a style's bump it still plays no higher than Legend (6)
 ];
-export type { TourOpts as Opts } from '../settings/settings.ts';
-import type { TourOpts as Opts } from '../settings/settings.ts';
 // human = played on this phone (entrant 0 today; online opponents later). An AI without a style plays the plain tier
 // at its rating; with one, at its rating plus the style's bump (STYLE_BUMP), and the rating is what is shown.
 export interface Entrant { name: string; style: StyleId | null; rating: number; human?: boolean }
