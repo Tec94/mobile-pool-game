@@ -16,8 +16,11 @@ export interface Settings {
   mood: Mood;                // the Rival's target win rate for the player (src/progress/rival.ts)
   zones: boolean;            // the cue angle ring: true = each zone in its own colour, blended; false = one colour
   bank: 0 | 1 | 2;           // 8-ball bank shots in a match: 0 off, 1 the 8-ball, 2 every ball
+  tour: TourOpts;            // the last tournament setup (src/tournament/bracket.ts Opts)
 }
-export const DEFAULTS: Settings = { callAll: true, cloth: 0, menus: 0, orient: 0, names: ['Player 1', 'Player 2'], game: 8, race: 1, tier: 0, aiGame: 8, aiRace: 1, mood: 'even', zones: true, bank: 0 };
+export interface TourOpts { cup: number; size: 4 | 8; best: 1 | 3 | 5; game: 8 | 9; callAll: boolean; bank: 0 | 1 | 2 }
+const TOUR: TourOpts = { cup: 0, size: 8, best: 3, game: 8, callAll: true, bank: 0 };
+export const DEFAULTS: Settings = { callAll: true, cloth: 0, menus: 0, orient: 0, names: ['Player 1', 'Player 2'], game: 8, race: 1, tier: 0, aiGame: 8, aiRace: 1, mood: 'even', zones: true, bank: 0, tour: TOUR };
 export const RACES = [1, 3, 5] as const, NAME_MAX = 14, TIER_COUNT = 6; // TIER_COUNT = TIERS.length, kept here so settings need no AI code
 export const RIVAL = TIER_COUNT; // the quick match opponent that adapts, after the six tiers
 
@@ -26,7 +29,7 @@ export const RIVAL = TIER_COUNT; // the quick match opponent that adapts, after 
 export function readSettings(text: string | null): Settings {
   let o: any = null;
   try { o = JSON.parse(text ?? 'null'); } catch {}
-  if (!o || typeof o !== 'object') return { ...DEFAULTS, names: [...DEFAULTS.names] };
+  if (!o || typeof o !== 'object') return { ...DEFAULTS, names: [...DEFAULTS.names], tour: { ...TOUR } };
   const name = (v: unknown, i: number) => typeof v === 'string' && v.trim() ? v.trim().slice(0, NAME_MAX) : DEFAULTS.names[i];
   return {
     callAll: typeof o.callAll === 'boolean' ? o.callAll : DEFAULTS.callAll,
@@ -42,5 +45,7 @@ export function readSettings(text: string | null): Settings {
     mood: ['relaxed', 'even', 'tough'].includes(o.mood) ? o.mood : DEFAULTS.mood,
     zones: typeof o.zones === 'boolean' ? o.zones : DEFAULTS.zones,
     bank: [0, 1, 2].includes(o.bank) ? o.bank : DEFAULTS.bank,
+    tour: { cup: [0, 1, 2, 3].includes(o.tour?.cup) ? o.tour.cup : 0, size: o.tour?.size === 4 ? 4 : 8, best: [1, 3, 5].includes(o.tour?.best) ? o.tour.best : 3,
+      game: o.tour?.game === 9 ? 9 : 8, callAll: typeof o.tour?.callAll === 'boolean' ? o.tour.callAll : true, bank: [0, 1, 2].includes(o.tour?.bank) ? o.tour.bank : 0 },
   };
 }

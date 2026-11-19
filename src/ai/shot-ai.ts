@@ -19,7 +19,11 @@ export interface Planned extends Cand { p: number; score: number; value: number;
 // G, v and u are kept on a safety (the prototype dropped them) so the engine glue maps it like a pot.
 export interface Safety { type: 'safety'; ball: number; aim: number; paths: Pt[][]; leave: Leave; oppBest: number; hooked: boolean; G: Pt; v: Pt; u: Pt }
 export type Pick = Planned | Safety | { type: 'foul' };
-export interface Tier { name: string; sigma: number; types: ShotType[]; flair: number; temp: number; depth: number; planShare?: number; wPos: number; posErr: number; speedErr: number; tipErr: number; ctrl: number; wLeave: number; rack?: boolean; safetyAngles: number[]; budget: number; tries?: number; caromGap: number; rail: [number, number]; hard: number; run: number }
+export interface Tier { name: string; sigma: number; types: ShotType[]; flair: number; temp: number; depth: number; planShare?: number; wPos: number; posErr: number; speedErr: number; tipErr: number; ctrl: number; wLeave: number; rack?: boolean; safetyAngles: number[]; budget: number; tries?: number; caromGap: number; rail: [number, number]; hard: number; run: number;
+  // style hooks (src/ai/styles.ts), none on a plain tier: like = score bonus per shot type; safeAt = best pot value under which a
+  // safety is weighed (0.3); spinLove = bonus for a leave played with draw or follow; hook = credit for a hook times this;
+  // bankAim = aim error on a bank or kick times this
+  like?: Partial<Record<ShotType, number>>; safeAt?: number; spinLove?: number; hook?: number; bankAim?: number }
 interface Pocket extends Pt { ax: [number, number]; m: number; c: number; back: number }
 interface Rail { k: 'x' | 'y'; v: number }
 
@@ -351,7 +355,7 @@ export function plan(cue: Pt, balls: Obj[], group: number[], tier: Tier, depth: 
   cands = inRepertoire.length ? inRepertoire : cands.filter((s) => s.type !== 'carom' && s.type !== 'billiard');
   const all: Planned[] = cands.map((s) => {
     const p = tierProb(tier, s);
-    return { ...s, p, value: 0, score: p * (s.ball === win ? WIN : 1) * (1 + (s.type === 'direct' || s.type === 'kick' ? 0 : tier.flair)) };
+    return { ...s, p, value: 0, score: p * (s.ball === win ? WIN : 1) * (1 + (s.type === 'direct' || s.type === 'kick' ? 0 : tier.flair)) * (1 + (tier.like?.[s.type] ?? 0)) };
   }).sort((a, b) => b.score - a.score);
   const shots = all.slice(0, width), alt = all.find((s) => s.ball !== 9);
   if (nine(group) && alt && !shots.includes(alt)) shots.push(alt); // the 9 scores WIN times its chance: keep a route to price it against
@@ -363,7 +367,7 @@ export function plan(cue: Pt, balls: Obj[], group: number[], tier: Tier, depth: 
       for (const lv of leaves(s.G, s.v, s.u, balls, [s.first, s.ball], oppGroup ? POWERS : [300, 1300])) {
         // the next shot is priced without caroms and billiards: they took half of decide()'s time and are rarely the best
         const sub = lv.scratch ? null : plan({ x: lv.x, y: lv.y }, after, group, tier, depth - 1, Math.max(1, width - 2), undefined, false);
-        const value = lv.scratch ? -s.p * (s.ball === win ? WIN : 0.5) : s.score * (1 + tier.wPos * (sub![0] ? sub![0].value : 0));
+        const value = lv.scratch ? -s.p * (s.ball === win ? WIN : 0.5) : s.score * (1 + tier.wPos * (sub![0] ? sub![0].value : 0)) * (lv.spin ? 1 + (tier.spinLove ?? 0) : 1);
         if (value > s.value) Object.assign(s, { value, leave: lv, next: sub && sub[0] });
       }
     }
@@ -417,11 +421,11 @@ export function decide(cue: Pt, balls: Obj[], group: number[], oppGroup: number[
   // planShare: the share of turns on which the tier plans at all (Hustler). Trust (wPos) barely moves run length, this does.
   const ranked = plan(cue, balls, group, tier, tier.planShare === undefined || rnd() < tier.planShare ? tier.depth : 0, 4, oppGroup, true, ok);
   // weigh the best pot against the best safety on the same scale; skip the search when a good pot is on
-  if (!ranked.length || (tier.safetyAngles.length && ranked[0].value < 0.3 && safetiesInRow < 2)) {
+  if (!ranked.length || (tier.safetyAngles.length && ranked[0].value < (tier.safeAt ?? 0.3) && safetiesInRow < 2)) {
     // shortcut: a fully hooked AI fouls here, add kick safeties when the engine is in
     const s = safety(cue, balls, group, oppGroup, tier, rnd, !tier.safetyAngles.length);
     if (!ranked.length) return { ranked, pick: s || { type: 'foul' } };
-    const sv = s && tier.wLeave * ((tier.rack && s.hooked ? HOOK : 0) - replyCost(tier, balls, oppGroup) * s.oppBest);
+    const sv = s && tier.wLeave * ((tier.rack && s.hooked ? HOOK * (tier.hook ?? 1) : 0) - replyCost(tier, balls, oppGroup) * s.oppBest);
     if (s && sv! > ranked[0].value) return { ranked, pick: s };
   }
   const w = ranked.map((s) => Math.exp((s.value - ranked[0].value) / tier.temp));

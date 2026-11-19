@@ -10,6 +10,9 @@ import { RAIL, type View as TableView } from '../render/table';
 import { BALLS, C, CREAM, DARK, FONT, MODE, type Paint } from '../theme';
 import { banner, fresh, type Plate, plates, strip } from './hud';
 import { Slab, Txt, TYPE } from './slab';
+import type { StyleId } from '../ai/styles';
+import { NICK } from '../tournament/bracket';
+import { Glyph } from './Glyph';
 
 const RED = BALLS[2]; // fouls reuse the three-ball red (Quiet Slate)
 const LINE = C.chalk + '66'; // chalk hairline at 40%: 3:1 on the ground
@@ -25,7 +28,8 @@ export const hudHeight = (game: number) => TOP + PLATE + 8 + (game === 9 ? STRIP
 // Every box of the row is as tall as the row (PLATE), by `alignItems: 'stretch'`, with its text at the centre of its
 // face. On a phone a slab in a row of a fixed height takes that height anyway (Yoga's legacy stretch), where a browser
 // keeps it small: the stretch makes the two agree.
-export function MatchHud({ rules, names, push, view, pad, calm, wait, score, pause, children }: { rules: State; names: string[]; push: boolean; view: TableView; pad: EdgeInsets; calm: boolean; wait?: string; score?: readonly number[]; pause: ReactNode; children?: ReactNode }) {
+// style = the AI's tournament style (seat 1): its glyph after the name.
+export function MatchHud({ rules, names, push, view, pad, calm, wait, score, pause, style, children }: { rules: State; names: string[]; push: boolean; view: TableView; pad: EdgeInsets; calm: boolean; wait?: string; score?: readonly number[]; pause: ReactNode; style?: StyleId; children?: ReactNode }) {
   const [a, b] = plates(rules, names), nine = strip(rules), next = nine.find(q => q.next);
   // Landscape: the banner sits between the plates, above the table, where it covers no pocket. Portrait: over the
   // foot rail, between the corner pockets.
@@ -51,7 +55,7 @@ export function MatchHud({ rules, names, push, view, pad, calm, wait, score, pau
           the size of the pause button keeps the two sides alike when no push out button is there. */}
       <View style={[styles.hud, { top: pad.top + TOP, left, right }]}>
         <View style={styles.row} accessibilityLiveRegion="polite">
-          {pause}<PlateView p={a} land={view.land} />{frames(0)}{view.land && <View style={styles.gap} onLayout={fit} />}{frames(1)}<PlateView p={b} land={view.land} onX={setSeam} />{children || (view.land && <View style={styles.even} />)}
+          {pause}<PlateView p={a} land={view.land} />{frames(0)}{view.land && <View style={styles.gap} onLayout={fit} />}{frames(1)}<PlateView p={b} land={view.land} onX={setSeam} style={style} />{children || (view.land && <View style={styles.even} />)}
         </View>
         {view.land && say}
       </View>
@@ -71,12 +75,12 @@ export function MatchHud({ rules, names, push, view, pad, calm, wait, score, pau
 
 // Line 1 the name; line 2 the group's pips (hollow once potted), or Open / Break / On the 8, or the 9-ball foul warning.
 // The player to shoot is a cream slab with ink text, the other a dark one.
-function PlateView({ p, land, onX }: { p: Plate; land: boolean; onX?: (x: number) => void }) {
+function PlateView({ p, land, onX, style }: { p: Plate; land: boolean; onX?: (x: number) => void; style?: StyleId }) {
   const ink = p.on ? C.ink : C.chalk, edge = p.on ? C.ink + '66' : LINE;
   return (
-    <View onLayout={onX && (e => onX(e.nativeEvent.layout.x))} accessible accessibilityLabel={p.label} style={land ? styles.plateLand : styles.plate}>
+    <View onLayout={onX && (e => onX(e.nativeEvent.layout.x))} accessible accessibilityLabel={style ? `${p.label}, ${NICK[style]}` : p.label} style={land ? styles.plateLand : styles.plate}>
       <Slab paint={p.on ? CREAM : DARK} lip={LIP} radius={3} style={{ flex: 1 }} face={styles.plateFace}>
-        <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.name, { color: ink }]}>{p.name}</Text>
+        <View style={styles.l1}><Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.name, { color: ink, flexShrink: 1 }]}>{p.name}</Text>{style && <Glyph id={style} size={12} color={ink} />}</View>
         {(p.pips.length > 0 || !!p.text) && <View style={styles.l2}>{/* 9-ball has no line 2 until the foul warning: the name sits at the centre */}
           {p.pips.map(q => <Pip key={q.id} id={q.id} gone={q.gone} size={10} edge={edge} />)}
           {!!p.text && <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.l2Text, { color: ink + 'B3' }, p.warn && { color: RED }]}>{p.text}</Text>}
@@ -191,6 +195,7 @@ const styles = StyleSheet.create({
   plateLand: { minWidth: 112, maxWidth: NAME, flexShrink: 1 }, // 112 = seven pips (7 x 10 + 6 x 3) and the padding: the plate keeps its width when the groups are set
   plateFace: { paddingHorizontal: 12, justifyContent: 'center', gap: 4 },
   name: { fontFamily: FONT.display, fontSize: 14, lineHeight: 17 },
+  l1: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   l2: { flexDirection: 'row', alignItems: 'center', gap: 3, height: 14 }, // fixed height: the plate never grows
   l2Text: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 14, fontVariant: ['tabular-nums'] },
   frames: { width: FRAME, alignItems: 'center', justifyContent: 'center' },

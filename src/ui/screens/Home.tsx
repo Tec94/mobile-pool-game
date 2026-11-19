@@ -6,22 +6,26 @@ import { TIERS } from '../../ai/shot-ai';
 import { addDays, dailyPick, streak, weekday } from '../../daily/daily';
 import { LESSONS } from '../../learn/lessons';
 import { profile } from '../../progress';
+import { levelOf } from '../../progress/profile';
 import { CUE_IDS, CUES } from '../../progress/cues';
 import { shown } from '../../progress/rival';
 import { isOpen, SCENARIOS, starCount, totalStars } from '../../scenarios/scenarios';
 import { RIVAL } from '../../settings/settings';
+import { CUPS, cupOpen, nextMatch, roundName, type Run } from '../../tournament/bracket';
 import { C, CREAM, FONT, MODE } from '../../theme';
 import { CueArt } from '../CuePicture';
+import { Trophy } from '../Glyph';
 import { DAYS, dateOf, THEMES } from '../days';
 import type { DailyProps, LearnProps, Props, ScenarioProps } from '../Menus';
 import { MiniTable, rackOf, SpinDot, tableOf } from '../MiniTable';
 import { Shell, Tile, useFrame } from '../shell';
 import { BallArt, Slab, Txt, TYPE } from '../slab';
+import { MiniBracket } from './Tournament';
 
-type HomeProps = Props & LearnProps & ScenarioProps & Omit<DailyProps, 'day'>;
+type HomeProps = Props & LearnProps & ScenarioProps & Omit<DailyProps, 'day'> & { run: Run | null };
 export const short = (l: { id: string; title: string }) => (l.id === 'bank' ? 'Banks' : l.title.split(/:| and /)[0]);
 
-export function Home({ set, go, done, stars, daily, today }: HomeProps) {
+export function Home({ set, go, done, stars, daily, today, run: tourRun }: HomeProps) {
   const { land, side, pad, width, height } = useFrame(), [box, setBox] = useState({ w: width - 2 * side, h: 300 });
   const me = profile(), wd = weekday(today), k = starCount(daily.stars[today]), run = streak(daily.stars, today).current;
   const nextLesson = LESSONS.findIndex(l => !done.includes(l.id)), total = totalStars(stars), all = 3 * SCENARIOS.length;
@@ -31,7 +35,7 @@ export function Home({ set, go, done, stars, daily, today }: HomeProps) {
   const opp = set.tier === RIVAL ? `Rival ${shown(me.rival[set.aiGame].rating)}` : TIERS[set.tier].name;
   // Sizes: landscape from the body's measured box, portrait from the window.
   const heroW = land ? Math.min(300, Math.max(240, 0.37 * box.w)) : width - 2 * side, rest = box.w - heroW - 8, rowH = (box.h - 8) / 2;
-  const dailyW = land ? (rest - 8) * 2 / 3 : width - 2 * side, smallW = land ? (rest - 16) / 3 : (width - 2 * side - 8) / 2, tileH = land ? rowH - 5 : 150;
+  const dailyW = land ? (rest - 16) / 3 : (width - 2 * side - 8) / 2, smallW = land ? (rest - 16) / 3 : (width - 2 * side - 8) / 2, tileH = land ? rowH - 5 : 150;
   const heroTable = land ? Math.min(heroW - 24, (box.h - 186) * 2 / 1.12) : Math.min(heroW - 24, 420);
   const scenW = Math.min(smallW - 24, (tileH - 88) / 0.56); // a table is 0.56 of its width tall
 
@@ -51,9 +55,21 @@ export function Home({ set, go, done, stars, daily, today }: HomeProps) {
     </Slab>
   );
   const week = Array.from({ length: 7 }, (_, i) => addDays(today, i - 6));
+  // The tournament: a run in play as its bracket, else the trophy of the strongest cup open.
+  const live = tourRun?.state === 'playing' ? tourRun : null, m = live ? nextMatch(live) : -1, lvl = levelOf(me.xp).level;
+  const top = [3, 2, 1, 0].find(c => cupOpen(c, me.trophies, lvl)) ?? 0;
+  const tourLine = live ? `${CUPS[live.opts.cup].name} · ${roundName(live, m)}` : `${CUPS[top].name} Cup`;
   const tiles = {
+    tour: (
+      <Tile paint={MODE.tour} name={`Tournament, ${live ? `${tourLine} next` : `${tourLine}, ${['no medal', 'bronze', 'silver', 'gold'][me.trophies[top]]} won`}`} title="Tournament" onPress={() => go('tour')} style={{ flex: 1, minHeight: 120 }} face={{ gap: 4 }}>
+        <Txt numberOfLines={1} style={[styles.line, { color: C.chalk }]}>{tourLine}</Txt>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: live ? 'flex-start' : 'center' }}>
+          {live ? <MiniBracket run={live} w={Math.max(60, smallW - 24)} h={Math.max(40, Math.min(110, tileH - 70))} /> : <Trophy medal={me.trophies[top]} size={Math.max(36, Math.min(72, tileH - 74))} />}
+        </View>
+      </Tile>
+    ),
     daily: (
-      <Tile paint={MODE.daily} name={`Daily Table, ${dateOf(today)}, ${THEMES[wd]}, ${k} of 3 stars${run ? `, run of ${run} days` : ''}`} title="Daily Table" onPress={() => go('calendar')} style={{ flex: 2, minHeight: 120 }}>
+      <Tile paint={MODE.daily} name={`Daily Table, ${dateOf(today)}, ${THEMES[wd]}, ${k} of 3 stars${run ? `, run of ${run} days` : ''}`} title="Daily Table" onPress={() => go('calendar')} style={{ flex: 1, minHeight: 120 }}>
         <Txt style={styles.line}>{`${DAYS[wd].slice(0, 3)} ${+today.slice(8, 10)} · ${THEMES[wd]}`}</Txt>
         <View style={{ flex: 1 }} />
         <View style={styles.week}>
@@ -101,7 +117,7 @@ export function Home({ set, go, done, stars, daily, today }: HomeProps) {
     <Shell settings={() => go('settings')}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: side, paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16), gap: 8 }}>
         {hero}
-        {tiles.daily}
+        <View style={styles.pair}>{tiles.tour}{tiles.daily}</View>
         <View style={styles.pair}>{tiles.scenarios}{tiles.learn}</View>
         <View style={styles.pair}>{tiles.pass}{tiles.cues}</View>
       </ScrollView>
@@ -111,7 +127,7 @@ export function Home({ set, go, done, stars, daily, today }: HomeProps) {
     <View style={[styles.pair, { flex: 1, minHeight: 300 }]} onLayout={e => { const { width: w, height: h } = e.nativeEvent.layout; if (w !== box.w || h !== box.h) setBox({ w, h }); }}>
       {hero}
       <View style={{ flex: 1, gap: 8 }}>
-        <View style={[styles.pair, { flex: 1 }]}>{tiles.daily}{tiles.scenarios}</View>
+        <View style={[styles.pair, { flex: 1 }]}>{tiles.tour}{tiles.daily}{tiles.scenarios}</View>
         <View style={[styles.pair, { flex: 1 }]}>{tiles.learn}{tiles.pass}{tiles.cues}</View>
       </View>
     </View>
@@ -135,7 +151,7 @@ const styles = StyleSheet.create({
   play: { fontFamily: FONT.display, fontSize: 30, lineHeight: 34, color: CREAM[0] },
   line: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 16, color: C.ink, marginTop: 3 },
   week: { flexDirection: 'row', gap: 3 },
-  day: { width: 17, height: 22, borderRadius: 2, alignItems: 'center', justifyContent: 'center' },
+  day: { flex: 1, maxWidth: 17, height: 22, borderRadius: 2, alignItems: 'center', justifyContent: 'center' },
   dayText: { fontFamily: FONT.bold, fontSize: 10, lineHeight: 12 },
   dayTable: { position: 'absolute', right: 12, top: 0, bottom: 0, justifyContent: 'center' },
   count: { fontFamily: FONT.display, fontSize: 22, lineHeight: 24, ...TYPE.num },

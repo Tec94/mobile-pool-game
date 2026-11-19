@@ -19,7 +19,7 @@ const RACE_KEYS = RACES.map((r): [string, typeof r] => [String(r), r]);
 // A row: its label, centred on the key face, then its keys. Under 430 pt wide the label goes above.
 // The keys' box has a set width and stretches its child: on a phone, Yoga sizes a wrapping row that shrinks to its
 // keys a fraction too narrow, so the last key wraps, and gives the row one line's height, so rows overlap.
-function Line({ label, children }: { label: string; children: ReactNode }) {
+export function Line({ label, children }: { label: string; children: ReactNode }) {
   const { width, side, land } = useFrame(), narrow = width < 430, panel = usePanel();
   return (
     <View style={[styles.line, narrow && { flexDirection: 'column', alignItems: 'stretch', gap: 4 }]}>
