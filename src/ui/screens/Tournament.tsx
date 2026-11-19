@@ -6,7 +6,7 @@ import { StyleSheet, View } from 'react-native';
 import { profile } from '../../progress';
 import { levelOf } from '../../progress/profile';
 import type { Settings } from '../../settings/settings';
-import { CUPS, cupOpen, medalOf, NICK, nextMatch, type Opts, prize, raceOf, roundName, rounds, type Run, sides, stakes } from '../../tournament/bracket';
+import { CUPS, cupOpen, medalOf, NICK, TELL, nextMatch, type Opts, prize, raceOf, roundName, rounds, type Run, sides, stakes } from '../../tournament/bracket';
 import { C, CREAM, DARK, FONT, MODE } from '../../theme';
 import { Glyph, Trophy } from '../Glyph';
 import type { Props } from '../Menus';
@@ -165,11 +165,12 @@ function Card({ run, next, abandon, play, again }: { run: Run; next: number; aba
         {stakes(run, next) > 1 && <Chip name={`This round pays times ${stakes(run, next)}`}>{`Pays ×${stakes(run, next)}`}</Chip>}
         <Chip>{`Best of ${run.opts.best}`}</Chip>
       </View>
-      <View style={[styles.row, { gap: 14, flex: land ? 1 : undefined, paddingVertical: land ? 0 : 6 }]} accessible accessibilityLabel={`Next: ${e.name}${e.style ? `, ${NICK[e.style]}` : ''}, rating ${e.rating.toFixed(1)}, race to ${raceOf(run.opts.best)}`}>
+      <View style={[styles.row, { gap: 14, flex: land ? 1 : undefined, paddingVertical: land ? 0 : 6 }]} accessible accessibilityLabel={`Next: ${e.name}${e.style ? `, ${NICK[e.style]}: ${TELL[e.style]}` : ''}, rating ${e.rating.toFixed(1)}, race to ${raceOf(run.opts.best)}`}>
         <BallArt n={7} size={land ? 64 : 60} label={e.name[0]} />
         <View style={{ flex: 1, gap: 3 }}>
           <View style={styles.row}><Txt numberOfLines={1} style={styles.foe}>{e.name}</Txt>{e.style && <Glyph id={e.style} size={20} color={C.chalk} />}</View>
           {e.style && <Txt style={styles.nick}>{NICK[e.style]}</Txt>}
+          {e.style && <Txt numberOfLines={2} style={styles.tell}>{TELL[e.style]}</Txt>}
           <Bars rating={e.rating} color={C.chalk} w={12} />
         </View>
       </View>
@@ -223,6 +224,7 @@ const styles = StyleSheet.create({
   end: { fontFamily: FONT.display, fontSize: 26, lineHeight: 30, color: C.chalk, textAlign: 'center' },
   foe: { fontFamily: FONT.display, fontSize: 26, lineHeight: 30, color: C.chalk, flexShrink: 1 },
   nick: { fontFamily: FONT.bold, fontSize: 14, lineHeight: 18, color: C.chalk, opacity: 0.7 },
+  tell: { fontFamily: FONT.semi, fontSize: 12, lineHeight: 15, color: C.chalk, opacity: 0.7 },
   abandon: { width: 92, alignItems: 'center', justifyContent: 'center' },
   abandonText: { fontFamily: FONT.bold, fontSize: 13, lineHeight: 16, color: C.chalk, opacity: 0.85 },
 });

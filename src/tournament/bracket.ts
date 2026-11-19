@@ -34,6 +34,11 @@ export interface Live { score: [number, number]; table?: unknown }
 
 export const NICK: Record<StyleId, string> = { banker: 'The Banker', spin: 'Spin Doctor', wall: 'The Wall', gun: 'Gunslinger', closer: 'The Closer' };
 // Each style is one character, met again from run to run; the plain players are drawn from NAMES.
+// What each style does, in a line the player reads before the match.
+export const TELL: Record<StyleId, string> = {
+  banker: 'Banks and kicks out of trouble', spin: 'Puts the cue ball where it wants it', wall: 'Plays safe when the pot is not clean',
+  gun: 'Fires at everything, never plays safe', closer: 'Rarely misses the last two balls',
+};
 export const ROSTER: Record<StyleId, string> = { banker: 'Rafe', spin: 'Juno', wall: 'Dez', gun: 'Kit', closer: 'Mara' };
 // Original first names, none a real player's, none a ROSTER name.
 const NAMES = ['Ollie', 'Tess', 'Niko', 'Bea', 'Sol', 'Ivo', 'Wren', 'Abe', 'Lula', 'Cass', 'Remy',
