@@ -157,9 +157,13 @@ export function readRun(text: string | null): Run | null {
   // a result only where both entrants are known (sides reads the earlier results, so check in order)
   for (let m = 0; m < n - 1; m++) {
     const r = o.res[m];
-    if (r !== null && !((r.w === 0 || r.w === 1) && score(r.score, race) && sides(o, m).every((i) => i !== null))) return null;
+    // the loser short of the race; the winner may be too (a walkover), so no tie can stand
+    if (r !== null && !((r.w === 0 || r.w === 1) && score(r.score, race) && r.score[1 - r.w] < race && sides(o, m).every((i) => i !== null))) return null;
   }
-  if (!['playing', 'out', 'champion'].includes(o.state) || !pay(o.earned)) return null;
+  // the state follows from the results: out after the player's loss, champion after winning the final
+  const mine = o.res.map((r: Result | null, m: number) => r && sides(o, m).indexOf(o.field.findIndex((e: Entrant) => e.human)));
+  const lost = o.res.some((r: Result | null, m: number) => r && mine[m] >= 0 && mine[m] !== r.w), fin = o.res[n - 2];
+  if (o.state !== (lost ? 'out' : fin && mine[n - 2] === fin.w ? 'champion' : 'playing') || !pay(o.earned)) return null;
   if (o.live !== null && !score(o.live?.score, race - 1)) return null; // a live match has not been won yet
   return o.state === 'playing' && nextMatch(o) < 0 ? null : (o as Run); // a run in play always has a match for the player
 }

@@ -44,6 +44,7 @@ test('a run to the title: each round sims the other matches once, the final is n
   assert.equal(r.state, 'champion'); assert.equal(nextMatch(r), -1); assert.equal(wins(r), 3);
   assert.deepStrictEqual(r.earned, { xp: 200 + 1404, coins: 100 + 702 }, 'match pay plus the prize');
   assert.deepStrictEqual(r.res[5], semi, 'a simulated match never changes');
+  assert.deepStrictEqual(readRun(JSON.stringify(r)), r, 'a title run reads back');
 });
 
 test('a loss ends the run and the rest of the bracket plays out; scores are in bracket order', () => {
@@ -52,6 +53,7 @@ test('a loss ends the run and the rest of the bracket plays out; scores are in b
   assert.equal(r.state, 'out'); assert.equal(nextMatch(r), -1); assert.equal(wins(r), 1);
   assert(r.res.every(Boolean), 'every match has a result, the final too');
   assert.deepStrictEqual(r.res[4].score, [1, 2]); assert.equal(r.res[4].w, 1);
+  assert.deepStrictEqual(readRun(JSON.stringify(r)), r, 'a run that is out reads back');
 });
 
 test('a simulated match races to the format and favours the stronger side', () => {
@@ -109,7 +111,9 @@ test('a saved run that cannot be played is no run', () => {
     { ...r, field: r.field.map(e => ({ ...e, human: false })) }, { ...r, slots: r.slots.map(() => 0) },
     { ...r, res: [...r.res.slice(0, -1), { w: 0, score: [1, 0] }] }, // a final with neither finalist known
     { ...r, live: { score: [raceOf(r.opts.best), 0] } }, { ...r, res: [{ w: 0, score: [9, 0] }, ...r.res.slice(1)] }, // a live match already won, a score past the race
-    { ...r, field: r.field.map((e, i) => (i === 1 ? { ...e, rating: 9 } : e)) }]) assert.equal(readRun(JSON.stringify(bad)), null);
+    { ...r, field: r.field.map((e, i) => (i === 1 ? { ...e, rating: 9 } : e)) },
+    { ...r, res: [{ w: 0, score: [raceOf(r.opts.best), raceOf(r.opts.best)] }, ...r.res.slice(1)] }, // a tie
+    { ...r, state: 'champion' }, { ...r, state: 'out' }]) assert.equal(readRun(JSON.stringify(bad)), null);
   assert.deepStrictEqual(readRun(JSON.stringify({ ...r, live: { score: [1, 0], table: { any: 1 } } })).live.score, [1, 0], 'the table inside is the game\'s to check');
 });
 
