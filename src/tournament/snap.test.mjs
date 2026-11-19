@@ -23,7 +23,9 @@ test('a saved shot plays out the same after the save is written and read back', 
 test('a snapshot fits only its own game, version and shape', () => {
   const s = JSON.parse(JSON.stringify(snapshot(8)));
   assert(fits(s, 8)); assert(!fits(s, 9)); assert(!fits(null, 8));
-  for (const bad of [{ ...s, v: 2 }, { ...s, B: s.B.slice(1) }, { ...s, B: [{ ...s.B[0], x: null }, ...s.B.slice(1)] }, { ...s, cue: 'gone' }, { ...s, stats: undefined }, { ...s, rules: { ...s.rules, balls: 3 } }])
+  for (const bad of [{ ...s, v: 2 }, { ...s, B: s.B.slice(1) }, { ...s, B: [{ ...s.B[0], x: null }, ...s.B.slice(1)] }, { ...s, cue: 'gone' }, { ...s, stats: undefined }, { ...s, rules: { ...s.rules, balls: 3 } },
+    { ...s, shot: { ...s.shot, speed: null } }, { ...s, B: [{ ...s.B[0], vx: 'fast' }, ...s.B.slice(1)] }, { ...s, push: 1 }, { ...s, safe: {} },
+    { ...s, ledger: { ...s.ledger, shots: { xp: null, coins: 0 } } }, { ...s, B: [...s.B, s.B[1]], ids: [...s.ids, 1] }])
     assert(!fits(bad, 8));
 });
 
