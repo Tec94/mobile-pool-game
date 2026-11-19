@@ -17,7 +17,7 @@ import { Line } from './Setup';
 export interface TourProps { run: Run | null; startRun: (o: Opts) => void; abandon: () => void; playTour: () => void }
 
 export function Tournament(p: Props & TourProps) {
-  const [fresh, setFresh] = useState(false); // New tournament pressed: the setup, the ended run kept until Start (its seed seeds the next)
+  const [fresh, setFresh] = useState(false); // New cup pressed: the setup, the ended run kept until Start (its seed seeds the next)
   if (p.run && (p.run.state === 'playing' || !fresh)) return <Bracket {...p} run={p.run} again={() => setFresh(true)} />;
   return <TourSetup {...p} start={o => { setFresh(false); p.startRun(o); }} />;
 }
@@ -97,7 +97,9 @@ const ROW = 34, GAP = 2, LINE = 2;
 
 function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { run: Run; again: () => void }) {
   const { land, side, width, height } = useFrame(), panelW = usePanel(), R = rounds(run.opts.size), next = nextMatch(run);
-  const row = land && height < 430 ? 28 : ROW, BLOCK = 2 * row + GAP, UNIT = BLOCK + 8; // short rows so eight players fit a phone in landscape
+  // short rows so eight players fit a landscape phone; in portrait taller ones fill the room above the card (about 400 pt)
+  const row = land ? (height < 430 ? 28 : ROW) : Math.min(48, Math.max(ROW, ((height - 400) / (run.opts.size / 2) - 10) / 2));
+  const BLOCK = 2 * row + GAP, UNIT = BLOCK + 8;
   const areaW = land ? width - 2 * side - panelW - 16 : width - 2 * side, gapX = land ? 20 : 12, colW = (areaW - (R - 1) * gapX) / R;
   const x = (r: number) => r * (colW + gapX), mid = (r: number, k: number) => (k + 0.5) * (1 << r) * UNIT - 7;
   const names = R === 3 ? (land ? ['Quarterfinal', 'Semifinal', 'Final'] : ['Quarters', 'Semis', 'Final']) : ['Semifinal', 'Final'];
@@ -141,7 +143,7 @@ function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { ru
   );
 }
 
-// The panel by the bracket: the next opponent with Play and Abandon, or how the run ended with New tournament.
+// The panel by the bracket: the next opponent with Play and Abandon, or how the run ended with New cup.
 function Card({ run, next, abandon, play, again }: { run: Run; next: number; abandon: () => void; play: () => void; again: () => void }) {
   const [sure, setSure] = useState(false), { land } = useFrame();
   const face = [styles.card, land && { flex: 1 }];
