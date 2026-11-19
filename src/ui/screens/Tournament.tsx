@@ -14,7 +14,7 @@ import { Cta, Panel, Shell, Split, useFrame, usePanel } from '../shell';
 import { BallArt, Chip, Keys, Slab, Txt, TYPE } from '../slab';
 import { Line } from './Setup';
 
-export interface TourProps { run: Run | null; startRun: (o: Opts) => void; abandon: () => void; playTour: () => void }
+export interface TourProps { run: Run | null; damaged?: boolean; startRun: (o: Opts) => void; abandon: () => void; playTour: () => void }
 
 export function Tournament(p: Props & TourProps) {
   const [fresh, setFresh] = useState(false); // New cup pressed: the setup, the ended run kept until Start (its seed seeds the next)
@@ -43,7 +43,7 @@ function Bars({ rating, color, w = 5 }: { rating: number; color: string; w?: num
   return <View style={styles.bars}>{Array.from({ length: 6 }, (_, k) => <View key={k} style={{ width: w, height: Math.max(3, w * 0.6), backgroundColor: color, opacity: rating >= k + 1 ? 1 : rating > k ? 0.6 : 0.35 }} />)}</View>;
 }
 
-function TourSetup({ set, change, go, start }: Props & { start: (o: Opts) => void }) {
+function TourSetup({ set, change, go, start, run, damaged }: Props & TourProps & { start: (o: Opts) => void }) {
   const me = profile(), level = levelOf(me.xp).level, open = (c: number) => cupOpen(c, me.trophies, level);
   const o: Opts = { ...set.tour, cup: open(set.tour.cup) ? set.tour.cup : 0 }, pick = (x: Partial<Opts>) => change({ tour: { ...o, ...x } });
   const won = prize(o, rounds(o.size));
@@ -62,6 +62,7 @@ function TourSetup({ set, change, go, start }: Props & { start: (o: Opts) => voi
           <View style={{ alignItems: 'center', paddingVertical: 6, gap: 6 }}><Txt style={styles.prizeNote}>{`The title prize, on top of match pay ×1 to ×${1 + 0.5 * (rounds(o.size) - 1)}`}</Txt><Pay {...won} /></View>
         </Panel>}>
         <View style={{ gap: 9 }}>
+          {damaged && !run && <Txt accessibilityRole="alert" style={[styles.prizeNote, { textAlign: 'left' }]}>Your last tournament could not be read.</Txt>}
           <Line label="Cup">
             <View style={styles.cups} accessibilityRole="radiogroup" accessibilityLabel="Cup">
               {CUPS.map((c, i) => {

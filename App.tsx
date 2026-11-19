@@ -143,7 +143,7 @@ function Root() {
     return saved;
   };
   // The tournament run (src/tournament): in a ref too, since a match saves it after every shot without a render.
-  const [run, setRun] = useState(() => loadRun().run), runRef = useRef(run);
+  const [loaded] = useState(loadRun), [run, setRun] = useState(loaded.run), runRef = useRef(run);
   // The run moves on in memory even if the save fails: disk keeps the match before its result, and a relaunch plays
   // the saved shot again to the same result, so nothing is lost and the pay goes out then.
   const putRun = (r: Run | null) => { runRef.current = r; setRun(r); return saveRun(r); };
@@ -179,7 +179,7 @@ function Root() {
       : screen === 'scenario' ? <Game key={`s${scen}`} set={set} scen={SCENARIOS[scen]} onClear={(t, off) => cleared(SCENARIOS[scen], t, off)} onNext={nextScen ? () => setScen(scen + 1) : undefined} onQuit={() => go('scenarios')} />
       : screen === 'tourMatch' && match.current ? <Game key="tour" set={set} tour={match.current} onQuit={() => go('tour')} />
       : screen === 'daily' ? <Game key={`d${day}`} set={set} scen={dayScen} back="Daily Table" onClear={dayCleared} onQuit={() => go('calendar')} />
-      : <Menus screen={screen === 'tourMatch' ? 'tour' : screen} set={set} change={change} go={go} done={done} learn={learn} stars={stars} play={play} daily={daily} today={today} day={day} playDay={playDay} arm={arm} run={run} startRun={startRun} abandon={() => tourMatch()?.forfeit(run?.live?.score ?? [0, 0])} playTour={() => { match.current = tourMatch(); if (match.current) go('tourMatch'); }} />}
+      : <Menus screen={screen === 'tourMatch' ? 'tour' : screen} set={set} change={change} go={go} done={done} learn={learn} stars={stars} play={play} daily={daily} today={today} day={day} playDay={playDay} arm={arm} run={run} damaged={loaded.damaged} startRun={startRun} abandon={() => tourMatch()?.forfeit(run?.live?.score ?? [0, 0])} playTour={() => { match.current = tourMatch(); if (match.current) go('tourMatch'); }} />}
   </>;
 }
 
