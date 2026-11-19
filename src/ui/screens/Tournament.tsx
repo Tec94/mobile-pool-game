@@ -56,6 +56,7 @@ function TourSetup({ set, change, go, start, run, damaged }: Props & TourProps &
         </>} picture={w => <View style={{ alignItems: 'center', gap: 6 }}>
           <Trophy medal={medalOf(o)} size={Math.min(w, 110)} />
           <View style={styles.pay} accessible accessibilityLabel={`Medals won in the ${cupName(o.cup)}: ${['none', 'bronze', 'silver', 'gold'][me.trophies[o.cup]]}`}>
+            <Txt style={styles.prizeNote}>Medals won</Txt>
             {[1, 2, 3].map(k => <Trophy key={k} medal={me.trophies[o.cup] >= k ? k : 0} size={20} />)}
           </View>
         </View>} cta={{ label: 'Start', name: `Start the ${cupName(o.cup)}`, onPress: () => start(o) }}>
@@ -99,7 +100,7 @@ const ROW = 34, GAP = 2, LINE = 2;
 function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { run: Run; again: () => void }) {
   const { land, side, width, height } = useFrame(), panelW = usePanel(), R = rounds(run.opts.size), next = nextMatch(run);
   // short rows so eight players fit a landscape phone; in portrait taller ones fill the room above the card (about 400 pt)
-  const row = land ? (height < 430 ? 28 : ROW) : Math.min(48, Math.max(ROW, ((height - 400) / (run.opts.size / 2) - 10) / 2));
+  const row = land ? (height < 430 ? 28 : ROW) : Math.min(56, Math.max(ROW, ((height - 400) / (run.opts.size / 2) - 10) / 2));
   const BLOCK = 2 * row + GAP, UNIT = BLOCK + 8;
   const areaW = land ? width - 2 * side - panelW - 16 : width - 2 * side, gapX = land ? 20 : 12, colW = (areaW - (R - 1) * gapX) / R;
   const x = (r: number) => r * (colW + gapX), mid = (r: number, k: number) => (k + 0.5) * (1 << r) * UNIT - 7;
@@ -219,13 +220,13 @@ const styles = StyleSheet.create({
   cupKey: { height: 44, alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 2 },
   cupKeyName: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 15 },
   lockText: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 13, color: C.chalk, opacity: 0.7, textAlign: 'center' },
-  head: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, letterSpacing: 0.6, textTransform: 'uppercase', color: C.chalk, opacity: 0.6 },
+  head: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, letterSpacing: 0.6, textTransform: 'uppercase', color: C.chalk, opacity: 0.75 },
   prizeNote: { fontFamily: FONT.semi, fontSize: 11.5, lineHeight: 15, color: C.chalk, opacity: 0.75, textAlign: 'center' },
   slot: { borderRadius: 3, paddingHorizontal: 7, flexDirection: 'row', alignItems: 'center', gap: 4 },
   unknown: { backgroundColor: '#EEF2EA0A', borderWidth: 1, borderStyle: 'dashed', borderColor: '#EEF2EA26' },
   slotName: { fontFamily: FONT.bold, fontSize: 13, lineHeight: 15, flexShrink: 1 },
   score: { minWidth: 18, height: 18, borderRadius: 2, alignItems: 'center', justifyContent: 'center' },
-  scoreText: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 13, ...TYPE.num },
+  scoreText: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 14, ...TYPE.num },
   card: { padding: 12, gap: 12 },
   end: { fontFamily: FONT.display, fontSize: 26, lineHeight: 30, color: C.chalk, textAlign: 'center' },
   foe: { fontFamily: FONT.display, fontSize: 26, lineHeight: 30, color: C.chalk, flexShrink: 1 },

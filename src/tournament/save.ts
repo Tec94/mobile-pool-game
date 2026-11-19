@@ -2,8 +2,8 @@
 import { loadJson, saveJson } from '../progress/save.ts';
 import { readRun, type Run } from './bracket.ts';
 
-// damaged = there are files but none can be read: no run, and nothing is saved over them until a new run starts.
-// damaged = a save was there but could not be read or played (none = no run, as saveRun(null) writes it)
+// damaged = a save was there but could not be read or played (none = no run, as saveRun(null) writes it): no run,
+// and nothing is saved over it until a new run starts.
 export function loadRun() {
   const t = loadJson('tournament'), run = readRun(t ?? null);
   return { run, damaged: t === undefined || (!!t && !run && !/"none":true/.test(t)) };

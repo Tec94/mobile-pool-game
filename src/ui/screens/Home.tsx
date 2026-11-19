@@ -6,6 +6,7 @@ import { TIERS } from '../../ai/shot-ai';
 import { addDays, dailyPick, streak, weekday } from '../../daily/daily';
 import { LESSONS } from '../../learn/lessons';
 import { profile } from '../../progress';
+import { levelOf } from '../../progress/profile';
 import { CUE_IDS, CUES } from '../../progress/cues';
 import { shown } from '../../progress/rival';
 import { isOpen, SCENARIOS, starCount, totalStars } from '../../scenarios/scenarios';
@@ -18,9 +19,8 @@ import { DAYS, dateOf, THEMES } from '../days';
 import type { DailyProps, LearnProps, Props, ScenarioProps } from '../Menus';
 import { MiniTable, rackOf, SpinDot, tableOf } from '../MiniTable';
 import { Shell, Tile, useFrame } from '../shell';
-import { MiniBracket } from './Tournament';
-import { levelOf } from '../../progress/profile';
 import { BallArt, Slab, Txt, TYPE } from '../slab';
+import { MiniBracket } from './Tournament';
 
 type HomeProps = Props & LearnProps & ScenarioProps & Omit<DailyProps, 'day'> & { run: Run | null };
 export const short = (l: { id: string; title: string }) => (l.id === 'bank' ? 'Banks' : l.title.split(/:| and /)[0]);

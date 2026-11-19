@@ -1,8 +1,5 @@
 // The match HUD (screens spec: player plates, the 9-ball strip, the banner) and the results card. What they show comes
 // from src/ui/hud.ts; this file only draws it.
-import type { StyleId } from '../ai/styles';
-import { NICK } from '../tournament/bracket';
-import { Glyph } from './Glyph';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { type LayoutChangeEvent, ScrollView, StyleSheet, Text, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -13,6 +10,9 @@ import { RAIL, type View as TableView } from '../render/table';
 import { BALLS, C, CREAM, DARK, FONT, MODE, type Paint } from '../theme';
 import { banner, fresh, type Plate, plates, strip } from './hud';
 import { Slab, Txt, TYPE } from './slab';
+import type { StyleId } from '../ai/styles';
+import { NICK } from '../tournament/bracket';
+import { Glyph } from './Glyph';
 
 const RED = BALLS[2]; // fouls reuse the three-ball red (Quiet Slate)
 const LINE = C.chalk + '66'; // chalk hairline at 40%: 3:1 on the ground

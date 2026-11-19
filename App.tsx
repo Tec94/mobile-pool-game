@@ -74,9 +74,10 @@ const newTable = (rules: State) => {
   for (const [id, x, y] of rack(rules.game)) { ids.push(id); B.push({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true }); }
   return { B, ids, look: newLook(B), rules, rec: null as Rec | null, push: false };
 };
-// A lesson's table. No rules play: the state only marks the lesson's pocket, and the lesson judges the shot.
+// A tournament match's saved table, as Game plays it (snap.ts).
 const resumed = (t: unknown) => { const s = t as Snap, B = s.B.map(b => ({ ...b })); return { B, ids: [...s.ids], look: newLook(B), rules: s.rules, rec: null as Rec | null, push: s.push }; };
 type TourMatch = TM<ReturnType<typeof payRun>>;
+// A lesson's table. No rules play: the state only marks the lesson's pocket, and the lesson judges the shot.
 const newLesson = (l: Lesson) => {
   const { B, ids } = lessonTable(l), rules: State = { ...newGame(8, 0, false), phase: 'play', hand: false, balls: ids.slice(1), call: l.goal.pocket ?? -1 };
   return { B, ids, look: newLook(B), rules, rec: null as Rec | null, push: false };
@@ -220,7 +221,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   const gained = useRef<ReturnType<typeof award> | null>(null); // the award of the match, for the results card
   // Quick match: the pay so far (src/progress/pay.ts), the pots on the table at the strike (for pRef), and the pay lines
   // of the finished match.
-  // shortcut: a match left from the pause card pays nothing, not even its shots; no safety pay (needs the AI's reply).
+  // shortcut: a quick match left from the pause card pays nothing, not even its shots (a tournament forfeit pays them); no safety pay (needs the AI's reply).
   const won = useRef(snap0 ? { ...snap0.ledger, shots: { ...snap0.ledger.shots } } : newLedger()), cands = useRef<Cand[]>([]), end = useRef<Settled | null>(null), prize = useRef<Pay | null>(null);
   const safe = useRef<Safeties>(snap0?.safe ?? { row: 0, rack: 0 }), seed = useRef(snap0?.seed ?? Math.floor(Math.random() * 2 ** 31)), [thinking, setThinking] = useState(false);
   // A tournament match is saved at every strike (with the shot, so a relaunch plays the same shot again) and ruling.
@@ -658,7 +659,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
             <Act paint={CREAM} label="Resume" onPress={() => { setPaused(false); setSure(false); }} />
             {tour && !done ? <>
               <Act label="Save and leave" onPress={onQuit} />{/* every strike and ruling is saved: Play on the bracket picks the match up */}
-              <Act paint={sure ? [C.warn, '#A33A30'] : undefined} label={sure ? 'Forfeit: a loss. Tap again' : 'Forfeit match'} onPress={() => { if (!sure) return setSure(true); tour.forfeit([...score.current]); onQuit(); }} />
+              <Act paint={sure ? [C.warn, '#A33A30'] : undefined} label={sure ? 'Forfeit: a loss, shots still pay. Tap again' : 'Forfeit match'} onPress={() => { if (!sure) return setSure(true); tour.forfeit([...score.current]); onQuit(); }} />
             </>
               : <Act label={tour ? 'Bracket' : S ? 'Leave scenario' : L ? 'Leave lesson' : 'Leave match'} onPress={onQuit} />}
           </View>
