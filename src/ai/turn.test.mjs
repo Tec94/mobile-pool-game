@@ -3,7 +3,7 @@
 import assert from 'node:assert';
 import { breakSpot, HOLES, P, rack, step, strike } from '../physics/engine.ts';
 import { choose, handCue, judge, legalSpot, moveCue, newGame, newRec, record, setCall, spotBall } from '../rules/rules.ts';
-import { breakShot, callFor, candsFor, choiceFor, groupsOf, holeOf, nextSafeties, onLit, placeCue, potPay, safetiesArg, softMove, think } from './turn.ts';
+import { breakShot, callFor, candsFor, choiceFor, comboSpot, groupsOf, holeOf, nextSafeties, onLit, placeCue, potPay, safetiesArg, softMove, think } from './turn.ts';
 import { aiShot } from './aim.ts';
 import { makeRates } from './bench.ts';
 import { cushionAt } from '../rules/rules.ts';
@@ -21,6 +21,25 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, true), phase: 'play', turn: 1, 
 { const s = play8(); eq(groupsOf(s, 1), [STRIPES, SOLIDS]); eq(groupsOf(s, 0), [SOLIDS, STRIPES]); eq(groupsOf({ ...s, solids: -1 }, 1), null, 'open table: the AI picks');
   eq(groupsOf(newGame(9), 1), [NINE, NINE]);
   ok('groups for the picker');
+}
+{ // 9-ball in hand: the 9 hangs in a corner with the 1 near it, the rest frozen on the rails, so no run is on. A tier
+  // with combos puts the cue ball on the line 1 -> 9 -> pocket; Regular (no combos) keeps the straight pot of the 1.
+  const rails = [[1.9, 0.03], [1.4, 1.09], [2.2, 0.56], [0.9, 0.03], [1.5, 0.2], [1.8, 0.9], [2.2, 0.8]];
+  const B = [mk(1.0, 0.8), mk(0.33, 0.33), ...rails.map(([x, y]) => mk(x, y)), mk(0.11, 0.11)], ids = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+  const s = { ...newGame(9, 0, true), phase: 'play', turn: 1, hand: 'any', balls: ids.slice(1) }, at = comboSpot(B, ids, 'any', 1);
+  assert(at && legalSpot(B, at[0], at[1], 'any'), 'a legal combo spot');
+  const line = (p, a, b) => Math.abs((b.x - a.x) * (p[1] - a.y) - (b.y - a.y) * (p[0] - a.x)) / Math.hypot(b.x - a.x, b.y - a.y);
+  assert(line(at, B[1], B[9]) < 0.03, 'behind the 1, on its line to the 9');
+  const pro = B.map(b => ({ ...b })); think(pro, ids, s, 5, 1, 0); eq([pro[0].x, pro[0].y], at, 'Pro takes the combo spot');
+  const reg = B.map(b => ({ ...b })); think(reg, ids, s, 2, 1, 0); assert(reg[0].x !== at[0] || reg[0].y !== at[1], 'Regular does not');
+  // the 1 an easy pot with the 2 next: Legend keeps the straight-in spot, Hustler (no run to speak of) sets up the combo
+  const E = [mk(0.227, 0.589), mk(1.142, 0.589), mk(1.347, 0.649), mk(1.862, 0.597)], eids = [0, 1, 9, 2], e = { ...s, balls: [1, 9, 2] }, spot = comboSpot(E, eids, 'any', 1);
+  const leg = E.map(b => ({ ...b })); think(leg, eids, e, 6, 1, 0); assert(spot && (leg[0].x !== spot[0] || leg[0].y !== spot[1]), 'Legend runs the rack');
+  const hus = E.map(b => ({ ...b })); think(hus, eids, e, 3, 1, 0); eq([hus[0].x, hus[0].y], spot, 'Hustler goes for the 9');
+  // no combo spot: the 9 is the lowest ball, or the 1 is blocked from the 9
+  eq(comboSpot(B, ids, 'any', 9), null, 'the 9 alone');
+  const blocked = [...B.map(b => ({ ...b })), mk(0.22, 0.22)]; eq(comboSpot(blocked, [...ids, 10], 'any', 1), null, 'a ball between the 1 and the 9');
+  ok('9-ball ball in hand: set up the 9 combo when it beats the route');
 }
 { // The 1 sits in the middle of the table, the 10 beside it. In hand anywhere: straight behind the 1 into a pocket.
   const B = [mk(0.3, 0.3), mk(1.1, 0.56), mk(1.6, 0.9)], ids = [0, 1, 10], at = placeCue(B, ids, 'any', [1]);

@@ -230,3 +230,25 @@ const heads = (from, G, X, T, slide = 0) => { const e = rollsOff(from, G, X, sli
   assert(S.TIERS.every((t, i) => !i || t.sigma * t.hard < S.TIERS[i - 1].sigma * S.TIERS[i - 1].hard), 'combo and carom aim error falls every tier');
   ok('tierProb rises every tier for every shot type');
 }
+{ // 9-ball: the AI goes for the 9 early (a combo or a billiard) exactly when that wins the rack more often than the route
+  const top = (t, cue, balls) => S.plan(cue, balls, S.NINE, t, t.depth, 4, S.NINE)[0];
+  // the 9 hanging in a corner with the 1 lined up behind it, the rest frozen on the rails: every tier with combos takes it
+  const rails = [[W - 300, R + 1], [W / 2 + 300, H - R - 1], [W - R - 1, H / 2], [W / 2 - 200, R + 1], [1500, 200], [1800, 900], [W - R - 1, H - 300]].map(([x, y], i) => ({ id: i + 2, x, y }));
+  for (const t of S.TIERS.slice(2)) assert.strictEqual(top(t, { x: 600, y: 600 }, [{ id: 9, x: 110, y: 110 }, { id: 1, x: 330, y: 330 }, ...rails]).ball, 9, `${t.name} plays the hanging 9`);
+  // three balls, the 1 a sure pot with the 2 next: a 59% combo on the 9 loses to the route for Legend (0.91 x 1 x run)
+  const legend = S.TIERS[5], easy = top(legend, { x: 227, y: 589 }, [{ id: 1, x: 1142, y: 589 }, { id: 9, x: 1347, y: 649 }, { id: 2, x: 1862, y: 597 }]);
+  assert(easy.ball === 1 && easy.next.ball === 2, 'Legend runs the 1 and the 2 instead of the long combo');
+  // the route's next shot is the 9 itself: its odds are this shot x that one, no run rate after
+  assert.strictEqual(S.rackOdds(legend, 0.9, 0.8, 8, true), 0.9 * 0.8, 'next shot on the 9: no run rate');
+  assert.strictEqual(S.rackOdds(legend, 0.5, 0.8, 0), 0.5, 'the 9 down wins with its own chance');
+  assert(Math.abs(S.rackOdds(legend, 0.9, 0.8, 3) - 0.9 * 0.8 * legend.run ** 2) < 1e-12, 'a route: this shot, the next, then the run rate');
+  // nineValue: the 9 above the route when it beats the odds by EDGE, below when under them, else as it was
+  for (const [v9, p9, odds, above] of [[0.1, 0.65, 0.5, true], [3, 0.4, 0.5, false], [-1, 0.3, 0.1, true], [2, 0.2, 0.3, false], [0.2, 0.55, 0.5, false], [2, 0.55, 0.5, true]])
+    assert.strictEqual(S.nineValue(v9, p9, 1.5, odds) > 1.5, above, `nineValue(${v9}, ${p9}, 1.5, ${odds})`);
+  // a full rack, Hustler: a 5% combo on the 9 beats its near-zero run on paper, but not by EDGE, so it pots the 1 (87%)
+  const full = [[1, 1118, 897], [2, 1122, 456], [3, 1867, 395], [4, 201, 543], [5, 1617, 1024], [6, 601, 712], [7, 584, 249], [8, 648, 301], [9, 387, 1008]].map(([id, x, y]) => ({ id, x, y }));
+  const hustler = S.TIERS[2], h = S.plan({ x: 1708, y: 398 }, full, S.NINE, hustler, 1, 4, S.NINE), fly = h.find((c) => c.ball === 9);
+  assert(fly && fly.p > S.shotOdds(hustler, h[0], 9) && h[0].ball === 1, 'Hustler declines a 5% flyer on the 9');
+  assert(S.TIERS.every((t, i) => !i || t.run > S.TIERS[i - 1].run) && Math.abs(S.aiParams(4.5).run - (S.TIERS[3].run + S.TIERS[4].run) / 2) < 1e-12, 'run rises every tier and the Rival carries it');
+  ok('9-ball: the 9 early exactly when it wins the rack more often');
+}
