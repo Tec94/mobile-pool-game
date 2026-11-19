@@ -6,6 +6,7 @@ import { StyleSheet, View } from 'react-native';
 import { profile } from '../../progress';
 import { levelOf } from '../../progress/profile';
 import type { Settings } from '../../settings/settings';
+import type { StyleId } from '../../ai/styles';
 import { CUPS, cupOpen, medalOf, NICK, TELL, nextMatch, type Opts, prize, raceOf, roundName, rounds, type Run, sides, stakes } from '../../tournament/bracket';
 import { C, CREAM, DARK, FONT, MODE } from '../../theme';
 import { Glyph, Trophy } from '../Glyph';
@@ -100,8 +101,9 @@ const ROW = 34, GAP = 2, LINE = 2;
 
 function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { run: Run; again: () => void }) {
   const { land, side, width, height } = useFrame(), panelW = usePanel(), R = rounds(run.opts.size), next = nextMatch(run);
+  const legend = [...new Set(run.field.map(f => f.style).filter((x): x is StyleId => !!x))]; // the styles in this field
   // short rows so eight players fit a landscape phone; in portrait taller ones fill the room above the card (about 400 pt)
-  const row = land ? (height < 430 ? 28 : ROW) : Math.min(56, Math.max(ROW, ((height - 400) / (run.opts.size / 2) - 10) / 2));
+  const row = land ? (height < 430 ? 28 : ROW) : Math.min(56, Math.max(ROW, ((height - 400 - 20 * legend.length) / (run.opts.size / 2) - 10) / 2));
   const BLOCK = 2 * row + GAP, UNIT = BLOCK + 8;
   const areaW = land ? width - 2 * side - panelW - 16 : width - 2 * side, gapX = land ? 20 : 12, colW = (areaW - (R - 1) * gapX) / R;
   const x = (r: number) => r * (colW + gapX), mid = (r: number, k: number) => (k + 0.5) * (1 << r) * UNIT - 7;
@@ -143,9 +145,9 @@ function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { ru
         <View style={{ height: (run.opts.size / 2) * UNIT }}>{parts}</View>
         {/* what the glyphs in the bracket mean: the styles in this field and their tells */}
         <View style={{ marginTop: 14, gap: 6 }}>
-          {[...new Set(run.field.map(f => f.style).filter((x): x is NonNullable<typeof x> => !!x))].map(st => (
+          {legend.map(st => (
             <View key={st} style={[styles.row, { gap: 8 }]} accessible accessibilityLabel={`${NICK[st]}: ${TELL[st]}`}>
-              <Glyph id={st} size={12} color={C.chalk} /><Txt style={[styles.tell, { flex: 1 }]}><Txt style={[styles.tell, { opacity: 1 }]}>{NICK[st]}</Txt>{`  ${TELL[st]}`}</Txt>
+              <Glyph id={st} size={12} color={C.chalk} /><Txt style={[styles.tell, { flex: 1 }]}><Txt style={[styles.tell, { opacity: 1 }]}>{NICK[st]}</Txt>{` · ${TELL[st]}`}</Txt>
             </View>
           ))}
         </View>
