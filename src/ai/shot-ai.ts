@@ -15,11 +15,11 @@ export type ShotType = 'direct' | 'bank' | 'kick' | 'combo' | 'carom' | 'billiar
 // ball's id, via = a combo's first ball or a carom's helper ball, tol = the striker's angular tolerance (radians), paths = polylines for drawing.
 export interface Cand { type: ShotType; ball: number; pocket: number; aim: number; tol: number; cut: number; paths: Pt[][]; G: Pt; v: Pt; u: Pt; first: number; via?: number }
 export interface Leave extends Pt { spin: number; power: number; path: Pt[]; travelled: number; scratch: boolean }
-export interface Planned extends Cand { p: number; score: number; value: number; leave?: Leave; next?: Planned }
+export interface Planned extends Cand { p: number; score: number; value: number; leave?: Leave; next?: Planned; deep?: boolean } // deep: plan() searched its leaves
 // G, v and u are kept on a safety (the prototype dropped them) so the engine glue maps it like a pot.
 export interface Safety { type: 'safety'; ball: number; aim: number; paths: Pt[][]; leave: Leave; oppBest: number; hooked: boolean; G: Pt; v: Pt; u: Pt }
 export type Pick = Planned | Safety | { type: 'foul' };
-export interface Tier { name: string; sigma: number; types: ShotType[]; flair: number; temp: number; depth: number; planShare?: number; wPos: number; posErr: number; speedErr: number; tipErr: number; ctrl: number; wLeave: number; rack?: boolean; safetyAngles: number[]; budget: number; tries?: number; caromGap: number; rail: [number, number]; hard: number;
+export interface Tier { name: string; sigma: number; types: ShotType[]; flair: number; temp: number; depth: number; planShare?: number; wPos: number; posErr: number; speedErr: number; tipErr: number; ctrl: number; wLeave: number; rack?: boolean; safetyAngles: number[]; budget: number; tries?: number; caromGap: number; rail: [number, number]; hard: number; run: number;
   // style hooks (src/ai/styles.ts), none on a plain tier: like = score bonus per shot type; safeAt = best pot value under which a
   // safety is weighed (0.3); spinLove = bonus for a leave played with draw or follow; hook = credit for a hook times this;
   // bankAim = aim error on a bank or kick times this
@@ -257,14 +257,27 @@ function leaves(G: Pt, v: Pt, u: Pt, balls: Obj[], ignore: number[], powers = PO
 // chance matches within a few points, but for caroms and billiards, which it rates at 0.6 of what Shark and up make.
 // Hustler's speedErr of 6 (not 8): a forced bank's rebound swings with speed (lit cushions 11% at 8).
 // Balls a visit after this (2026-11-17, 200 tables): 8-ball 1.32 1.69 2.62 3.64 5.08 6.01, 9-ball 0.48 0.64 0.96 1.57 2.73 4.64.
+// run = the tier's chance to pot each ball of a 9-ball run after the next shot (rackOdds), fitted on the engine so a route's
+// predicted odds match the racks it clears in one visit (500 tables: Hustler 0.009 / 0.017, Pro 0.25 / 0.19, Legend
+// 0.56 / 0.51 before the fit; the planned next shot is noise-free, so the bare continuation rate, 0.57 0.82 0.875 0.953,
+// ran high). Rookie and Regular never play the 9 early (no combo or billiard): theirs only shape the Rival.
+// Taking the 9 early, new against before at the same tier (2026-11-19, a seed played twice with sides swapped; seeds new
+// won both ways / old won both ways): open table, 1600 racks: 53.4 51.8 50.7 50.4% (Hustler..Legend, +-2.5), 82/29
+// 78/49 43/36 48/46; first shot with ball in hand, 1000 racks: 53.6 55.1 53.0 52.3% (+-3.1), 80/44 87/36 58/31 49/27.
+// Pro and Legend run out so often that a 9 beating their route by EDGE is rare: their gain is in ball in hand. On open
+// tables the choice flips under 1% of decisions, each +0.06 of a visit's clears (about 0.05 points a decision): 1600 racks
+// cannot show it, about 100k would. Hustler's open-table 53.4 comes from ball in hand after fouls (50.9 without the combo
+// spot). EDGE 0 to 0.15 clear alike within noise. Route odds after the run fit, predicted / cleared (500 tables): Hustler
+// .011 / .015, Shark .068 / .057, Pro .213 / .193, Legend .568 / .509 (a non-9 combo route goes on at the run rate). Combo p9 runs high (Shark .19 / .12, Legend .49 / .40):
+// tierProb for combos, also 8-ball's, a follow-up.
 // Shark's budget of 12 (not 17) and Pro's wLeave of 0.6 (not 0.9: fewer safeties) keep Shark, Pro and Legend apart.
 export const TIERS: Tier[] = [
-  { name: 'Rookie',  sigma: 0.52, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1, caromGap: 0, rail: [0.91, 1.43], hard: 1.5 },
-  { name: 'Regular', sigma: 0.42, types: ['direct', 'bank'],                  flair: 0.03, temp: 0.08, depth: 0, wPos: 0,   posErr: 0.16, speedErr: 12, tipErr: 0.08, ctrl: 1, wLeave: 0, safetyAngles: [], budget: 2, caromGap: 0, rail: [0.76, 1.29], hard: 1.2 },
-  { name: 'Hustler', sigma: 0.34, types: ['direct', 'bank', 'combo', 'carom'], flair: 0.05, temp: 0.08, depth: 1, planShare: 0.5, wPos: 0.5, posErr: 0.11, speedErr: 6, tipErr: 0.06, ctrl: 1, wLeave: 0.3, safetyAngles: [0], budget: 9, caromGap: 60, rail: [0.39, 0.63], hard: 1 },
-  { name: 'Shark',   sigma: 0.20, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.05, temp: 0.04, depth: 1, tries: 2, wPos: 0.8, posErr: 0.08, speedErr: 5, tipErr: 0.035, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-30, 0, 30], budget: 12, caromGap: 10000, rail: [0.22, 0.34], hard: 1 },
-  { name: 'Pro',     sigma: 0.12, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.04, temp: 0.02, depth: 1, tries: 3, wPos: 0.9, posErr: 0.05, speedErr: 2.5, tipErr: 0.02, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 24, caromGap: 10000, rail: [0.14, 0.16], hard: 1 },
-  { name: 'Legend',  sigma: 0.05, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1,   posErr: 0.03, speedErr: 1, tipErr: 0.01, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 33, caromGap: 10000, rail: [0.07, 0.08], hard: 1 },
+  { name: 'Rookie',  sigma: 0.52, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1, caromGap: 0, rail: [0.91, 1.43], hard: 1.5, run: 0.45 },
+  { name: 'Regular', sigma: 0.42, types: ['direct', 'bank'],                  flair: 0.03, temp: 0.08, depth: 0, wPos: 0,   posErr: 0.16, speedErr: 12, tipErr: 0.08, ctrl: 1, wLeave: 0, safetyAngles: [], budget: 2, caromGap: 0, rail: [0.76, 1.29], hard: 1.2, run: 0.5 },
+  { name: 'Hustler', sigma: 0.34, types: ['direct', 'bank', 'combo', 'carom'], flair: 0.05, temp: 0.08, depth: 1, planShare: 0.5, wPos: 0.5, posErr: 0.11, speedErr: 6, tipErr: 0.06, ctrl: 1, wLeave: 0.3, safetyAngles: [0], budget: 9, caromGap: 60, rail: [0.39, 0.63], hard: 1, run: 0.62 },
+  { name: 'Shark',   sigma: 0.20, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.05, temp: 0.04, depth: 1, tries: 2, wPos: 0.8, posErr: 0.08, speedErr: 5, tipErr: 0.035, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-30, 0, 30], budget: 12, caromGap: 10000, rail: [0.22, 0.34], hard: 1, run: 0.7 },
+  { name: 'Pro',     sigma: 0.12, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.04, temp: 0.02, depth: 1, tries: 3, wPos: 0.9, posErr: 0.05, speedErr: 2.5, tipErr: 0.02, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 24, caromGap: 10000, rail: [0.14, 0.16], hard: 1, run: 0.84 },
+  { name: 'Legend',  sigma: 0.05, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1,   posErr: 0.03, speedErr: 1, tipErr: 0.01, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 33, caromGap: 10000, rail: [0.07, 0.08], hard: 1, run: 0.94 },
 ];
 // The AI for a rating s on the tier scale (1 Rookie .. 6 Legend; the Rival plays 0.5 to 6.5): numeric dials on the line
 // through the two nearest rows, past 1 and 6 along the end pair's slope. Whole settings come from the upper row with
@@ -280,7 +293,7 @@ export function aiParams(s: number, rnd?: () => number): Tier {
   return {
     ...w, sigma: at(lo.sigma, hi.sigma), speedErr: at(lo.speedErr, hi.speedErr), tipErr: at(lo.tipErr, hi.tipErr), posErr: at(lo.posErr, hi.posErr),
     flair: at(lo.flair, hi.flair), temp: at(lo.temp, hi.temp), wPos: Math.min(1, at(lo.wPos, hi.wPos)), wLeave: Math.min(1, at(lo.wLeave, hi.wLeave)),
-    planShare: Math.min(1, at(share(lo), share(hi))), rail: [at(lo.rail[0], hi.rail[0]), at(lo.rail[1], hi.rail[1])], hard: at(lo.hard, hi.hard), budget: Math.max(1, at(lo.budget, hi.budget)), depth: lo.depth ? w.depth : hi.depth,
+    planShare: Math.min(1, at(share(lo), share(hi))), rail: [at(lo.rail[0], hi.rail[0]), at(lo.rail[1], hi.rail[1])], hard: at(lo.hard, hi.hard), run: Math.min(0.97, at(lo.run, hi.run)), budget: Math.max(1, at(lo.budget, hi.budget)), depth: lo.depth ? w.depth : hi.depth,
   };
 }
 // 9-ball: pass NINE as the group for both sides. The lowest ball must be hit first, any ball may drop, the 9 wins.
@@ -294,6 +307,11 @@ export const legalFor = (balls: Obj[], group: number[]): number[] => {
 };
 export const potFor = (balls: Obj[], group: number[]) => (nine(group) ? NINE : legalFor(balls, group));
 export const winBall = (group: number[]) => (nine(group) ? 9 : 8);
+// 9-ball: the chance a shot wins the rack this visit. Only the 9 counts and a miss hands the table over either way, so of
+// two shots the one that wins the rack more often is the better one. p = the shot's chance, next = the next shot's,
+// n = balls left after the shot (0 when it drops the 9: it wins with p), nextNine = the next shot is itself on the 9.
+// The balls after the next one go at the tier's run rate.
+export const rackOdds = (tier: Tier, p: number, next: number, n: number, nextNine = false) => (!n ? p : nextNine ? p * next : p * next * tier.run ** (n - 1));
 
 // Run-out planner. value ~ expected balls potted from here: P(make) x (1 + trust x value of the position left).
 // Searches the `width` best pots, every cue-ball leave of each, and recurses `depth` shots ahead.
@@ -301,6 +319,24 @@ export const winBall = (group: number[]) => (nine(group) ? 9 : 8);
 // so a miss gets dearer and a safety more attractive as the rack runs down. need = balls a side still has to pot.
 const R_REF = 0.75, RACK = 4, HOOK = 0.2; // reference player's pot rate per further ball; value of the rack in balls; credit for a hook
 const REPLY = 2, WIN = 3; // a reply is worth about 2 balls to the opponent; potting the 8 is worth 3
+// 9-ball: the value of a shot on the 9 early (a combo or a billiard), p9 its chance and v9 its own value, against the best
+// route (its value ref, odds = its rackOdds). Lifted to ref plus the rack (RACK balls) times the gain when p9 beats the
+// odds by EDGE, dropped below ref when p9 is under them, else left as it was. EDGE: the picked shot's estimate runs high
+// (the best of several noisy ones: Hustler's open-table picks rated 0.19 dropped 0.13), and a missed 9 hands over the
+// whole rack, often with the 9 by a pocket, where a route usually breaks down later on fewer balls. It is what keeps a
+// tier with no run from firing 5% combos. RACK sets how far apart the two rank (the softmax, the safety gate).
+export const EDGE = 0.1;
+export function nineValue(v9: number, p9: number, ref: number, odds: number) {
+  return p9 > odds + EDGE ? Math.max(v9, ref + RACK * (p9 - odds)) : p9 < odds ? Math.min(v9, ref + RACK * (p9 - odds)) : v9;
+}
+// 9-ball: the chance shot s, planned on a table of n balls, wins the rack this visit: p on the 9, else its route's rackOdds.
+// A route goes on at its planned next shot's chance, 0 when plan() searched its leaves and found no shot (hooked), and
+// at the run rate when it did not search (depth 0; a combo, carom or billiard moves a second ball). By deep, not by
+// leave: decide() and aiShot give every pick a leave.
+export function shotOdds(tier: Tier, s: Planned, n: number) {
+  const next = s.next ? s.next.p : s.deep ? 0 : tier.run;
+  return s.ball === 9 ? s.p : rackOdds(tier, s.p, next, n - 1, s.next?.ball === 9);
+}
 const need = (balls: Obj[], group: number[]) => (nine(group) ? balls.length : balls.filter((b) => group.includes(b.id)).length + 1);
 const replyCost = (tier: Tier, balls: Obj[], oppGroup: number[]) => REPLY + (tier.rack ? RACK * Math.pow(R_REF, need(balls, oppGroup) - 1) : 0);
 const oppBest = (cue: Pt, balls: Obj[], oppGroup: number[]) => Math.max(0, ...enumerate(cue, balls, legalFor(balls, oppGroup), potFor(balls, oppGroup), false).map((s) => potProb(s, SIGMA_REF)));
@@ -317,15 +353,17 @@ export function plan(cue: Pt, balls: Obj[], group: number[], tier: Tier, depth: 
   const inRepertoire = cands.filter((s) => plays(tier, s, balls));
   // outside the repertoire only when nothing else exists, and never a carom or a billiard
   cands = inRepertoire.length ? inRepertoire : cands.filter((s) => s.type !== 'carom' && s.type !== 'billiard');
-  const shots: Planned[] = cands.map((s) => {
+  const all: Planned[] = cands.map((s) => {
     const p = tierProb(tier, s);
     return { ...s, p, value: 0, score: p * (s.ball === win ? WIN : 1) * (1 + (s.type === 'direct' || s.type === 'kick' ? 0 : tier.flair)) * (1 + (tier.like?.[s.type] ?? 0)) };
-  }).sort((a, b) => b.score - a.score).slice(0, width);
+  }).sort((a, b) => b.score - a.score);
+  const shots = all.slice(0, width), alt = all.find((s) => s.ball !== 9);
+  if (nine(group) && alt && !shots.includes(alt)) shots.push(alt); // the 9 scores WIN times its chance: keep a route to price it against
   for (const s of shots) {
     s.value = s.score;
     if (depth && s.type !== 'combo' && s.type !== 'carom' && s.type !== 'billiard') { // these move a second ball, so the table after them is unknown here
       const after = balls.filter((b) => b.id !== s.ball);
-      s.value = -Infinity;
+      s.value = -Infinity; s.deep = true;
       for (const lv of leaves(s.G, s.v, s.u, balls, [s.first, s.ball], oppGroup ? POWERS : [300, 1300])) {
         // the next shot is priced without caroms and billiards: they took half of decide()'s time and are rarely the best
         const sub = lv.scratch ? null : plan({ x: lv.x, y: lv.y }, after, group, tier, depth - 1, Math.max(1, width - 2), undefined, false);
@@ -336,6 +374,9 @@ export function plan(cue: Pt, balls: Obj[], group: number[], tier: Tier, depth: 
     // price the miss: the opponent shoots from about where the cue ball was heading, with this ball still on the table
     if (oppGroup && tier.wLeave) s.value -= tier.wLeave * (1 - s.p) * replyCost(tier, balls, oppGroup) * oppBest(s.leave && !s.leave.scratch ? s.leave : cue, balls, oppGroup);
   }
+  // 9-ball: the 9 early against the best route (nineValue)
+  const ref = nine(group) ? shots.filter((s) => s.ball !== 9).reduce<Planned | null>((a, s) => (!a || s.value > a.value ? s : a), null) : null;
+  if (ref) { const odds = shotOdds(tier, ref, balls.length); for (const s of shots) if (s.ball === 9) s.value = nineValue(s.value, s.p, ref.value, odds); }
   return shots.sort((a, b) => b.value - a.value);
 }
 

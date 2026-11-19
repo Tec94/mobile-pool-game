@@ -24,14 +24,14 @@ export function benchAI(n = 3) {
   return [`ms p50/max over ${n} tables`, ...TIERS.map((t) => time(t, n))].join('\n');
 }
 
-// One AI visit on the engine from a seeded random table: it shoots until a shot does not pot a legal ball cleanly
+// One AI visit on the engine from a seeded random table (early = the 9 won it with balls still up): it shoots until a shot does not pot a legal ball cleanly
 // (a miss, a foul, a safety). 8-ball: 7 a side, AI on solids, then the 8. 9-ball: balls 1-9, lowest first, the 9 wins.
 // shortcut: no ball in hand and no push out; a visit ends on the first foul, as one turn of the match would.
 export function visit(tier: Tier, seed: number, nine = false) {
   const rnd = rng(seed), { cue, balls } = randomLayout(rnd, nine ? 4 : 7);
   let B = [cue, ...balls].map(mk);
   const ids = [0, ...balls.map((b, i) => (nine ? i + 1 : b.id))], think: number[] = [];
-  let potted = 0, clear = false, first = false;
+  let potted = 0, clear = false, first = false, early = false;
   for (let shot = 0; shot < 20; shot++) {
     const left = ids.filter((id, i) => i && B[i].on), own = SOLIDS.filter((id) => left.includes(id));
     const r = aiShot(B, ids, nine ? NINE : SOLIDS, nine ? NINE : STRIPES, tier, rnd);
@@ -43,10 +43,10 @@ export function visit(tier: Tier, seed: number, nine = false) {
     const good = nine ? down.length > 0 : down.some((id) => on.includes(id));
     if (!good || (!nine && down.includes(8) && own.length)) break; // the 8 down early loses the rack
     potted += nine ? down.length : down.filter((id) => on.includes(id)).length; first ||= shot === 0;
-    if (down.includes(nine ? 9 : 8)) { clear = true; break; }
+    if (down.includes(nine ? 9 : 8)) { clear = true; early = nine && sim.balls.some((b, i) => i && b.on); break; }
     B = sim.balls.map((b) => ({ ...b, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0 }));
   }
-  return { potted, clear, first, think };
+  return { potted, clear, first, early, think };
 }
 
 // Make rate per shot type: on n seeded random 8-ball tables (5 a side, AI on solids) the AI may only try pots of one type
