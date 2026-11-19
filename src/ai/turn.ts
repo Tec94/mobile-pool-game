@@ -5,12 +5,13 @@
 import { type Ball, CUE, HOLES, P, type Shot } from '../physics/engine.ts';
 import { canCall, cushionAt, legalSpot, onEight, type Hand, type Rec, type State } from '../rules/rules.ts';
 import { aiShot } from './aim.ts';
+import { styled, type StyleId } from './styles.ts';
 import { aiParams, chooseGroup, type Cand, enumerate, makeProb, NINE, type Obj, type Pick, rng, SIGMA_REF, SOLIDS, STRIPES } from './shot-ai.ts';
 import { type Pay, shotPay, type ShotType as PayType, type Vs } from '../progress/pay.ts';
 
 // The AI's turn. at = where it puts the cue ball in hand (null = where it lies); call = the pocket it calls (-1 none);
-// safety = it played a safety, for safetiesInRow.
-export interface Move { shot: Shot; at: [number, number] | null; call: number; safety: boolean }
+// safety = it played a safety, for safetiesInRow; kind = the pot it played (for npm run bench:styles).
+export interface Move { shot: Shot; at: [number, number] | null; call: number; safety: boolean; kind?: string }
 const mm = (B: Ball[], ids: number[]): Obj[] => B.flatMap((b, i) => (i && b.on ? [{ id: ids[i], x: b.x * 1000, y: b.y * 1000 }] : []));
 const nearHole = (x: number, y: number) => { let k = 0, d = Infinity; HOLES.forEach((h, i) => { const e = (h[0] - x) ** 2 + (h[1] - y) ** 2; if (e < d) { d = e; k = i; } }); return k; };
 // The pocket of a pot (picker units, mm) as an index into HOLES: the end of the path of the potted ball.
@@ -78,8 +79,9 @@ export const onLit = (lit: number[], c: Cand) => {
 
 // The AI's whole turn, it being player s.turn. B is changed (the cue ball in hand goes to its spot): pass a copy.
 // level = the AI's rating on the tier scale (aiParams: TIERS index + 1, or the Rival's). safeties = safetiesInRow for aiShot (see nextSafeties).
-export function think(B: Ball[], ids: number[], s: State, level: number, seed: number, safeties: number): Move {
-  const rnd = rng(seed), T = aiParams(level, rnd);
+// style = a tournament opponent's style (src/ai/styles.ts); none = the plain tier.
+export function think(B: Ball[], ids: number[], s: State, level: number, seed: number, safeties: number, style?: StyleId): Move {
+  const rnd = rng(seed), T = styled(aiParams(level, rnd), style, s.game === 9 ? s.balls.length : s.solids < 0 ? 8 : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === s.turn)).length + 1);
   if (s.phase === 'break') return { shot: breakShot(B, ids, rnd), at: null, call: -1, safety: false };
   // open table: the group it would pick from where the cue ball lies now. By value: on the runtime its SOLIDS is a copy
   const g = groupsOf(s, s.turn) ?? (chooseGroup({ x: B[0].x * 1000, y: B[0].y * 1000 }, mm(B, ids), T)[0] === 1 ? [SOLIDS, STRIPES] : [STRIPES, SOLIDS]);
@@ -92,7 +94,7 @@ export function think(B: Ball[], ids: number[], s: State, level: number, seed: n
   }
   const lit = s.lit, ok = lit.length ? (c: Cand) => onLit(lit, c) : undefined; // bank shots: no other pot counts
   const { shot, pick } = aiShot(B, ids, s.game === 9 ? g[0] : ahead(g[0]), g[1], T, rnd, safeties, ok);
-  return { shot, at: s.hand ? [B[0].x, B[0].y] : null, call: callFor(s, pick, B, ids), safety: pick.type === 'safety' };
+  return { shot, at: s.hand ? [B[0].x, B[0].y] : null, call: callFor(s, pick, B, ids), safety: pick.type === 'safety', kind: pick.type };
 }
 
 // The AI's move when think() itself fails: a soft hit at the nearest legal ball (as aiShot's 'foul' pick), so the match goes on.
