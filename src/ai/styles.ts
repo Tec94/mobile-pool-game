@@ -25,6 +25,6 @@ export function styled(t: Tier, id?: StyleId, need = 9): Tier {
   if (id === 'spin') return { ...t, speedErr: t.speedErr * 0.5, tipErr: t.tipErr * 0.5, wPos: Math.min(1, t.wPos + 0.15), budget: t.budget * 1.4, spinLove: 0.3 };
   if (id === 'wall') return { ...t, safeAt: 0.45, wLeave: 1, rack: true, safetyAngles: ALL_ANGLES, hook: 1.5 };
   if (id === 'gun') return { ...t, sigma: t.sigma * 0.85, hard: t.hard * 0.9, wPos: t.wPos * 0.6, speedErr: t.speedErr * 1.4, safetyAngles: [] };
-  if (id === 'closer') return need <= 2 ? { ...t, sigma: t.sigma * 0.35, speedErr: t.speedErr * 0.4, hard: t.hard * 0.5 } : t;
+  if (id === 'closer') return need <= 2 ? { ...t, sigma: t.sigma * 0.35, speedErr: t.speedErr * 0.4, hard: t.hard * 0.5, safetyAngles: [] } : t; // at the end it goes for the win, never safe
   return t;
 }
