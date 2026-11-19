@@ -37,7 +37,7 @@ export const NICK: Record<StyleId, string> = { banker: 'The Banker', spin: 'Spin
 // What each style does, in a line the player reads before the match.
 export const TELL: Record<StyleId, string> = {
   banker: 'Banks and kicks out of trouble', spin: 'Puts the cue ball where it wants it', wall: 'Plays safe when the pot is not clean',
-  gun: 'Fires at everything, never plays safe', closer: 'Rarely misses the last two balls',
+  gun: 'Fires at everything, never plays safe', closer: 'Gets sharper as the rack runs down',
 };
 export const ROSTER: Record<StyleId, string> = { banker: 'Rafe', spin: 'Juno', wall: 'Dez', gun: 'Kit', closer: 'Mara' };
 // Original first names, none a real player's, none a ROSTER name.
