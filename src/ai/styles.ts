@@ -22,7 +22,7 @@ const add = (types: ShotType[], more: ShotType[]) => [...types, ...more.filter((
 // win the rack (the 8 or the 9 counted). No style = the tier as it is.
 export function styled(t: Tier, id?: StyleId, need = 9): Tier {
   if (id === 'banker') return { ...t, bankAim: 0.45, speedErr: t.speedErr * 0.6, budget: Math.max(8, t.budget * 1.5), types: add(t.types, ['bank', 'kick']), like: { bank: 0.35, kick: 0.35 }, sigma: t.sigma * 1.03 };
-  if (id === 'spin') return { ...t, speedErr: t.speedErr * 0.5, tipErr: t.tipErr * 0.5, wPos: Math.min(1, t.wPos + 0.15), budget: t.budget * 1.4, spinLove: 0.15 };
+  if (id === 'spin') return { ...t, speedErr: t.speedErr * 0.5, tipErr: t.tipErr * 0.5, wPos: Math.min(1, t.wPos + 0.15), budget: t.budget * 1.4, spinLove: 0.3 };
   if (id === 'wall') return { ...t, safeAt: 0.45, wLeave: 1, rack: true, safetyAngles: ALL_ANGLES, hook: 1.5 };
   if (id === 'gun') return { ...t, sigma: t.sigma * 0.85, hard: t.hard * 0.9, wPos: t.wPos * 0.6, speedErr: t.speedErr * 1.4, safetyAngles: [] };
   if (id === 'closer') return need <= 2 ? { ...t, sigma: t.sigma * 0.5, speedErr: t.speedErr * 0.5, hard: t.hard * 0.6 } : t;
