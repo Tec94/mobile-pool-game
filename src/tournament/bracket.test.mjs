@@ -9,7 +9,7 @@ const opts = (o = {}) => ({ cup: 1, size: 8, best: 3, game: 8, callAll: true, ba
 const none = { xp: 0, coins: 0 };
 
 test('the field: in the cup band, styles only in the top half and never twice, each in its range, the strongest has one, same seed same field', () => {
-  for (const size of [4, 8]) for (let seed = 1; seed < 60; seed++) for (const cup of [0, 3]) {
+  for (const size of [4, 8]) for (let seed = 1; seed < 60; seed++) for (const cup of [0, 3, 2]) {
     const r = newRun(opts({ size, cup }), seed), ai = r.field.slice(1), c = CUPS[cup];
     assert.equal(r.field.length, size);
     const st = ai.map(e => e.style).filter(Boolean);
@@ -18,6 +18,7 @@ test('the field: in the cup band, styles only in the top half and never twice, e
     assert(ai.slice(0, Math.floor(ai.length / 2)).every(e => !e.style), 'the bottom half plays plain');
     for (const e of ai) { assert(e.rating >= c.lo - 0.1 && e.rating <= c.hi + 0.1, `${e.rating} in ${c.lo}..${c.hi}`); if (e.style) assert(e.rating >= STYLE_RANGE[e.style][0] && e.rating <= STYLE_RANGE[e.style][1]); }
     assert.deepStrictEqual(newRun(opts({ size, cup }), seed), r);
+    for (const e of ai) assert(plays(e) <= 6, 'no one plays above Legend, where the AI is no longer modelled');
     for (const e of ai) assert(e.style ? e.name === ROSTER[e.style] : !Object.values(ROSTER).includes(e.name), 'a style is always its one character');
   }
 });

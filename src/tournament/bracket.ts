@@ -12,7 +12,7 @@ export const CUPS: Cup[] = [
   { name: 'Club', lo: 1.0, hi: 2.4, level: 0, prize: 60 },
   { name: 'City', lo: 2.3, hi: 3.8, level: 10, prize: 180 },
   { name: 'Masters', lo: 3.6, hi: 5.0, level: 20, prize: 400 },
-  { name: 'Legends', lo: 4.8, hi: 6.4, level: 30, prize: 750 },
+  { name: 'Legends', lo: 4.8, hi: 5.7, level: 30, prize: 750 }, // top 5.7: with a style's bump it still plays no higher than Legend (6)
 ];
 export type { TourOpts as Opts } from '../settings/settings.ts';
 import type { TourOpts as Opts } from '../settings/settings.ts';
@@ -82,7 +82,7 @@ export const breakerOf = (run: Run, m: number): 0 | 1 => (run.opts.best > 1 ? 0 
 const human = (run: Run, i: number | null) => i !== null && !!run.field[i].human;
 export const nextMatch = (run: Run) => (run.state !== 'playing' ? -1 : run.res.findIndex((r, m) => !r && sides(run, m).some((i) => human(run, i))));
 // The rating an entrant plays at: a style's bump on top (STYLE_BUMP).
-export const plays = (e: Entrant) => e.rating + (e.style ? STYLE_BUMP[e.style] : 0);
+export const plays = (e: Entrant) => Math.min(6, e.rating + (e.style ? STYLE_BUMP[e.style] : 0)); // above Legend aiParams extrapolates to near-perfect play
 // The stakes of match m: every match and shot pays x1 in the first round, x1.5 in the second, x2 in the final of 8
 // (pay.ts Vs.tour), so a field of 4 never starts above quick match.
 export const stakes = (run: Run, m: number) => 1 + 0.5 * roundOf(run, m);
