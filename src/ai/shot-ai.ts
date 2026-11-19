@@ -264,7 +264,7 @@ function leaves(G: Pt, v: Pt, u: Pt, balls: Obj[], ignore: number[], powers = PO
 // tables the choice flips under 1% of decisions, each +0.06 of a visit's clears (about 0.05 points a decision): 1600 racks
 // cannot show it, about 100k would. Hustler's open-table 53.4 comes from ball in hand after fouls (50.9 without the combo
 // spot). EDGE 0 to 0.15 clear alike within noise. Route odds after the run fit, predicted / cleared (500 tables): Hustler
-// .011 / .015, Shark .068 / .057, Pro .200 / .193, Legend .520 / .509. Combo p9 runs high (Shark .19 / .12, Legend .49 / .40):
+// .011 / .015, Shark .068 / .057, Pro .213 / .193, Legend .568 / .509 (a non-9 combo route goes on at the run rate). Combo p9 runs high (Shark .19 / .12, Legend .49 / .40):
 // tierProb for combos, also 8-ball's, a follow-up.
 // Shark's budget of 12 (not 17) and Pro's wLeave of 0.6 (not 0.9: fewer safeties) keep Shark, Pro and Legend apart.
 export const TIERS: Tier[] = [
