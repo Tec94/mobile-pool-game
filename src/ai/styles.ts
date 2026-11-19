@@ -8,9 +8,9 @@ import type { ShotType, Tier } from './shot-ai.ts';
 export type StyleId = 'banker' | 'spin' | 'wall' | 'gun' | 'closer';
 export const STYLE_IDS: StyleId[] = ['banker', 'spin', 'wall', 'gun', 'closer'];
 // The ratings each style is dealt at (tournament field): Spin's position play pays from 3.5 (at 3 it lost 53% of 9-ball
-// racks); the Wall's safeties pay only from 4 (at 3 it lost 56% of its racks);
+// racks); the Wall's safeties pay only from 4.5 (at 3 it lost 56% of its racks; at 4, playing safe sooner, 58% of 9-ball racks);
 // Gunslinger's edge is aim, which is nearly spent at Legend.
-export const STYLE_RANGE: Record<StyleId, [number, number]> = { banker: [1, 7], closer: [1, 7], gun: [1, 5.5], wall: [4, 7], spin: [3.5, 7] };
+export const STYLE_RANGE: Record<StyleId, [number, number]> = { banker: [1, 7], closer: [1, 7], gun: [1, 5.5], wall: [4.5, 7], spin: [3.5, 7] };
 // The rating a style plays on top of the one it is shown at: its tell (more banks, more safeties) costs some balls, and
 // the bump pays that back so it wins at least half its racks against the plain tier it is shown as (Jack: "at or a
 // bit above their difficulty rating"). Fitted with npm run bench:styles.
