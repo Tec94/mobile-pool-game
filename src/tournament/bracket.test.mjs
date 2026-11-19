@@ -3,7 +3,7 @@
 import assert from 'node:assert';
 import test from 'node:test';
 import { STYLE_RANGE } from '../ai/styles.ts';
-import { breakerOf, CUPS, newRun, nextMatch, plays, prize, raceOf, readRun, recordMatch, roundName, sides, simMatch, wins } from './bracket.ts';
+import { breakerOf, cupOpen, CUPS, medalOf, newRun, nextMatch, plays, prize, raceOf, readRun, recordMatch, roundName, sides, simMatch, stakes, wins } from './bracket.ts';
 
 const opts = (o = {}) => ({ cup: 1, size: 8, best: 3, game: 8, callAll: true, bank: 0, ...o });
 const none = { xp: 0, coins: 0 };
@@ -84,4 +84,25 @@ test('a saved run reads back; a damaged, foreign or newer one is no run', () => 
   const r = recordMatch(newRun(opts(), 2), true, [2, 1], none);
   assert.deepStrictEqual(readRun(JSON.stringify(r)), r);
   for (const bad of [null, '', '{', '[]', '{"v":2}', JSON.stringify({ ...r, v: 2 }), JSON.stringify({ ...r, field: [] }), JSON.stringify({ ...r, opts: { ...r.opts, best: 2 } })]) assert.equal(readRun(bad), null);
+});
+
+test('stakes rise each round from x1, in a field of 4 too; a run that is over takes no more results', () => {
+  const r = newRun(opts(), 1), r4 = newRun(opts({ size: 4 }), 1);
+  assert.deepStrictEqual([0, 4, 6].map(m => stakes(r, m)), [1, 1.5, 2]); assert.deepStrictEqual([0, 2].map(m => stakes(r4, m)), [1, 1.5]);
+  const out = recordMatch(r, false, [0, 0], none);
+  assert.equal(recordMatch(out, true, [2, 0], none), out, 'nothing after the end');
+  assert.deepStrictEqual(out.earned, { xp: 0, coins: 0 }, 'a forfeit of the first match pays no prize');
+  assert.equal(breakerOf(newRun(opts({ size: 4, best: 3 }), 3), 0), 0);
+});
+
+test('medals and cups: bronze for 4, silver for 8 best of 1, gold for 8 longer; a cup opens by level or a silver below', () => {
+  assert.deepStrictEqual([opts({ size: 4 }), opts({ best: 1 }), opts({ best: 5 })].map(medalOf), [1, 2, 3]);
+  assert(cupOpen(0, [0, 0, 0, 0], 1)); assert(!cupOpen(1, [1, 0, 0, 0], 9)); assert(cupOpen(1, [2, 0, 0, 0], 1)); assert(cupOpen(1, [0, 0, 0, 0], 10));
+});
+
+test('a saved run that cannot be played is no run', () => {
+  const r = newRun(opts(), 2);
+  for (const bad of [{ ...r, opts: { ...r.opts, cup: 'length' } }, { ...r, live: { score: [1.5, 0] } }, { ...r, res: r.res.map(() => ({ w: 0, score: [2, 0] })) },
+    { ...r, res: [{ w: 0, score: [2, 'x'] }, ...r.res.slice(1)] }]) assert.equal(readRun(JSON.stringify(bad)), null);
+  assert.deepStrictEqual(readRun(JSON.stringify({ ...r, live: { score: [1, 0], table: { any: 1 } } })).live.score, [1, 0], 'the table inside is the game\'s to check');
 });

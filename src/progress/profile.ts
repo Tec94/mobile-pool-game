@@ -21,7 +21,8 @@ export const FEATS = {
 export type FeatId = keyof typeof FEATS;
 
 // feats: progress from play and from scenarios apart, since scenarios may give at most half of a count.
-export interface Profile { xp: number; coins: number; owned: CueId[]; cue: CueId; feats: Partial<Record<FeatId, { play: number; scen: number }>>; mastery: Partial<Record<CueId, Mastery>>; rival: Rival; trophies: number[]; tour?: { seed: number; xp: number; coins: number } } // tour: the tournament run paid so far (progress.ts payRun) // trophies: per tournament cup the best medal (src/tournament/bracket.ts medalOf)
+export interface Profile { xp: number; coins: number; owned: CueId[]; cue: CueId; feats: Partial<Record<FeatId, { play: number; scen: number }>>; mastery: Partial<Record<CueId, Mastery>>; rival: Rival; trophies: number[]; tour?: { seed: number; xp: number; coins: number } }
+// trophies: per tournament cup the best medal (src/tournament/bracket.ts medalOf); tour: the run paid so far (progress.ts payRun)
 export const NEW: Profile = { xp: 0, coins: 0, owned: ['house'], cue: 'house', feats: {}, mastery: {}, rival: newRival(), trophies: [0, 0, 0, 0] };
 // Give a cue (Learn, a boss, a feat, a level). An owned cue returns the same profile, so the caller can skip the save.
 export const unlock = (p: Profile, id: CueId): Profile => (p.owned.includes(id) ? p : { ...p, owned: [...p.owned, id] });
@@ -92,4 +93,14 @@ export function readProfile(text: string | null): Profile {
   return { xp, coins: num(o.coins), owned, cue: owned.includes(o.cue) ? o.cue : 'house', feats, mastery: readMastery(o.mastery), rival: readRival(o.rival),
     trophies: [0, 1, 2, 3].map(i => { const m = o.trophies?.[i]; return Number.isInteger(m) && m >= 0 && m <= 3 ? m : 0; }),
     ...(o.tour && Number.isInteger(o.tour.seed) ? { tour: { seed: o.tour.seed, xp: num(o.tour.xp), coins: num(o.tour.coins) } } : {}) };
+}
+
+// A tournament run (src/tournament/bracket.ts): what it still owes the player, and the profile change that marks it
+// paid and puts in its trophy, saved with the pay (progress.ts payRun). null = nothing to pay or save. Paying again
+// after a crash pays only the rest: the mark is what this run (its seed) was paid before.
+export function runOwe(p: Profile, r: { seed: number; earned: Pay; medal: [number, number] | null }) {
+  const before = p.tour?.seed === r.seed ? p.tour : { xp: 0, coins: 0 };
+  const owe = { xp: Math.max(0, r.earned.xp - before.xp), coins: Math.max(0, r.earned.coins - before.coins) }, m = r.medal;
+  if (!owe.xp && !owe.coins && (!m || p.trophies[m[0]] >= m[1])) return null;
+  return { owe, mark: (q: Profile): Profile => ({ ...q, tour: { seed: r.seed, ...r.earned }, trophies: m ? q.trophies.map((t, i) => (i === m[0] ? Math.max(t, m[1]) : t)) : q.trophies }) };
 }

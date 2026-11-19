@@ -29,7 +29,7 @@ export interface Run {
   earned: Pay;                   // what the run has earned: its matches, and the prize once it is over. What of it was
 }                                // paid is marked in the profile in the same save as the pay (progress.ts payRun)
 // score = frames won (the player's first); table = the caller's snapshot of the rack in play (balls, rules, ledger,
-// AI seed), opaque here; breaker = who breaks the first rack (a seeded coin flip in best of 1, else the player).
+// AI seed), opaque here: the caller checks it fits before it uses it.
 export interface Live { score: [number, number]; table?: unknown }
 
 export const NICK: Record<StyleId, string> = { banker: 'The Banker', spin: 'Spin Doctor', wall: 'The Wall', gun: 'Gunslinger', closer: 'The Closer' };
@@ -81,8 +81,9 @@ const human = (run: Run, i: number | null) => i !== null && !!run.field[i].human
 export const nextMatch = (run: Run) => (run.state !== 'playing' ? -1 : run.res.findIndex((r, m) => !r && sides(run, m).some((i) => human(run, i))));
 // The rating an entrant plays at: a style's bump on top (STYLE_BUMP).
 export const plays = (e: Entrant) => e.rating + (e.style ? STYLE_BUMP[e.style] : 0);
-// The stakes of match m: its pay grows each round, x1 in the first round of 8, x1.5 in a semifinal, x2 in the final.
-export const stakes = (run: Run, m: number) => [2, 1.5, 1][rounds(run.opts.size) - 1 - roundOf(run, m)];
+// The stakes of match m: every match and shot pays x1 in the first round, x1.5 in the second, x2 in the final of 8
+// (pay.ts Vs.tour), so a field of 4 never starts above quick match.
+export const stakes = (run: Run, m: number) => 1 + 0.5 * roundOf(run, m);
 
 // A simulated AI-vs-AI match: rack by rack the stronger wins with a logistic chance, raced to the format. Seeded by the
 // run and the match, so it never changes.
@@ -123,9 +124,6 @@ export function prize(opts: Opts, won: number): Pay {
   const xp = Math.round(CUPS[opts.cup].prize * n * FRAMES[opts.best] * share);
   return { xp, coins: Math.round(xp / 2) };
 }
-// Every match and shot in a tournament pays its stakes (stakes(): x1, x1.5, x2 by round, pay.ts Vs.tour), and a match's
-// own pay again for each frame it needs to win (best of 3: x2, best of 5: x3), so a longer format pays more a minute.
-
 // Trophies: per cup the best medal won, 0 none, 1 bronze (champion of 4), 2 silver (of 8, best of 1), 3 gold (of 8,
 // best of 3 or 5). A cup opens at its level, or with any medal of 2 or more in the cup below.
 export const medalOf = (o: Opts) => (o.size === 4 ? 1 : o.best === 1 ? 2 : 3);
@@ -136,13 +134,13 @@ export function readRun(text: string | null): Run | null {
   let o: any = null;
   try { o = JSON.parse(text ?? 'null'); } catch { return null; }
   const pay = (p: any) => p && Number.isFinite(p.xp) && Number.isFinite(p.coins) && p.xp >= 0 && p.coins >= 0;
-  if (!o || o.v !== 1 || !Number.isInteger(o.seed) || !CUPS[o.opts?.cup] || ![4, 8].includes(o.opts.size) || ![1, 3, 5].includes(o.opts.best) || ![8, 9].includes(o.opts.game)
+  if (!o || o.v !== 1 || !Number.isInteger(o.seed) || !Number.isInteger(o.opts?.cup) || !CUPS[o.opts.cup] || ![4, 8].includes(o.opts.size) || ![1, 3, 5].includes(o.opts.best) || ![8, 9].includes(o.opts.game)
     || typeof o.opts.callAll !== 'boolean' || ![0, 1, 2].includes(o.opts.bank)) return null;
   const n = o.opts.size, ok = (e: any) => e && typeof e.name === 'string' && Number.isFinite(e.rating) && (e.style === null || STYLE_IDS.includes(e.style));
   if (!Array.isArray(o.field) || o.field.length !== n || !o.field.every(ok) || o.field.filter((e: any) => e.human).length !== 1) return null;
   if (!Array.isArray(o.slots) || o.slots.length !== n || [...o.slots].sort((x: number, y: number) => x - y).some((v: number, i: number) => v !== i)) return null;
-  if (!Array.isArray(o.res) || o.res.length !== n - 1 || !o.res.every((r: any) => r === null || ((r.w === 0 || r.w === 1) && Array.isArray(r.score) && r.score.length === 2))) return null;
+  if (!Array.isArray(o.res) || o.res.length !== n - 1 || !o.res.every((r: any) => r === null || ((r.w === 0 || r.w === 1) && Array.isArray(r.score) && r.score.length === 2 && r.score.every(Number.isInteger)))) return null;
   if (!['playing', 'out', 'champion'].includes(o.state) || !pay(o.earned)) return null;
   if (o.live !== null && !(Array.isArray(o.live?.score) && o.live.score.length === 2 && o.live.score.every(Number.isInteger))) return null;
-  return o as Run;
+  return o.state === 'playing' && nextMatch(o) < 0 ? null : (o as Run); // a run in play always has a match for the player
 }

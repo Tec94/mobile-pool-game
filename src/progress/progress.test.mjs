@@ -4,7 +4,7 @@ import { CUE } from '../physics/engine.ts';
 import { CUES, specLine, specs, stick } from './cues.ts';
 import { matchPay, newLedger, noteShot, safetyPay, settle, shotPay } from './pay.ts';
 import { cueGain, masteryLevel, masteryNote, masteryOf, readMastery, statsOf, tuneDown, tuneUp, upCost } from './mastery.ts';
-import { buy, feat, featCount, gain, levelNote, levelOf, NEW, opens, PACKS, readProfile, select, unlock, VENUES } from './profile.ts';
+import { buy, feat, featCount, gain, levelNote, levelOf, NEW, opens, PACKS, readProfile, runOwe, select, unlock, VENUES } from './profile.ts';
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 
@@ -182,4 +182,22 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(settle(l, { tier: 2, won: false, early: false }, () => ({ xp: 0, coins: 0 })).chalk, null, 'chalk that paid nothing is no line');
   eq(settle(l, { tier: 2, won: false, early: true }).match, { xp: 0, coins: 0 }, 'an early 8 pays no match pay');
   ok('ledger: shots, fouls, own balls and Fresh Chalk');
+}
+
+{ eq(shotPay({ pRef: 0.9, tier: 3, tour: 2 }), { xp: 20, coins: 8 }, 'a tournament final pays its shots x2');
+  eq(safetyPay({ tier: 3, tour: 1.5 }).xp, Math.round(1.5 * safetyPay({ tier: 3 }).xp), 'and its safeties');
+  eq(matchPay({ tier: 3, won: true, fouls: 1, tour: 3 }), { xp: 540, coins: 360 }, 'a match: x its round and frames');
+  eq(settle(newLedger(), { tier: 3, won: true, early: false, tour: 3 }).match, matchPay({ tier: 3, won: true, fouls: 0, tour: 3 }), 'settle passes the tournament multiplier');
+  ok('tournament stakes in the pay');
+}
+{ const r = { seed: 5, earned: { xp: 300, coins: 150 }, medal: null }, a = runOwe(NEW, r), p = gain(NEW, a.owe).profile, q = a.mark(p);
+  eq(a.owe, { xp: 300, coins: 150 }, 'a run pays what it earned');
+  eq(runOwe(q, r), null, 'paid once: nothing again, and no save');
+  const more = runOwe(q, { ...r, earned: { xp: 1000, coins: 500 } });
+  eq(more.owe, { xp: 700, coins: 350 }, 'after a crash or the next match: only the rest');
+  eq(runOwe(q, { ...r, seed: 6 }).owe, r.earned, 'a new run (new seed) pays from nothing');
+  const champ = runOwe(q, { ...r, medal: [1, 2] }), won = champ.mark({ ...q, trophies: [0, 3, 0, 0] });
+  eq([champ.owe, won.trophies[1]], [{ xp: 0, coins: 0 }, 3], 'a trophy saves even with nothing owed, and never lowers a better medal');
+  eq(runOwe(champ.mark(q), { ...r, medal: [1, 2] }), null, 'a champion run already in: no save at every launch');
+  ok('a tournament run pays once');
 }
