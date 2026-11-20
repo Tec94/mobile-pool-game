@@ -7,7 +7,7 @@ import { profile } from '../../progress';
 import { levelOf } from '../../progress/profile';
 import type { Settings } from '../../settings/settings';
 import type { StyleId } from '../../ai/styles';
-import { CUPS, cupOpen, medalOf, NICK, TELL, nextMatch, type Opts, prize, raceOf, roundName, rounds, type Run, sides, stakes } from '../../tournament/bracket';
+import { CUPS, cupOpen, medalOf, NICK, TELL, nextMatch, type Opts, prize, raceOf, roundName, rounds, type Run, sides, STAKES, stakes } from '../../tournament/bracket';
 import { C, CREAM, DARK, FONT, MODE } from '../../theme';
 import { Glyph, Trophy } from '../Glyph';
 import type { Props } from '../Menus';
@@ -62,7 +62,7 @@ function TourSetup({ set, change, go, start, run, damaged }: Props & TourProps &
             {[1, 2, 3].map(k => <Trophy key={k} medal={me.trophies[o.cup] >= k ? k : 0} size={20} />)}
           </View>
         </View>} cta={{ label: 'Start', name: `Start the ${cupName(o.cup)}`, onPress: () => start(o) }}>
-          <View style={{ alignItems: 'center', paddingVertical: 6, gap: 6 }}><Txt style={styles.prizeNote}>{`The title prize, on top of match pay ×1 to ×${1 + 0.5 * (rounds(o.size) - 1)}`}</Txt><Pay {...won} /></View>
+          <View style={{ alignItems: 'center', paddingVertical: 6, gap: 6 }}><Txt style={styles.prizeNote}>{`The title prize, on top of match pay ×${STAKES[0]} to ×${STAKES[rounds(o.size) - 1]}`}</Txt><Pay {...won} /></View>
         </Panel>}>
         <View style={{ gap: 9 }}>
           {damaged && !run && <Txt accessibilityRole="alert" style={[styles.prizeNote, { textAlign: 'left' }]}>Your last tournament could not be read.</Txt>}
@@ -180,7 +180,7 @@ function Card({ run, next, abandon, play, again }: { run: Run; next: number; aba
     <Slab paint={DARK} style={land && { flex: 1 }} face={face}>
       <View style={styles.row}>
         <Txt style={styles.head}>{roundName(run, next)}</Txt><View style={{ flex: 1 }} />
-        {stakes(run, next) > 1 && <Chip name={`This round pays times ${stakes(run, next)}`}>{`Pays ×${stakes(run, next)}`}</Chip>}
+        <Chip name={`This round pays times ${stakes(run, next)}`}>{`Pays ×${stakes(run, next)}`}</Chip>
         <Chip>{`Best of ${run.opts.best}`}</Chip>
       </View>
       <View style={[styles.row, { gap: 14, flex: land ? 1 : undefined, paddingVertical: land ? 0 : 6 }]} accessible accessibilityLabel={`Next: ${e.name}${e.style ? `, ${NICK[e.style]}: ${TELL[e.style]}` : ''}, rating ${e.rating.toFixed(1)}, race to ${raceOf(run.opts.best)}`}>
