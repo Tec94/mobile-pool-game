@@ -32,10 +32,11 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, true), phase: 'play', turn: 1, 
   assert(line(at, B[1], B[9]) < 0.03, 'behind the 1, on its line to the 9');
   const pro = B.map(b => ({ ...b })); think(pro, ids, s, 5, 1, 0); eq([pro[0].x, pro[0].y], at, 'Pro takes the combo spot');
   const reg = B.map(b => ({ ...b })); think(reg, ids, s, 2, 1, 0); assert(reg[0].x !== at[0] || reg[0].y !== at[1], 'Regular does not');
-  // the 1 an easy pot with the 2 next: Legend keeps the straight-in spot, Hustler (no run to speak of) sets up the combo
+  // the 1 an easy pot with the 2 next: Legend keeps the straight-in spot, Shark (no run to speak of) sets up the combo
   const E = [mk(0.227, 0.589), mk(1.142, 0.589), mk(1.347, 0.649), mk(1.862, 0.597)], eids = [0, 1, 9, 2], e = { ...s, balls: [1, 9, 2] }, spot = comboSpot(E, eids, 'any', 1);
   const leg = E.map(b => ({ ...b })); think(leg, eids, e, 6, 1, 0); assert(spot && (leg[0].x !== spot[0] || leg[0].y !== spot[1]), 'Legend runs the rack');
-  const hus = E.map(b => ({ ...b })); think(hus, eids, e, 3, 1, 0); eq([hus[0].x, hus[0].y], spot, 'Hustler goes for the 9');
+  const at9 = t => { const a = E.map(b => ({ ...b })); think(a, eids, e, t, 1, 0); return a[0].x === spot[0] && a[0].y === spot[1]; };
+  assert(at9(4), 'Shark goes for the 9'); assert(!at9(3), 'Hustler wants a wider margin (spot) before it does');
   // no combo spot: the 9 is the lowest ball, or the 1 is blocked from the 9
   eq(comboSpot(B, ids, 'any', 9), null, 'the 9 alone');
   const blocked = [...B.map(b => ({ ...b })), mk(0.22, 0.22)]; eq(comboSpot(blocked, [...ids, 10], 'any', 1), null, 'a ball between the 1 and the 9');

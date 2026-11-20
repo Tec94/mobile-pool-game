@@ -19,7 +19,7 @@ export interface Planned extends Cand { p: number; score: number; value: number;
 // G, v and u are kept on a safety (the prototype dropped them) so the engine glue maps it like a pot.
 export interface Safety { type: 'safety'; ball: number; aim: number; paths: Pt[][]; leave: Leave; oppBest: number; hooked: boolean; G: Pt; v: Pt; u: Pt }
 export type Pick = Planned | Safety | { type: 'foul' };
-export interface Tier { name: string; sigma: number; types: ShotType[]; flair: number; temp: number; depth: number; planShare?: number; wPos: number; posErr: number; speedErr: number; tipErr: number; ctrl: number; wLeave: number; rack?: boolean; safetyAngles: number[]; budget: number; tries?: number; caromGap: number; rail: [number, number]; hard: number; run: number;
+export interface Tier { name: string; sigma: number; types: ShotType[]; flair: number; temp: number; depth: number; planShare?: number; wPos: number; posErr: number; speedErr: number; tipErr: number; ctrl: number; wLeave: number; rack?: boolean; safetyAngles: number[]; budget: number; tries?: number; caromGap: number; rail: [number, number]; hard: number; run: number; spot?: number;
   // style hooks (src/ai/styles.ts), none on a plain tier: like = score bonus per shot type; safeAt = best pot value under which a
   // safety is weighed (0.3); spinLove = bonus for a leave played with draw or follow; hook = credit for a hook times this;
   // bankAim = aim error on a bank or kick times this
@@ -270,11 +270,13 @@ function leaves(G: Pt, v: Pt, u: Pt, balls: Obj[], ignore: number[], powers = PO
 // spot). EDGE 0 to 0.15 clear alike within noise. Route odds after the run fit, predicted / cleared (500 tables): Hustler
 // .011 / .015, Shark .068 / .057, Pro .213 / .193, Legend .568 / .509 (a non-9 combo route goes on at the run rate). Combo p9 runs high (Shark .19 / .12, Legend .49 / .40):
 // tierProb for combos, also 8-ball's, a follow-up.
+// Hustler's spot (0.45, Jack 2026-11-20): it takes the ball-in-hand combo spot only by that margin, so its one-visit clears
+// with ball in hand are 10.1% (2000 racks; 16.4 at EDGE, 4.4 before the 9 went early).
 // Shark's budget of 12 (not 17) and Pro's wLeave of 0.6 (not 0.9: fewer safeties) keep Shark, Pro and Legend apart.
 export const TIERS: Tier[] = [
   { name: 'Rookie',  sigma: 0.52, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1, caromGap: 0, rail: [0.91, 1.43], hard: 1.5, run: 0.45 },
   { name: 'Regular', sigma: 0.42, types: ['direct', 'bank'],                  flair: 0.03, temp: 0.08, depth: 0, wPos: 0,   posErr: 0.16, speedErr: 12, tipErr: 0.08, ctrl: 1, wLeave: 0, safetyAngles: [], budget: 2, caromGap: 0, rail: [0.76, 1.29], hard: 1.2, run: 0.5 },
-  { name: 'Hustler', sigma: 0.34, types: ['direct', 'bank', 'combo', 'carom'], flair: 0.05, temp: 0.08, depth: 1, planShare: 0.5, wPos: 0.5, posErr: 0.11, speedErr: 6, tipErr: 0.06, ctrl: 1, wLeave: 0.3, safetyAngles: [0], budget: 9, caromGap: 60, rail: [0.39, 0.63], hard: 1, run: 0.62 },
+  { name: 'Hustler', sigma: 0.34, types: ['direct', 'bank', 'combo', 'carom'], flair: 0.05, temp: 0.08, depth: 1, planShare: 0.5, wPos: 0.5, posErr: 0.11, speedErr: 6, tipErr: 0.06, ctrl: 1, wLeave: 0.3, safetyAngles: [0], budget: 9, caromGap: 60, rail: [0.39, 0.63], hard: 1, run: 0.62, spot: 0.45 },
   { name: 'Shark',   sigma: 0.20, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.05, temp: 0.04, depth: 1, tries: 2, wPos: 0.8, posErr: 0.08, speedErr: 5, tipErr: 0.035, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-30, 0, 30], budget: 12, caromGap: 10000, rail: [0.22, 0.34], hard: 1, run: 0.7 },
   { name: 'Pro',     sigma: 0.12, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.04, temp: 0.02, depth: 1, tries: 3, wPos: 0.9, posErr: 0.05, speedErr: 2.5, tipErr: 0.02, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 24, caromGap: 10000, rail: [0.14, 0.16], hard: 1, run: 0.84 },
   { name: 'Legend',  sigma: 0.05, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1,   posErr: 0.03, speedErr: 1, tipErr: 0.01, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 33, caromGap: 10000, rail: [0.07, 0.08], hard: 1, run: 0.94 },
