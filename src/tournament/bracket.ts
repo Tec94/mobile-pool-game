@@ -13,7 +13,7 @@ export interface Cup { name: string; lo: number; hi: number; level: number; priz
 // winning a silver or gold in the cup below; prize = XP a round won as champion of a best-of-1 (prize()).
 export const CUPS: Cup[] = [
   { name: 'Club', lo: 1.0, hi: 2.4, level: 0, prize: 60 },
-  { name: 'City', lo: 2.3, hi: 3.8, level: 10, prize: 180 },
+  { name: 'City', lo: 2.3, hi: 3.8, level: 10, prize: 210 },
   { name: 'Masters', lo: 3.6, hi: 5.0, level: 20, prize: 400 },
   { name: 'Legends', lo: 4.8, hi: 5.7, level: 30, prize: 750 }, // top 5.7: with a style's bump it still plays no higher than Legend (6)
 ];
@@ -89,9 +89,10 @@ const human = (run: Run, i: number | null) => i !== null && !!run.field[i].human
 export const nextMatch = (run: Run) => (run.state !== 'playing' ? -1 : run.res.findIndex((r, m) => !r && sides(run, m).some((i) => human(run, i))));
 // The rating an entrant plays at: a style's bump on top (STYLE_BUMP).
 export const plays = (e: Entrant) => Math.min(6, e.rating + (e.style ? STYLE_BUMP[e.style] : 0)); // above Legend aiParams extrapolates to near-perfect play
-// The stakes of match m: every match and shot pays x1 in the first round, x1.5 in the second, x2 in the final of 8
-// (pay.ts Vs.tour), so a field of 4 never starts above quick match.
-export const stakes = (run: Run, m: number) => 1 + 0.5 * roundOf(run, m);
+// The stakes of match m: every match and shot pays x1.25 in the first round, x1.5 in the second, x2 in the final of 8
+// (pay.ts Vs.tour). x1.25 from the start so a player who wins half their matches earns ~1.5x quick match an hour.
+export const STAKES = [1.25, 1.5, 2];
+export const stakes = (run: Run, m: number) => STAKES[roundOf(run, m)];
 
 // A simulated AI-vs-AI match: rack by rack the stronger wins with a logistic chance, raced to the format. Seeded by the
 // run and the match, so it never changes.
@@ -126,10 +127,10 @@ const add = (a: Pay, b: Pay): Pay => ({ xp: a.xp + b.xp, coins: a.coins + b.coin
 // Matches won by the player.
 export const wins = (run: Run) => run.res.filter((r, m) => r && human(run, sides(run, m)[r.w])).length;
 
-// The prize at the end of a run, by how far the player got: champion all of it, runner-up 40%, a semifinal of 8 15%,
+// The prize at the end of a run, by how far the player got: champion all of it, runner-up 50%, a semifinal of 8 20%,
 // the first match lost nothing. XP = the cup's base x rounds x frames (best of 1, 3, 5: 1, 2.6, 4.2), coins half of it:
 // a top run still pays well under the price of the dearest cue (Rocket 12,000).
-const FRAMES = { 1: 1, 3: 2.6, 5: 4.2 }, SHARE = [0, 0.15, 0.4, 1];
+const FRAMES = { 1: 1, 3: 2.6, 5: 4.2 }, SHARE = [0, 0.2, 0.5, 1];
 export function prize(opts: Opts, won: number): Pay {
   const n = rounds(opts.size), share = !won ? 0 : won >= n ? 1 : SHARE[3 - (n - won)];
   const xp = Math.round(CUPS[opts.cup].prize * n * FRAMES[opts.best] * share);
