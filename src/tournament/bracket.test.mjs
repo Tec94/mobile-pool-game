@@ -42,7 +42,7 @@ test('a run to the title: each round sims the other matches once, the final is n
   assert.equal(nextMatch(r), 6);
   r = recordMatch(r, true, [2, 1], none);
   assert.equal(r.state, 'champion'); assert.equal(nextMatch(r), -1); assert.equal(wins(r), 3);
-  assert.deepStrictEqual(r.earned, { xp: 200 + 1404, coins: 100 + 702 }, 'match pay plus the prize');
+  assert.deepStrictEqual(r.earned, { xp: 200 + 1638, coins: 100 + 819 }, 'match pay plus the prize');
   assert.deepStrictEqual(r.res[5], semi, 'a simulated match never changes');
   assert.deepStrictEqual(readRun(JSON.stringify(r)), r, 'a title run reads back');
 });
@@ -69,11 +69,11 @@ test('a simulated match races to the format and favours the stronger side', () =
   assert(Math.abs(won - want) < 30, `${won} of 400, ${want.toFixed(0)} expected`);
 });
 
-test('prize: champion all, runner-up 40%, semifinal of 8 15%, first match nothing; longer formats and cups pay more', () => {
+test('prize: champion all, runner-up 50%, semifinal of 8 20%, first match nothing; longer formats and cups pay more', () => {
   const o = opts({ cup: 1, size: 8, best: 3 });
-  assert.deepStrictEqual(prize(o, 3), { xp: 1404, coins: 702 }, 'coins are half the XP');
-  assert.deepStrictEqual([2, 1, 0].map(w => prize(o, w).xp), [562, 211, 0]);
-  assert.deepStrictEqual([0, 1, 2].map(w => prize(opts({ cup: 0, size: 4, best: 1 }), w).xp), [0, 48, 120]);
+  assert.deepStrictEqual(prize(o, 3), { xp: 1638, coins: 819 }, 'coins are half the XP');
+  assert.deepStrictEqual([2, 1, 0].map(w => prize(o, w).xp), [819, 328, 0]);
+  assert.deepStrictEqual([0, 1, 2].map(w => prize(opts({ cup: 0, size: 4, best: 1 }), w).xp), [0, 60, 120]);
   assert.equal(prize(opts({ cup: 3, size: 8, best: 5 }), 3).xp, 9450);
 });
 
@@ -90,9 +90,9 @@ test('a saved run reads back; a damaged, foreign or newer one is no run', () => 
   for (const bad of [null, '', '{', '[]', '{"v":2}', JSON.stringify({ ...r, v: 2 }), JSON.stringify({ ...r, field: [] }), JSON.stringify({ ...r, opts: { ...r.opts, best: 2 } })]) assert.equal(readRun(bad), null);
 });
 
-test('stakes rise each round from x1, in a field of 4 too; a run that is over takes no more results', () => {
+test('stakes rise each round from x1.25, in a field of 4 too; a run that is over takes no more results', () => {
   const r = newRun(opts(), 1), r4 = newRun(opts({ size: 4 }), 1);
-  assert.deepStrictEqual([0, 4, 6].map(m => stakes(r, m)), [1, 1.5, 2]); assert.deepStrictEqual([0, 2].map(m => stakes(r4, m)), [1, 1.5]);
+  assert.deepStrictEqual([0, 4, 6].map(m => stakes(r, m)), [1.25, 1.5, 2]); assert.deepStrictEqual([0, 2].map(m => stakes(r4, m)), [1.25, 1.5]);
   const out = recordMatch(r, false, [0, 0], none);
   assert.equal(recordMatch(out, true, [2, 0], none), out, 'nothing after the end');
   assert.deepStrictEqual(out.earned, { xp: 0, coins: 0 }, 'a forfeit of the first match pays no prize');
