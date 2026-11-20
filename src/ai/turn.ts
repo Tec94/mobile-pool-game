@@ -112,11 +112,11 @@ export function think(B: Ball[], ids: number[], s: State, level: number, seed: n
   if (s.hand) { // place first, then shoot from there
     let at = placeCue(B, ids, s.hand, ahead(legalIds(s, g[0])));
     const combo = s.game === 9 && T.types.includes('combo') ? comboSpot(B, ids, s.hand, legalIds(s, g[0])[0]) : null;
-    if (combo) { // the combo spot when the 9 is its best shot and wins the rack more often (by EDGE, as nineValue) than the
+    if (combo) { // the combo spot when the 9 is its best shot and wins the rack more often (by EDGE, as nineValue; Hustler by spot) than the
       // best shot from the straight-in spot (or where the cue ball lies). shortcut: two more plan() calls, about 7 ms (Node JIT).
       const balls = mm(B, ids), top = (p: [number, number] | null) => plan(p ? { x: p[0] * 1000, y: p[1] * 1000 } : { x: B[0].x * 1000, y: B[0].y * 1000 }, balls, NINE, T, T.depth, 4, NINE)[0];
       const c = top(combo), r = top(at);
-      if (c?.ball === 9 && (!r || shotOdds(T, c, balls.length) > shotOdds(T, r, balls.length) + EDGE)) at = combo;
+      if (c?.ball === 9 && (!r || shotOdds(T, c, balls.length) > shotOdds(T, r, balls.length) + (T.spot ?? EDGE))) at = combo;
     }
     if (at) { B[0].x = at[0]; B[0].y = at[1]; }
   }
