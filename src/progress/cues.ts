@@ -71,15 +71,16 @@ export const CUES = Object.fromEntries(CUE_IDS.map(id => [id, plain(id) ? { ...R
 // The tricks that act. A cue whose trick is not built yet shows it with a "Soon" tag and plays as a plain stick with
 // its stats and locks, so no card claims what the table does not do.
 // The Marquise plays with no squirt today (the old Hex); its True line also takes the curve away, so it waits here.
-export const BUILT: CueId[] = ['surveyor', 'twig'];
+export const BUILT: CueId[] = ['surveyor', 'twig', 'ironwood'];
 export const soon = (id: CueId) => !!CUES[id].trick && !BUILT.includes(id);
 
 // The engine cue for a cue: Power 1 to 10 gives top speed 3.7 to 4.5 m/s and the break the same share of 12 m/s,
 // Spin 1 to 10 gives a tip limit of 0.33 to 0.50 R. matched = both players on House Cue stats, tricks off.
 // stats = the cue's stats after tuning (mastery's statsOf); the base stats when left out.
-export function stick(id: CueId, matched = false, stats?: Pick<CueInfo, 'power' | 'spin' | 'aim'>): Cue {
-  const k = matched ? 'house' : id, c = matched || !stats ? CUES[k] : stats, top = 3.7 + (c.power - 1) * 0.8 / 9;
-  return { ...CUE, maxSpeed: top, breakSpeed: top * CUE.breakSpeed / CUE.maxSpeed, tipLimit: 0.33 + (c.spin - 1) * 0.17 / 9, squirt: k === 'marquise' ? 0 : CUE.squirt };
+// on = a match against the AI, where the tricks act: the Ironwood's Hammer (the break 20% faster).
+export function stick(id: CueId, matched = false, stats?: Pick<CueInfo, 'power' | 'spin' | 'aim'>, on = false): Cue {
+  const k = matched ? 'house' : id, c = matched || !stats ? CUES[k] : stats, top = 3.7 + (c.power - 1) * 0.8 / 9, t = on && !matched;
+  return { ...CUE, maxSpeed: top, breakSpeed: top * CUE.breakSpeed / CUE.maxSpeed * (t && k === 'ironwood' ? 1.2 : 1), tipLimit: 0.33 + (c.spin - 1) * 0.17 / 9, squirt: k === 'marquise' ? 0 : CUE.squirt };
 }
 
 // The Surveyor's Sketch: the guide shows the cue ball's real path after contact, and pays with 15% of its length (Jack).

@@ -297,7 +297,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   useEffect(() => { held.current = paused; wake.current(); }, [paused]); // the marks stop under the pause card, and move again after it
   // A lesson plays with the engine's own cue, the one its reference shots are tuned on (src/learn/lessons.test.mjs).
   // A scenario and quick match play with the player's own cue and its aim guide (stick stats count in challenges).
-  const own = useMemo(() => snap0?.cue ?? profile().cue, []), mine = useMemo(() => snap0?.stats ?? ownStats(own), []), cue = useMemo(() => (S || vs ? stick(own, false, mine) : L ? CUE : STICK), []), pen = !!(S || vs) && sketch(own); // fixed for the life of the screen: a cue change takes effect at the next table
+  const own = useMemo(() => snap0?.cue ?? profile().cue, []), mine = useMemo(() => snap0?.stats ?? ownStats(own), []), cue = useMemo(() => (S || vs ? stick(own, false, mine, vs) : L ? CUE : STICK), []), pen = !!(S || vs) && sketch(own); // fixed for the life of the screen: a cue change takes effect at the next table
   const shotOf = (power: number): Shot => ({ ang: shot.get().aim, speed: Math.max(0.05, power * (table.current.rules.phase === 'break' ? cue.breakSpeed : cue.maxSpeed)), ...shotTip(tip.get(), cue) });
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the
   // rack is over. In a lesson: the shot plays itself, or the verdict card is up.

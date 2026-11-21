@@ -22,11 +22,14 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   near(stick('heirloom').maxSpeed, 4.41, 'Power 9');
   near(stick('ram').maxSpeed, 4.5, 'Power 10: the cap'); near(stick('ram').breakSpeed, 12, 'Power 10 break');
   eq(stick('marquise').squirt, 0, 'Marquise: no squirt');
+  // the tricks of the stick act in a match against the AI only (on), and never for a matched game
+  near(stick('ironwood', false, undefined, true).breakSpeed / stick('ironwood').breakSpeed, 1.2, 'Ironwood: the break 20% faster in a match');
+  eq([stick('ironwood', false, undefined, true).maxSpeed, stick('ironwood', true, undefined, true).breakSpeed], [stick('ironwood').maxSpeed, stick('house').breakSpeed], 'the shot speed stays, and a matched game has no trick');
   eq(stick('ram', true), h, 'matched: House Cue stats, tricks off'); eq(stick('marquise', true).squirt, CUE.squirt, 'a matched Marquise squirts');
   eq(Object.keys(CUES).length, 26, '26 cues'); eq(CUES.house.aim, 5, 'House Cue Aim 5');
   for (const id of CUE_IDS) { const c = CUES[id]; assert([c.price !== undefined, !!c.feat, !!c.level, !!c.get, id === 'house'].filter(Boolean).length === 1, `${id}: one way to get it`); assert(!c.feat || FEATS[c.feat]?.cue === id, `${id}: its feat gives it`); }
   eq(CUE_IDS.filter(id => CUES[id].price !== undefined).reduce((a, id) => a + CUES[id].price, 0), 23100, 'the six coin cues cost 23,100');
-  eq([soon('surveyor'), soon('twig'), soon('house'), soon('ram')], [false, false, false, true], 'a trick that does not act yet is marked Soon; the House Cue has none');
+  eq([soon('surveyor'), soon('twig'), soon('house'), soon('banker')], [false, false, false, true], 'a trick that does not act yet is marked Soon; the House Cue has none');
   ok('cue stats give the engine cue');
   eq(specLine(specs('house')), 'Power: 3.88 m/s top shot, 10.3 m/s break\nSpin: tip up to 10.5 mm off centre\nAim: guide 32 cm past contact', 'House Cue in real units');
   eq(specs('ram').shot.toFixed(2) + ' ' + specs('ram').brk.toFixed(1), '4.50 12.0', 'Ram: Power 10');
