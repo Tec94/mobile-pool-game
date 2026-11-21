@@ -1,7 +1,7 @@
 // Run: npm test   (the progression model: levels, pay, cues, feats, gates and the saved profile)
 import assert from 'node:assert';
 import { CUE } from '../physics/engine.ts';
-import { afterSoft, auraLine, newSoft, notch, overdrive, ramOwes, ratchet, softCan, softHands, softLine, STEPS } from './tricks.ts';
+import { afterSoft, auraLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, overdrive, ramOwes, ratchet, softCan, softHands, softLine, STEPS } from './tricks.ts';
 import { judge, newGame, newRec } from '../rules/rules.ts';
 import { CUE_IDS, CUES, soon, specLine, specs, stick } from './cues.ts';
 import { hustler, matchFeats, matchPay, newLedger, noteShot, rackOver, safetyPay, settle, shotPay } from './pay.ts';
@@ -350,4 +350,15 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   const ai = { ...s, turn: 1, fouls: [0, 2] }, miss = { ...newRec(), first: -1 };
   eq([judge(ai, miss).phase, judge(afterSoft(ai), miss).phase, judge(afterSoft(ai), miss).fouls[1], judge(afterSoft(ai), fine).fouls[1]], ['over', 'play', 2, 0], 'a third foul there does not lose the rack; a legal shot clears the count as usual');
   ok('the Whisper\'s Soft hands');
+}
+{ // the Marble's Mog: 8 in every stat when ahead on balls potted this rack, 2 when behind, 5 when tied
+  eq([mog(2), mog(0), mog(-1)], [{ power: 8, spin: 8, aim: 8 }, { power: 5, spin: 5, aim: 5 }, { power: 2, spin: 2, aim: 2 }], 'ahead, tied, behind');
+  const open = { ...newGame(8), phase: 'play', solids: -1 }, sunk = [0, 0], pots = (...ids) => ({ ...newRec(), pots: ids.map(id => ({ id, pocket: 0 })) });
+  noteSunk(sunk, open, pots(3, 0), { ...open, foul: true }); noteSunk(sunk, { ...open, turn: 1 }, pots(9, 10), open);
+  eq([sunk, mogLead(open, sunk)], [[1, 2], -1], '8-ball before the groups are set: every ball counts for the player who potted it, the cue ball for none');
+  eq([mogLead({ ...open, solids: 0, balls: [1, 2, 8, 9, 10, 11] }, sunk), mogLead({ ...open, solids: 1, balls: [1, 2, 8, 9, 10, 11] }, sunk)], [1, -1], 'groups set: each group\'s balls off the table, whoever potted them');
+  const nine = { ...newGame(9), phase: 'play' }, n9 = [0, 0];
+  noteSunk(n9, nine, pots(1, 2), nine); noteSunk(n9, { ...nine, turn: 1 }, pots(3), { ...nine, foul: true });
+  eq([n9, mogLead(nine, n9), mogLine(1).text, mogLine(-2).text, mogLine(0)], [[2, 0], 2, 'Mogging +3', 'Mogged −3', null], '9-ball: a ball counts for the player who potted it with no foul');
+  ok('the Marble\'s Mog');
 }

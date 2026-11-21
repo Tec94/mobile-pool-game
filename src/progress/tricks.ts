@@ -38,8 +38,21 @@ export function softHands(w: Soft, pull: number, s: State, r: Rec, ruled: State,
 // in a row as it was: the state to judge that shot from.
 export const afterSoft = (s: State): State => (s.game === 9 ? { ...s, fouls: s.turn ? [s.fouls[0], s.fouls[1] - 1] : [s.fouls[0] - 1, s.fouls[1]] } : s);
 
+// The Marble's Mog: ahead on balls potted this rack, 8 in every stat; behind, 2; tied, 5.
+// The lead: with the groups set in 8-ball, each group's balls off the table, whoever potted them. Before that, and in
+// 9-ball, sunk = the balls each player potted this rack (noteSunk).
+export function mogLead(s: State, sunk: number[]) {
+  const left = (p: number) => s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === p)).length;
+  return s.game === 8 && s.solids >= 0 ? left(1) - left(0) : sunk[0] - sunk[1];
+}
+export const mog = (lead: number) => { const v = lead > 0 ? 8 : lead < 0 ? 2 : 5; return { power: v, spin: v, aim: v }; };
+// A ruled shot adds its potted balls to the shooter's count: in 8-ball every ball, in 9-ball only with no foul.
+export function noteSunk(sunk: number[], s: State, r: Rec, ruled: State) { if (s.game === 8 || !ruled.foul) sunk[s.turn] += r.pots.filter(p => p.id).length; }
+
 // What the HUD shows after the player's name for a trick with a state (ui/MatchHud.tsx Trick).
 // The Aura: what the next pot of the run pays, as a multiple of its usual pay.
 export const auraLine = (a: Aura) => (a.owed ? { text: 'x0', dim: true, label: 'Minus aura: the next pot pays nothing' } : { text: `x${1 + 0.25 * a.run}`, label: `Aura: ${a.run} in a row, the next pot pays ${1 + 0.25 * a.run} times` });
 export const RAM_LINE = { text: 'No guide', label: 'Overdrive: this shot has no guide' };
 export const softLine = (w: Soft) => ({ text: '●'.repeat(w.left) + '○'.repeat(2 - w.left), dim: !softCan(w), label: softCan(w) ? `Soft hands: ${w.left} left this rack` : w.left ? 'Soft hands: not on this turn' : 'Soft hands: none left this rack' });
+// The number is the change to each stat, always 3: not the lead in balls.
+export const mogLine = (lead: number) => (lead > 0 ? { text: 'Mogging +3', label: 'Mogging: 8 in every stat' } : lead < 0 ? { text: 'Mogged −3', dim: true, label: 'Mogged: 2 in every stat' } : null);
