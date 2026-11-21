@@ -225,8 +225,8 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   // of the finished match.
   // shortcut: a quick match left from the pause card pays nothing, not even its shots (a tournament forfeit pays them); no safety pay (needs the AI's reply).
   const won = useRef(snap0 ? { ...snap0.ledger, shots: { ...snap0.ledger.shots } } : newLedger()), cands = useRef<Cand[]>([]), end = useRef<Settled | null>(null), prize = useRef<Pay | null>(null);
-  // The opponent, for pay and feats (pay.ts Vs): an AI tier, or the rating of a Rival or a tournament seat.
-  const foe = (): Vs => (rival || tour ? { boss: level.current, tour: tour?.stakes } : { tier: ai + 1 });
+  // The opponent, for pay and feats (pay.ts Vs): an AI tier, or the rating of a Rival or a tournament seat. The Twig's Humble reads the cue.
+  const foe = (): Vs => (rival || tour ? { boss: level.current, tour: tour?.stakes, cue: own } : { tier: ai + 1, cue: own });
   const snooker = useRef(false); // the player came to the table with no straight line to a ball they may hit (Escape Artist)
   useEffect(() => { if (vs && !tour && hustler(foe())) matchOpen(); }, []);
   const safe = useRef<Safeties>(snap0?.safe ?? { row: 0, rack: 0 }), seed = useRef(snap0?.seed ?? Math.floor(Math.random() * 2 ** 31)), [thinking, setThinking] = useState(false);
