@@ -1,13 +1,15 @@
 // The player's progress for the app: the profile, loaded once, and the pay of a finished match. The model is in src/progress/.
-import { gain, runOwe, unlock, type Profile } from './progress/profile';
+import { gain, passPlay, runOwe, unlock, type Profile } from './progress/profile';
 import type { CueId } from './progress/cues';
 import { cueGain, masteryNote, masteryOf, statsOf } from './progress/mastery';
 import { loadProfile, saveProfile } from './progress/save';
 import type { Pay } from './progress/pay';
 import { type Mood, rate, score, START } from './progress/rival';
 
-// Pass and play pays a flat amount for each finished match, whoever wins (progression design: 40 XP and 20 coins).
-export const PASS_PLAY: Pay = { xp: 40, coins: 20 };
+// Pass and play pays a flat amount for a finished match, whoever wins (progression design: 40 XP and 20 coins), for
+// the first 3 of a day (profile.ts passPlay). mark goes to award() with the pay, so the count is saved with it.
+const PASS_PLAY: Pay = { xp: 40, coins: 20 };
+export const passPlayPay = (day: string, lost: string) => passPlay(profile(), day, lost, PASS_PLAY);
 let me: Profile | null = null;
 export const profile = () => (me ??= loadProfile());
 export function keep(p: Profile) { me = p; saveProfile(p); }

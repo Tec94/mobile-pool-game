@@ -1,4 +1,4 @@
-// What a shot and a match pay (progression design). The vs-AI modes call these; pass and play pays PASS_PLAY.
+// What a shot and a match pay (progression design). The vs-AI modes call these; pass and play pays a flat amount (profile.ts passPlay).
 import type { CueId } from './cues.ts';
 
 export interface Pay { xp: number; coins: number }
@@ -50,15 +50,23 @@ export function matchPay(m: Match): Pay {
 
 // A quick match's pay so far: what the human's shots earned, the run of pots this visit, and the fouls and own balls
 // potted that matchPay reads at the end. noteShot adds a shot the rules have judged (potPay in src/ai/turn.ts).
-export interface Ledger { shots: Pay; run: number; fouls: number; own: number }
+// brk = the racks won on the player's own break shot (not in a ledger saved before it was counted).
+export interface Ledger { shots: Pay; run: number; fouls: number; own: number; brk?: number }
 export const newLedger = (): Ledger => ({ shots: { xp: 0, coins: 0 }, run: 0, fouls: 0, own: 0 });
-export function noteShot(l: Ledger, p: { pay: Pay; run: number; own: number }, foul: boolean) {
+export function noteShot(l: Ledger, p: { pay: Pay; run: number; own: number }, foul: boolean, brkWin = false) {
   l.shots.xp += p.pay.xp; l.shots.coins += p.pay.coins; l.run = p.run; l.own += p.own; l.fouls += +foul;
+  if (brkWin) l.brk = (l.brk ?? 0) + 1;
 }
 // The pay lines of a finished match. chalk = what Fresh Chalk paid (the match pay again on a win, not the shot pay),
 // null when it paid nothing.
-export interface Settled { match: Pay; shots: Pay; chalk: Pay | null; total: Pay }
-export function settle(l: Ledger, m: { tier: number; won: boolean; early: boolean; tour?: number }, chalk?: (won: boolean, match: Pay) => Pay): Settled {
-  const match = matchPay({ ...m, fouls: l.fouls, ownPotted: l.own }), x = chalk ? chalk(m.won, match) : null, c = x && (x.xp || x.coins) ? x : null;
-  return { match, shots: { ...l.shots }, chalk: c, total: { xp: match.xp + l.shots.xp + (c?.xp ?? 0), coins: match.coins + l.shots.coins + (c?.coins ?? 0) } };
+// racks = the racks the player won. A match in which every one of them ended on the player's own break shot pays
+// nothing for the win and spends no Fresh Chalk (note says why): with a seeded rack the 9 still goes down on about 6%
+// of 9-ball breaks, and breaking, then leaving when it stays up, paid about as much an hour as playing Rookie well.
+// The break's pots still pay as shots. A rack the AI hands over (three fouls, an early 8) is not won on the break.
+export interface Settled { match: Pay; shots: Pay; chalk: Pay | null; total: Pay; note?: string }
+export const BREAK_ONLY = 'Won on the break: no match pay.';
+export function settle(l: Ledger, m: { tier: number; won: boolean; early: boolean; tour?: number; racks?: number }, chalk?: (won: boolean, match: Pay) => Pay): Settled {
+  const dry = m.won && !!m.racks && (l.brk ?? 0) >= m.racks;
+  const match = dry ? { xp: 0, coins: 0 } : matchPay({ ...m, fouls: l.fouls, ownPotted: l.own }), x = chalk && !dry ? chalk(m.won, match) : null, c = x && (x.xp || x.coins) ? x : null;
+  return { match, shots: { ...l.shots }, chalk: c, total: { xp: match.xp + l.shots.xp + (c?.xp ?? 0), coins: match.coins + l.shots.coins + (c?.coins ?? 0) }, ...(dry && { note: BREAK_ONLY }) };
 }
