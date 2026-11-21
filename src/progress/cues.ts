@@ -70,7 +70,7 @@ export const CUES = Object.fromEntries(CUE_IDS.map(id => [id, plain(id) ? { ...R
 
 // The tricks that act. A cue whose trick is not built yet shows it with a "Soon" tag and plays as a plain stick with
 // its stats and locks, so no card claims what the table does not do.
-export const BUILT: CueId[] = ['surveyor', 'twig', 'ironwood', 'marquise', 'coil', 'ratchet', 'performative', 'sixseven', 'aura', 'ram', 'whisper', 'marble', 'maxxed'];
+export const BUILT: CueId[] = ['surveyor', 'twig', 'ironwood', 'marquise', 'coil', 'ratchet', 'performative', 'sixseven', 'aura', 'ram', 'whisper', 'marble', 'maxxed', 'plumb', 'gyro', 'star', 'daybreak', 'banker', 'vernier', 'optic'];
 export const soon = (id: CueId) => !!CUES[id].trick && !BUILT.includes(id);
 
 // The engine cue for a cue: Power 1 to 10 gives top speed 3.7 to 4.5 m/s and the break the same share of 12 m/s,
@@ -78,12 +78,15 @@ export const soon = (id: CueId) => !!CUES[id].trick && !BUILT.includes(id);
 // stats = the cue's stats after tuning (mastery's statsOf); the base stats when left out.
 // on = a match against the AI, where the tricks act: the Ironwood's Hammer (the break 20% faster), the Marquise's True
 // line (the cue lies dead flat, so side spin does not curve the ball) and the Coil's Serpentine (a raised cue curves
-// the ball 50% more). Everywhere the Marquise plays with no squirt.
+// the ball 50% more) and the Plumb's Dead stop (the cue ball stops at a straight first hit; the match leaves it off on
+// the break) and the Gyro's Flywheel (draw and stun slide on 0.71 of the cloth's friction to the first ball) and the Fallen Star's Meteor (a soft jump lifts
+// 1.6 times as much; LOW_TIP is its price). Everywhere the Marquise plays with no squirt.
 export function stick(id: CueId, matched = false, stats?: Pick<CueInfo, 'power' | 'spin' | 'aim'>, on = false): Cue {
   const k = matched ? 'house' : id, c = matched || !stats ? CUES[k] : stats, top = 3.7 + (c.power - 1) * 0.8 / 9, t = on && !matched;
   return { ...CUE, maxSpeed: top, breakSpeed: top * CUE.breakSpeed / CUE.maxSpeed * (t && k === 'ironwood' ? 1.2 : 1), tipLimit: 0.33 + (c.spin - 1) * 0.17 / 9, squirt: k === 'marquise' ? 0 : CUE.squirt,
-    ...(t && k === 'marquise' && { minElev: 0 }), ...(t && k === 'coil' && { curl: 1.5 }) };
+    ...(t && k === 'marquise' && { minElev: 0 }), ...(t && k === 'coil' && { curl: 1.5 }), ...(t && k === 'plumb' && { dead: true }), ...(t && k === 'gyro' && { glide: 0.71 }), ...(t && k === 'star' && { lift: 1.6 }) };
 }
+export const LOW_TIP = 0.5; // the Fallen Star is top-heavy: the tip goes only this share of the limit below centre
 
 // The Surveyor's Sketch: the guide shows the cue ball's real path after contact, and pays with 15% of its length (Jack).
 export const sketch = (id: CueId) => id === 'surveyor';

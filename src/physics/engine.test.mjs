@@ -420,3 +420,30 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   assert(drift({ ...hex, curl: 1.5 }, side) === drift(hex, side), 'curl does nothing under 4 degrees');
   console.log('stick tricks ok'); }
 console.log('all checks passed');
+{ // the Plumb's Dead stop: on a straight first hit the cue ball stops where it hits, whatever spin is on it; a 3.1 degree cut plays on
+  const { strike, step, CUE, P, STRAIGHT } = EngineAll, plumb = { ...CUE, dead: true };
+  const play = (cue, offY, b) => { const B = [mk(0.5, 0.5), mk(1.2, 0.5 + offY)], ev = []; let hit = null; strike(B[0], { ang: 0, speed: 2, a: 0.3, b }, cue);
+    for (let i = 0; i < 1200; i++) { ev.length = 0; step(B, ev); hit ??= ev.find(e => e.t === 'bb'); } return { B, hit }; }; // 1.2 s: before the object ball can come back
+  for (const b of [0.4, -0.4]) { const { B, hit } = play(plumb, 0, b);
+    assert(Math.hypot(B[0].x - hit.x, B[0].y - hit.y) < 1e-3 && B[1].x > 1.3 && !B[0].dead && !B[0].vx, `with ${b > 0 ? 'follow' : 'draw'} the cue ball stops at the hit and the object ball goes on`);
+    assert(Math.abs(play(CUE, 0, b).B[0].x - hit.x) > 0.03, 'any other cue runs on'); }
+  const off = 2 * R * Math.sin(3.1 / D), cut = play(plumb, off, 0.4);
+  assert(cut.hit.cut > STRAIGHT && Math.hypot(cut.B[0].x - cut.hit.x, cut.B[0].y - cut.hit.y) > 0.1, `a ${(cut.hit.cut * D).toFixed(2)} degree cut switches the stop off`);
+  const c = mk(0.5, 0.5); c.dead = true; strike(c, { ang: 0, speed: 2, a: 0, b: 0 }, CUE); assert(c.dead === false, 'the next strike with another cue clears the flag');
+  console.log('dead stop ok'); }
+{ // the Gyro's Flywheel: with the tip at or below centre the cue ball slides on 0.71 of the cloth's friction to its first hit, so draw holds further
+  const { strike, step, CUE } = EngineAll, gyro = { ...CUE, glide: 0.71 };
+  const back = (cue, b, gap = 1) => { const B = [mk(1.1, 0.5), mk(1.1 + gap + 2 * R, 0.5)]; const ev = []; strike(B[0], { ang: 0, speed: 4.5, a: 0, b }, cue); for (let i = 0; i < 30000 && step(B, ev); i++) if (ev.length) B[1].on = false; return 1.1 + gap - B[0].x; }; // how far it comes back from the hit; the object ball is taken off, so it can't come back
+  const plain = back(CUE, -0.3), held = back(gyro, -0.3);
+  assert(plain > 0.3 && held > 1.5 * plain, `draw from 1 m at full pull comes back further (${plain.toFixed(2)} to ${held.toFixed(2)} m)`);
+  assert(back(gyro, 0.5) === back(CUE, 0.5), 'follow is unchanged');
+  const c = mk(0.4, 0.5); strike(c, { ang: 0, speed: 2, a: 0, b: -0.3, elev: 10 / D }, gyro); assert(!c.glide, 'not with the cue raised');
+  const B = [mk(1.9, 0.5)]; strike(B[0], { ang: 0, speed: 2, a: 0, b: 0 }, gyro); assert(B[0].glide === 0.71); for (let i = 0; i < 400; i++) step(B); assert(B[0].glide === 0 && B[0].vx < 0, 'a cushion ends it');
+  console.log('flywheel ok'); }
+{ // the Fallen Star's Meteor: a soft jump lifts 1.6 times as much, and the extra fades to nothing at full power
+  const { predict, simulate, CUE } = EngineAll, star = { ...CUE, lift: 1.6 }, up = { ang: 0, a: 0, b: 0, elev: 40 / D };
+  const over = (cue, pull) => simulate([mk(0.5, 0.5), mk(0.65 + 2 * R, 0.5)], { ...up, speed: pull * cue.maxSpeed }, cue, 300).first < 0; // a ball 15 cm ahead; 0.3 s, before the cue ball can come back
+  assert(over(star, 0.5) && !over(CUE, 0.5) && !over(star, 0.4) && over(CUE, 0.8), 'it clears a ball from a 50% pull, where any other cue needs about 75%');
+  const top = (cue, pull) => predict([mk(0.5, 0.5)], { ...up, speed: pull * cue.maxSpeed }, 0.3, cue).apex;
+  assert(top(star, 1) === top(CUE, 1) && top(star, 0.7) > top(CUE, 0.7), 'no higher at full power, a little higher between');
+  console.log('meteor ok'); }

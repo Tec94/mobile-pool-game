@@ -22,16 +22,17 @@ export function spinLabel(t: Tip) {
 }
 
 // Each change gives the new tip and `bump`: true at the moments the hand must feel (the miscue ring, the catch at
-// centre ball, a zone edge).
-export function moveSpin(t: Tip, x: number, y: number) {
+// centre ball, a zone edge). low = how far below centre the tip may go, as a part of the limit (the Fallen Star: a half).
+export function moveSpin(t: Tip, x: number, y: number, low = 1) {
   const m = Math.hypot(x, y), was = t.x !== 0 || t.y !== 0, atLimit = Math.hypot(t.x, t.y) > 0.999; let bump = false;
   if (m > 1) { x /= m; y /= m; bump = !atLimit; }
+  if (y < -low) { bump ||= t.y > -low; y = -low; }
   if (m < 0.12) { x = y = 0; bump = was; }
   return { tip: { ...t, x, y }, bump };
 }
-export function tapSpin(t: Tip, x: number, y: number) {
-  for (const [mx, my] of [[0.7, 0], [-0.7, 0], [0, 0.7], [0, -0.7]]) if (Math.hypot(x - mx, y - my) < 0.18) { x = mx; y = my; }
-  return moveSpin(t, x, y);
+export function tapSpin(t: Tip, x: number, y: number, low = 1) {
+  for (const [mx, my] of [[0.7, 0], [-0.7, 0], [0, 0.7], [0, -0.7 * low]]) if (Math.hypot(x - mx, y - my) < 0.18) { x = mx; y = my; }
+  return moveSpin(t, x, y, low);
 }
 export function moveElev(t: Tip, e: number) {
   const elev = Math.round(Math.min(MAX_ELEV, Math.max(0, e)));
@@ -58,13 +59,15 @@ export function grab(px: number, py: number, D: number): 'ring' | 'pad' | null {
 const fill = (api: typeof Skia, hex: string, a = 1) => { const p = api.Paint(); p.setAntiAlias(true); p.setColor(api.Color(hex)); p.setAlphaf(a); return p; };
 const line = (api: typeof Skia, hex: string, w: number, a = 1) => { const p = fill(api, hex, a); p.setStyle(1); p.setStrokeWidth(w); p.setStrokeCap(1); return p; }; // stroke, round cap
 // The cue ball with the tip dot on it, radius r at (cx, cy). The same picture is the spin button in the control bar.
-export function drawTipBall(api: typeof Skia, canvas: SkCanvas, cx: number, cy: number, r: number, t: Tip, marks = false) {
+// low < 1: the pad is cut by a flat line that far below centre, and the lower mark sits inside it.
+export function drawTipBall(api: typeof Skia, canvas: SkCanvas, cx: number, cy: number, r: number, t: Tip, marks = false, low = 1) {
   const ball = api.Paint(); ball.setAntiAlias(true);
   ball.setShader(api.Shader.MakeRadialGradient({ x: cx - 0.3 * r, y: cy - 0.4 * r }, 1.5 * r, [api.Color(C.white), api.Color('#BFC4BC')], [0, 1], 0)); // 0 = TileMode.Clamp
   canvas.drawCircle(cx, cy, r, ball);
   if (marks) { // the miscue ring and the four 70% marks
     canvas.drawCircle(cx, cy, REACH * r + 0.1 * r, line(api, C.ink, 1, 0.3));
-    for (const [mx, my] of [[0.7, 0], [-0.7, 0], [0, 0.7], [0, -0.7]]) canvas.drawCircle(cx + mx * REACH * r, cy - my * REACH * r, 3, fill(api, C.ink, 0.3));
+    for (const [mx, my] of [[0.7, 0], [-0.7, 0], [0, 0.7], [0, -0.7 * low]]) canvas.drawCircle(cx + mx * REACH * r, cy - my * REACH * r, 3, fill(api, C.ink, 0.3));
+    if (low < 1) { const y = cy + low * REACH * r + 0.1 * r, half = Math.sqrt(Math.max(0, (REACH * r + 0.1 * r) ** 2 - (y - cy) ** 2)); canvas.drawLine(cx - half, y, cx + half, y, line(api, C.ink, 1.5, 0.45)); }
   }
   canvas.drawCircle(cx + t.x * REACH * r, cy - t.y * REACH * r, marks ? 11 : Math.max(4, 0.21 * r), fill(api, BALLS[2]));
 }
@@ -73,7 +76,7 @@ export const ZONE_HUES = [C.chalk, BALLS[1], BALLS[3], BALLS[4]], BLEND = 4;
 // The whole control in a square of side D: the elevation ring with the bead, and the cue ball inside. The ring is one
 // stroke with flat ends, so no zone overlaps the next. It is bright from level up to the bead.
 // blend = the four zones in their own colours, blended at the edges; false = one colour, the player learns the angles.
-export function drawTip(api: typeof Skia, canvas: SkCanvas, D: number, t: Tip, blend = true) {
+export function drawTip(api: typeof Skia, canvas: SkCanvas, D: number, t: Tip, blend = true, low = 1) {
   const k = D / U, c = D / 2, r = RING * k, oval = api.XYWHRect(c - r, c - r, 2 * r, 2 * r), a = ang(t.elev) * Math.PI / 180;
   const arc = (to: number, alpha: number) => {
     const p = line(api, C.chalk, 9 * k, alpha); p.setStrokeCap(0); // butt
@@ -86,7 +89,7 @@ export function drawTip(api: typeof Skia, canvas: SkCanvas, D: number, t: Tip, b
   };
   arc(MAX_ELEV, blend ? 0.55 : 0.22);
   arc(t.elev, 1);
-  drawTipBall(api, canvas, c, c, PAD * D, t, true);
+  drawTipBall(api, canvas, c, c, PAD * D, t, true, low);
   const bx = c + r * Math.cos(a), by = c + r * Math.sin(a);
   canvas.drawCircle(bx, by, 12 * k, fill(api, C.ink)); canvas.drawCircle(bx, by, 12 * k, line(api, C.chalk, 4 * k));
 }

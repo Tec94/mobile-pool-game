@@ -1,9 +1,9 @@
 // Run: npm test   (checks the shot controls: what a touch does to the aim and the power, and what the guide shows)
 import assert from 'node:assert';
-import { CUE, P, predict } from '../physics/engine.ts';
+import { CUE, P, predict, step, strike } from '../physics/engine.ts';
 import { DIAL, shotLayout } from '../render/cue.ts';
 import { RAIL } from '../render/table.ts';
-import { aimGuide, dialTurn, guideLen, nearest, nudge, powerTick, previewPower, pullPower, railLabel, release, SENS, shorten, swing, tapAim } from './aim.ts';
+import { aimGuide, dialTurn, guideLen, nearest, nudge, pointAt, powerTick, previewPower, pullPower, railLabel, release, rollOut, SENS, shorten, swing, tapAim } from './aim.ts';
 const mk = (x, y, on = true) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on });
 const near = (a, b, tol, msg) => assert(Math.abs(a - b) < tol, `${msg}: ${a} vs ${b}`);
 const len = p => p.slice(1).reduce((s, q, i) => s + Math.hypot(q[0] - p[i][0], q[1] - p[i][1]), 0);
@@ -132,4 +132,39 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
   assert.deepStrictEqual(shorten([[0, 0], [0.1, 0], [0.1, 0.3], [0.5, 0.3]], 0.2), [[0, 0], [0.1, 0], [0.1, 0.1, 0]], 'cut inside the second piece');
   assert.deepStrictEqual([shorten([[0, 0], [0.1, 0]], 0.2), shorten([], 0.2)], [[[0, 0], [0.1, 0]], []], 'a shorter path is kept; no path stays none');
   ok('a guide cut to a length');
+}
+{ // the Plumb's guide: the ghost ball fills in when the cue ball will stop dead there
+  const plumb = { ...CUE, dead: true }, g = (stick, off = 0) => aimGuide([mk(0.5, mid), mk(1.2, mid + off)], { ang: 0, speed: 2, a: 0, b: 0 }, 6, undefined, stick).dead;
+  assert(g(plumb) && !g(CUE) && !g(plumb, 2 * P.R * Math.sin(5 * DEG)), 'only the Plumb, and only on a straight hit');
+  ok('the filled ghost ball');
+}
+{ // the guides of the cues whose trick is in the guide
+  const sh = (ang, speed = 2) => ({ ang, speed, a: 0, b: 0 }), Rc = P.R * Math.sqrt(1 - P.nose ** 2), end = p => p[p.length - 1];
+  // the Daybreak: the object ball's line runs on to what it meets, or to where it stops; no stub; a kick stops at the cushion
+  const day = (B, speed, ang = 0) => aimGuide(B, sh(ang, speed), 10, 12000, CUE, false, 1, 'daybreak');
+  near(end(day([mk(0.5, mid), mk(1, mid)], 2).ob)[0], P.L - Rc, 5e-3, 'to the foot cushion');
+  near(end(day([mk(0.5, mid), mk(1, mid), mk(1.6, mid)], 2).ob)[0], 1.6 - 2 * P.R, 5e-3, 'to the next ball');
+  const soft = day([mk(0.5, mid), mk(1, mid)], 0.6).ob; assert(len(soft) > 0.2 && len(soft) < 0.6 && end(soft)[0] < 1.6, `a soft shot's line ends where the ball stops (${len(soft)})`);
+  const o = [1.8, 0.3], a = Math.atan2(-0.3, P.L - 1.8), pot = day([mk(o[0] - 0.5 * Math.cos(a), o[1] - 0.5 * Math.sin(a)), mk(...o)], 2, a);
+  assert(Math.hypot(end(pot.ob)[0] - P.L, end(pot.ob)[1]) < 0.06 && !pot.stub.length, 'to the pocket, and no stub');
+  const kd = day([mk(0.4, 0.4), mk(1.4, 0.4)], 2, Math.atan2(-0.3725, 0.5)); assert(kd.first === -1 && !kd.ob.length, 'a kick stops at the first cushion');
+  // the Banker: on a bank the line runs to the cushion and 60 cm off it; any other shot shows the 21 cm of 3 Aim
+  const down = -Math.PI / 4, bank = (x, y, more = []) => len(aimGuide([mk(x - 0.4 * Math.cos(down), y - 0.4 * Math.sin(down)), mk(x, y), ...more], sh(down), 3, 8000, CUE, false, 1, 'banker').ob);
+  near(bank(0.5, 0.3), (0.3 - Rc) * Math.SQRT2 + 0.6, 0.01, 'the way to the cushion and 60 cm off it');
+  assert(bank(0.5, 0.3, [mk(0.95, 0.2)]) < 0.7, 'the line stops at the first ball it meets off the cushion');
+  for (const [x, y, why] of [[0.5, 0.52, 'the cushion is more than 60 cm away'], [0.8, 0.3, 'the ball meets the cushion within 15 cm of a pocket']]) near(bank(x, y), guideLen(3), 1e-9, why);
+  near(len(aimGuide([mk(0.5, mid), mk(1, mid)], sh(0), 3, 8000, CUE, false, 1, 'banker').ob), guideLen(3), 1e-9, 'no bank: 21 cm');
+  // the Vernier: on a kick the line runs on off the cushion to the ball, however far; alone on the table it stops at a third cushion
+  const kick = trick => aimGuide([mk(0.4, 0.4), mk(1.4, 0.4)], sh(Math.atan2(-0.3725, 0.5)), 7, 3200, CUE, false, 1, trick), v = kick('vernier');
+  assert(v.first === 1 && !v.stub.length && Math.hypot(end(v.path)[0] - 1.4, end(v.path)[1] - 0.4) < 2 * P.R + 1e-3 && kick('').first === -1, 'the line reaches the ball, with no stub; a plain 7 Aim line stops short');
+  const lone = aimGuide([mk(0.6, 0.4)], sh(1, 3), 7, 20000, CUE, false, 1, 'vernier').path, e = end(lone), wall = Math.min(e[0], P.L - e[0], e[1], P.W - e[1]);
+  assert(wall < 0.03 && len(lone) > 1.5, `with no ball to meet the line stops at a third cushion (${len(lone).toFixed(2)} m, ${(wall * 100).toFixed(1)} cm from it)`);
+  ok('the guides of the Daybreak, the Banker and the Vernier');
+}
+{ // the Optic's numbers: a centre hit slides 12v²/(49 x 0.2 x 9.81) m and then rolls at 5/7 of v
+  near(rollOut(0.7), 12 * 0.49 / (49 * 0.2 * 9.81) + 0.25 / (2 * 0.008 * 9.81), 1e-9, 'the cue ball formula');
+  const B = [mk(0.4, mid), mk(0.9, mid)], g = aimGuide(B, { ang: 0, speed: 0.8, a: 0, b: 0 }, 4), S = B.map(b => ({ ...b })); strike(S[0], { ang: 0, speed: 0.8, a: 0, b: 0 }); while (step(S));
+  near(g.roll, S[1].x - 0.9, 0.01 * g.roll, 'the ring of the first ball is how far the engine rolls it');
+  assert.deepStrictEqual([pointAt([[0, 0], [1, 0], [1, 1]], 1.5), pointAt([[0, 0], [1, 0]], 1.5)], [[1, 0.5], null], 'the mark is on the path, or nowhere past its end');
+  ok('the roll of a ball on bare cloth');
 }

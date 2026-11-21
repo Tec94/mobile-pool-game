@@ -3,7 +3,7 @@
 // guide shows. No drawing and no React here; src/ui/ShotControls.tsx and App.tsx are the shells around it.
 // The aim is an angle in radians in the table frame. The screen shows the table mirrored (toScreen flips one axis in
 // both orientations), so a clockwise turn on the glass is a smaller angle here.
-import { P, predict } from '../physics/engine.ts';
+import { P, POCKET, predict, STRAIGHT } from '../physics/engine.ts';
 import type { Ball, Cue, Shot } from '../physics/engine.ts';
 
 const TURN = 2 * Math.PI, DEG = Math.PI / 180, wrap = (a: number) => a - TURN * Math.round(a / TURN);
@@ -41,6 +41,21 @@ export const guideLen = (aim: number) => (aim <= 0 ? 0 : 0.1 + (Math.min(10, aim
 export const LONG = 7; // from this Aim a stub after the contact shows where the cue ball leaves the ghost ball
 export const STUB = 4 * 0.028575; // m, 4 ball radii (P.R): the stub is this long at every Aim, power and spin, from a 30 degree cut
 const FULL = 0.052; // sine of a 3 degree cut: fuller than this the cue ball stops or runs on through, and the tangent says nothing
+// How far a ball runs on bare cloth, m: v = its speed, u = the speed of its contact point on the cloth (u = v for a
+// ball struck at its centre, which slides until it rolls at 5/7 of v). It slides, then rolls. The Optic's numbers.
+export const rollOut = (v: number, u = v) => (14 * v * u - 2 * u * u) / (49 * P.mus * P.g) + (v - u / 3.5) ** 2 / (2 * P.mur * P.g);
+// The point d metres along a path, or null when the path is shorter.
+export function pointAt(path: number[][], d: number) {
+  for (let i = 1; i < path.length; i++) { const a = path[i - 1], b = path[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (d <= l && l > 0) return [a[0] + (b[0] - a[0]) * d / l, a[1] + (b[1] - a[1]) * d / l]; d -= l; }
+  return null;
+}
+// The Banker's Bank sight: BANK = metres of the object ball's line shown off the cushion, and the furthest the cushion
+// may be from the ball. A cushion counts when it turns the ball 20 degrees or more (rules.ts potKind) and the ball
+// meets it JAW or more along the cushion from a pocket's jaw, so the line can't be swept to find the pocket.
+export const BANK = 0.6, JAW = 0.15;
+const BEND = 20 * DEG;
+const offJaws = (x: number, y: number) => { const { cc, sc } = POCKET, end = Math.min(x, P.L - x) < Math.min(y, P.W - y);
+  return end ? y > cc + JAW && y < P.W - cc - JAW : Math.abs(x - P.L / 2) > sc + JAW && x > cc + JAW && x < P.L - cc - JAW; };
 // The angle from the cue ball to the nearest object ball, or `keep` when the table has none.
 export function nearest(B: Ball[], keep = 0) {
   let best = Infinity, ang = keep;
@@ -50,7 +65,7 @@ export function nearest(B: Ball[], keep = 0) {
 // What drawAim needs for a shot: the cue ball's path, the object ball's path, the ghost ball at the first contact,
 // the touchdowns of a jump, `lost` when the cue ball leaves the table before it meets anything, `first` = the index
 // in B of the ball the ghost touches (-1 none, or a kick whose ring is on the cushion), and `stub` = [from, to] after
-// the contact, or none.
+// the contact, or none. dead = the cue ball stops dead at the ghost ball (the Plumb's stick on a straight hit).
 // aim = the Aim stat of the cue (lessons pass 10). From LONG the guide shows a stub after the ghost ball: the tangent
 // line, the way the cue ball leaves on a stun shot. Jack: the real path after contact (it bends with follow, draw and
 // side, and comes off cushions) gives away the skill of reading spin and power. The stub is worked out from the
@@ -60,8 +75,16 @@ export function nearest(B: Ball[], keep = 0) {
 // stick = the engine cue that will strike, so the guide squirts as the shot will.
 // real = draw the cue ball's real path after the contact in place of the stub (a lesson's watch stage, where the shot
 // plays itself next anyway, and the Surveyor's Sketch), at any Aim. scale = the share of the guide length the cue keeps.
-export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, stick?: Cue, real = false, scale = 1) {
-  const L = guideLen(aim) * scale, far = real || aim >= LONG, g = predict(B, shot, L, stick, undefined, budget, real), k = g.split < 0 ? g.cue.length : g.split + 1;
+// trick = the guide of a cue's trick, in a match against the AI:
+//  'daybreak': the object ball's line runs on to the first ball, cushion or pocket it meets, or to where it stops. No
+//    stub, and on a kick the guide stops at the first cushion.
+//  'banker': on a bank (see BANK) the object ball's line runs to the cushion and BANK off it, or to the next thing it meets.
+//  'vernier': on a kick the cue ball's line runs on off 2 cushions to the ball, and stops at a third. No stub.
+// roll = how far the first ball hit would run on bare cloth with the speed the hit gives it, m (the Optic's ring).
+export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, stick?: Cue, real = false, scale = 1, trick = '') {
+  const L = guideLen(aim) * scale, day = trick === 'daybreak', far = !day && (real || aim >= LONG);
+  const g = day ? predict(B, shot, Infinity, stick, undefined, budget, false, 1) : trick === 'banker' ? predict(B, shot, 2 * BANK, stick, undefined, budget, false, 2)
+    : predict(B, shot, L, stick, undefined, budget, real, undefined, trick === 'vernier' ? 2 : 0), k = g.split < 0 ? g.cue.length : g.split + 1;
   // predict runs until both balls have gone the length, so the faster one overshoots it: cut each path to the length.
   const clip = (p: number[][], len: number) => {
     const out = p.slice(0, 1);
@@ -71,7 +94,15 @@ export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, st
   // A kick: the cue ball meets a cushion first. Below LONG the line stops there, so the ring goes there too and no
   // object ball path hangs loose beyond it.
   const q = g.cue[k - 1], h = g.hit, kick = g.split >= 0 && !!h && Math.hypot(q[0] - h.x, q[1] - h.y) > 1e-6;
-  if (kick && !far) return { path: g.cue.slice(0, k), ob: [], ghost: [q[0], q[1]], lands: g.lands, lost: false, first: -1, stub: [] as number[][] };
+  if (kick && !far) return { path: g.cue.slice(0, k), ob: [], ghost: [q[0], q[1]], lands: g.lands, lost: false, first: -1, stub: [] as number[][], dead: false, roll: 0 };
+  const roll = h ? rollOut(g.ov[0], g.ov[1]) : 0, dead = !!stick?.dead && !!h && !h.air && h.cut! <= STRAIGHT;
+  if (trick === 'vernier') { // the whole line to the ball, or to the last point worked out (a third cushion, the budget, where it stops)
+    const path = h && !kick ? g.cue.slice(0, k) : [...g.cue.slice(0, h ? g.at : g.cue.length), ...(h ? [[h.x, h.y, 0]] : [])];
+    return { path, ob: clip(g.ob, L), ghost: h && [h.x, h.y], lands: g.lands, lost: g.scratch && g.split < 0, first: h ? h.b! : -1, stub: [] as number[][], dead, roll };
+  }
+  const m = g.met[0], to = m ? g.ob.slice(0, m[0] + 1) : g.ob, reach = to.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - to[i][0], p[1] - to[i][1]), 0);
+  const bank = trick === 'banker' && !!m && m[1] === 1 && m[2] >= BEND && reach <= BANK && offJaws(to[to.length - 1][0], to[to.length - 1][1]);
+  const ob = day ? to : bank ? [...to, ...clip(g.ob.slice(m[0], g.met[1] ? g.met[1][0] + 1 : g.ob.length), BANK).slice(1)] : clip(g.ob, L);
   const after = !far ? [] : clip(g.cue.slice(k - 1), L).slice(1);
   let path = [...g.cue.slice(0, k), ...after], stub: number[][] = [];
   if (h && after.length && !real) {
@@ -92,7 +123,7 @@ export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, st
     const ahead = (O.x - h.x) * ux + (O.y - h.y) * uy > 0; // the ball lies ahead of the line: a kick whose line was cut at a near miss gets no stub, not a wrong one
     if (n > 0 && Math.abs(s) > FULL && t > 0 && ahead && !h.air && !g.lands.length) stub = [[h.x, h.y], [h.x + t * ex, h.y + t * ey]];
   }
-  return { path, ob: clip(g.ob, L), ghost: h && [h.x, h.y], lands: g.lands, lost: g.scratch && g.split < 0, first: h ? h.b! : -1, stub };
+  return { path, ob, ghost: h && [h.x, h.y], lands: g.lands, lost: g.scratch && g.split < 0, first: h ? h.b! : -1, stub, dead, roll };
 }
 // The first len metres of a path: the guide the Coil shows with its cue raised.
 export function shorten(path: number[][], len: number) {

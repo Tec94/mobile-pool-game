@@ -58,3 +58,9 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
   }
   ok('the side picture keeps the cue inside its edges');
 }
+{ // the Fallen Star's pad: the tip goes only half the limit below centre
+  const d = moveSpin(LEVEL, 0.2, -0.9, 0.5); assert(d.tip.y === -0.5 && d.bump && !moveSpin(d.tip, 0.2, -0.9, 0.5).bump, 'held at the flat line, with one bump');
+  assert(moveSpin(LEVEL, 0, 0.9, 0.5).tip.y === 0.9 && moveSpin(LEVEL, 0, -0.9).tip.y === -0.9, 'above centre and on any other cue the pad is whole');
+  assert(tapSpin(LEVEL, 0.02, -0.4, 0.5).tip.y === -0.35, 'the lower mark sits inside the cut');
+  ok('a pad with a low limit');
+}
