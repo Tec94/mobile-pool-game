@@ -1,7 +1,7 @@
 // Run: npm test   (the progression model: levels, pay, cues, feats, gates and the saved profile)
 import assert from 'node:assert';
 import { CUE, HOLES, P } from '../physics/engine.ts';
-import { afterSoft, auraLine, gold, hindsight, newOmen, newPast, omenLine, pastLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, overdrive, ramOwes, ratchet, softCan, softHands, softLine, STEPS, whatever } from './tricks.ts';
+import { afterSoft, auraLine, brakeAt, brakeLine, gold, newBrake, hindsight, newOmen, newPast, omenLine, pastLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, overdrive, ramOwes, ratchet, softCan, softHands, softLine, STEPS, whatever } from './tricks.ts';
 import { ahead, judge, newGame, newRec } from '../rules/rules.ts';
 import { CUE_IDS, CUES, soon, specLine, specs, stick } from './cues.ts';
 import { hustler, matchFeats, matchPay, newLedger, noteShot, rackOver, safetyPay, settle, shotPay } from './pay.ts';
@@ -32,7 +32,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(Object.keys(CUES).length, 26, '26 cues'); eq(CUES.house.aim, 5, 'House Cue Aim 5');
   for (const id of CUE_IDS) { const c = CUES[id]; assert([c.price !== undefined, !!c.feat, !!c.level, !!c.get, id === 'house'].filter(Boolean).length === 1, `${id}: one way to get it`); assert(!c.feat || FEATS[c.feat]?.cue === id, `${id}: its feat gives it`); }
   eq(CUE_IDS.filter(id => CUES[id].price !== undefined).reduce((a, id) => a + CUES[id].price, 0), 23100, 'the six coin cues cost 23,100');
-  eq([soon('surveyor'), soon('twig'), soon('house'), soon('airbrake')], [false, false, false, true], 'a trick that does not act yet is marked Soon; the House Cue has none');
+  eq([soon('surveyor'), soon('twig'), soon('house'), soon('airbrake')], [false, false, false, false], 'no trick is marked Soon: every one acts');
   ok('cue stats give the engine cue');
   eq(specLine(specs('house')), 'Power: 3.88 m/s top shot, 10.3 m/s break\nSpin: tip up to 10.5 mm off centre\nAim: guide 32 cm past contact', 'House Cue in real units');
   eq(specs('ram').shot.toFixed(2) + ' ' + specs('ram').brk.toFixed(1), '4.50 12.0', 'Ram: Power 10');
@@ -361,6 +361,13 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   const last = { ...s, balls: [8, 9, 10] }; eq(hindsight(judge(last, { ...hit, first: 8, pots: [{ id: 8, pocket: 3 }] }), 0), 'no', 'a shot that wins the rack is not taken back');
   eq([pastLine(newPast()).text, pastLine({ left: 0, blind: true }).text, pastLine({ left: 0, blind: false }).dim], ['●', 'No guide', true], 'the HUD: 1 pip, and no guide on the shot in its place');
   ok('the Hindsight asks');
+}
+{ // the Airbrake's Brake: the copy of the table for the frame on screen
+  const fr = (x, first = 1, more = {}) => ({ B: [{ x, y: 0.5, on: true, ...more }], m: [], fx: [], rec: { ...newRec(), first } }), frames = [fr(0.1, -1), fr(0.2), fr(0.3), fr(0.4)];
+  eq([brakeAt(frames, 0)?.B[0].x, brakeAt(frames, 2)?.B[0].x, brakeAt(frames, 3), brakeAt(frames, 9), brakeAt([], 0)], [0.4, 0.2, null, null, null], 'the newest frame less the ones that wait; a tap before the first hit does nothing');
+  eq([brakeAt([fr(0.3, 1, { z: 0.01 })], 0), brakeAt([fr(0.3, 1, { on: false })], 0)], [null, null], 'not in the air, and not when the cue ball is down');
+  eq([brakeLine(newBrake()).text, brakeLine({ ...newBrake(), armed: true }).text, brakeLine({ ...newBrake(), left: 0, live: true }).text, brakeLine({ ...newBrake(), left: 0 }).dim], ['●', 'Armed', 'Tap to stop', true], 'the HUD says what the brake waits for');
+  ok('the Airbrake finds the frame on screen');
 }
 { // the Whisper's Soft hands: twice a rack a soft shot needs no cushion after the hit
   const s = { ...newGame(9), phase: 'play', hand: null, balls: [1, 2, 9] }, tap = { ...newRec(), first: 1, railAfter: false }, w = newSoft();
