@@ -57,6 +57,14 @@ export const HOLD_MS = 600, STILL = 0.02; // the pull holds still: it moves less
 export const gold = (s: State, o: { r: Rec; next: State } | null) => !!o && !o.next.foul && o.r.pots.some(p => p.id) && (o.next.phase === 'over' ? o.next.winner === s.turn : o.next.turn === s.turn);
 export const omenLine = (o: Omen) => ({ text: '●'.repeat(o.left) + '○'.repeat(3 - o.left), dim: !o.left, label: `Omen: ${o.left} left this rack${o.plain ? '. The next shot pays as a plain pot' : ''}` });
 
+// The Hindsight's Take back: once a rack the player takes the last shot back. left = the uses left this rack; blind =
+// the shot in its place is being lined up: it has no guide.
+export const newPast = () => ({ left: 1, blind: false });
+// What the ruling on the player's shot means for it. 'ask' = the shot ended the turn, fouled or lost the rack: the game
+// stops and asks. 'keep' = a pot: it may be taken back until the next pull. 'no' = it won the rack.
+export const hindsight = (next: State, me: number) => (next.phase === 'over' && next.winner === me ? 'no' : next.foul || next.turn !== me || next.phase === 'over' ? 'ask' : 'keep');
+export const pastLine = (p: { left: number; blind: boolean }) => (p.blind ? { text: 'No guide', label: 'Take back: this shot has no guide' } : { text: p.left ? '●' : '○', dim: !p.left, label: p.left ? 'Take back: 1 left this rack' : 'Take back: none left this rack' });
+
 // The Marble's Mog: ahead on balls potted this rack, 8 in every stat; behind, 2; tied, 5.
 // The lead: with the groups set in 8-ball, each group's balls off the table, whoever potted them. Before that, and in
 // 9-ball, sunk = the balls each player potted this rack (noteSunk).

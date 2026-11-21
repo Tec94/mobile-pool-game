@@ -1,7 +1,7 @@
 // Run: npm test   (the progression model: levels, pay, cues, feats, gates and the saved profile)
 import assert from 'node:assert';
 import { CUE, HOLES, P } from '../physics/engine.ts';
-import { afterSoft, auraLine, gold, newOmen, omenLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, overdrive, ramOwes, ratchet, softCan, softHands, softLine, STEPS, whatever } from './tricks.ts';
+import { afterSoft, auraLine, gold, hindsight, newOmen, newPast, omenLine, pastLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, overdrive, ramOwes, ratchet, softCan, softHands, softLine, STEPS, whatever } from './tricks.ts';
 import { ahead, judge, newGame, newRec } from '../rules/rules.ts';
 import { CUE_IDS, CUES, soon, specLine, specs, stick } from './cues.ts';
 import { hustler, matchFeats, matchPay, newLedger, noteShot, rackOver, safetyPay, settle, shotPay } from './pay.ts';
@@ -354,6 +354,13 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq([gold(in8, go(1, in8)), gold({ ...in8, solids: 1 }, go(1, { ...in8, solids: 1 })), gold({ ...in8, call: 3 }, go(1, { ...in8, call: 3 }))], [true, false, false], '8-ball: a ball of the player\'s in the called pocket, not a ball of the opponent\'s, not another pocket');
   eq([omenLine(newOmen()).text, omenLine({ ...newOmen(), left: 1 }).text, newOmen(true).plain], ['●●●', '●○○', true], 'the HUD shows 3 pips; the price owed goes over to the next rack');
   ok('the Seer sees a pot');
+}
+{ // the Hindsight's Take back: which rulings on the player's shot stop the game and ask
+  const s = { ...newGame(8), phase: 'play', hand: null, solids: 0, balls: [1, 2, 8, 9, 10], call: 3 }, hit = { ...newRec(), first: 1, railAfter: true }, of = r => hindsight(judge(s, r), 0);
+  eq([of({ ...hit, pots: [{ id: 1, pocket: 3 }] }), of(hit), of({ ...hit, first: 9 }), of({ ...hit, pots: [{ id: 8, pocket: 3 }] })], ['keep', 'ask', 'ask', 'ask'], 'a pot can be taken back until the next pull; a miss, a foul and a lost rack ask');
+  const last = { ...s, balls: [8, 9, 10] }; eq(hindsight(judge(last, { ...hit, first: 8, pots: [{ id: 8, pocket: 3 }] }), 0), 'no', 'a shot that wins the rack is not taken back');
+  eq([pastLine(newPast()).text, pastLine({ left: 0, blind: true }).text, pastLine({ left: 0, blind: false }).dim], ['●', 'No guide', true], 'the HUD: 1 pip, and no guide on the shot in its place');
+  ok('the Hindsight asks');
 }
 { // the Whisper's Soft hands: twice a rack a soft shot needs no cushion after the hit
   const s = { ...newGame(9), phase: 'play', hand: null, balls: [1, 2, 9] }, tap = { ...newRec(), first: 1, railAfter: false }, w = newSoft();
