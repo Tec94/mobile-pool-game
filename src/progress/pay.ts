@@ -94,9 +94,10 @@ export function rackOver(l: Ledger, won: boolean, hard: boolean) {
 // The feats of a finished match: what its shots and racks counted, and what the result counts. A win on the break
 // alone (settle's note) counts for none. Living Legend: a win against Legend, or a Rival rated 6.0 or more. Giant
 // Killer: a win against Shark or harder with the Twig. Nine Lives in 9-ball: a race won after being 2 racks down.
-export function matchFeats(l: Ledger, m: { vs: Vs; won: boolean; cue?: CueId; dry?: boolean }): Partial<Record<FeatId, number>> {
+// Purist: a win against Hustler or harder with the aim guide off for every shot of the match (pure).
+export function matchFeats(l: Ledger, m: { vs: Vs; won: boolean; cue?: CueId; dry?: boolean; pure?: boolean }): Partial<Record<FeatId, number>> {
   const f = { ...l.feats }, r = rated(m.vs), add = (id: FeatId) => { f[id] = (f[id] ?? 0) + 1; };
-  if (m.won && !m.dry) { if (r >= 6) add('legend'); if (r >= 4 && m.cue === 'twig') add('giant'); if (r >= 3 && l.down) add('lives'); }
+  if (m.won && !m.dry) { if (r >= 6) add('legend'); if (r >= 4 && m.cue === 'twig') add('giant'); if (r >= 3 && l.down) add('lives'); if (r >= 3 && m.pure) add('purist'); }
   return f;
 }
 // The pay lines of a finished match. chalk = what Fresh Chalk paid (the match pay again on a win, not the shot pay),

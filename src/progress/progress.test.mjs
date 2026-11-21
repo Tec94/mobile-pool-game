@@ -1,9 +1,9 @@
 // Run: npm test   (the progression model: levels, pay, cues, feats, gates and the saved profile)
 import assert from 'node:assert';
-import { CUE } from '../physics/engine.ts';
-import { afterSoft, auraLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, overdrive, ramOwes, ratchet, softCan, softHands, softLine, STEPS } from './tricks.ts';
-import { judge, newGame, newRec } from '../rules/rules.ts';
-import { CUE_IDS, CUES, soon, specLine, specs, stick } from './cues.ts';
+import { CUE, HOLES, P } from '../physics/engine.ts';
+import { afterSoft, auraLine, brakeAt, brakeLine, gold, newBrake, hindsight, newOmen, newPast, omenLine, pastLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, overdrive, ramOwes, ratchet, softCan, softHands, softLine, STEPS, whatever } from './tricks.ts';
+import { ahead, judge, newGame, newRec } from '../rules/rules.ts';
+import { CUE_IDS, CUES, specLine, specs, stick } from './cues.ts';
 import { hustler, matchFeats, matchPay, newLedger, noteShot, rackOver, safetyPay, settle, shotPay } from './pay.ts';
 import { cueGain, cueStats, masteryLevel, masteryNote, masteryOf, maxStats, nextPick, readMastery, statsOf, tuneDown, tuneUp, upCost } from './mastery.ts';
 import { buy, feat, featCount, featName, FEATS, gain, levelNote, levelOf, matchEnd, NEW, opens, PACKS, passPlay, readProfile, runOwe, select, unlock, VENUES } from './profile.ts';
@@ -32,7 +32,6 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(Object.keys(CUES).length, 26, '26 cues'); eq(CUES.house.aim, 5, 'House Cue Aim 5');
   for (const id of CUE_IDS) { const c = CUES[id]; assert([c.price !== undefined, !!c.feat, !!c.level, !!c.get, id === 'house'].filter(Boolean).length === 1, `${id}: one way to get it`); assert(!c.feat || FEATS[c.feat]?.cue === id, `${id}: its feat gives it`); }
   eq(CUE_IDS.filter(id => CUES[id].price !== undefined).reduce((a, id) => a + CUES[id].price, 0), 23100, 'the six coin cues cost 23,100');
-  eq([soon('surveyor'), soon('twig'), soon('house'), soon('airbrake')], [false, false, false, true], 'a trick that does not act yet is marked Soon; the House Cue has none');
   ok('cue stats give the engine cue');
   eq(specLine(specs('house')), 'Power: 3.88 m/s top shot, 10.3 m/s break\nSpin: tip up to 10.5 mm off centre\nAim: guide 32 cm past contact', 'House Cue in real units');
   eq(specs('ram').shot.toFixed(2) + ' ' + specs('ram').brk.toFixed(1), '4.50 12.0', 'Ram: Power 10');
@@ -295,6 +294,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(matchFeats({ ...newLedger(), feats: { kick: 2 } }, { vs: { tier: 6 }, won: true, cue: 'twig' }), { kick: 2, legend: 1, giant: 1 }, 'a win against Legend with the Twig');
   eq(matchFeats(newLedger(), { vs: { tier: 4 }, won: true, cue: 'house' }), {}, 'Shark with another cue: neither');
   eq(matchFeats(newLedger(), { vs: { boss: 6 }, won: true, dry: true }), {}, 'a win on the break alone counts for none');
+  eq([{ tier: 3 }, { tier: 2 }].map(vs => matchFeats(newLedger(), { vs, won: true, pure: true })).concat(matchFeats(newLedger(), { vs: { tier: 3 }, won: false, pure: true }), matchFeats(newLedger(), { vs: { tier: 3 }, won: true })), [{ purist: 1 }, {}, {}, {}], 'Purist: a win against Hustler or harder with the guide off all match');
   eq([matchFeats({ ...newLedger(), down: true }, { vs: { tier: 3 }, won: true }), matchFeats({ ...newLedger(), down: true }, { vs: { tier: 3 }, won: false })], [{ lives: 1 }, {}], 'a 9-ball race won from 2 racks down');
   let p = { ...NEW, open: true };
   p = matchEnd(p, { heater: 1, kick: 3 }, true);
@@ -335,6 +335,38 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq([readProfile(JSON.stringify(p)).aura, readProfile(JSON.stringify({ ...p, aura: { run: -3, owed: 'yes' } })).aura, readProfile(JSON.stringify({ ...p, aura: 5 })).aura], [{ run: 4, owed: false }, { run: 0, owed: false }, undefined], 'read defensively');
   eq([auraLine({ run: 0, owed: false }).text, auraLine({ run: 3, owed: false }).text, auraLine({ run: 0, owed: true }).text], ['x1', 'x1.75', 'x0'], 'the HUD shows what the next pot pays');
   ok('the Aura keeps its run');
+}
+{ // the Nonchalant's Whatever: no pocket to call
+  const s = { ...newGame(8), phase: 'play', hand: null, solids: 0, balls: [1, 2, 8, 9, 10] }, pot = { ...newRec(), first: 1, railAfter: true, pots: [{ id: 1, pocket: 3 }] };
+  eq([judge(s, pot).turn, whatever(s, pot).turn, whatever(s, pot).foul, whatever(s, pot).callAll], [1, 0, false, true], 'a ball of the player\'s in any pocket keeps the turn, and the setting stays for the opponent');
+  const last = { ...s, balls: [8, 9, 10] }, eight = { ...newRec(), first: 8, railAfter: true, pots: [{ id: 8, pocket: 5 }] };
+  eq([judge(last, eight).winner, whatever(last, eight).winner, whatever(s, { ...eight, first: 1 }).winner], [1, 0, 1], 'on the 8 any pocket wins; the 8 potted early still loses');
+  eq(whatever(s, { ...pot, pots: [{ id: 9, pocket: 3 }] }).turn, 1, 'a ball of the opponent\'s does not keep the turn');
+  ok('the Nonchalant calls no pocket');
+}
+{ // the Seer's Omen: the shot is played ahead, and gold says it pots
+  const [hx, hy] = HOLES[0], k = Math.SQRT1_2, at = d => ({ x: hx + d * k, y: hy + d * k, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true }); // on the 45 degree line out of a corner pocket
+  const B = [at(0.9), at(0.3), { ...at(0.9), y: P.W - 0.2 }], ids = [0, 1, 9], s = { ...newGame(9), phase: 'play', hand: null, balls: [1, 9] }, ang = -3 * Math.PI / 4, go = (speed, st = s, a = ang) => ahead(B, ids, st, { ang: a, speed, a: 0, b: 0 }, CUE);
+  const pot = go(1); eq([pot.r.pots.map(p => p.id), pot.next.turn, gold(s, pot), B[0].vx, B[1].on], [[1], 0, true, 0, true], 'a straight pot of the 1 is gold, and the table is not touched');
+  eq([gold(s, go(0.3)), gold(s, go(2)), gold(s, go(1, s, ang + Math.PI)), gold(s, null)], [false, false, false, false], 'not a shot that stops short, not a scratch, not a shot that pots nothing, not one that never ends');
+  const in8 = { ...newGame(8), phase: 'play', hand: null, solids: 0, balls: [1, 9], call: 0 };
+  eq([gold(in8, go(1, in8)), gold({ ...in8, solids: 1 }, go(1, { ...in8, solids: 1 })), gold({ ...in8, call: 3 }, go(1, { ...in8, call: 3 }))], [true, false, false], '8-ball: a ball of the player\'s in the called pocket, not a ball of the opponent\'s, not another pocket');
+  eq([omenLine(newOmen()).text, omenLine({ ...newOmen(), left: 1 }).text, newOmen(true).plain], ['●●●', '●○○', true], 'the HUD shows 3 pips; the price owed goes over to the next rack');
+  ok('the Seer sees a pot');
+}
+{ // the Hindsight's Take back: which rulings on the player's shot stop the game and ask
+  const s = { ...newGame(8), phase: 'play', hand: null, solids: 0, balls: [1, 2, 8, 9, 10], call: 3 }, hit = { ...newRec(), first: 1, railAfter: true }, of = r => hindsight(judge(s, r), 0);
+  eq([of({ ...hit, pots: [{ id: 1, pocket: 3 }] }), of(hit), of({ ...hit, first: 9 }), of({ ...hit, pots: [{ id: 8, pocket: 3 }] })], ['keep', 'ask', 'ask', 'ask'], 'a pot can be taken back until the next pull; a miss, a foul and a lost rack ask');
+  const last = { ...s, balls: [8, 9, 10] }; eq(hindsight(judge(last, { ...hit, first: 8, pots: [{ id: 8, pocket: 3 }] }), 0), 'no', 'a shot that wins the rack is not taken back');
+  eq([pastLine(newPast()).text, pastLine({ left: 0, blind: true }).text, pastLine({ left: 0, blind: false }).dim], ['●', 'No guide', true], 'the HUD: 1 pip, and no guide on the shot in its place');
+  ok('the Hindsight asks');
+}
+{ // the Airbrake's Brake: the copy of the table for the frame on screen
+  const fr = (x, first = 1, more = {}) => ({ B: [{ x, y: 0.5, on: true, ...more }], m: [], fx: [], rec: { ...newRec(), first } }), frames = [fr(0.1, -1), fr(0.2), fr(0.3), fr(0.4)];
+  eq([brakeAt(frames, 0)?.B[0].x, brakeAt(frames, 2)?.B[0].x, brakeAt(frames, 3), brakeAt(frames, 9), brakeAt([], 0)], [0.4, 0.2, null, null, null], 'the newest frame less the ones that wait; a tap before the first hit does nothing');
+  eq([brakeAt([fr(0.3, 1, { z: 0.01 })], 0), brakeAt([fr(0.3, 1, { on: false })], 0)], [null, null], 'not in the air, and not when the cue ball is down');
+  eq([brakeLine(newBrake()).text, brakeLine({ ...newBrake(), armed: true }).text, brakeLine({ ...newBrake(), left: 0, live: true }).text, brakeLine({ ...newBrake(), left: 0 }).dim], ['●', 'Armed', 'Tap to stop', true], 'the HUD says what the brake waits for');
+  ok('the Airbrake finds the frame on screen');
 }
 { // the Whisper's Soft hands: twice a rack a soft shot needs no cushion after the hit
   const s = { ...newGame(9), phase: 'play', hand: null, balls: [1, 2, 9] }, tap = { ...newRec(), first: 1, railAfter: false }, w = newSoft();

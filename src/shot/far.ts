@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import { createWorkletRuntime, runOnRuntimeAsync, type WorkletRuntime } from 'react-native-worklets';
 import type { Ball, Cue, Shot } from '../physics/engine';
 import { aimGuide } from './aim';
+import { ahead, type State } from '../rules/rules';
 
 export type Guide = ReturnType<typeof aimGuide>;
 export interface GuideAsk { B: Ball[]; shot: Shot; aim: number; budget: number; stick: Cue; real?: boolean; scale?: number; trick?: string } // real, scale, trick: see aimGuide
@@ -15,4 +16,11 @@ export function farGuide(): ((a: GuideAsk) => Promise<Guide>) | null {
   if (rt === undefined) { try { rt = Platform.OS === 'web' ? null : createWorkletRuntime({ name: 'guide' }); } catch { rt = null; } }
   const r = rt;
   return r && (a => { try { return runOnRuntimeAsync(r, aimGuide, a.B.map(b => ({ ...b })), { ...a.shot }, a.aim, a.budget, { ...a.stick }, !!a.real, a.scale ?? 1, a.trick ?? ''); } catch (e) { return Promise.reject(e); } });
+}
+// A whole shot played ahead (rules.ts ahead), on the same runtime. On web: on the JS thread, after a moment.
+export function farAhead(B: Ball[], ids: number[], s: State, shot: Shot, stick: Cue): Promise<ReturnType<typeof ahead>> {
+  const args: Parameters<typeof ahead> = [B.map(b => ({ ...b })), [...ids], JSON.parse(JSON.stringify(s)), { ...shot }, { ...stick }];
+  farGuide(); const r = rt;
+  if (r) { try { return runOnRuntimeAsync(r, ahead, ...args); } catch (e) { return Promise.reject(e); } }
+  return new Promise((ok, no) => setTimeout(() => { try { ok(ahead(...args)); } catch (e) { no(e); } }, 0));
 }
