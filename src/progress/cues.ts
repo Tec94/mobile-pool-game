@@ -68,10 +68,6 @@ export const PLAIN: Record<keyof typeof JOKE_COPY, Partial<CueInfo>> = {
 export const plain = (id: CueId) => id in JOKE_COPY && JOKE_COPY[id as keyof typeof JOKE_COPY] === 'plain';
 export const CUES = Object.fromEntries(CUE_IDS.map(id => [id, plain(id) ? { ...ROSTER[id], ...PLAIN[id as keyof typeof JOKE_COPY] } : ROSTER[id]])) as Record<CueId, CueInfo>;
 
-// The tricks that act. A cue whose trick is not built yet shows it with a "Soon" tag and plays as a plain stick with
-// its stats and locks, so no card claims what the table does not do.
-export const BUILT: CueId[] = ['surveyor', 'twig', 'ironwood', 'marquise', 'coil', 'ratchet', 'performative', 'sixseven', 'aura', 'ram', 'whisper', 'marble', 'maxxed', 'plumb', 'gyro', 'star', 'daybreak', 'banker', 'vernier', 'optic', 'nonchalant', 'seer', 'hindsight', 'airbrake'];
-export const soon = (id: CueId) => !!CUES[id].trick && !BUILT.includes(id);
 
 // The engine cue for a cue: Power 1 to 10 gives top speed 3.7 to 4.5 m/s and the break the same share of 12 m/s,
 // Spin 1 to 10 gives a tip limit of 0.33 to 0.50 R. matched = both players on House Cue stats, tricks off.
