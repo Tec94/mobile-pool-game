@@ -8,7 +8,7 @@ import { cushions, RAIL } from '../../src/render/table.ts';
 import { zone } from '../../src/render/tip.ts';
 import { aimGuide } from '../../src/shot/aim.ts';
 import { BALLS, C, CLOTHS } from '../../src/theme.ts';
-import { CUE_ART } from '../../src/ui/cueArt.ts';
+import { ALL as CUE_ART, G as cueG, LENGTH as CUE_LEN } from '../../src/render/cues/art.ts';
 import { ball, POCKET, PRESETS, shotOf } from './presets.mjs';
 
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -311,8 +311,8 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   load(p);
 }
 
-// ---- The cues: all 17 stand in a rack, drawn from the app's own outlines (CUE_ART). The one under the pointer, the
-// finger or the arrow keys steps forward and its name and stats show large. ----
+// ---- The cues: all of them stand in a rack, drawn by the app's own cue drawings (render/cues/art.ts). The one under the
+// pointer, the finger or the arrow keys steps forward and its name and stats show large. ----
 {
   const rackEl = $('rack'), name = $('cue-name'), bars = $('cue-bars'), dpr = Math.min(devicePixelRatio || 1, 2), W = 44, H = 420, ids = Object.keys(CUES);
   let at = -1;
@@ -323,20 +323,14 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     bars.querySelectorAll('u').forEach((u, k) => { const n = cue[['power', 'spin', 'aim'][k]]; u.style.setProperty('--n', n); u.setAttribute('aria-label', `${n} of 10`); });
   };
   ids.forEach((id, i) => {
-    const b = document.createElement('button'), cv = document.createElement('canvas'), g = cv.getContext('2d'), { p: P_, seg, split } = CUE_ART[id];
+    const b = document.createElement('button'), cv = document.createElement('canvas'), g = cv.getContext('2d'), art = CUE_ART.find(c => c.name === CUES[id].name);
     b.type = 'button'; b.setAttribute('aria-label', CUES[id].name); cv.width = W * dpr; cv.height = H * dpr;
-    const w = f => { for (let j = 1; j < P_.length; j++) if (f <= P_[j][0]) { const [a, wa] = P_[j - 1], [c, wc] = P_[j]; return c === a ? wc : wa + (wc - wa) * (f - a) / (c - a); } return P_.at(-1)[1]; };
-    const len = H - 16, k = 6.2;
-    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.translate(W / 2, 8); g.rotate(Math.PI / 2); // tip up
-    for (const [a, c, col] of seg) {
-      const f = [a, ...P_.map(q => q[0]).filter(x => x > a && x < c), c], hole = split && c > split[0] ? split[1] : 0;
-      g.fillStyle = col;
-      for (const sgn of hole ? [1, -1] : [1]) {
-        g.beginPath();
-        f.forEach(x => g.lineTo(x * len, -sgn * w(x) * k));
-        [...f].reverse().forEach(x => g.lineTo(x * len, (hole ? -sgn * w(x) * hole : w(x)) * k));
-        g.fill();
-      }
+    if (art) { // as paintCue in render/cues/index.ts, standing tip up, with room below the butt for what hangs off it
+      const K = 2.3, S = (H - 16) / (CUE_LEN + Math.max(0.03, (art.tail || 0) * K + 0.012)), c = cueG(g, art, S, K, 1.3, 0, Math.PI / 2);
+      g.setTransform(dpr, 0, 0, dpr, 0, 0); g.translate(W / 2, 8); g.rotate(Math.PI / 2);
+      if (art.under) art.under(c);
+      g.save(); c.body(); g.clip(); art.paint(c); g.restore();
+      if (art.over) art.over(c);
     }
     b.append(cv); b.onpointerenter = b.onfocus = b.onclick = () => pick(i);
     rackEl.append(b);
@@ -344,7 +338,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   // A finger slid along the rack picks the cue under it (pointerenter does not fire for a touch that moves).
   rackEl.addEventListener('pointermove', e => { const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('button'); if (el?.parentElement === rackEl) pick([...rackEl.children].indexOf(el)); });
   rackEl.addEventListener('keydown', e => { const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (d) { e.preventDefault(); const i = (at + d + ids.length) % ids.length; pick(i); rackEl.children[i].focus(); } });
-  pick(ids.indexOf('rocket'));
+  pick(Math.max(0, ids.indexOf('ram')));
 }
 
 // ---- The waitlist forms ----
