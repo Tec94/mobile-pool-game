@@ -1,7 +1,7 @@
 // A tournament against the AI (tournament spec, /mnt/project-files/tournament/SPEC.md): a single-elimination bracket of
 // 4 or 8, the player against AI opponents with styles. Pure: no React, no files. The bracket knows entrants and who won;
 // how a match is decided (played on this phone, simulated, later online) is the caller's.
-import { STYLE_BUMP, STYLE_IDS, STYLE_RANGE, type StyleId } from '../ai/styles.ts';
+import { bumpOf, STYLE_IDS, STYLE_RANGE, type StyleId } from '../ai/styles.ts';
 import { rng } from '../ai/shot-ai.ts';
 import type { Pay } from '../progress/pay.ts';
 import type { TourOpts as Opts } from '../settings/settings.ts';
@@ -18,7 +18,7 @@ export const CUPS: Cup[] = [
   { name: 'Legends', lo: 4.8, hi: 5.7, level: 30, prize: 750 }, // top 5.7: with a style's bump it still plays no higher than Legend (6)
 ];
 // human = played on this phone (entrant 0 today; online opponents later). An AI without a style plays the plain tier
-// at its rating; with one, at its rating plus the style's bump (STYLE_BUMP), and the rating is what is shown.
+// at its rating; with one, at its rating plus the style's bump (bumpOf), and the rating is what is shown.
 export interface Entrant { name: string; style: StyleId | null; rating: number; human?: boolean }
 export interface Result { w: 0 | 1; score: [number, number] } // w = the side that won: 0 the first entrant of the match
 export interface Run {
@@ -87,8 +87,8 @@ export const breakerOf = (run: Run, m: number): 0 | 1 => (run.opts.best > 1 ? 0 
 // The player's next match, or -1 when the run is over.
 const human = (run: Run, i: number | null) => i !== null && !!run.field[i].human;
 export const nextMatch = (run: Run) => (run.state !== 'playing' ? -1 : run.res.findIndex((r, m) => !r && sides(run, m).some((i) => human(run, i))));
-// The rating an entrant plays at: a style's bump on top (STYLE_BUMP).
-export const plays = (e: Entrant) => Math.min(6, e.rating + (e.style ? STYLE_BUMP[e.style] : 0)); // above Legend aiParams extrapolates to near-perfect play
+// The rating an entrant plays at: a style's bump on top (bumpOf).
+export const plays = (e: Entrant) => Math.min(6, e.rating + (e.style ? bumpOf(e.style, e.rating) : 0)); // above Legend aiParams extrapolates to near-perfect play
 // The stakes of match m: every match and shot pays x1.25 in the first round, x1.5 in the second, x2 in the final of 8
 // (pay.ts Vs.tour). x1.25 from the start so a player who wins half their matches earns ~1.5x quick match an hour.
 export const STAKES = [1.25, 1.5, 2];
