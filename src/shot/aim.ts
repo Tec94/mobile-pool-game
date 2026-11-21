@@ -60,8 +60,13 @@ export function nearest(B: Ball[], keep = 0) {
 // stick = the engine cue that will strike, so the guide squirts as the shot will.
 // real = draw the cue ball's real path after the contact in place of the stub (a lesson's watch stage, where the shot
 // plays itself next anyway, and the Surveyor's Sketch), at any Aim. scale = the share of the guide length the cue keeps.
-export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, stick?: Cue, real = false, scale = 1) {
-  const L = guideLen(aim) * scale, far = real || aim >= LONG, g = predict(B, shot, L, stick, undefined, budget, real), k = g.split < 0 ? g.cue.length : g.split + 1;
+// trick = the guide of a cue's trick, in a match against the AI:
+//  'daybreak': the object ball's line runs on to the first ball, cushion or pocket it meets, or to where it stops. No
+//    stub, and on a kick the guide stops at the first cushion.
+export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, stick?: Cue, real = false, scale = 1, trick = '') {
+  const L = guideLen(aim) * scale, day = trick === 'daybreak', far = !day && (real || aim >= LONG);
+  const g = day ? predict(B, shot, Infinity, stick, undefined, budget, false, 1)
+    : predict(B, shot, L, stick, undefined, budget, real), k = g.split < 0 ? g.cue.length : g.split + 1;
   // predict runs until both balls have gone the length, so the faster one overshoots it: cut each path to the length.
   const clip = (p: number[][], len: number) => {
     const out = p.slice(0, 1);
@@ -72,6 +77,9 @@ export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, st
   // object ball path hangs loose beyond it.
   const q = g.cue[k - 1], h = g.hit, kick = g.split >= 0 && !!h && Math.hypot(q[0] - h.x, q[1] - h.y) > 1e-6;
   if (kick && !far) return { path: g.cue.slice(0, k), ob: [], ghost: [q[0], q[1]], lands: g.lands, lost: false, first: -1, stub: [] as number[][], dead: false };
+  const dead = !!stick?.dead && !!h && !h.air && h.cut! <= STRAIGHT;
+  const m = g.met[0], to = m ? g.ob.slice(0, m[0] + 1) : g.ob;
+  const ob = day ? to : clip(g.ob, L);
   const after = !far ? [] : clip(g.cue.slice(k - 1), L).slice(1);
   let path = [...g.cue.slice(0, k), ...after], stub: number[][] = [];
   if (h && after.length && !real) {
@@ -92,7 +100,7 @@ export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, st
     const ahead = (O.x - h.x) * ux + (O.y - h.y) * uy > 0; // the ball lies ahead of the line: a kick whose line was cut at a near miss gets no stub, not a wrong one
     if (n > 0 && Math.abs(s) > FULL && t > 0 && ahead && !h.air && !g.lands.length) stub = [[h.x, h.y], [h.x + t * ex, h.y + t * ey]];
   }
-  return { path, ob: clip(g.ob, L), ghost: h && [h.x, h.y], lands: g.lands, lost: g.scratch && g.split < 0, first: h ? h.b! : -1, stub, dead: !!stick?.dead && !!h && !h.air && h.cut! <= STRAIGHT };
+  return { path, ob, ghost: h && [h.x, h.y], lands: g.lands, lost: g.scratch && g.split < 0, first: h ? h.b! : -1, stub, dead };
 }
 // The first len metres of a path: the guide the Coil shows with its cue raised.
 export function shorten(path: number[][], len: number) {

@@ -138,3 +138,15 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
   assert(g(plumb) && !g(CUE) && !g(plumb, 2 * P.R * Math.sin(5 * DEG)), 'only the Plumb, and only on a straight hit');
   ok('the filled ghost ball');
 }
+{ // the guides of the cues whose trick is in the guide
+  const sh = (ang, speed = 2) => ({ ang, speed, a: 0, b: 0 }), Rc = P.R * Math.sqrt(1 - P.nose ** 2), end = p => p[p.length - 1];
+  // the Daybreak: the object ball's line runs on to what it meets, or to where it stops; no stub; a kick stops at the cushion
+  const day = (B, speed, ang = 0) => aimGuide(B, sh(ang, speed), 10, 12000, CUE, false, 1, 'daybreak');
+  near(end(day([mk(0.5, mid), mk(1, mid)], 2).ob)[0], P.L - Rc, 5e-3, 'to the foot cushion');
+  near(end(day([mk(0.5, mid), mk(1, mid), mk(1.6, mid)], 2).ob)[0], 1.6 - 2 * P.R, 5e-3, 'to the next ball');
+  const soft = day([mk(0.5, mid), mk(1, mid)], 0.6).ob; assert(len(soft) > 0.2 && len(soft) < 0.6 && end(soft)[0] < 1.6, `a soft shot's line ends where the ball stops (${len(soft)})`);
+  const o = [1.8, 0.3], a = Math.atan2(-0.3, P.L - 1.8), pot = day([mk(o[0] - 0.5 * Math.cos(a), o[1] - 0.5 * Math.sin(a)), mk(...o)], 2, a);
+  assert(Math.hypot(end(pot.ob)[0] - P.L, end(pot.ob)[1]) < 0.06 && !pot.stub.length, 'to the pocket, and no stub');
+  const kd = day([mk(0.4, 0.4), mk(1.4, 0.4)], 2, Math.atan2(-0.3725, 0.5)); assert(kd.first === -1 && !kd.ob.length, 'a kick stops at the first cushion');
+  ok('the guide of the Daybreak');
+}

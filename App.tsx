@@ -34,7 +34,7 @@ import { medalOf, newRun, type Opts, type Run } from './src/tournament/bracket';
 import { loadRun, saveRun } from './src/tournament/save';
 import { fits, type Snap } from './src/tournament/snap';
 import { tourMatch as tm, type TourMatch as TM } from './src/tournament/match';
-import { DRAG, nearest, previewPower, shorten, swing, TAP_MS, tapAim } from './src/shot/aim';
+import { DRAG, guideLen, nearest, previewPower, shorten, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { farGuide, type Guide, type GuideAsk, nearGuide } from './src/shot/far';
 import { guidePacer } from './src/shot/pacer';
 import { award, featsDone, keep, matchLeft, matchOpen, maxPick, ownStats, passPlayPay, payRun, profile, ramOwed, rivalDone, unlockCue } from './src/progress';
@@ -60,7 +60,7 @@ import { TipButton, TipSheet, tipStore } from './src/ui/TipControl';
 
 const GRAB = 36; // px: a touch this near the cue ball in hand drags it. The ball is smaller than a fingertip, so the
 // ball keeps its distance from the finger and stays in view.
-const GUIDE_WORK = 3200; // ball-steps the aim guide may follow after first contact. The steps before it are not capped: a slow guide is worked out off the JS thread (src/shot/pacer.ts)
+const GUIDE_WORK = 3200, LONG_WORK = 8000, DAY_WORK = 12000; // ball-steps the aim guide may follow after first contact: a guide of 45 cm or less past the hit, a longer one (3,200 cuts a 60 cm line short on most soft shots), and the Daybreak's. The steps before it are not capped: a slow guide is worked out off the JS thread (src/shot/pacer.ts)
 // Pass and play is a matched game: both players on House Cue stats with the perks off, whatever cues the phone owns.
 const MATCH_CUE = 'house', STICK = stick(MATCH_CUE, true), GUIDE_AIM = CUES[MATCH_CUE].aim; // one cue for the shot and its guide
 const THINK_MS = 800; // the AI takes at least this long, so a fast tier does not shoot the moment the table stops
@@ -307,6 +307,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   if (vs && own === 'aura' && hustler(foe()) && !won.current.aura) won.current.aura = { ...(profile().aura ?? { run: 0, owed: false }) };
   // The stats and the stick in play. The cue's own, but for a cue whose trick changes its stats in a match (the Marble).
   const inPlay = useRef({ stats: mine, cue });
+  const lines = vs && own === 'daybreak' ? own : undefined; // the cues whose trick is in the guide (aim.ts aimGuide)
   const struck = () => (inPlay.current.cue.dead && table.current.rules.phase === 'break' ? { ...inPlay.current.cue, dead: false } : inPlay.current.cue); // the stick for the shot now: the Plumb's Dead stop is off on the break
   const setStats = (st: typeof mine) => { const was = inPlay.current.stats; if (st.power === was.power && st.spin === was.spin && st.aim === was.aim) return; inPlay.current = { stats: st, cue: stick(own, false, st, vs) }; dirty(); };
   // The Maxxed's Statmaxxing: one stat is 10. The pick is free before the break shot of a rack. Once a rack the player may
@@ -372,7 +373,8 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
       if (stale.current) { // one guide a frame, however many touches came. While a shot can be made the guide and the cue stick are always there: for the pull on the rail, or for a firm shot without one
         stale.current = false; redo.current = true;
         const { power } = shot.get();
-        if (!shut() || watching()) guides.ask({ B, shot: shotOf(previewPower(power)), aim: S || vs ? inPlay.current.stats.aim : L ? 10 : GUIDE_AIM, budget: GUIDE_WORK, stick: struck(), real: watching() || pen, scale: pen ? guideScale(own) : 1 }, power > 0.05); // lessons use the full guide; watch shows the real path, as the shot plays next; so does the Surveyor, on a shorter guide
+        const stat = S || vs ? inPlay.current.stats.aim : L ? 10 : GUIDE_AIM;
+        if (!shut() || watching()) guides.ask({ B, shot: shotOf(previewPower(power)), aim: stat, budget: lines === 'daybreak' ? DAY_WORK : lines === 'banker' || guideLen(stat) > 0.45 ? LONG_WORK : GUIDE_WORK, stick: struck(), real: watching() || pen, scale: pen ? guideScale(own) : 1, trick: lines }, power > 0.05); // lessons use the full guide; watch shows the real path, as the shot plays next; so does the Surveyor, on a shorter guide
         else { guides.drop(); line.current = null; }
       }
       if (redo.current) { // the stick follows the finger every frame; the line is the newest guide there is, a few frames old when it came from the other thread
