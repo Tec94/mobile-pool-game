@@ -309,33 +309,41 @@ export function step(B:Ball[],ev?:Ev[]):boolean{
 // cluster sets many balls moving, and following them all until the first ball has run len can take a whole break.
 // The default follows every path to len; the app's guide passes a cap so one aim update fits in a frame.
 // follow = false: once the cue ball meets a ball, only that ball is followed on (the guide draws no more of the cue ball).
-export function predict(B:Ball[],shot:Shot,len:number,stick?:Cue,maxSteps=25000,budget=Infinity,follow=true){
+// For the guides of some cues: ends = stop when the first ball hit has met this many things after the hit (a ball, a
+// cushion, a pocket); kick = before its first hit the cue ball's path has no length limit until it has come off more
+// than this many cushions.
+export function predict(B:Ball[],shot:Shot,len:number,stick?:Cue,maxSteps=25000,budget=Infinity,follow=true,ends=Infinity,kick=0){
   const S=B.map(b=>({...b})),ev:Ev[]=[],c=S[0],cue:number[][]=[[c.x,c.y,0]],ob:number[][]=[];
   strike(c,shot,stick);
-  let split=-1,hit:Ev|null=null,o:Ball|null=null,cl=0,ol=0,scratch=false,apex=0;const lands:number[][]=[];
+  let split=-1,hit:Ev|null=null,o:Ball|null=null,cl=0,ol=0,scratch=false,apex=0,rails=0,at=-1,ov=[0,0];const lands:number[][]=[],met:number[][]=[];
   const add=(arr:number[][],b:Ball,count:boolean)=>{const q=arr[arr.length-1],d=q?hyp(b.x-q[0],b.y-q[1]):0;arr.push([b.x,b.y,b.z||0]);return count?d:0;};
   const idle=(b:Ball)=>!b.on||!(b.vx||b.vy||b.wx||b.wy||b.vz);
   for(let i=1;i<=maxSteps;i++){
-    ev.length=0;const mv=step(S,ev);let ce=false,oe=false;
+    ev.length=0;const mv=step(S,ev);let ce=false,oe=false,ne:Ev|null=null;
     if((c.z??0)>apex)apex=c.z!;
     for(const e of ev){
       if(e.t==='land'){if(e.a===0&&split<0)lands.push([e.x,e.y]);continue;}
       if(e.a===0||e.b===0){
         if(e.t==='pocket'||e.t==='off')scratch=true;
         else if(split<0){cue.push([e.x,e.y,c.z||0]);split=cue.length-1;}
-        if(e.t==='bb'&&!hit){hit=e;o=S[e.b!];ob.push([o.x,o.y,0]);}
+        if(e.t==='rail'&&!hit)rails++;
+        if(e.t==='bb'&&!hit){hit=e;o=S[e.b!];ob.push([o.x,o.y,0]);at=cue.length;ov=[hyp(o.vx,o.vy),hyp(o.vx-P.R*o.wy,o.vy+P.R*o.wx)];}
         ce=true;
       }
-      if(o&&(S[e.a]===o||(e.b!==undefined&&S[e.b]===o)))oe=true;
+      if(o&&(S[e.a]===o||(e.b!==undefined&&S[e.b]===o))){oe=true;if(e!==hit&&!ne)ne=e;}
     }
     if(i%4===0||ce)if(c.on)cl+=add(cue,c,split>=0);
     if(o&&(i%4===0||oe)&&o.on)ol+=add(ob,o,true);
+    if(ne){if(!o!.on)ob.push([ne.x,ne.y,0]);met.push([ob.length-1,ne.t==='bb'?0:ne.t==='rail'?1:2,ne.turn||0]);if(met.length>=ends)break;}
     // Only the cue ball and the first ball it hits are drawn, so stop once both are done, not when the whole table is.
     if(!mv||((idle(c)||o&&!follow)&&(!o||idle(o))))break;
-    if(split>=0&&(o&&!follow||cl>=len)&&(!o||ol>=len))break;
+    if(split>=0&&(o?!follow||cl>=len:kick?rails>kick:cl>=len)&&(!o||ol>=len))break;
     if(split>=0&&budget<Infinity){for(const b of S)if(b.on&&(b.vx||b.vy))budget--;if(budget<0)break;}
   }
-  return {cue,ob,split,hit,scratch,lands,apex}; // path points are [x,y,z]; lands = cue ball touchdowns before first contact
+  // path points are [x,y,z]; lands = cue ball touchdowns before first contact. For the first ball hit: met = [index in ob,
+  // 0 a ball, 1 a cushion, 2 a pocket or off the table, the turn at a cushion] for each thing it met after the hit;
+  // ov = its speed and the speed of its contact point on the cloth just after the hit; at = the index in cue of the first point after the hit.
+  return {cue,ob,split,hit,scratch,lands,apex,met,at,ov};
 }
 
 // Outcome of a shot without drawing anything, for the bot. maxSteps caps the cost (1 step = 1 ms of play);
