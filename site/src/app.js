@@ -8,7 +8,7 @@ import { cushions, RAIL } from '../../src/render/table.ts';
 import { zone } from '../../src/render/tip.ts';
 import { aimGuide } from '../../src/shot/aim.ts';
 import { BALLS, C, CLOTHS } from '../../src/theme.ts';
-import { CUE_ART } from '../../src/ui/cueArt.ts';
+import { ALL, G, LENGTH } from '../../src/render/cues/art.ts';
 import { ball, POCKET, PRESETS, shotOf } from './presets.mjs';
 
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -311,40 +311,40 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   load(p);
 }
 
-// ---- The cues: all 17 stand in a rack, drawn from the app's own outlines (CUE_ART). The one under the pointer, the
-// finger or the arrow keys steps forward and its name and stats show large. ----
+// ---- The cues: all 26 stand in a rack, each drawn by the app's own drawing (render/cues/art.ts). The one under the
+// pointer, the finger or the arrow keys steps forward and its name, trick and stats show large. ----
 {
-  const rackEl = $('rack'), name = $('cue-name'), bars = $('cue-bars'), dpr = Math.min(devicePixelRatio || 1, 2), W = 44, H = 420, ids = Object.keys(CUES);
+  const rackEl = $('rack'), name = $('cue-name'), trick = $('cue-trick'), bars = $('cue-bars'), ids = Object.keys(CUES);
+  const W = 44, H = 420, K = 2.6, D = 2, room = c => Math.max(0.012, (c.tail || 0) * K + 0.006), art = id => ALL.find(c => c.name === CUES[id].name);
+  const S = (H - 8) / (LENGTH + Math.max(...ids.map(id => room(art(id))))); // one scale for all: a cue with something on its end stands taller
   let at = -1;
   const pick = i => {
     if (i === at) return; at = i;
     [...rackEl.children].forEach((b, j) => b.setAttribute('aria-pressed', j === i));
     const cue = CUES[ids[i]]; name.textContent = cue.name;
+    trick.replaceChildren(...(cue.trick ? [Object.assign(document.createElement('b'), { textContent: cue.trick }), ' '] : []), cue.does.match(/^.*?\.(?= |$)/)[0]); // the card's first sentence
     bars.querySelectorAll('u').forEach((u, k) => { const n = cue[['power', 'spin', 'aim'][k]]; u.style.setProperty('--n', n); u.setAttribute('aria-label', `${n} of 10`); });
   };
+  const paint = () => [...rackEl.children].forEach((b, i) => {
+    const c = art(ids[i]), ctx = b.firstChild.getContext('2d');
+    ctx.setTransform(D, 0, 0, D, 0, 0); ctx.clearRect(0, 0, W, H);
+    ctx.translate(W / 2, H - 4 - (LENGTH + room(c)) * S); ctx.rotate(Math.PI / 2); // tip up, the end on the shelf
+    const g = G(ctx, c, S, K, 1.3, 0, Math.PI / 2);
+    c.under?.(g); ctx.save(); g.body(); ctx.clip(); c.paint(g); ctx.restore(); c.over?.(g);
+  });
   ids.forEach((id, i) => {
-    const b = document.createElement('button'), cv = document.createElement('canvas'), g = cv.getContext('2d'), { p: P_, seg, split } = CUE_ART[id];
-    b.type = 'button'; b.setAttribute('aria-label', CUES[id].name); cv.width = W * dpr; cv.height = H * dpr;
-    const w = f => { for (let j = 1; j < P_.length; j++) if (f <= P_[j][0]) { const [a, wa] = P_[j - 1], [c, wc] = P_[j]; return c === a ? wc : wa + (wc - wa) * (f - a) / (c - a); } return P_.at(-1)[1]; };
-    const len = H - 16, k = 6.2;
-    g.setTransform(dpr, 0, 0, dpr, 0, 0); g.translate(W / 2, 8); g.rotate(Math.PI / 2); // tip up
-    for (const [a, c, col] of seg) {
-      const f = [a, ...P_.map(q => q[0]).filter(x => x > a && x < c), c], hole = split && c > split[0] ? split[1] : 0;
-      g.fillStyle = col;
-      for (const sgn of hole ? [1, -1] : [1]) {
-        g.beginPath();
-        f.forEach(x => g.lineTo(x * len, -sgn * w(x) * k));
-        [...f].reverse().forEach(x => g.lineTo(x * len, (hole ? -sgn * w(x) * hole : w(x)) * k));
-        g.fill();
-      }
-    }
+    const b = document.createElement('button'), cv = document.createElement('canvas'), ctx = cv.getContext('2d');
+    b.type = 'button'; b.setAttribute('aria-label', CUES[id].name); cv.width = W * D; cv.height = H * D;
+    // the drawings ask for text as (str, x, y, px), centred: the app's canvas does that, a browser's wants a font
+    ctx.fillText = (str, x, y, px) => { ctx.font = `800 ${px}px "Bricolage Grotesque", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; CanvasRenderingContext2D.prototype.fillText.call(ctx, str, x, y); };
     b.append(cv); b.onpointerenter = b.onfocus = b.onclick = () => pick(i);
     rackEl.append(b);
   });
+  paint(); document.fonts.ready.then(paint); // the numbers on three cues wait for the font
   // A finger slid along the rack picks the cue under it (pointerenter does not fire for a touch that moves).
   rackEl.addEventListener('pointermove', e => { const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('button'); if (el?.parentElement === rackEl) pick([...rackEl.children].indexOf(el)); });
   rackEl.addEventListener('keydown', e => { const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (d) { e.preventDefault(); const i = (at + d + ids.length) % ids.length; pick(i); rackEl.children[i].focus(); } });
-  pick(ids.indexOf('rocket'));
+  pick(ids.indexOf('hindsight'));
 }
 
 // ---- The waitlist forms ----
