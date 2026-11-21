@@ -10,6 +10,7 @@ import { aimGuide } from '../../src/shot/aim.ts';
 import { BALLS, C, CLOTHS } from '../../src/theme.ts';
 import { ALL, G, LENGTH } from '../../src/render/cues/art.ts';
 import { ball, POCKET, PRESETS, shotOf } from './presets.mjs';
+import { BALLS as SPOTS, NOW, PLAN, shotFor, STEPS, when } from './roadmap.mjs';
 
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $ = id => document.getElementById(id);
@@ -145,10 +146,11 @@ function makeTable(top, felt) {
     ctx.globalAlpha = 1;
   }
 
-  // v = { B, ids, look, guide, cue, puff: { x, y, age }, ring: HOLES index, fade }
+  // v = { B, ids, look, guide, cue, puff: { x, y, age }, ring: HOLES index, mark: index of a ball to ring, fade }
   function draw(v) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, top.width, top.height);
     if (v.ring != null) { const [x, y, r] = HOLES[v.ring]; ctx.strokeStyle = C.white; ctx.lineWidth = r * s * 0.2; disc(X(x), Y(y), r * s * 0.62); ctx.stroke(); }
+    if (v.mark != null && v.B[v.mark].on) { const b = v.B[v.mark]; ctx.strokeStyle = C.white; ctx.lineWidth = Math.max(1.5, P.R * s * 0.22); disc(X(b.x), Y(b.y), P.R * s * 1.75); ctx.stroke(); }
     top.style.opacity = v.fade ?? 1;
     if (v.guide) drawAim(v.guide);
     drawBalls(v);
@@ -345,6 +347,71 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   rackEl.addEventListener('pointermove', e => { const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('button'); if (el?.parentElement === rackEl) pick([...rackEl.children].indexOf(el)); });
   rackEl.addEventListener('keydown', e => { const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (d) { e.preventDefault(); const i = (at + d + ids.length) % ids.length; pick(i); rackEl.children[i].focus(); } });
   pick(ids.indexOf('hindsight'));
+}
+
+// ---- The roadmap: a nine-ball run-out (roadmap.mjs). When the table comes into view the cue pots the balls of the
+// steps that are done, one after the other, and each drops into the tray under the table; then it lines up on the
+// ball of the step in hand and waits. A slot of the tray shows its step, printed on the cloth. ----
+{
+  const table = makeTable($('road'), $('road-felt')), v = { B: [], ids: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], look: null, cue: null };
+  const tray = $('tray'), nameEl = $('road-name'), again = $('again');
+  let k = 0, state = 'wait', t = 0, swing, sel = -1, mine = false, pace = 1, acc = 0, sc;
+  const slots = STEPS.map((step, i) => {
+    const li = document.createElement('li'), b = document.createElement('button');
+    b.type = 'button'; b.innerHTML = `<i class="ball b${i + 1}"><i>${i + 1}</i></i>`;
+    b.onclick = () => { mine = true; pick(i); };
+    li.append(b); tray.append(li); return b;
+  });
+  const down = i => !v.B[i + 1].on;
+  let shown = '';
+  function pick(i) { // step i on the cloth; its tag waits until its ball is down, so "Done" lands with the ball
+    const tag = down(i) || i >= NOW, key = `${i}${tag}`; sel = i;
+    if (key !== shown) {
+      shown = key;
+      nameEl.replaceChildren(...STEPS[i].name.map(line => Object.assign(document.createElement('span'), { textContent: line })), Object.assign(document.createElement('em'), { textContent: when(i), className: (i < NOW ? 'done' : i === NOW ? 'now' : 'later') + (tag ? '' : ' wait') }));
+      nameEl.style.animation = 'none'; nameEl.offsetWidth; nameEl.style.animation = ''; // plays its entrance again
+    }
+    slots.forEach((b, j) => { b.setAttribute('aria-pressed', j === i); b.classList.toggle('in', down(j)); b.classList.toggle('now', j === NOW); b.setAttribute('aria-label', `${j + 1}: ${STEPS[j].name.join(' ')}, ${when(j).toLowerCase()}`); });
+    v.mark = down(i) ? null : i + 1; v.ring = down(i) ? PLAN[i][0] : null;
+    if (sc) sc.dirty = true;
+  }
+  function aim() { // the cue comes to the next ball; at NOW it stays there, with the guide
+    if (k > 8) { v.cue = null; state = 'hold'; if (!mine) pick(8); return; } // all nine are down
+    const shot = shotFor(v.B, k), c = v.B[0];
+    v.cue = { x: c.x, y: c.y, ang: shot.ang, elev: 0, back: 0.03, a: 0 }; state = k < NOW ? 'aim' : 'hold'; t = 0;
+    if (k < NOW) swing = stroke(v, table, shot, PLAN[k][1], () => { strike(v.B[0], shot); state = 'run'; pace = 1; });
+    else { v.guide = aimGuide(v.B, shot, CUES.house.aim); if (!mine) pick(Math.min(k, 8)); }
+  }
+  function set(done) { // done = straight to the end of the run, with no film
+    v.B = SPOTS.map(q => ball(...q)); v.look = newLook(v.B); v.puff = v.guide = null; k = 0; mine = false;
+    if (done) for (; k < NOW; k++) { const shot = shotFor(v.B, k); strike(v.B[0], shot); while (advance(v.B, v.look, 34, true)); v.B[k + 1].on = false; }
+    v.look.fx.length = 0; shown = ''; pick(0); aim();
+    if (done && v.cue) { v.cue.a = 1; v.cue.back = 0.04; }
+    if (!done) state = 'wait';
+  }
+  set(calm);
+  again.onclick = () => { set(false); state = 'aim'; };
+  if (calm) again.hidden = true;
+  new IntersectionObserver(([e]) => { if (e.isIntersecting && state === 'wait') state = 'aim'; }, { threshold: 0.45 }).observe(table.canvas);
+  sc = scene(table, (ms, me) => {
+    if (state === 'wait' || (state === 'hold' && calm)) { if (me.dirty) { table.draw(v); me.dirty = false; } return; }
+    t += ms;
+    if (state === 'aim') { // the cue comes in and draws back, then the stroke
+      v.cue.a = Math.min(1, t / 160);
+      if (t < 520) v.cue.back = 0.03 + 0.1 * PLAN[k][1] * (1 - (1 - Math.min(1, t / 420)) ** 3); else swing(ms);
+    } else if (state === 'run') {
+      swing(ms);
+      // Once the ball is down the film runs faster, so the cue ball's slow roll to its place does not hold the next shot up.
+      pace += ((v.B[k + 1].on ? 1.15 : 2.6) - pace) * Math.min(1, ms / 250);
+      acc += ms * pace; const n = Math.floor(acc); acc -= n;
+      const was = v.B[k + 1].on, moving = advance(v.B, v.look, n, true);
+      if (!moving) v.B[k + 1].on = false; // a ball that stayed up (it cannot: the test runs every shot) is taken off
+      if (was && !v.B[k + 1].on) pick(mine ? sel : k);
+      if (!moving) { k++; state = 'rest'; t = 0; }
+    } else if (state === 'rest') { advance(v.B, v.look, ms, false); if (t > 260) aim(); }
+    else if (v.cue) { advance(v.B, v.look, ms, false); v.cue.a = Math.min(1, t / 300); v.cue.back = 0.04 + 0.022 * Math.sin(t / 600); } // hold: the cue feathers at the ball
+    table.draw(v);
+  });
 }
 
 // ---- The waitlist forms ----
