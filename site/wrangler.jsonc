@@ -3,7 +3,10 @@
   "name": "runout-waitlist",
   "main": "worker.js",
   "compatibility_date": "2026-10-01",
-  "assets": { "directory": "./public", "binding": "ASSETS" },
+  // run_worker_first: every request passes worker.js so www and workers.dev can redirect to runout.win.
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": true },
+  "routes": [{ "pattern": "runout.win", "custom_domain": true }, { "pattern": "www.runout.win", "custom_domain": true }],
+  "workers_dev": true,
   "d1_databases": [{ "binding": "DB", "database_name": "runout-waitlist", "database_id": "aa62e36e-f59a-492a-b17f-abad799fcdf0" }],
   // Five signups a minute from one address (worker.js). namespace_id is any number not used by another limiter in the account.
   "ratelimits": [{ "name": "LIMIT", "namespace_id": "2601", "simple": { "limit": 5, "period": 60 } }],
