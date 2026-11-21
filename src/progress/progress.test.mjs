@@ -184,6 +184,20 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   ok('ledger: shots, fouls, own balls and Fresh Chalk');
 }
 
+{ // a match won only on the break: no match pay, no Fresh Chalk spent, the break's pots still paid
+  const l = newLedger(); let asked = 0; const chalk = (won, p) => { asked++; return p; };
+  noteShot(l, { pay: { xp: 10, coins: 4 }, run: 1, own: 0 }, false, true);
+  eq(settle(l, { tier: 1, won: true, early: false, racks: 1 }, chalk), { match: { xp: 0, coins: 0 }, shots: { xp: 10, coins: 4 }, chalk: null, total: { xp: 10, coins: 4 }, note: 'Won on the break: no match pay.' }, 'race to 1 won on the break: the shots only');
+  eq(asked, 0, 'Fresh Chalk is not asked, so no charge is spent');
+  eq(settle(l, { tier: 1, won: true, early: false, racks: 2 }).match, matchPay({ tier: 1, won: true, fouls: 0 }), 'one of two racks won in play: the win pays');
+  noteShot(l, { pay: { xp: 0, coins: 0 }, run: 0, own: 0 }, false, true);
+  eq(settle(l, { tier: 1, won: true, early: false, racks: 2 }).note, 'Won on the break: no match pay.', 'both racks on the break: no pay');
+  eq(settle(l, { tier: 2, won: false, early: false, racks: 2 }).match, matchPay({ tier: 2, won: false, fouls: 0, ownPotted: 0 }), 'a loss pays as before');
+  eq(settle(newLedger(), { tier: 1, won: true, early: false, racks: 1 }).note, undefined, 'a rack the AI handed over pays');
+  eq(settle({ ...newLedger() }, { tier: 1, won: true, early: false }).note, undefined, 'no rack count: pays as before');
+  ok('a win on the break alone pays no match pay');
+}
+
 { eq(shotPay({ pRef: 0.9, tier: 3, tour: 2 }), { xp: 20, coins: 8 }, 'a tournament final pays its shots x2');
   eq(safetyPay({ tier: 3, tour: 1.5 }).xp, Math.round(1.5 * safetyPay({ tier: 3 }).xp), 'and its safeties');
   eq(matchPay({ tier: 3, won: true, fouls: 1, tour: 3 }), { xp: 540, coins: 360 }, 'a match: x its round and frames');

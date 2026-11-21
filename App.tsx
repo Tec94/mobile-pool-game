@@ -307,7 +307,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   apply.current = (s: State) => {
     const t = table.current;
     if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++; if (score.current[s.winner] === race) {
-      const r = vs ? settle(won.current, { tier: rival || tour ? tenth(level.current) : ai + 1, won: s.winner === 0, early: s.winner === 1 && s.early, tour: tour && tour.stakes * race }, chalk) // only an early 8 pays nothing
+      const r = vs ? settle(won.current, { tier: rival || tour ? tenth(level.current) : ai + 1, won: s.winner === 0, early: s.winner === 1 && s.early, tour: tour && tour.stakes * race, racks: score.current[0] }, chalk) // only an early 8 pays nothing
         : { match: PASS_PLAY, shots: { xp: 0, coins: 0 }, chalk: null, total: PASS_PLAY };
       // A tournament saves the result, then pays it (with any prize) marked in the profile: tour.done.
       if (tour) { const p = tour.prize(s.winner === 0); prize.current = p && (p.xp || p.coins) ? p : null; }
@@ -366,7 +366,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
         if (!queue.value.length && L) { table.current.rec = null; ended.current(rec as LessonRec); }
         else if (!queue.value.length) {
           const next = judge(s, rec, pushOut);
-          if (vs && s.turn === 0) noteShot(won.current, potPay(cands.current, rec, s, next, won.current.run, rival || tour ? { boss: level.current, tour: tour?.stakes } : { tier: ai + 1 }), next.foul && next.phase !== 'over'); // a foul that ends the rack does not cost the clean-match bonus
+          if (vs && s.turn === 0) noteShot(won.current, potPay(cands.current, rec, s, next, won.current.run, rival || tour ? { boss: level.current, tour: tour?.stakes } : { tier: ai + 1 }), next.foul && next.phase !== 'over', s.phase === 'break' && next.phase === 'over' && next.winner === 0); // a foul that ends the rack does not cost the clean-match bonus; a rack won on the break shot is counted (pay.ts settle)
           if (next.phase === 'over' || next.foul) Haptics.notificationAsync(next.winner < 0 ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
           apply.current(next);
         }
@@ -634,6 +634,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
           {!done && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{`${names[1 - rules.breaker]} breaks`}</Text>}
           {paid && <PayRow label={!vs ? 'Pass and play' : win === 0 ? 'Match win' : 'Match'} xp={paid.match.xp} coins={paid.match.coins} twice={!!paid.chalk} />}
           {paid && vs && <PayRow label="Shots" xp={paid.shots.xp} coins={paid.shots.coins} />}
+          {!!paid?.note && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{paid.note}</Text>}
           {paid && prize.current && <PayRow label="Prize" xp={prize.current.xp} coins={prize.current.coins} />}
           {paid && <PayTotal xp={paid.total.xp + (prize.current?.xp ?? 0)} coins={paid.total.coins + (prize.current?.coins ?? 0)} />}
           {done && gained.current && <Gained {...gained.current} />}
