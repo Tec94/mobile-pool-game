@@ -420,3 +420,14 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   assert(drift({ ...hex, curl: 1.5 }, side) === drift(hex, side), 'curl does nothing under 4 degrees');
   console.log('stick tricks ok'); }
 console.log('all checks passed');
+{ // the Plumb's Dead stop: on a straight first hit the cue ball stops where it hits, whatever spin is on it; a 3.1 degree cut plays on
+  const { strike, step, CUE, P, STRAIGHT } = EngineAll, plumb = { ...CUE, dead: true };
+  const play = (cue, offY, b) => { const B = [mk(0.5, 0.5), mk(1.2, 0.5 + offY)], ev = []; let hit = null; strike(B[0], { ang: 0, speed: 2, a: 0.3, b }, cue);
+    for (let i = 0; i < 1200; i++) { ev.length = 0; step(B, ev); hit ??= ev.find(e => e.t === 'bb'); } return { B, hit }; }; // 1.2 s: before the object ball can come back
+  for (const b of [0.4, -0.4]) { const { B, hit } = play(plumb, 0, b);
+    assert(Math.hypot(B[0].x - hit.x, B[0].y - hit.y) < 1e-3 && B[1].x > 1.3 && !B[0].dead && !B[0].vx, `with ${b > 0 ? 'follow' : 'draw'} the cue ball stops at the hit and the object ball goes on`);
+    assert(Math.abs(play(CUE, 0, b).B[0].x - hit.x) > 0.03, 'any other cue runs on'); }
+  const off = 2 * R * Math.sin(3.1 / D), cut = play(plumb, off, 0.4);
+  assert(cut.hit.cut > STRAIGHT && Math.hypot(cut.B[0].x - cut.hit.x, cut.B[0].y - cut.hit.y) > 0.1, `a ${(cut.hit.cut * D).toFixed(2)} degree cut switches the stop off`);
+  const c = mk(0.5, 0.5); c.dead = true; strike(c, { ang: 0, speed: 2, a: 0, b: 0 }, CUE); assert(c.dead === false, 'the next strike with another cue clears the flag');
+  console.log('dead stop ok'); }

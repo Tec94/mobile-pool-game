@@ -70,7 +70,8 @@ export function drawTable(api: typeof Skia, canvas: SkCanvas, v: View, cloth = C
 // `ob` is the path of the ball it meets first, from that ball. `bad` = the rules do not let the cue ball hit that ball
 // first: the ghost is a prohibited sign in the warning colour and the ball's path is not drawn, as the shot is a foul.
 // `stub` = [from, to]: where the cue ball leaves the ghost ball, only a hint, so it is fainter and fades out.
-export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: number[][], ghost?: number[] | null, lands: number[][] = [], lost = false, ob: number[][] = [], bad = false, stub: number[][] = []) {
+// x = what a cue's trick adds: fill = the ghost ball is filled in (the Plumb: the cue ball stops there).
+export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: number[][], ghost?: number[] | null, lands: number[][] = [], lost = false, ob: number[][] = [], bad = false, stub: number[][] = [], x: { fill?: boolean } = {}) {
   const r = P.R * v.s, p = api.Paint(); p.setAntiAlias(true); p.setColor(api.Color(C.chalk)); p.setStyle(1); p.setStrokeCap(1); p.setStrokeJoin(1); // stroke, round, round
   p.setAlphaf(0.92); p.setStrokeWidth(0.19 * r);
   let run: number[][] = [];
@@ -89,6 +90,7 @@ export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: numbe
     const g = toScreen(v, ghost[0], ghost[1]), d = 0.92 * r * Math.SQRT1_2;
     if (bad) { p.setColor(api.Color(C.warn)); p.setAlphaf(1); p.setStrokeWidth(0.22 * r); canvas.drawLine(g.x - d, g.y - d, g.x + d, g.y + d, p); } // the slash of the sign
     canvas.drawCircle(g.x, g.y, 0.92 * r, p);
+    if (x.fill && !bad) { p.setStyle(0); p.setAlphaf(0.75); canvas.drawCircle(g.x, g.y, 0.92 * r, p); p.setStyle(1); p.setAlphaf(0.9); } // 0 = PaintStyle.Fill
   }
   if (lost) { const q = path[path.length - 1], g = toScreen(v, q[0], q[1]); p.setColor(api.Color(C.warn)); canvas.drawCircle(g.x, g.y, 0.92 * r, p); }
 }

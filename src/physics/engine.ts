@@ -2,10 +2,11 @@
 // Pool physics engine. This file is the source. The lab page (physics/pool-physics-lab.html in the project files, the
 // <script id="engine"> block) is a copy with the types stripped: change this file first, then copy it there. Pure TS: no React, no DOM.
 export type Game=8|9;
-export interface Ball{x:number;y:number;vx:number;vy:number;wx:number;wy:number;wz:number;on:boolean;z?:number;vz?:number}
+export interface Ball{x:number;y:number;vx:number;vy:number;wx:number;wy:number;wz:number;on:boolean;z?:number;vz?:number;dead?:boolean} // dead = the cue ball stops dead at its first hit when that hit is straight (the Plumb): the strike sets it, the first hit ends it
 export interface Shot{ang:number;speed:number;a:number;b:number;elev?:number}
-export interface Cue{maxSpeed:number;breakSpeed:number;squirt:number;tipLimit:number;maxElev:number;minElev?:number;massRatio?:number;curl?:number} // curl = how much more a raised cue curves the ball (the Coil), 1 when left out
+export interface Cue{maxSpeed:number;breakSpeed:number;squirt:number;tipLimit:number;maxElev:number;minElev?:number;massRatio?:number;curl?:number;dead?:boolean} // curl = how much more a raised cue curves the ball (the Coil), 1 when left out; dead = the Plumb's stop (Ball.dead)
 export const RAISED=4*Math.PI/180-1e-9; // a cue at 4 degrees or more is raised: below it the tip control snaps flat
+export const STRAIGHT=3*Math.PI/180; // a hit with a cut of 3 degrees or less is straight (the Plumb)
 export interface Ev{t:'bb'|'rail'|'pocket'|'off'|'land';a:number;b?:number;x:number;y:number;cut?:number;thr?:number;air?:boolean;turn?:number} // turn = how far a cushion turned the ball's direction, radians (rail)
 type Vec3=[number,number,number];
 interface Contact{i:number;j:number;nx:number;ny:number;nz:number;tb:number;cut:number;jn:number;goal:number;f:Vec3|null}
@@ -114,6 +115,7 @@ export function strike(b:Ball,s:Shot,cue:Cue=CUE){
   const cu=el>=RAISED?cue.curl??1:1; // the spin about the line of travel, which curves the ball
   b.vx=v*dx*ce;b.vy=v*dy*ce;b.wx=-k*s.b*dy+cu*k*s.a*se*dx;b.wy=k*s.b*dx+cu*k*s.a*se*dy;b.wz=k*s.a*ce;
   b.z=0;b.vz=0;
+  if(cue.dead||b.dead)b.dead=!!cue.dead; // a trick's flag rides on the cue ball and every strike sets it again, so no look-ahead inherits it
   // Past 45 degrees the ball is increasingly trapped between tip and slate, so the rebound fades: lift*g/(1+g^4)^(1/4)
   // with g = 16cos^8(elev), a smooth version of min(1,g). 30 degrees gives a long low hop, about 42 the highest, and
   // from 60 up the ball stays on the cloth at any power (masse).
@@ -140,6 +142,7 @@ function land(a:Ball,b:Ball,ev:Ev[]|undefined,i:number,j:number,nx:number,ny:num
     const cx=k*ny*tz,cy=-k*nx*tz,cz=k*(nx*ty-ny*tx);
     a.wx+=cx;a.wy+=cy;a.wz+=cz;b.wx+=cx;b.wy+=cy;b.wz+=cz;}
   a.vx-=jn*nx;a.vy-=jn*ny;b.vx+=jn*nx;b.vy+=jn*ny;
+  if(a.dead){a.dead=false;if(cut<=STRAIGHT)a.vx=a.vy=a.wx=a.wy=a.wz=0;} // the Plumb: the speed and all the spin go. Only the cue ball carries the flag, and it is the first ball of its pair
   // cut and thr describe a moving ball a hitting a resting ball b (the cue ball's first hit); thr is b's departure
   // from the line of centres.
   if(ev)ev.push({t:'bb',a:i,b:j,x:a.x,y:a.y,cut,thr:Math.atan2(nx*b.vy-ny*b.vx,nx*b.vx+ny*b.vy)});
@@ -173,6 +176,7 @@ function air(a:Ball,b:Ball,c:Contact,ev?:Ev[]){
   const {nx,ny,nz,tb}=c,o=[a.vx,a.vy,a.vz||0,b.vx,b.vy,b.vz||0],jn=(1+P.eb)/2*((a.vx-b.vx)*nx+(a.vy-b.vy)*ny+((a.vz||0)-(b.vz||0))*nz),hn=hyp(nx,ny)||1,cut=cutOf(a,nx/hn,ny/hn);
   a.vx-=jn*nx;a.vy-=jn*ny;a.vz=(a.vz||0)-jn*nz;b.vx+=jn*nx;b.vy+=jn*ny;b.vz=(b.vz||0)+jn*nz;
   for(const q of [a,b])if(!((q.z??0)>0)&&(q.vz??0)<0)q.vz=0;
+  if(a.dead)a.dead=false; // a hit in the air is the first hit, and no stop
   if(!nx&&!ny)a.vx+=1e-3; // dead centre on top of a ball is a balance point that never settles: tip it off, always the same way
   // Put both balls where they would be had the bounce happened at the instant of contact (as the ground path does);
   // without this a ball coming down on top of another sinks into it and can come to rest overlapping.

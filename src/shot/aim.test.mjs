@@ -133,3 +133,8 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
   assert.deepStrictEqual([shorten([[0, 0], [0.1, 0]], 0.2), shorten([], 0.2)], [[[0, 0], [0.1, 0]], []], 'a shorter path is kept; no path stays none');
   ok('a guide cut to a length');
 }
+{ // the Plumb's guide: the ghost ball fills in when the cue ball will stop dead there
+  const plumb = { ...CUE, dead: true }, g = (stick, off = 0) => aimGuide([mk(0.5, mid), mk(1.2, mid + off)], { ang: 0, speed: 2, a: 0, b: 0 }, 6, undefined, stick).dead;
+  assert(g(plumb) && !g(CUE) && !g(plumb, 2 * P.R * Math.sin(5 * DEG)), 'only the Plumb, and only on a straight hit');
+  ok('the filled ghost ball');
+}

@@ -307,6 +307,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   if (vs && own === 'aura' && hustler(foe()) && !won.current.aura) won.current.aura = { ...(profile().aura ?? { run: 0, owed: false }) };
   // The stats and the stick in play. The cue's own, but for a cue whose trick changes its stats in a match (the Marble).
   const inPlay = useRef({ stats: mine, cue });
+  const struck = () => (inPlay.current.cue.dead && table.current.rules.phase === 'break' ? { ...inPlay.current.cue, dead: false } : inPlay.current.cue); // the stick for the shot now: the Plumb's Dead stop is off on the break
   const setStats = (st: typeof mine) => { const was = inPlay.current.stats; if (st.power === was.power && st.spin === was.spin && st.aim === was.aim) return; inPlay.current = { stats: st, cue: stick(own, false, st, vs) }; dirty(); };
   // The Maxxed's Statmaxxing: one stat is 10. The pick is free before the break shot of a rack. Once a rack the player may
   // pick again at the start of a turn (visit = the shots of this visit to the table); the pick is spent at the strike,
@@ -371,7 +372,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
       if (stale.current) { // one guide a frame, however many touches came. While a shot can be made the guide and the cue stick are always there: for the pull on the rail, or for a firm shot without one
         stale.current = false; redo.current = true;
         const { power } = shot.get();
-        if (!shut() || watching()) guides.ask({ B, shot: shotOf(previewPower(power)), aim: S || vs ? inPlay.current.stats.aim : L ? 10 : GUIDE_AIM, budget: GUIDE_WORK, stick: inPlay.current.cue, real: watching() || pen, scale: pen ? guideScale(own) : 1 }, power > 0.05); // lessons use the full guide; watch shows the real path, as the shot plays next; so does the Surveyor, on a shorter guide
+        if (!shut() || watching()) guides.ask({ B, shot: shotOf(previewPower(power)), aim: S || vs ? inPlay.current.stats.aim : L ? 10 : GUIDE_AIM, budget: GUIDE_WORK, stick: struck(), real: watching() || pen, scale: pen ? guideScale(own) : 1 }, power > 0.05); // lessons use the full guide; watch shows the real path, as the shot plays next; so does the Surveyor, on a shorter guide
         else { guides.drop(); line.current = null; }
       }
       if (redo.current) { // the stick follows the finger every frame; the line is the newest guide there is, a few frames old when it came from the other thread
@@ -379,7 +380,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
         if (!shut() || watching() || lining.current) {
           const bad = !!g && !L && !pushOut && g.first > 0 && !legalFirst(s, ids[g.first]); // the ghost meets a ball the rules do not allow first
           const coiled = vs && s.turn === 0 && own === 'coil' && tip.get().elev >= 4; // the Coil's price: with the cue raised the guide stops 20 cm from the cue ball
-          if (g && !(S && les.current.guideOff) && !dark(power)) { peeked.current = true; if (coiled) drawAim(Skia, c, map.current, shorten(g.path, 0.2)); else drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob, bad, g.stub); }
+          if (g && !(S && les.current.guideOff) && !dark(power)) { peeked.current = true; if (coiled) drawAim(Skia, c, map.current, shorten(g.path, 0.2)); else drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob, bad, g.stub, { fill: g.dead }); }
           if (!grab.current || grab.current === 'call') drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power, (S || vs) && !lining.current ? own : undefined); // no stick while a finger carries the cue ball in hand; the player's own cue where it counts, the plain stick for the AI and for matched games
         }
         guide.value = rec.finishRecordingAsPicture(); redo.current = false;
@@ -450,7 +451,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     visit.current++;
     if (vs && own === 'ratchet') notches.current = notch(notches.current, power);
     if (ram) { blind.current = ramOwes(blind.current, powerOf(power), t.rules.phase === 'break'); ramOwed(blind.current); }
-    t.rec = L ? newLessonRec() : newRec(sh); strike(t.B[0], sh, inPlay.current.cue); moving.current = true; wake.current();
+    t.rec = L ? newLessonRec() : newRec(sh); strike(t.B[0], sh, struck()); moving.current = true; wake.current();
     tip.set(LEVEL); setSheet(false); setTools(false); shot.set({ power: 0, fine: false, locked: true });
   };
   // The AI's shot: its cue ball in hand, its line-up, its call, then the strike as fire() makes it. The AI plans on the
@@ -472,7 +473,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     const t = table.current, sh = snap0?.shot;
     if (!sh) return;
     if (t.rules.turn === 0) cands.current = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules);
-    t.rec = newRec(sh); strike(t.B[0], sh, t.rules.turn === 0 ? inPlay.current.cue : STICK); moving.current = true; shot.set({ power: 0, locked: true }); paint(); redraw();
+    t.rec = newRec(sh); strike(t.B[0], sh, t.rules.turn === 0 ? struck() : STICK); moving.current = true; shot.set({ power: 0, locked: true }); paint(); redraw();
   }, []);
   // The AI's moves on the table play out over time: tween runs f(eased 0..1) each frame for ms, rests, then done().
   // drop() ends a tween the turn left (a pause, a new ruling, leaving the match) and runs its undo.
