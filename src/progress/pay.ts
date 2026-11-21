@@ -1,5 +1,6 @@
 // What a shot and a match pay (progression design). The vs-AI modes call these; pass and play pays a flat amount (profile.ts passPlay).
 import type { CueId } from './cues.ts';
+import type { FeatId } from './profile.ts';
 
 export interface Pay { xp: number; coins: number }
 export type ShotType = 'direct' | 'bank' | 'combo' | 'kick';
@@ -54,11 +55,38 @@ export function matchPay(m: Match): Pay {
 // A quick match's pay so far: what the human's shots earned, the run of pots this visit, and the fouls and own balls
 // potted that matchPay reads at the end. noteShot adds a shot the rules have judged (potPay in src/ai/turn.ts).
 // brk = the racks won on the player's own break shot (not in a ledger saved before it was counted).
-export interface Ledger { shots: Pay; run: number; fouls: number; own: number; brk?: number }
+// For the feats (profile.ts FEATS), which the match counts and its end saves: feats = the counts so far; turn = the
+// player's own balls potted this turn; pairs = the 6 and the 7 potted in one turn this rack, counted when the rack
+// ends and not when the player's own shot loses it (or the pair and then the 8 on a foul is a loop); behind = this
+// 8-ball rack the opponent was 3 balls or more ahead; down = this match the player was 2 racks down.
+export interface Ledger { shots: Pay; run: number; fouls: number; own: number; brk?: number; feats?: Partial<Record<FeatId, number>>; turn?: { ids: number[]; hot?: boolean; pair?: boolean }; pairs?: number; behind?: boolean; down?: boolean }
 export const newLedger = (): Ledger => ({ shots: { xp: 0, coins: 0 }, run: 0, fouls: 0, own: 0 });
-export function noteShot(l: Ledger, p: { pay: Pay; run: number; own: number }, foul: boolean, brkWin = false) {
+const count = (l: Ledger, id: FeatId, n = 1) => { if (n) (l.feats ??= {})[id] = (l.feats[id] ?? 0) + n; };
+// p = what potPay gave: feats = the feats its pots count for; mine = the player's own balls potted to keep the turn
+// (none on the break). hard = the opponent is Hustler or harder; lost = this shot lost the rack.
+export function noteShot(l: Ledger, p: { pay: Pay; run: number; own: number; feats?: FeatId[]; mine?: number[] }, foul: boolean, brkWin = false, hard = false, lost = false) {
   l.shots.xp += p.pay.xp; l.shots.coins += p.pay.coins; l.run = p.run; l.own += p.own; l.fouls += +foul;
   if (brkWin) l.brk = (l.brk ?? 0) + 1;
+  for (const f of p.feats ?? []) count(l, f);
+  const t = l.turn ??= { ids: [] }; t.ids.push(...(p.mine ?? []));
+  if (hard && !t.hot && t.ids.length >= 7) { t.hot = true; count(l, 'heater'); }                               // Heater: 7 of your balls in one turn
+  if (hard && !t.pair && t.ids.includes(6) && t.ids.includes(7)) { t.pair = true; l.pairs = (l.pairs ?? 0) + 1; } // Thirteen: the 6 and the 7 in one turn
+  if (!p.run) delete l.turn; // the turn is over
+  if (lost) l.pairs = 0;
+}
+// A rack is over. Counts its pairs, and in 8-ball a comeback (Nine Lives): won after the opponent was 3 balls ahead.
+export function rackOver(l: Ledger, won: boolean, hard: boolean) {
+  count(l, 'thirteen', l.pairs ?? 0);
+  if (won && hard && l.behind) count(l, 'lives');
+  l.pairs = 0; l.behind = false; delete l.turn; l.run = 0;
+}
+// The feats of a finished match: what its shots and racks counted, and what the result counts. A win on the break
+// alone (settle's note) counts for none. Living Legend: a win against Legend, or a Rival rated 6.0 or more. Giant
+// Killer: a win against Shark or harder with the Twig. Nine Lives in 9-ball: a race won after being 2 racks down.
+export function matchFeats(l: Ledger, m: { vs: Vs; won: boolean; cue?: CueId; dry?: boolean }): Partial<Record<FeatId, number>> {
+  const f = { ...l.feats }, r = rated(m.vs), add = (id: FeatId) => { f[id] = (f[id] ?? 0) + 1; };
+  if (m.won && !m.dry) { if (r >= 6) add('legend'); if (r >= 4 && m.cue === 'twig') add('giant'); if (r >= 3 && l.down) add('lives'); }
+  return f;
 }
 // The pay lines of a finished match. chalk = what Fresh Chalk paid (the match pay again on a win, not the shot pay),
 // null when it paid nothing.
@@ -66,7 +94,7 @@ export function noteShot(l: Ledger, p: { pay: Pay; run: number; own: number }, f
 // nothing for the win and spends no Fresh Chalk (note says why): with a seeded rack the 9 still goes down on about 6%
 // of 9-ball breaks, and breaking, then leaving when it stays up, paid about as much an hour as playing Rookie well.
 // The break's pots still pay as shots. A rack the AI hands over (three fouls, an early 8) is not won on the break.
-export interface Settled { match: Pay; shots: Pay; chalk: Pay | null; total: Pay; note?: string }
+export interface Settled { match: Pay; shots: Pay; chalk: Pay | null; total: Pay; note?: string; got?: string[] } // got = the cues the match's feats gave
 export const BREAK_ONLY = 'Won on the break: no match pay.';
 export function settle(l: Ledger, m: { tier: number; won: boolean; early: boolean; tour?: number; racks?: number }, chalk?: (won: boolean, match: Pay) => Pay): Settled {
   const dry = m.won && !!m.racks && (l.brk ?? 0) >= m.racks;

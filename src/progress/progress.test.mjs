@@ -2,9 +2,9 @@
 import assert from 'node:assert';
 import { CUE } from '../physics/engine.ts';
 import { CUE_IDS, CUES, soon, specLine, specs, stick } from './cues.ts';
-import { matchPay, newLedger, noteShot, safetyPay, settle, shotPay } from './pay.ts';
+import { hustler, matchFeats, matchPay, newLedger, noteShot, rackOver, safetyPay, settle, shotPay } from './pay.ts';
 import { cueGain, masteryLevel, masteryNote, masteryOf, readMastery, statsOf, tuneDown, tuneUp, upCost } from './mastery.ts';
-import { buy, feat, featCount, featName, FEATS, gain, levelNote, levelOf, NEW, opens, PACKS, passPlay, readProfile, runOwe, select, unlock, VENUES } from './profile.ts';
+import { buy, feat, featCount, featName, FEATS, gain, levelNote, levelOf, matchEnd, NEW, opens, PACKS, passPlay, readProfile, runOwe, select, unlock, VENUES } from './profile.ts';
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 
@@ -268,4 +268,35 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq([champ.owe, won.trophies[1]], [{ xp: 0, coins: 0 }, 3], 'a trophy saves even with nothing owed, and never lowers a better medal');
   eq(runOwe(champ.mark(q), { ...r, medal: [1, 2] }), null, 'a champion run already in: no save at every launch');
   ok('a tournament run pays once');
+}
+{ // feats counted in a match: the ledger holds them until the match ends, and the profile takes them then
+  const pot = (ids, run = 1, feats = []) => ({ pay: { xp: 1, coins: 1 }, run, own: ids.length, feats, mine: ids });
+  eq([hustler({ tier: 2 }), hustler({ tier: 3 }), hustler({ boss: 2.9 }), hustler({ boss: 3 })], [false, true, false, true], 'Hustler or harder: tier 3, or a Rival or boss rated 3.0');
+  let l = newLedger();
+  for (const id of [1, 2, 3, 4, 5, 6]) noteShot(l, pot([id], 1, id === 2 ? ['bank'] : []), false, false, true);
+  eq([l.feats, l.pairs], [{ bank: 1 }, undefined], 'six balls in a turn: no Heater yet, and no 7 for the pair');
+  noteShot(l, pot([7]), false, false, true); noteShot(l, pot([8]), false, false, true);
+  eq([l.feats, l.pairs], [{ bank: 1, heater: 1 }, 1], 'the seventh ball: Heater once, and the 6 and the 7 are a pair');
+  rackOver(l, true, true); eq([l.feats.thirteen, l.pairs, l.turn], [1, 0, undefined], 'a rack that ends counts its pair');
+  noteShot(l, pot([6]), false, false, true); noteShot(l, pot([], 0), false, false, true); noteShot(l, pot([7]), false, false, true);
+  eq(l.pairs, 0, 'the 6 and the 7 in two turns are no pair');
+  noteShot(l, pot([6]), false, false, true); noteShot(l, pot([], 0), true, false, true, true); rackOver(l, false, true);
+  eq(l.feats.thirteen, 1, 'a pair in a rack the player loses on their own shot is dropped');
+  l = newLedger(); for (const id of [1, 2, 3, 4, 5, 6, 7]) noteShot(l, pot([id]), false);
+  eq([l.feats, l.pairs], [undefined, undefined], 'below Hustler neither counts');
+  l = newLedger(); l.behind = true; rackOver(l, true, true); l.behind = true; rackOver(l, false, true); l.behind = true; rackOver(l, true, false);
+  eq(l.feats, { lives: 1 }, 'Nine Lives: only a rack won from behind against Hustler or harder');
+  eq(matchFeats({ ...newLedger(), feats: { kick: 2 } }, { vs: { tier: 6 }, won: true, cue: 'twig' }), { kick: 2, legend: 1, giant: 1 }, 'a win against Legend with the Twig');
+  eq(matchFeats(newLedger(), { vs: { tier: 4 }, won: true, cue: 'house' }), {}, 'Shark with another cue: neither');
+  eq(matchFeats(newLedger(), { vs: { boss: 6 }, won: true, dry: true }), {}, 'a win on the break alone counts for none');
+  eq([matchFeats({ ...newLedger(), down: true }, { vs: { tier: 3 }, won: true }), matchFeats({ ...newLedger(), down: true }, { vs: { tier: 3 }, won: false })], [{ lives: 1 }, {}], 'a 9-ball race won from 2 racks down');
+  let p = { ...NEW, open: true };
+  p = matchEnd(p, { heater: 1, kick: 3 }, true);
+  eq([p.owned.includes('aura'), featCount(p, 'kick'), featCount(p, 'unbeaten'), p.open], [true, 3, 1, undefined], 'the match saves its feats, gives the cue and adds to the streak');
+  p = matchEnd(p, {}); eq(featCount(p, 'unbeaten'), 1, 'a win on the break alone leaves the streak');
+  p = matchEnd(p, {}, false); eq(featCount(p, 'unbeaten'), 0, 'a loss ends it');
+  for (let i = 0; i < 5; i++) p = matchEnd(p, {}, true);
+  p = matchEnd(p, {}, false); eq([featCount(p, 'unbeaten'), p.owned.includes('marble')], [5, true], 'five in a row give the Marble, and a later loss leaves it done');
+  eq(readProfile(JSON.stringify({ ...NEW, open: true })).open, true, 'a match in play is read back, so a closed app is a loss');
+  ok('feats are counted in matches');
 }

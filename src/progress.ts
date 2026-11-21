@@ -1,6 +1,6 @@
 // The player's progress for the app: the profile, loaded once, and the pay of a finished match. The model is in src/progress/.
-import { gain, passPlay, runOwe, unlock, type Profile } from './progress/profile';
-import type { CueId } from './progress/cues';
+import { type FeatId, gain, matchEnd, passPlay, runOwe, unlock, type Profile } from './progress/profile';
+import { type CueId, CUES } from './progress/cues';
 import { cueGain, masteryNote, masteryOf, statsOf } from './progress/mastery';
 import { loadProfile, saveProfile } from './progress/save';
 import type { Pay } from './progress/pay';
@@ -25,6 +25,17 @@ export function award(pay: Pay, cue?: CueId, then = (p: Profile) => p) {
 export const ownStats = (id: CueId) => statsOf(id, masteryOf(profile(), id));
 // Give a cue and save; an owned cue writes nothing. Learn calls this with 'surveyor' at 10 lessons.
 export function unlockCue(id: CueId) { const p = profile(), q = unlock(p, id); if (q !== p) keep(q); }
+// A match against the AI is over: count its feats and its part in the Unbeaten streak (profile.ts matchEnd), and save.
+// Gives the names of the cues this gave, for the results card.
+export function featsDone(feats: Partial<Record<FeatId, number>>, won?: boolean) {
+  const p = profile(), q = matchEnd(p, feats, won);
+  if (q !== p) keep(q);
+  return q.owned.filter(id => !p.owned.includes(id)).map(id => CUES[id].name);
+}
+// A match that counts for the streak starts: marked in the save, so that closing the app in it is a loss at the next
+// launch (matchLeft), as leaving it is.
+export function matchOpen() { const p = profile(); if (!p.open) keep({ ...p, open: true }); }
+export function matchLeft() { if (profile().open) featsDone({}, false); }
 // A finished Rival match: move that game's rating (src/progress/rival.ts) and save. Gives the ratings before and after.
 export function rivalDone(game: 8 | 9, won: boolean, left: number, mood: Mood): [number, number] {
   const p = profile(), r = p.rival[game], next = rate(r, score(game, won, left), mood);
