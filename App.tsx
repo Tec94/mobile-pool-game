@@ -228,7 +228,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   // The opponent, for pay and feats (pay.ts Vs): an AI tier, or the rating of a Rival or a tournament seat. The Twig's Humble reads the cue.
   const foe = (): Vs => (rival || tour ? { boss: level.current, tour: tour?.stakes, cue: own } : { tier: ai + 1, cue: own });
   const snooker = useRef(false); // the player came to the table with no straight line to a ball they may hit (Escape Artist)
-  useEffect(() => { if (vs && !tour && hustler(foe())) matchOpen(); }, []);
+  const opened = () => { if (vs && !tour && hustler(foe())) matchOpen(); }; // at a strike: the first one of a match marks it as in play (progress.ts matchOpen)
   const safe = useRef<Safeties>(snap0?.safe ?? { row: 0, rack: 0 }), seed = useRef(snap0?.seed ?? Math.floor(Math.random() * 2 ** 31)), [thinking, setThinking] = useState(false);
   // A tournament match is saved at every strike (with the shot, so a relaunch plays the same shot again) and ruling.
   const snap = (shot?: Shot) => {
@@ -416,7 +416,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     if (shut() || (canCall(t.rules) && t.rules.call < 0)) { shot.set({ power: 0 }); return; } // a pocket must be called first: the HUD asks for it
     Haptics.impactAsync(power > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
     if (vs) cands.current = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules); // shortcut: a full candidate search on the strike frame, cheap next to a guide
-    const sh = shotOf(power); snap(sh);
+    const sh = shotOf(power); snap(sh); opened();
     t.rec = L ? newLessonRec() : newRec(sh); strike(t.B[0], sh, cue); moving.current = true; wake.current();
     tip.set(LEVEL); setSheet(false); setTools(false); shot.set({ power: 0, fine: false, locked: true });
   };
@@ -431,7 +431,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     if (stage < 2) { if (m.at) moveCue(t.B, m.at[0], m.at[1], t.rules.hand); lineUp(m.shot, top, hold, () => play(m, 2)); return; }
     if (m.call >= 0) t.rules = setCall(t.rules, m.call); // at the strike: a new ruling now would start the AI's turn again
     safe.current = nextSafeties(safe.current, m.safety);
-    const sh = { ...m.shot, speed: Math.min(m.shot.speed, top), a: hold(m.shot.a), b: hold(m.shot.b) }; snap(sh);
+    const sh = { ...m.shot, speed: Math.min(m.shot.speed, top), a: hold(m.shot.a), b: hold(m.shot.b) }; snap(sh); opened();
     t.rec = newRec(sh); strike(t.B[0], sh, STICK); moving.current = true; paint(); redraw();
   };
   // A tournament match reopened with a shot in flight: the same shot again from the same table.
@@ -573,7 +573,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   const win = rules.winner === -1 ? 0 : rules.winner, done = over && score.current[win] >= race; // the match is over
   const paid = done ? end.current : null;
   const rerack = (breaker = over ? 1 - rules.breaker : rules.breaker) => {
-    if (done) { score.current = [0, 0]; if (rival) { level.current = profile().rival[game].rating; moved.current = ''; } won.current = newLedger(); cands.current = []; end.current = null; if (vs && !tour && hustler(foe())) matchOpen(); }
+    if (done) { score.current = [0, 0]; if (rival) { level.current = profile().rival[game].rating; moved.current = ''; } won.current = newLedger(); cands.current = []; end.current = null; }
     apply.current(newGame(game, breaker as 0 | 1, callAll, bankRule, Math.floor(Math.random() * 2 ** 31)));
   };
 
