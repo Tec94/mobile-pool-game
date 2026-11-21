@@ -431,3 +431,12 @@ console.log('all checks passed');
   assert(cut.hit.cut > STRAIGHT && Math.hypot(cut.B[0].x - cut.hit.x, cut.B[0].y - cut.hit.y) > 0.1, `a ${(cut.hit.cut * D).toFixed(2)} degree cut switches the stop off`);
   const c = mk(0.5, 0.5); c.dead = true; strike(c, { ang: 0, speed: 2, a: 0, b: 0 }, CUE); assert(c.dead === false, 'the next strike with another cue clears the flag');
   console.log('dead stop ok'); }
+{ // the Gyro's Flywheel: with the tip at or below centre the cue ball slides on 0.71 of the cloth's friction to its first hit, so draw holds further
+  const { strike, step, CUE } = EngineAll, gyro = { ...CUE, glide: 0.71 };
+  const back = (cue, b, gap = 1) => { const B = [mk(1.1, 0.5), mk(1.1 + gap + 2 * R, 0.5)]; const ev = []; strike(B[0], { ang: 0, speed: 4.5, a: 0, b }, cue); for (let i = 0; i < 30000 && step(B, ev); i++) if (ev.length) B[1].on = false; return 1.1 + gap - B[0].x; }; // how far it comes back from the hit; the object ball is taken off, so it can't come back
+  const plain = back(CUE, -0.3), held = back(gyro, -0.3);
+  assert(plain > 0.3 && held > 1.5 * plain, `draw from 1 m at full pull comes back further (${plain.toFixed(2)} to ${held.toFixed(2)} m)`);
+  assert(back(gyro, 0.5) === back(CUE, 0.5), 'follow is unchanged');
+  const c = mk(0.4, 0.5); strike(c, { ang: 0, speed: 2, a: 0, b: -0.3, elev: 10 / D }, gyro); assert(!c.glide, 'not with the cue raised');
+  const B = [mk(1.9, 0.5)]; strike(B[0], { ang: 0, speed: 2, a: 0, b: 0 }, gyro); assert(B[0].glide === 0.71); for (let i = 0; i < 400; i++) step(B); assert(B[0].glide === 0 && B[0].vx < 0, 'a cushion ends it');
+  console.log('flywheel ok'); }

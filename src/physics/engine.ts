@@ -2,9 +2,11 @@
 // Pool physics engine. This file is the source. The lab page (physics/pool-physics-lab.html in the project files, the
 // <script id="engine"> block) is a copy with the types stripped: change this file first, then copy it there. Pure TS: no React, no DOM.
 export type Game=8|9;
-export interface Ball{x:number;y:number;vx:number;vy:number;wx:number;wy:number;wz:number;on:boolean;z?:number;vz?:number;dead?:boolean} // dead = the cue ball stops dead at its first hit when that hit is straight (the Plumb): the strike sets it, the first hit ends it
+export interface Ball{x:number;y:number;vx:number;vy:number;wx:number;wy:number;wz:number;on:boolean;z?:number;vz?:number;dead?:boolean;glide?:number}
+// The flags of a cue's trick ride on the cue ball: the strike sets them, and the first hit ends them.
+// dead = it stops dead at its first hit when that hit is straight (the Plumb); glide = the cloth's sliding friction on it is times this until its first hit or a cushion (the Gyro), 0 or none = 1
 export interface Shot{ang:number;speed:number;a:number;b:number;elev?:number}
-export interface Cue{maxSpeed:number;breakSpeed:number;squirt:number;tipLimit:number;maxElev:number;minElev?:number;massRatio?:number;curl?:number;dead?:boolean} // curl = how much more a raised cue curves the ball (the Coil), 1 when left out; dead = the Plumb's stop (Ball.dead)
+export interface Cue{maxSpeed:number;breakSpeed:number;squirt:number;tipLimit:number;maxElev:number;minElev?:number;massRatio?:number;curl?:number;dead?:boolean;glide?:number} // curl = how much more a raised cue curves the ball (the Coil), 1 when left out; dead = the Plumb's stop (Ball.dead); glide = the Gyro's wheel (Ball.glide), for a level cue with the tip at or below centre
 export const RAISED=4*Math.PI/180-1e-9; // a cue at 4 degrees or more is raised: below it the tip control snaps flat
 export const STRAIGHT=3*Math.PI/180; // a hit with a cut of 3 degrees or less is straight (the Plumb)
 export interface Ev{t:'bb'|'rail'|'pocket'|'off'|'land';a:number;b?:number;x:number;y:number;cut?:number;thr?:number;air?:boolean;turn?:number} // turn = how far a cushion turned the ball's direction, radians (rail)
@@ -116,6 +118,7 @@ export function strike(b:Ball,s:Shot,cue:Cue=CUE){
   b.vx=v*dx*ce;b.vy=v*dy*ce;b.wx=-k*s.b*dy+cu*k*s.a*se*dx;b.wy=k*s.b*dx+cu*k*s.a*se*dy;b.wz=k*s.a*ce;
   b.z=0;b.vz=0;
   if(cue.dead||b.dead)b.dead=!!cue.dead; // a trick's flag rides on the cue ball and every strike sets it again, so no look-ahead inherits it
+  const gl=cue.glide&&s.b<=0&&el<RAISED?cue.glide:0;if(gl||b.glide)b.glide=gl;
   // Past 45 degrees the ball is increasingly trapped between tip and slate, so the rebound fades: lift*g/(1+g^4)^(1/4)
   // with g = 16cos^8(elev), a smooth version of min(1,g). 30 degrees gives a long low hop, about 42 the highest, and
   // from 60 up the ball stays on the cloth at any power (masse).
@@ -142,6 +145,7 @@ function land(a:Ball,b:Ball,ev:Ev[]|undefined,i:number,j:number,nx:number,ny:num
     const cx=k*ny*tz,cy=-k*nx*tz,cz=k*(nx*ty-ny*tx);
     a.wx+=cx;a.wy+=cy;a.wz+=cz;b.wx+=cx;b.wy+=cy;b.wz+=cz;}
   a.vx-=jn*nx;a.vy-=jn*ny;b.vx+=jn*nx;b.vy+=jn*ny;
+  if(a.glide)a.glide=0;
   if(a.dead){a.dead=false;if(cut<=STRAIGHT)a.vx=a.vy=a.wx=a.wy=a.wz=0;} // the Plumb: the speed and all the spin go. Only the cue ball carries the flag, and it is the first ball of its pair
   // cut and thr describe a moving ball a hitting a resting ball b (the cue ball's first hit); thr is b's departure
   // from the line of centres.
@@ -177,6 +181,7 @@ function air(a:Ball,b:Ball,c:Contact,ev?:Ev[]){
   a.vx-=jn*nx;a.vy-=jn*ny;a.vz=(a.vz||0)-jn*nz;b.vx+=jn*nx;b.vy+=jn*ny;b.vz=(b.vz||0)+jn*nz;
   for(const q of [a,b])if(!((q.z??0)>0)&&(q.vz??0)<0)q.vz=0;
   if(a.dead)a.dead=false; // a hit in the air is the first hit, and no stop
+  if(a.glide)a.glide=0;
   if(!nx&&!ny)a.vx+=1e-3; // dead centre on top of a ball is a balance point that never settles: tip it off, always the same way
   // Put both balls where they would be had the bounce happened at the instant of contact (as the ground path does);
   // without this a ball coming down on top of another sinks into it and can come to rest overlapping.
@@ -220,7 +225,7 @@ export function step(B:Ball[],ev?:Ev[]):boolean{
     }
     const ux=b.vx-R*b.wy,uy=b.vy+R*b.wx,us=hyp(ux,uy),ox=b.vx,oy=b.vy;
     if(us>1e-9){ // sliding: friction opposes the slip of the contact point
-      const k=Math.min(P.mus*g*h,us/3.5),cx=ux/us*k,cy=uy/us*k;
+      const k=Math.min(P.mus*(b.glide||1)*g*h,us/3.5),cx=ux/us*k,cy=uy/us*k;
       b.vx-=cx;b.vy-=cy;b.wx-=2.5/R*cy;b.wy+=2.5/R*cx;moving=true;
     }else{ // rolling
       const sp=hyp(b.vx,b.vy),dec=P.mur*g*h;
@@ -288,7 +293,7 @@ export function step(B:Ball[],ev?:Ev[]):boolean{
       if(tb<0||pot)break;
       b.x-=b.vx*tb;b.y-=b.vy*tb;
       const ux=b.vx,uy=b.vy;
-      cushion(b,-nx,-ny);
+      cushion(b,-nx,-ny);if(b.glide)b.glide=0;
       if(ev)ev.push({t:'rail',a:i,x:b.x,y:b.y,turn:Math.abs(Math.atan2(ux*b.vy-uy*b.vx,ux*b.vx+uy*b.vy))});
       b.x+=b.vx*tb;b.y+=b.vy*tb;win=tb;
     }
