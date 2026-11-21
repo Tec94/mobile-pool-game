@@ -109,7 +109,7 @@ export function Home({ set, go, done, stars, daily, today, run: tourRun }: HomeP
       <Tile paint={MODE.cues} name={`Cues, ${CUES[me.cue].name} in use, ${me.owned.length} of ${CUE_IDS.length} cues`} title="Cues" onPress={() => go('cues')} style={{ flex: 1, minHeight: 120 }}>
         <Txt numberOfLines={1} style={styles.line}>{CUES[me.cue].name}</Txt>
         <Txt style={[styles.line, styles.owned]}>{`${me.owned.length} / ${CUE_IDS.length}`}</Txt>
-        <View style={styles.cue}><CueArt id={me.cue} pose={[Math.round(smallW), 80, 6, 72, -24, Math.round(smallW * 1.3), 4]} /></View>
+        <View style={styles.cue}><CueArt id={me.cue} w={Math.round(smallW)} h={80} /></View>
       </Tile>
     ),
   };

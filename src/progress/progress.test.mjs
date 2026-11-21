@@ -1,10 +1,10 @@
 // Run: npm test   (the progression model: levels, pay, cues, feats, gates and the saved profile)
 import assert from 'node:assert';
 import { CUE } from '../physics/engine.ts';
-import { CUES, specLine, specs, stick } from './cues.ts';
+import { CUE_IDS, CUES, soon, specLine, specs, stick } from './cues.ts';
 import { matchPay, newLedger, noteShot, safetyPay, settle, shotPay } from './pay.ts';
 import { cueGain, masteryLevel, masteryNote, masteryOf, readMastery, statsOf, tuneDown, tuneUp, upCost } from './mastery.ts';
-import { buy, feat, featCount, gain, levelNote, levelOf, NEW, opens, PACKS, passPlay, readProfile, runOwe, select, unlock, VENUES } from './profile.ts';
+import { buy, feat, featCount, featName, FEATS, gain, levelNote, levelOf, NEW, opens, PACKS, passPlay, readProfile, runOwe, select, unlock, VENUES } from './profile.ts';
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 
@@ -18,16 +18,19 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   const h = stick('house');
   near(h.maxSpeed, 3.88, 'House Cue top speed'); near(h.breakSpeed, 10.34, 'House Cue break'); near(h.tipLimit, 0.367, 'House Cue tip limit');
   eq([h.squirt, h.maxElev], [CUE.squirt, CUE.maxElev], 'the rest of the engine cue is kept');
-  near(stick('broomstick').maxSpeed, 3.97, 'Power 4'); near(stick('wizard').tipLimit, 0.5, 'Spin 10: 0.50 R'); near(stick('twig').tipLimit, 0.33, 'Spin 1: 0.33 R');
-  near(stick('golden').maxSpeed, 4.41, 'Power 9');
-  near(stick('rocket').maxSpeed, 4.95, 'Rocket Liftoff: Power 10 and 10% past the cap'); near(stick('rocket').breakSpeed, 12, 'Rocket break: Power 10, Liftoff does not count');
-  eq(stick('wizard').squirt, 0, 'Wizard Staff Hex: no squirt');
-  eq(stick('rocket', true), h, 'matched: House Cue stats, perks off'); eq(stick('wizard', true).squirt, CUE.squirt, 'matched Wizard squirts');
-  eq(Object.keys(CUES).length, 17, '17 cues'); eq(CUES.house.aim, 5, 'House Cue Aim 5');
+  near(stick('ratchet').maxSpeed, 4.06, 'Power 5'); near(stick('marquise').tipLimit, 0.5, 'Spin 10: 0.50 R'); near(stick('twig').tipLimit, 0.33, 'Spin 1: 0.33 R');
+  near(stick('heirloom').maxSpeed, 4.41, 'Power 9');
+  near(stick('ram').maxSpeed, 4.5, 'Power 10: the cap'); near(stick('ram').breakSpeed, 12, 'Power 10 break');
+  eq(stick('marquise').squirt, 0, 'Marquise: no squirt');
+  eq(stick('ram', true), h, 'matched: House Cue stats, tricks off'); eq(stick('marquise', true).squirt, CUE.squirt, 'a matched Marquise squirts');
+  eq(Object.keys(CUES).length, 26, '26 cues'); eq(CUES.house.aim, 5, 'House Cue Aim 5');
+  for (const id of CUE_IDS) { const c = CUES[id]; assert([c.price !== undefined, !!c.feat, !!c.level, !!c.get, id === 'house'].filter(Boolean).length === 1, `${id}: one way to get it`); assert(!c.feat || FEATS[c.feat]?.cue === id, `${id}: its feat gives it`); }
+  eq(CUE_IDS.filter(id => CUES[id].price !== undefined).reduce((a, id) => a + CUES[id].price, 0), 23100, 'the six coin cues cost 23,100');
+  eq([soon('surveyor'), soon('twig'), soon('house'), soon('ram')], [false, false, false, true], 'a trick that does not act yet is marked Soon; the House Cue has none');
   ok('cue stats give the engine cue');
   eq(specLine(specs('house')), 'Power: 3.88 m/s top shot, 10.3 m/s break\nSpin: tip up to 10.5 mm off centre\nAim: guide 32 cm past contact', 'House Cue in real units');
-  eq(specs('rocket').shot.toFixed(2) + ' ' + specs('rocket').brk.toFixed(1), '4.95 12.0', 'Rocket: Liftoff in the shot speed');
-  eq([specs('twig').guideCm, specs('periscope').guideCm], [10, 54], 'Aim 1: 10 cm, Aim 9: 54 cm'); eq(specs('pencil').guideCm, 27, 'Giant Pencil: 15% off the 32 cm of Aim 5');
+  eq(specs('ram').shot.toFixed(2) + ' ' + specs('ram').brk.toFixed(1), '4.50 12.0', 'Ram: Power 10');
+  eq([specs('twig').guideCm, specs('heirloom').guideCm], [10, 54], 'Aim 1: 10 cm, Aim 9: 54 cm'); eq(specs('surveyor').guideCm, 27, 'Surveyor: 15% off the 32 cm of Aim 5');
   ok('cue stats in real units');
 }
 
@@ -40,7 +43,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(pay(0.9, { boss: 5 }).xp, 12, 'a boss of rating 5: x1.2');
   for (const tier of [0, 7, 1.5, -1]) assert.throws(() => pay(0.9, { tier }), /tier/, `tier ${tier} is a bug`);
   eq([0, 3, 7, 9].map(run => pay(0.9, { run }).xp), [10, 13, 17, 17], 'run: +10% per pot in a row, at most +70%');
-  eq(pay(0.9, { cue: 'twig' }).xp, 15, 'Twig: x1.5'); eq(pay(0.9, { cue: 'rocket' }).xp, 10, 'other cues: x1');
+  eq(pay(0.9, { cue: 'twig' }).xp, 15, 'Twig: x1.5'); eq(pay(0.9, { cue: 'ram' }).xp, 10, 'other cues: x1');
   eq(pay(0.05, { type: 'kick', tier: 6, run: 7, cue: 'twig' }), { xp: 120, coins: 48 }, 'all multipliers together: at most x12');
   eq(pay(null, { type: 'kick' }).xp, 10, 'a fluke pays as Routine'); eq(pay(0.05, { brk: true }).xp, 10, 'a break pot pays as Routine');
   eq(pay(0.05, { type: 'bank', hand: true }).xp, 15, 'first shot after ball in hand: at most Solid, no type x'); eq(pay(0.9, { hand: true }).xp, 10, 'ball in hand keeps a lower band');
@@ -70,8 +73,10 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(gain({ ...NEW, xp: 190 }, { xp: 40, coins: 20 }), { profile: { ...NEW, xp: 230, coins: 90 }, from: 1, to: 2, bonus: 70 }, 'a level-up pays 50 + 10 x the new level');
   eq(gain(NEW, { xp: 450, coins: 0 }).bonus, 150, 'two level-ups pay both');
   const at19 = { ...NEW, xp: 11250 }; eq(levelOf(at19.xp).level, 19, '11,250 XP is level 19');
-  eq(gain(at19, { xp: 1100, coins: 0 }).profile.owned, ['house', 'twig'], 'level 20 gives the Twig');
-  eq(gain({ ...at19, owned: ['house', 'twig'] }, { xp: 1100, coins: 0 }).profile.owned, ['house', 'twig'], 'once');
+  eq(gain({ ...at19, owned: ['house', 'ratchet', 'optic'] }, { xp: 1100, coins: 0 }).profile.owned, ['house', 'ratchet', 'optic', 'twig'], 'level 20 gives the Twig');
+  eq(gain({ ...at19, owned: ['house', 'ratchet', 'optic', 'twig'] }, { xp: 1100, coins: 0 }).profile.owned, ['house', 'ratchet', 'optic', 'twig'], 'once');
+  eq(gain(NEW, { xp: 44850, coins: 0 }).profile.owned, ['house', 'ratchet', 'gyro', 'optic', 'airbrake', 'twig'], 'a level cue belongs to anyone at or past its level: 8, 14, 20, 28, 40');
+  eq(gain(NEW, { xp: 2449, coins: 0 }).profile.owned, ['house'], 'level 7: none yet'); eq(levelNote(gain(NEW, { xp: 2450, coins: 0 })).split(' · ')[1], 'Ratchet unlocked', 'level 8 says the Ratchet is unlocked');
   eq(gain(NEW, { xp: 0, coins: 0 }).profile === NEW, false, 'the old profile is not changed'); eq(NEW.xp, 0, 'NEW stays new');
   eq(levelNote(gain(NEW, { xp: 40, coins: 0 })), 'Level 1 · 40/200 XP', 'no level-up: the level and the XP into it');
   eq(levelNote(gain({ ...NEW, xp: 190 }, { xp: 40, coins: 0 })), 'Level 2! +70 coins · 30/250 XP', 'a level-up on the same line');
@@ -81,29 +86,31 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   ok('pay and level-ups');
 }
 { const rich = { ...NEW, coins: 1000 };
-  eq(buy(rich, 'baguette'), { ...rich, coins: 100, owned: ['house', 'baguette'] }, 'buying costs the price');
-  eq(buy({ ...rich, coins: 899 }, 'baguette').coins, 899, 'not enough coins: no sale'); eq(buy({ ...rich, coins: 900 }, 'baguette').coins, 0, 'the last coin buys it');
-  eq(buy({ ...rich, owned: ['house', 'baguette'] }, 'baguette').coins, 1000, 'an owned cue is not sold again');
-  eq(buy(rich, 'crowbar'), rich, 'a feat cue has no price'); eq(buy({ ...NEW, coins: 1e5 }, 'golden').coins, 1e5, 'nor the Golden Cue');
-  eq(select(rich, 'baguette'), rich, 'a cue not owned cannot be selected');
-  eq(select({ ...rich, owned: ['house', 'baguette'] }, 'baguette').cue, 'baguette', 'an owned one can');
+  eq(buy(rich, 'ironwood'), { ...rich, coins: 400, owned: ['house', 'ironwood'] }, 'buying costs the price');
+  eq(buy({ ...rich, coins: 599 }, 'ironwood').coins, 599, 'not enough coins: no sale'); eq(buy({ ...rich, coins: 600 }, 'ironwood').coins, 0, 'the last coin buys it');
+  eq(buy({ ...rich, owned: ['house', 'ironwood'] }, 'ironwood').coins, 1000, 'an owned cue is not sold again');
+  eq(buy(rich, 'banker'), rich, 'a feat cue has no price'); eq(buy({ ...NEW, coins: 1e5 }, 'heirloom').coins, 1e5, 'nor the Heirloom');
+  eq(select(rich, 'ironwood'), rich, 'a cue not owned cannot be selected');
+  eq(select({ ...rich, owned: ['house', 'ironwood'] }, 'ironwood').cue, 'ironwood', 'an owned one can');
   eq(select(rich, 'house') === rich, true, 'the cue in use: the same profile, nothing to save');
-  eq(unlock(NEW, 'pencil').owned, ['house', 'pencil'], 'unlock gives a cue'); eq(NEW.owned, ['house'], 'and leaves the old profile');
-  const pen = unlock(NEW, 'pencil'); eq(unlock(pen, 'pencil') === pen, true, 'an owned cue: the same profile, nothing to save');
+  eq(unlock(NEW, 'surveyor').owned, ['house', 'surveyor'], 'unlock gives a cue'); eq(NEW.owned, ['house'], 'and leaves the old profile');
+  const pen = unlock(NEW, 'surveyor'); eq(unlock(pen, 'surveyor') === pen, true, 'an owned cue: the same profile, nothing to save');
   ok('buying, selecting and unlocking');
 }
 { let p = NEW;
-  for (let i = 0; i < 49; i++) p = feat(p, 'bank');
-  eq([featCount(p, 'bank'), p.owned], [49, ['house']], '49 banks of 50');
-  p = feat(p, 'bank'); eq([featCount(p, 'bank'), p.owned], [50, ['house', 'crowbar']], 'the 50th gives the Crowbar');
-  p = feat(p, 'bank'); eq([featCount(p, 'bank'), p.owned], [50, ['house', 'crowbar']], 'the count stops at 50, the cue is given once');
+  for (let i = 0; i < 29; i++) p = feat(p, 'bank');
+  eq([featCount(p, 'bank'), p.owned], [29, ['house']], '29 banks of 30');
+  p = feat(p, 'bank'); eq([featCount(p, 'bank'), p.owned], [30, ['house', 'banker']], 'the 30th gives the Banker');
+  p = feat(p, 'bank'); eq([featCount(p, 'bank'), p.owned], [30, ['house', 'banker']], 'the count stops at 30, the cue is given once');
+  p = feat(NEW, 'reel', 25); eq([p.coins, p.owned], [500, ['house']], 'Reel It In pays 500 coins and gives no cue');
+  eq(Object.entries({ purist: 'nonchalant', escape: 'star', lives: 'hindsight', spin: 'coil', legend: 'daybreak', thirteen: 'sixseven', heater: 'aura', unbeaten: 'marble' }).map(([f, c]) => feat(NEW, f, FEATS[f].count).owned[1] === c), Array(8).fill(true), 'the feats that give cues');
   p = feat(NEW, 'long', 25); eq(p.coins, 300, 'Long Shot pays 300 coins'); eq(feat(p, 'long').coins, 300, 'once');
   p = feat(NEW, 'kick', 15, true); eq([featCount(p, 'kick'), p.owned], [7, ['house']], 'scenarios give at most half of Kick Start (7 of 15)');
-  p = feat(p, 'kick', 8); eq(p.owned, ['house', 'periscope'], 'play makes up the rest');
+  p = feat(p, 'kick', 8); eq(p.owned, ['house', 'vernier'], 'play makes up the rest');
   eq(featCount(feat(NEW, 'giant', 1, true), 'giant'), 0, 'Giant Killer cannot come from a scenario');
-  const lost = { ...NEW, feats: { bank: { play: 50, scen: 0 } } };
-  eq(feat(lost, 'bank').owned, ['house', 'crowbar'], 'a count reached with its cue missing gives the cue');
-  eq(feat(feat(lost, 'bank'), 'bank').owned, ['house', 'crowbar'], 'still once');
+  const lost = { ...NEW, feats: { bank: { play: 30, scen: 0 } } };
+  eq(feat(lost, 'bank').owned, ['house', 'banker'], 'a count reached with its cue missing gives the cue');
+  eq(feat(feat(lost, 'bank'), 'bank').owned, ['house', 'banker'], 'still once');
   eq(feat({ ...NEW, coins: 300, feats: { long: { play: 25, scen: 0 } } }, 'long').coins, 300, 'coins are not paid again');
   ok('feats');
 }
@@ -117,7 +124,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
 
 { for (const t of [null, '{oops', '[1,2]', '"x"', 'null', '7']) eq(readProfile(t), NEW, `${t}: a new profile`);
   readProfile(null).owned.push('x'); eq(NEW.owned, ['house'], 'the new profile is not shared');
-  const all = { xp: 12345, coins: 678, owned: ['house', 'baguette', 'twig'], cue: 'baguette', feats: { bank: { play: 12, scen: 3 }, long: { play: 25, scen: 0 } }, mastery: { baguette: { xp: 1200, power: 1, spin: 1, aim: 0, paid: 2 } }, rival: { 8: { rating: 3.4, matches: 12 }, 9: { rating: 1.6, matches: 2 } }, trophies: [3, 2, 0, 1] };
+  const all = { xp: 12345, coins: 678, owned: ['house', 'ironwood', 'ratchet', 'optic', 'twig'], cue: 'ironwood', feats: { bank: { play: 12, scen: 3 }, long: { play: 25, scen: 0 } }, mastery: { ironwood: { xp: 1200, power: 1, spin: 0, aim: 1, paid: 2 } }, rival: { 8: { rating: 3.4, matches: 12 }, 9: { rating: 1.6, matches: 2 } }, trophies: [3, 2, 0, 1] };
   eq(readProfile(JSON.stringify(all)), all, 'a good save round trips');
   eq(readProfile(JSON.stringify({ ...all, trophies: [4, -1, 'x'] })).trophies, [0, 0, 0, 0], 'a bad medal is none');
   eq(readProfile(JSON.stringify({ coins: 5 })), { ...NEW, coins: 5 }, 'an older save keeps what it has');
@@ -129,15 +136,17 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(readProfile(JSON.stringify({ owned: 'house', cue: 'twig' })).cue, 'house', 'a selected cue that is not owned: House Cue');
   eq(readProfile(JSON.stringify({ xp: 1e300, coins: Infinity })).xp, 1e9, 'numbers are clamped');
   eq(readProfile('{"coins": 1e999}').coins, 1e9, 'even past what JSON can hold');
-  eq(readProfile(JSON.stringify({ xp: 12350 })).owned, ['house', 'twig'], 'level 20 owns the Twig');
-  eq(readProfile(JSON.stringify({ xp: 12349 })).owned, ['house'], 'level 19 does not');
+  eq(readProfile(JSON.stringify({ xp: 12350 })).owned, ['house', 'ratchet', 'optic', 'twig'], 'level 20 owns the Twig and the cues of the levels before');
+  eq(readProfile(JSON.stringify({ xp: 12349 })).owned, ['house', 'ratchet', 'optic'], 'level 19 does not own the Twig');
+  eq(readProfile(JSON.stringify({ feats: { spin: { play: 75, scen: 0 } } })).owned, ['house', 'coil'], 'a feat that is already full gives its new cue');
+  eq(readProfile(JSON.stringify({ feats: { spin: { play: 74, scen: 0 } } })).owned, ['house'], 'one short does not');
   ok('bad values in a save');
 }
 
 { eq([0, 299, 300, 999, 1000, 2500, 4999, 5000, 1e6].map(x => masteryLevel(x).level), [1, 1, 2, 2, 3, 4, 4, 5, 5], 'mastery levels at 300, 1,000, 2,500, 5,000 cue XP');
   eq(masteryLevel(400), { level: 2, into: 100, need: 700 }, 'cue XP into a level'); eq(masteryLevel(5000).need, 0, 'level 5 is the top');
   const g = cueGain(NEW, 'house', 320); eq([g.from, g.to, masteryOf(g.profile, 'house').xp], [1, 2, 320], 'cue XP adds up');
-  eq(masteryNote('house', g), 'House Cue mastery 2: tuning point earned', 'a level-up line'); eq(masteryNote('rod', { from: 4, to: 5 }), 'Fishing Rod mastery 5, mastered: tuning point earned', 'mastered');
+  eq(masteryNote('house', g), 'House Cue mastery 2: tuning point earned', 'a level-up line'); eq(masteryNote('banker', { from: 4, to: 5 }), 'Banker mastery 5, mastered: tuning point earned', 'mastered');
   eq(masteryNote('house', { from: 1, to: 3 }), 'House Cue mastery 3: 2 tuning points earned', 'two levels at once');
   eq(masteryNote('twig', { from: 1, to: 2 }), 'Twig mastery 2', 'the Twig earns no point'); eq(masteryNote('house', { from: 2, to: 2 }), '', 'no level-up, no line'); eq(cueGain(NEW, 'house', 0).profile, NEW, 'no XP, same profile');
   ok('cue mastery: XP and levels');
@@ -153,21 +162,53 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(upCost(tuneDown(q, 'house', 'aim'), 'house', 'power'), null, 'at most +2 a stat');
   eq(tuneUp(lvl(300, 299), 'house', 'power').coins, 299, 'too few coins: nothing');
   eq(upCost(lvl(5000, 1e4, 'twig'), 'twig', 'power'), null, 'the Twig cannot be tuned');
-  eq(upCost(lvl(5000, 1e4, 'rocket'), 'rocket', 'power'), null, 'no stat above 10'); eq(upCost(lvl(5000, 1e4, 'golden'), 'golden', 'spin'), 300, 'Golden 9 takes +1');
-  eq(upCost(lvl(5000, 1e4, 'rod', ['house']), 'rod', 'spin'), null, 'a cue not owned');
-  const t = statsOf('broomstick', { xp: 0, power: 2, spin: 0, aim: 2, paid: 2 }); eq(stick('broomstick', false, t).maxSpeed, stick('crowbar').maxSpeed, 'tuned Power 6 hits like a Power 6 cue');
-  eq(stick('broomstick', true, t), stick('house'), 'matched ignores tuning'); eq(specs('house', { power: 3, spin: 3, aim: 6 }).guideCm, 38, 'tuned Aim 6: one point longer than Aim 5');
+  eq(upCost(lvl(5000, 1e4, 'ram'), 'ram', 'power'), null, 'no stat above 10'); eq(upCost(lvl(5000, 1e4, 'coil'), 'coil', 'spin'), 300, 'Spin 9 takes +1');
+  eq(upCost(lvl(5000, 1e4, 'banker', ['house']), 'banker', 'power'), null, 'a cue not owned');
+  eq([upCost(lvl(5000, 1e4, 'ironwood'), 'ironwood', 'spin'), upCost(lvl(5000, 1e4, 'ironwood'), 'ironwood', 'power')], [null, 300], 'a locked stat takes no point, the others do');
+  eq(['heirloom', 'marble', 'maxxed'].map(id => upCost(lvl(5000, 1e4, id), id, 'power')), [null, null, null], 'the Heirloom, the Marble and the Maxxed take no tuning');
+  const t = statsOf('ratchet', { xp: 0, power: 2, spin: 0, aim: 2, paid: 2 }); eq(stick('ratchet', false, t).maxSpeed, stick('star').maxSpeed, 'tuned Power 7 hits like a Power 7 cue');
+  eq(stick('ratchet', true, t), stick('house'), 'matched ignores tuning'); eq(specs('house', { power: 3, spin: 3, aim: 6 }).guideCm, 38, 'tuned Aim 6: one point longer than Aim 5');
   ok('tuning: points, coins, caps, free moves');
 }
-{ const m = readMastery({ house: { xp: 1000, power: 1, spin: 1, aim: 0, paid: 2 }, twig: { xp: 50, power: 1, paid: 1 }, rocket: { xp: 5000, power: 1, paid: 1 }, bogus: { xp: 5 }, broomstick: { xp: 300, power: 1, spin: 1, paid: 2 }, noodle: 'x' });
+{ const m = readMastery({ house: { xp: 1000, power: 1, spin: 1, aim: 0, paid: 2 }, twig: { xp: 50, power: 1, paid: 1 }, ram: { xp: 5000, power: 1, paid: 1 }, bogus: { xp: 5 }, ratchet: { xp: 300, power: 1, spin: 1, paid: 2 }, whisper: 'x', ironwood: { xp: 300, spin: 1, paid: 1 } });
   eq(m.house, { xp: 1000, power: 1, spin: 1, aim: 0, paid: 2 }, 'a good record stays'); eq(m.twig, { xp: 50, power: 0, spin: 0, aim: 0, paid: 0 }, 'the Twig loses points');
-  eq(m.rocket.power, 0, 'past 10: points off'); eq(m.broomstick, { xp: 300, power: 0, spin: 0, aim: 0, paid: 1 }, 'more points than the level: points off, XP kept, paid at most the points');
-  eq(['bogus', 'noodle'].map(k => k in m), [false, false], 'unknown cues and bad records dropped');
+  eq(m.ram.power, 0, 'past 10: points off'); eq(m.ratchet, { xp: 300, power: 0, spin: 0, aim: 0, paid: 1 }, 'more points than the level: points off, XP kept, paid at most the points');
+  eq(m.ironwood, { xp: 300, power: 0, spin: 0, aim: 0, paid: 1 }, 'a point on a locked stat: off');
+  eq(['bogus', 'whisper'].map(k => k in m), [false, false], 'unknown cues and bad records dropped');
   eq(readMastery({ house: { xp: -5, power: 9, paid: 99 } }).house, { xp: 0, power: 0, spin: 0, aim: 0, paid: 0 }, 'out of range numbers fixed');
   eq(readMastery({ house: { xp: 1000, paid: 4 } }).house.paid, 2, 'no more paid steps than the level has points');
   eq(readProfile(JSON.stringify({ mastery: { house: { xp: 300, power: 1, paid: 1 } } })).mastery.house.power, 1, 'mastery is read with the profile');
   eq(readProfile(null).mastery, {}, 'no save: no mastery');
   ok('a saved mastery is read defensively');
+}
+{ // Tuningmaxxing: every tuning step paid on 3 cues gives the Maxxed
+  const ids = ['house', 'ironwood', 'ratchet'], max = (p, id) => ['power', 'power', 'aim', 'aim'].reduce((q, s) => tuneUp(q, id, s), p);
+  let p = { ...NEW, coins: 1e5, owned: ids, mastery: Object.fromEntries(ids.map(id => [id, { xp: 5000, power: 0, spin: 0, aim: 0, paid: 0 }])) };
+  p = max(max(p, 'house'), 'ironwood'); eq([featCount(p, 'tuning'), p.owned.includes('maxxed')], [2, false], '2 cues maxed: not yet');
+  p = max(p, 'ratchet'); eq([featCount(p, 'tuning'), p.owned.at(-1), p.coins], [3, 'maxxed', 1e5 - 13500], 'the 3rd gives the Maxxed, for 13,500 coins of tuning');
+  eq(featCount(tuneDown(p, 'house', 'aim'), 'tuning'), 3, 'a point taken off does not undo it');
+  eq(readProfile(JSON.stringify({ ...p, owned: ids })).owned.includes('maxxed'), true, 'a save that lost the Maxxed gets it back'); eq(featName('tuning'), 'Tuningmaxxing', 'the feat under its meme name');
+  ok('Tuningmaxxing gives the Maxxed');
+}
+{ // a save from before the cue redesign: each old cue becomes a new cue or coins
+  const old = (id, m, more = {}) => readProfile(JSON.stringify({ coins: 100, owned: ['house', id], cue: id, mastery: m ? { [id]: m } : {}, ...more }));
+  const got = p => [p.owned[1] ?? null, p.cue, p.coins], t = { xp: 1000, power: 1, spin: 0, aim: 1, paid: 2 };
+  eq(got(old('rocket', { ...t, power: 0, spin: 1 })), ['ram', 'ram', 6100], 'Rocket: the Ram and 6,000 back'); eq(old('rocket', { ...t, power: 0, spin: 1 }).mastery.ram, { ...t, power: 0, spin: 1 }, 'with its mastery and tuning');
+  eq(got(old('lightning')), ['ironwood', 'ironwood', 5500], 'Lightning Rod: the Ironwood and 5,400 back'); eq(old('lightning', { ...t, power: 0, spin: 1 }).mastery.ironwood, { ...t, power: 0, spin: 0 }, 'a point on Spin, now locked, comes off to place again');
+  eq(got(old('noodle')), ['whisper', 'whisper', 100], 'Pool Noodle: the Whisper, same price'); eq(old('noodle', t).mastery.whisper, { ...t, power: 0 }, 'Power is locked on the Whisper');
+  eq(got(old('wizard', t)), ['marquise', 'marquise', 100], 'Wizard Staff: the Marquise'); eq(got(old('pencil')), ['surveyor', 'surveyor', 100], 'Giant Pencil: the Surveyor');
+  eq(got(old('golden', t)), ['heirloom', 'heirloom', 1000], 'Golden Cue: the Heirloom, its 2 tuning steps back in coins'); eq(old('golden', t).mastery.heirloom, { xp: 1000, power: 0, spin: 0, aim: 0, paid: 0 }, 'and its cue XP kept');
+  eq(got(old('crowbar', t)), ['banker', 'banker', 100], 'Crowbar: the Banker'); eq(old('crowbar', t).mastery.banker, { ...t, aim: 0 }, 'Aim is locked on the Banker');
+  eq(got(old('periscope')), ['vernier', 'vernier', 100], 'Periscope: the Vernier'); eq(got(old('cactus', t)), ['seer', 'seer', 100], 'Cactus: the Seer');
+  eq(old('cactus', t).mastery.seer, { ...t, power: 0 }, 'Power and Spin are locked on the Seer');
+  eq(got(old('broomstick')), [null, 'house', 500], 'Broomstick: 400 back, and the House Cue in hand'); eq(got(old('baguette')), [null, 'house', 1000], 'Baguette: 900 back');
+  eq(got(old('trombone', t)), [null, 'house', 4000], 'Trombone: 3,000 and its 2 tuning steps back'); eq(old('trombone', t).mastery, {}, 'its cue XP is lost');
+  eq(got(old('icicle')), [null, 'house', 8100], 'Icicle: 8,000 back'); eq(got(old('rod')), [null, 'house', 600], 'Fishing Rod: the 500 its feat pays now'); eq(got(old('chopsticks', t)), [null, 'house', 1500], 'Chopsticks: 500 and its tuning steps');
+  const all = { xp: 500, coins: 100, owned: ['house', 'rocket', 'broomstick', 'twig'], cue: 'broomstick', mastery: { rocket: t, twig: { xp: 400 }, house: { xp: 300, power: 1, paid: 1 } } }, once = readProfile(JSON.stringify(all));
+  eq([once.owned, once.cue, once.coins], [['house', 'ram', 'twig'], 'house', 6500], 'several at once; the cues that stay are kept');
+  eq(readProfile(JSON.stringify(once)), once, 'the saved result reads back the same: nothing is paid twice');
+  eq(readProfile(JSON.stringify({ coins: 100, owned: ['house'], mastery: { rocket: t } })).coins, 100, 'an old cue that was not owned gives nothing');
+  ok('old cues are handed over or refunded');
 }
 
 { // a quick match's ledger: shots add up, fouls and own balls feed matchPay, Fresh Chalk pays the match pay again

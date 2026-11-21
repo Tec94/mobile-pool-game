@@ -136,12 +136,12 @@ function Root() {
     return { ...c, saved: true, gained: award(c.pay, profile().cue) }; // the daily table played the player's own cue
   };
   const nextScen = SCENARIOS[scen + 1]?.pack === SCENARIOS[scen].pack && isOpen(scen + 1, stars, profile().xp);
-  // A lesson passed for the first time pays once and counts toward the Giant Pencil.
+  // A lesson passed for the first time pays once and counts toward the Surveyor.
   const pass = (id: string) => { // true = paid
     if (done.includes(id)) return false;
     const now = LESSONS.map(l => l.id).filter(k => k === id || done.includes(k));
     setDone(now); const saved = saveDone(now); if (saved) award(LESSON_PAY);
-    if (now.length >= PENCIL_AT) unlockCue('pencil');
+    if (now.length >= PENCIL_AT) unlockCue('surveyor');
     return saved;
   };
   // The tournament run (src/tournament): in a ref too, since a match saves it after every shot without a render.
@@ -166,7 +166,7 @@ function Root() {
   const change = (p: Partial<Settings>) => setSet(s => ({ ...s, ...p }));
   const first = useRef(true);
   useEffect(() => { if (first.current) first.current = false; else saveSettings(set); }, [set]);
-  useEffect(() => { if (done.length >= PENCIL_AT) unlockCue('pencil'); }, []); // also at launch: lessons passed before cues existed still count
+  useEffect(() => { if (done.length >= PENCIL_AT) unlockCue('surveyor'); }, []); // also at launch: lessons passed before cues existed still count
   // The lock follows the place: the menus are one way up (settings.menus), a match, lesson or table its own (settings.orient).
   const playing = (PLAY as readonly string[]).includes(screen);
   useEffect(() => { ScreenOrientation.lockAsync(playing ? LOCKS[set.orient] : MENU_LOCKS[set.menus]).catch(() => {}); }, [playing, set.orient, set.menus]);
@@ -337,7 +337,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
       if (stale.current) { // one guide a frame, however many touches came. While a shot can be made the guide and the cue stick are always there: for the pull on the rail, or for a firm shot without one
         stale.current = false; redo.current = true;
         const { power } = shot.get();
-        if (!shut() || watching()) guides.ask({ B, shot: shotOf(previewPower(power)), aim: S || vs ? mine.aim : L ? 10 : GUIDE_AIM, budget: GUIDE_WORK, stick: cue, real: watching() || pen, scale: pen ? guideScale(own) : 1 }, power > 0.05); // lessons use the full guide; watch shows the real path, as the shot plays next; so does the Giant Pencil, on a shorter guide
+        if (!shut() || watching()) guides.ask({ B, shot: shotOf(previewPower(power)), aim: S || vs ? mine.aim : L ? 10 : GUIDE_AIM, budget: GUIDE_WORK, stick: cue, real: watching() || pen, scale: pen ? guideScale(own) : 1 }, power > 0.05); // lessons use the full guide; watch shows the real path, as the shot plays next; so does the Surveyor, on a shorter guide
         else { guides.drop(); line.current = null; }
       }
       if (redo.current) { // the stick follows the finger every frame; the line is the newest guide there is, a few frames old when it came from the other thread
