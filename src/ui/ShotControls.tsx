@@ -34,15 +34,15 @@ const dim = (locked: boolean) => ({ opacity: locked ? 0.35 : 1, transitionProper
 // shortcut: no Strike control "Tap" mode; the settings screen adds it.
 // wait = a pocket must be called first: the rail alone looks and acts locked, the aim stays live.
 // For a cue's trick: snap = where a pull lands (the Ratchet's steps), with a tick at each change; marks = the pulls
-// to notch on the rail, read at every draw.
-export function PowerRail({ store, box, onStrike, wait = false, snap, marks }: { store: ShotStore; box: Box; onStrike: (power: number) => void; wait?: boolean; snap?: (pull: number) => number; marks?: () => number[] }) {
+// to notch on the rail, read at every draw; shown = the power a pull stands for, for the label (the Ram's Overdrive).
+export function PowerRail({ store, box, onStrike, wait = false, snap, marks, shown }: { store: ShotStore; box: Box; onStrike: (power: number) => void; wait?: boolean; snap?: (pull: number) => number; marks?: () => number[]; shown?: (pull: number) => number }) {
   const locked = useSyncExternalStore(store.sub, () => store.get().locked) || wait, [, render] = useReducer((n: number) => n + 1, 0);
   const pic = useSharedValue(EMPTY), pull = useRef<{ from: number; hist: number[][]; id: number; y: number } | null>(null);
-  const now = useRef({ box, onStrike, wait, snap, marks }); now.current = { box, onStrike, wait, snap, marks }; // the pan responder is created once, so it reads the latest
+  const now = useRef({ box, onStrike, wait, snap, marks, shown }); now.current = { box, onStrike, wait, snap, marks, shown }; // the pan responder is created once, so it reads the latest
   useEffect(() => {
     let was = '';
     const draw = () => {
-      const { power } = store.get(), label = railLabel(power, !!pull.current), marks = now.current.marks?.() ?? [], key = power + label + marks;
+      const { power } = store.get(), label = railLabel(power, !!pull.current, now.current.shown?.(power)), marks = now.current.marks?.() ?? [], key = power + label + marks;
       if (key !== was) { was = key; pic.set(picture(c => drawRail(Skia, c, box.width, box.height, power, label, FONT, marks))); }
     };
     draw(); return store.sub(draw);

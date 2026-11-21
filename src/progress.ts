@@ -35,6 +35,8 @@ export function featsDone(feats: Partial<Record<FeatId, number>>, won?: boolean,
 // A strike in a match that counts for the streak: the first one marks the match in the save, so that closing the app
 // in it is a loss at the next launch (matchLeft), as leaving it is. A match left before its first strike is no loss.
 export function matchOpen() { const p = profile(); if (!p.open) keep({ ...p, open: true }); }
+// The Ram's shot with no guide, owed or paid off: saved at the strike, so that closing the app cannot drop it.
+export function ramOwed(owed: boolean) { const { ram, ...p } = profile(); if (!!ram !== owed) keep(owed ? { ...p, ram: true } : p); }
 export function matchLeft() { if (profile().open) featsDone({}, false); }
 // A finished Rival match: move that game's rating (src/progress/rival.ts) and save. Gives the ratings before and after.
 export function rivalDone(game: 8 | 9, won: boolean, left: number, mood: Mood): [number, number] {

@@ -1,7 +1,7 @@
 // Run: npm test   (the progression model: levels, pay, cues, feats, gates and the saved profile)
 import assert from 'node:assert';
 import { CUE } from '../physics/engine.ts';
-import { auraLine, notch, ratchet, STEPS } from './tricks.ts';
+import { auraLine, notch, overdrive, ramOwes, ratchet, STEPS } from './tricks.ts';
 import { CUE_IDS, CUES, soon, specLine, specs, stick } from './cues.ts';
 import { hustler, matchFeats, matchPay, newLedger, noteShot, rackOver, safetyPay, settle, shotPay } from './pay.ts';
 import { cueGain, masteryLevel, masteryNote, masteryOf, readMastery, statsOf, tuneDown, tuneUp, upCost } from './mastery.ts';
@@ -320,6 +320,9 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq([0, 0.04, 0.05, 0.099, 0.101, 0.2, 0.5, 0.92, 0.94, 1].map(ratchet), [0, 0.04, 0.08, 0.08, 0.12, 0.17, 0.45, 0.86, 1, 1], 'Ratchet: a pull lands on the nearest step; under 5% it still cancels');
   eq([STEPS.length, STEPS.every((s, i) => !i || s > STEPS[i - 1])], [10, true], '10 rising steps');
   eq([notch([], 0.33), notch([0.08, 0.33, 0.58], 1), notch([0.08, 0.33, 0.58], 0.33)], [[0.33], [0.33, 0.58, 1], [0.08, 0.58, 0.33]], 'notches: the last 3 pulls, each step once');
+  assert(Math.abs(overdrive(5 / 6, true) - 1) < 1e-9, 'Ram: 100% sits at five sixths of the pull'); eq([overdrive(1, true), overdrive(1, false), overdrive(0.5, false)], [1.2, 1, 0.6], 'the full pull is 120%; 100% on the break and with the cue raised');
+  eq([ramOwes(false, 1.1, false), ramOwes(true, 0.8, false), ramOwes(true, 1.1, false), ramOwes(true, 1, true), ramOwes(false, 1, false)], [true, false, true, true, false], 'a strike past 100% owes a blind shot; the next strike that is no break pays it off, or owes again');
+  eq([readProfile(JSON.stringify({ ...NEW, ram: true })).ram, readProfile(JSON.stringify({ ...NEW, ram: 1 })).ram], [true, undefined], 'the owed shot is saved');
   ok('tricks on the controls');
 }
 { // the Aura's run lives in the profile between matches

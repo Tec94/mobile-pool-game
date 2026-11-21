@@ -37,7 +37,7 @@ import { tourMatch as tm, type TourMatch as TM } from './src/tournament/match';
 import { DRAG, nearest, previewPower, shorten, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { farGuide, type Guide, type GuideAsk, nearGuide } from './src/shot/far';
 import { guidePacer } from './src/shot/pacer';
-import { award, featsDone, keep, matchLeft, matchOpen, ownStats, passPlayPay, payRun, profile, rivalDone, unlockCue } from './src/progress';
+import { award, featsDone, keep, matchLeft, matchOpen, ownStats, passPlayPay, payRun, profile, ramOwed, rivalDone, unlockCue } from './src/progress';
 import { shown, tenth } from './src/progress/rival';
 import { clear, clearFeats, isOpen, par, SCENARIOS, type Scenario, starCount, starsFor } from './src/scenarios/scenarios';
 import { armChalk, chalkResult, dailyClear, dailyPick, dayKey, grantChalk } from './src/daily/daily';
@@ -45,7 +45,7 @@ import { loadDaily, saveDaily } from './src/daily/save';
 import { loadStars, saveStars } from './src/scenarios/save';
 import { levelNote } from './src/progress/profile';
 import { type CueId, CUES, guideScale, sketch, stick } from './src/progress/cues';
-import { auraLine, notch, ratchet } from './src/progress/tricks';
+import { auraLine, notch, OVER, overdrive, RAM_LINE, ramOwes, ratchet } from './src/progress/tricks';
 import { loadSettings, saveSettings } from './src/settings/save';
 import { RIVAL, type Settings } from './src/settings/settings';
 import { BALLS, C, CLOTHS, CREAM, DARK, FONT } from './src/theme';
@@ -302,7 +302,11 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   const own = useMemo(() => snap0?.cue ?? profile().cue, []), mine = useMemo(() => snap0?.stats ?? ownStats(own), []), cue = useMemo(() => (S || vs ? stick(own, false, mine, vs) : L ? CUE : STICK), []), pen = !!(S || vs) && sketch(own); // fixed for the life of the screen: a cue change takes effect at the next table
   // The Aura's run comes from the profile into the ledger of a match against Hustler or harder (a tournament match that is picked up again keeps its own), and goes back when the match settles.
   if (vs && own === 'aura' && hustler(foe()) && !won.current.aura) won.current.aura = { ...(profile().aura ?? { run: 0, owed: false }) };
-  const shotOf = (power: number): Shot => ({ ang: shot.get().aim, speed: Math.max(0.05, power * (table.current.rules.phase === 'break' ? cue.breakSpeed : cue.maxSpeed)), ...shotTip(tip.get(), cue) });
+  // The Ram's Overdrive (tricks.ts): the player's pull stands for up to 120% power, and a strike past 100% owes a shot with no guide.
+  const ram = vs && own === 'ram', blind = useRef(ram && !!profile().ram);
+  const powerOf = (pull: number) => (ram && table.current.rules.turn === 0 ? overdrive(pull, table.current.rules.phase !== 'break' && tip.get().elev < 4) : pull);
+  const dark = (pull: number) => ram && table.current.rules.turn === 0 && ((blind.current && table.current.rules.phase !== 'break') || powerOf(pull) > 1); // no guide: the owed shot, and while the pull is past 100%
+  const shotOf = (power: number): Shot => ({ ang: shot.get().aim, speed: Math.max(0.05, powerOf(power) * (table.current.rules.phase === 'break' ? cue.breakSpeed : cue.maxSpeed)), ...shotTip(tip.get(), cue) });
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the
   // rack is over. In a lesson: the shot plays itself, or the verdict card is up.
   const bot = () => vs && table.current.rules.turn === 1; // on the AI's turn nothing can be touched
@@ -360,7 +364,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
         if (!shut() || watching() || lining.current) {
           const bad = !!g && !L && !pushOut && g.first > 0 && !legalFirst(s, ids[g.first]); // the ghost meets a ball the rules do not allow first
           const coiled = vs && s.turn === 0 && own === 'coil' && tip.get().elev >= 4; // the Coil's price: with the cue raised the guide stops 20 cm from the cue ball
-          if (g && !(S && les.current.guideOff)) { peeked.current = true; if (coiled) drawAim(Skia, c, map.current, shorten(g.path, 0.2)); else drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob, bad, g.stub); }
+          if (g && !(S && les.current.guideOff) && !dark(power)) { peeked.current = true; if (coiled) drawAim(Skia, c, map.current, shorten(g.path, 0.2)); else drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob, bad, g.stub); }
           if (!grab.current || grab.current === 'call') drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power, (S || vs) && !lining.current ? own : undefined); // no stick while a finger carries the cue ball in hand; the player's own cue where it counts, the plain stick for the AI and for matched games
         }
         guide.value = rec.finishRecordingAsPicture(); redo.current = false;
@@ -419,10 +423,11 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   const fire = (power: number) => {
     const t = table.current;
     if (shut() || (canCall(t.rules) && t.rules.call < 0)) { shot.set({ power: 0 }); return; } // a pocket must be called first: the HUD asks for it
-    Haptics.impactAsync(power > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
+    Haptics.impactAsync(powerOf(power) > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
     if (vs) cands.current = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules); // shortcut: a full candidate search on the strike frame, cheap next to a guide
     const sh = shotOf(power); snap(sh); opened();
     if (vs && own === 'ratchet') notches.current = notch(notches.current, power);
+    if (ram) { blind.current = ramOwes(blind.current, powerOf(power), t.rules.phase === 'break'); ramOwed(blind.current); }
     t.rec = L ? newLessonRec() : newRec(sh); strike(t.B[0], sh, cue); moving.current = true; wake.current();
     tip.set(LEVEL); setSheet(false); setTools(false); shot.set({ power: 0, fine: false, locked: true });
   };
@@ -578,7 +583,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   const over = rules.phase === 'over';
   const win = rules.winner === -1 ? 0 : rules.winner, done = over && score.current[win] >= race; // the match is over
   const paid = done ? end.current : null;
-  const trick = won.current.aura ? auraLine(won.current.aura) : null; // the state of the cue's trick, after the player's name on the HUD
+  const trick = won.current.aura ? auraLine(won.current.aura) : ram && blind.current && rules.phase !== 'break' ? RAM_LINE : null; // the state of the cue's trick, after the player's name on the HUD
   const rerack = (breaker = over ? 1 - rules.breaker : rules.breaker) => {
     if (done) { score.current = [0, 0]; if (rival) { level.current = profile().rival[game].rating; moved.current = ''; } won.current = newLedger(); cands.current = []; end.current = null; }
     apply.current(newGame(game, breaker as 0 | 1, callAll, bankRule, Math.floor(Math.random() * 2 ** 31)));
@@ -633,7 +638,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
         </View>
       )}
       {/* The shot controls sit inside the safe area where shotLayout puts them. */}
-      <PowerRail store={shot} box={lay.rail} onStrike={fire} wait={!bot() && canCall(rules) && rules.call < 0} {...(vs && own === 'ratchet' && { snap: ratchet, marks: () => notches.current })} />
+      <PowerRail store={shot} box={lay.rail} onStrike={fire} wait={!bot() && canCall(rules) && rules.call < 0} {...(vs && own === 'ratchet' && { snap: ratchet, marks: () => notches.current })} {...(ram && { shown: powerOf, marks: () => (table.current.rules.turn === 0 ? [1 / OVER] : []) })} />
       <AimDial store={shot} box={lay.dial} />
       {!(L && stage === 'watch') && <View style={[styles.at, lay.spin]}><TipButton store={tip} land={view.land} onPress={() => { setSheet(!sheet); setTools(false); }} /></View>}
       {!L && !vs && <View style={[styles.at, lay.tools]}><Btn label="•••" name="Table tools" onPress={() => { setTools(!tools); setSheet(false); }} /></View>}

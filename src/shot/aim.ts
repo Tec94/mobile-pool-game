@@ -32,7 +32,8 @@ export function release(hist: number[][], now: number, power: number) {
   const old = hist.filter(q => now - q[0] >= 80).pop(), p = old && Math.abs(old[1] - power) < 0.04 ? old[1] : power;
   return power > 0.05 && p > 0.05 ? p : 0;
 }
-export const railLabel = (power: number, pulling: boolean) => (power >= 0.05 ? Math.round(power * 100) + '%' : pulling ? 'Cancel' : 'Pull');
+// as = the power the pull stands for, when a cue's trick makes it another number (the Ram's Overdrive)
+export const railLabel = (power: number, pulling: boolean, as = power) => (power >= 0.05 ? Math.round(as * 100) + '%' : pulling ? 'Cancel' : 'Pull');
 export const previewPower = (pull: number) => (pull > 0.05 ? pull : 0.7); // the guide shows the pull, or a firm shot when there is none
 // The guide's length past the first contact grows with every Aim point (Jack: no point may do nothing): 10 cm at Aim 1
 // to 60 cm at Aim 10, metres. 0 = Off; the line to the first contact is always drawn.
