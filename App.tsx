@@ -34,7 +34,7 @@ import { medalOf, newRun, type Opts, type Run } from './src/tournament/bracket';
 import { loadRun, saveRun } from './src/tournament/save';
 import { fits, type Snap } from './src/tournament/snap';
 import { tourMatch as tm, type TourMatch as TM } from './src/tournament/match';
-import { DRAG, nearest, previewPower, shorten, swing, TAP_MS, tapAim } from './src/shot/aim';
+import { DRAG, guideLen, nearest, pointAt, previewPower, rollOut, shorten, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { farGuide, type Guide, type GuideAsk, nearGuide } from './src/shot/far';
 import { guidePacer } from './src/shot/pacer';
 import { award, featsDone, keep, matchLeft, matchOpen, maxPick, ownStats, passPlayPay, payRun, profile, ramOwed, rivalDone, unlockCue } from './src/progress';
@@ -44,7 +44,7 @@ import { armChalk, chalkResult, dailyClear, dailyPick, dayKey, grantChalk } from
 import { loadDaily, saveDaily } from './src/daily/save';
 import { loadStars, saveStars } from './src/scenarios/save';
 import { levelNote } from './src/progress/profile';
-import { type CueId, CUES, guideScale, plain, sketch, type Stat, stick } from './src/progress/cues';
+import { type CueId, CUES, guideScale, LOW_TIP, plain, sketch, type Stat, stick } from './src/progress/cues';
 import { maxStats, nextPick } from './src/progress/mastery';
 import { afterSoft, auraLine, maxLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, OVER, overdrive, RAM_LINE, ramOwes, ratchet, SOFT, softHands, softLine } from './src/progress/tricks';
 import { loadSettings, saveSettings } from './src/settings/save';
@@ -55,12 +55,12 @@ import { useFontsReady } from './src/ui/fonts';
 import { LESSON_HUD, LessonHud } from './src/ui/LessonHud';
 import { Act, hudHeight, MatchHud, PayRow, PayTotal, Results } from './src/ui/MatchHud';
 import { Menus, type Screen } from './src/ui/Menus';
-import { AimDial, PowerRail, shotStore } from './src/ui/ShotControls';
+import { AimDial, PowerRail, RAIL_FONT, shotStore } from './src/ui/ShotControls';
 import { TipButton, TipSheet, tipStore } from './src/ui/TipControl';
 
 const GRAB = 36; // px: a touch this near the cue ball in hand drags it. The ball is smaller than a fingertip, so the
 // ball keeps its distance from the finger and stays in view.
-const GUIDE_WORK = 3200; // ball-steps the aim guide may follow after first contact. The steps before it are not capped: a slow guide is worked out off the JS thread (src/shot/pacer.ts)
+const GUIDE_WORK = 3200, LONG_WORK = 8000, DAY_WORK = 12000; // ball-steps the aim guide may follow after first contact: a guide of 45 cm or less past the hit, a longer one (3,200 cuts a 60 cm line short on most soft shots), and the Daybreak's. The steps before it are not capped: a slow guide is worked out off the JS thread (src/shot/pacer.ts)
 // Pass and play is a matched game: both players on House Cue stats with the perks off, whatever cues the phone owns.
 const MATCH_CUE = 'house', STICK = stick(MATCH_CUE, true), GUIDE_AIM = CUES[MATCH_CUE].aim; // one cue for the shot and its guide
 const THINK_MS = 800; // the AI takes at least this long, so a fast tier does not shoot the moment the table stops
@@ -307,6 +307,8 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   if (vs && own === 'aura' && hustler(foe()) && !won.current.aura) won.current.aura = { ...(profile().aura ?? { run: 0, owed: false }) };
   // The stats and the stick in play. The cue's own, but for a cue whose trick changes its stats in a match (the Marble).
   const inPlay = useRef({ stats: mine, cue });
+  const lines = vs && (own === 'daybreak' || own === 'banker' || own === 'vernier') ? own : undefined, optic = vs && own === 'optic'; // the cues whose trick is in the guide (aim.ts aimGuide)
+  const struck = () => (inPlay.current.cue.dead && table.current.rules.phase === 'break' ? { ...inPlay.current.cue, dead: false } : inPlay.current.cue); // the stick for the shot now: the Plumb's Dead stop is off on the break
   const setStats = (st: typeof mine) => { const was = inPlay.current.stats; if (st.power === was.power && st.spin === was.spin && st.aim === was.aim) return; inPlay.current = { stats: st, cue: stick(own, false, st, vs) }; dirty(); };
   // The Maxxed's Statmaxxing: one stat is 10. The pick is free before the break shot of a rack. Once a rack the player may
   // pick again at the start of a turn (visit = the shots of this visit to the table); the pick is spent at the strike,
@@ -371,7 +373,8 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
       if (stale.current) { // one guide a frame, however many touches came. While a shot can be made the guide and the cue stick are always there: for the pull on the rail, or for a firm shot without one
         stale.current = false; redo.current = true;
         const { power } = shot.get();
-        if (!shut() || watching()) guides.ask({ B, shot: shotOf(previewPower(power)), aim: S || vs ? inPlay.current.stats.aim : L ? 10 : GUIDE_AIM, budget: GUIDE_WORK, stick: inPlay.current.cue, real: watching() || pen, scale: pen ? guideScale(own) : 1 }, power > 0.05); // lessons use the full guide; watch shows the real path, as the shot plays next; so does the Surveyor, on a shorter guide
+        const stat = S || vs ? inPlay.current.stats.aim : L ? 10 : GUIDE_AIM;
+        if (!shut() || watching()) guides.ask({ B, shot: shotOf(previewPower(power)), aim: stat, budget: lines === 'daybreak' ? DAY_WORK : lines === 'banker' || guideLen(stat) > 0.45 ? LONG_WORK : GUIDE_WORK, stick: struck(), real: watching() || pen, scale: pen ? guideScale(own) : 1, trick: lines }, power > 0.05); // lessons use the full guide; watch shows the real path, as the shot plays next; so does the Surveyor, on a shorter guide
         else { guides.drop(); line.current = null; }
       }
       if (redo.current) { // the stick follows the finger every frame; the line is the newest guide there is, a few frames old when it came from the other thread
@@ -379,7 +382,11 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
         if (!shut() || watching() || lining.current) {
           const bad = !!g && !L && !pushOut && g.first > 0 && !legalFirst(s, ids[g.first]); // the ghost meets a ball the rules do not allow first
           const coiled = vs && s.turn === 0 && own === 'coil' && tip.get().elev >= 4; // the Coil's price: with the cue raised the guide stops 20 cm from the cue ball
-          if (g && !(S && les.current.guideOff) && !dark(power)) { peeked.current = true; if (coiled) drawAim(Skia, c, map.current, shorten(g.path, 0.2)); else drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob, bad, g.stub); }
+          if (g && !(S && les.current.guideOff) && !dark(power)) { peeked.current = true; if (coiled) drawAim(Skia, c, map.current, shorten(g.path, 0.2)); else {
+              // The Optic's Range, for the speed the guide shows: a mark where the cue ball's roll would end before the first ball, and a ring of the first ball's reach. A ring wider than 2.5 m is a number by the ball.
+              const far = optic && g.first > 0 && 2 * g.roll > 2.5;
+              drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob, bad, g.stub, { fill: g.dead, ...(optic && { mark: pointAt(g.path, rollOut(shotOf(previewPower(power)).speed)), ring: g.first > 0 && !far ? [B[g.first].x, B[g.first].y, g.roll] : null, note: far ? `${g.roll.toFixed(1)} m` : '', font: RAIL_FONT }) });
+            } }
           if (!grab.current || grab.current === 'call') drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power, (S || vs) && !lining.current ? own : undefined); // no stick while a finger carries the cue ball in hand; the player's own cue where it counts, the plain stick for the AI and for matched games
         }
         guide.value = rec.finishRecordingAsPicture(); redo.current = false;
@@ -450,7 +457,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     visit.current++;
     if (vs && own === 'ratchet') notches.current = notch(notches.current, power);
     if (ram) { blind.current = ramOwes(blind.current, powerOf(power), t.rules.phase === 'break'); ramOwed(blind.current); }
-    t.rec = L ? newLessonRec() : newRec(sh); strike(t.B[0], sh, inPlay.current.cue); moving.current = true; wake.current();
+    t.rec = L ? newLessonRec() : newRec(sh); strike(t.B[0], sh, struck()); moving.current = true; wake.current();
     tip.set(LEVEL); setSheet(false); setTools(false); shot.set({ power: 0, fine: false, locked: true });
   };
   // The AI's shot: its cue ball in hand, its line-up, its call, then the strike as fire() makes it. The AI plans on the
@@ -472,7 +479,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     const t = table.current, sh = snap0?.shot;
     if (!sh) return;
     if (t.rules.turn === 0) cands.current = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules);
-    t.rec = newRec(sh); strike(t.B[0], sh, t.rules.turn === 0 ? inPlay.current.cue : STICK); moving.current = true; shot.set({ power: 0, locked: true }); paint(); redraw();
+    t.rec = newRec(sh); strike(t.B[0], sh, t.rules.turn === 0 ? struck() : STICK); moving.current = true; shot.set({ power: 0, locked: true }); paint(); redraw();
   }, []);
   // The AI's moves on the table play out over time: tween runs f(eased 0..1) each frame for ms, rests, then done().
   // drop() ends a tween the turn left (a pause, a new ruling, leaving the match) and runs its undo.
@@ -660,7 +667,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
         </View>
       )}
       {/* The shot controls sit inside the safe area where shotLayout puts them. */}
-      <PowerRail store={shot} box={lay.rail} onStrike={fire} wait={!bot() && canCall(rules) && rules.call < 0} {...(vs && own === 'ratchet' && { snap: ratchet, marks: () => notches.current })} {...(ram && { shown: powerOf, marks: () => (table.current.rules.turn === 0 ? [1 / OVER] : []) })} {...(vs && own === 'whisper' && { marks: () => (table.current.rules.turn === 0 ? [SOFT] : []) })} />
+      <PowerRail store={shot} box={lay.rail} onStrike={fire} wait={!bot() && canCall(rules) && rules.call < 0} {...(vs && own === 'ratchet' && { snap: ratchet, marks: () => notches.current })} {...(ram && { shown: powerOf, marks: () => (table.current.rules.turn === 0 ? [1 / OVER] : []) })} {...(vs && own === 'whisper' && { marks: () => (table.current.rules.turn === 0 ? [SOFT] : []) })} {...(optic && { note: (pull: number) => `${rollOut(shotOf(pull).speed).toFixed(1)} m` })} />
       <AimDial store={shot} box={lay.dial} />
       {!(L && stage === 'watch') && <View style={[styles.at, lay.spin]}><TipButton store={tip} land={view.land} onPress={() => { setSheet(!sheet); setTools(false); }} /></View>}
       {maxxed && <View style={[styles.at, lay.tools]}><Btn label={`${pick[0].toUpperCase()}${pick.slice(1)}\n${plain('maxxed') ? '10' : 'maxxing'}`} name={`Statmaxxing: ${pick} is 10. Pick another stat`} off={!canPick()} onPress={repick} /></View>}
@@ -677,7 +684,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
         </View>
       )}
       {/* The tip and cue angle sheet, at the centre of the window. A touch outside it closes it and does nothing else; the rail still shoots. */}
-      {sheet && !card && <TipSheet store={tip} land={view.land} keep={width - lay.rail.left} calm={calm} felt={CLOTHS[cloth].felt} blend={set.zones} onDone={() => setSheet(false)} />}
+      {sheet && !card && <TipSheet store={tip} land={view.land} keep={width - lay.rail.left} calm={calm} felt={CLOTHS[cloth].felt} blend={set.zones} low={vs && own === 'star' ? LOW_TIP : 1} onDone={() => setSheet(false)} />}
       {/* The end of the rack: the frame score in a race, the pay at the end of the match. Over the controls, which wait. */}
       {over && !paused && (
         <Results rules={rules} kind={tour ? `Tournament · ${tour.round}` : vs ? 'Quick match' : undefined} title={tour && done ? (win ? 'Knocked out' : tour.next ? `Through to the ${tour.next.toLowerCase()}` : 'Champion') : `${names[win]} wins${race > 1 ? done ? ' the match' : ' the frame' : ''}`} gold={!vs || win === 0}

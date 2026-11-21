@@ -32,7 +32,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(Object.keys(CUES).length, 26, '26 cues'); eq(CUES.house.aim, 5, 'House Cue Aim 5');
   for (const id of CUE_IDS) { const c = CUES[id]; assert([c.price !== undefined, !!c.feat, !!c.level, !!c.get, id === 'house'].filter(Boolean).length === 1, `${id}: one way to get it`); assert(!c.feat || FEATS[c.feat]?.cue === id, `${id}: its feat gives it`); }
   eq(CUE_IDS.filter(id => CUES[id].price !== undefined).reduce((a, id) => a + CUES[id].price, 0), 23100, 'the six coin cues cost 23,100');
-  eq([soon('surveyor'), soon('twig'), soon('house'), soon('banker')], [false, false, false, true], 'a trick that does not act yet is marked Soon; the House Cue has none');
+  eq([soon('surveyor'), soon('twig'), soon('house'), soon('airbrake')], [false, false, false, true], 'a trick that does not act yet is marked Soon; the House Cue has none');
   ok('cue stats give the engine cue');
   eq(specLine(specs('house')), 'Power: 3.88 m/s top shot, 10.3 m/s break\nSpin: tip up to 10.5 mm off centre\nAim: guide 32 cm past contact', 'House Cue in real units');
   eq(specs('ram').shot.toFixed(2) + ' ' + specs('ram').brk.toFixed(1), '4.50 12.0', 'Ram: Power 10');

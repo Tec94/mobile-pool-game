@@ -22,7 +22,7 @@ export function shotStore(aim: number): ShotStore {
 const picture = (draw: (c: SkCanvas) => void) => { const rec = Skia.PictureRecorder(); draw(rec.beginRecording()); return rec.finishRecordingAsPicture(); };
 const EMPTY = picture(() => {});
 // The rail label's face: the system font at 13 pt semibold, grown with the text size setting up to 1.15x as the React label was.
-const FONT = (() => { try { return matchFont({ fontFamily: Platform.select({ ios: 'System', default: 'sans-serif' }), fontSize: 13 * Math.min(1.15, PixelRatio.getFontScale()), fontWeight: '600' }); } catch { return null; } })();
+export const RAIL_FONT = (() => { try { return matchFont({ fontFamily: Platform.select({ ios: 'System', default: 'sans-serif' }), fontSize: 13 * Math.min(1.15, PixelRatio.getFontScale()), fontWeight: '600' }); } catch { return null; } })();
 const tick = () => { Haptics.selectionAsync(); };
 const dimmed = (store: ShotStore) => () => { const v = store.get(); return v.locked && !v.shown; };
 const dim = (locked: boolean) => ({ opacity: locked ? 0.35 : 1, transitionProperty: 'opacity', transitionDuration: '200ms' }) as const; // the controls wait while balls move
@@ -34,16 +34,17 @@ const dim = (locked: boolean) => ({ opacity: locked ? 0.35 : 1, transitionProper
 // shortcut: no Strike control "Tap" mode; the settings screen adds it.
 // wait = a pocket must be called first: the rail alone looks and acts locked, the aim stays live.
 // For a cue's trick: snap = where a pull lands (the Ratchet's steps), with a tick at each change; marks = the pulls
-// to notch on the rail, read at every draw; shown = the power a pull stands for, for the label (the Ram's Overdrive).
-export function PowerRail({ store, box, onStrike, wait = false, snap, marks, shown }: { store: ShotStore; box: Box; onStrike: (power: number) => void; wait?: boolean; snap?: (pull: number) => number; marks?: () => number[]; shown?: (pull: number) => number }) {
+// to notch on the rail, read at every draw; shown = the power a pull stands for, for the label (the Ram's Overdrive);
+// note = the label of a pull, in place of its percent (the Optic: how far the pull rolls the cue ball).
+export function PowerRail({ store, box, onStrike, wait = false, snap, marks, shown, note }: { store: ShotStore; box: Box; onStrike: (power: number) => void; wait?: boolean; snap?: (pull: number) => number; marks?: () => number[]; shown?: (pull: number) => number; note?: (pull: number) => string }) {
   const locked = useSyncExternalStore(store.sub, () => store.get().locked) || wait, [, render] = useReducer((n: number) => n + 1, 0);
   const pic = useSharedValue(EMPTY), pull = useRef<{ from: number; hist: number[][]; id: number; y: number } | null>(null);
-  const now = useRef({ box, onStrike, wait, snap, marks, shown }); now.current = { box, onStrike, wait, snap, marks, shown }; // the pan responder is created once, so it reads the latest
+  const now = useRef({ box, onStrike, wait, snap, marks, shown, note }); now.current = { box, onStrike, wait, snap, marks, shown, note }; // the pan responder is created once, so it reads the latest
   useEffect(() => {
     let was = '';
     const draw = () => {
-      const { power } = store.get(), label = railLabel(power, !!pull.current, now.current.shown?.(power)), marks = now.current.marks?.() ?? [], key = power + label + marks;
-      if (key !== was) { was = key; pic.set(picture(c => drawRail(Skia, c, box.width, box.height, power, label, FONT, marks))); }
+      const { power } = store.get(), label = power >= 0.05 && now.current.note ? now.current.note(power) : railLabel(power, !!pull.current, now.current.shown?.(power)), marks = now.current.marks?.() ?? [], key = power + label + marks;
+      if (key !== was) { was = key; pic.set(picture(c => drawRail(Skia, c, box.width, box.height, power, label, RAIL_FONT, marks))); }
     };
     draw(); return store.sub(draw);
   }, [box.width, box.height]);

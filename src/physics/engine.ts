@@ -2,10 +2,13 @@
 // Pool physics engine. This file is the source. The lab page (physics/pool-physics-lab.html in the project files, the
 // <script id="engine"> block) is a copy with the types stripped: change this file first, then copy it there. Pure TS: no React, no DOM.
 export type Game=8|9;
-export interface Ball{x:number;y:number;vx:number;vy:number;wx:number;wy:number;wz:number;on:boolean;z?:number;vz?:number}
+export interface Ball{x:number;y:number;vx:number;vy:number;wx:number;wy:number;wz:number;on:boolean;z?:number;vz?:number;dead?:boolean;glide?:number}
+// The flags of a cue's trick ride on the cue ball: the strike sets them, and the first hit ends them.
+// dead = it stops dead at its first hit when that hit is straight (the Plumb); glide = the cloth's sliding friction on it is times this until its first hit or a cushion (the Gyro), 0 or none = 1
 export interface Shot{ang:number;speed:number;a:number;b:number;elev?:number}
-export interface Cue{maxSpeed:number;breakSpeed:number;squirt:number;tipLimit:number;maxElev:number;minElev?:number;massRatio?:number;curl?:number} // curl = how much more a raised cue curves the ball (the Coil), 1 when left out
+export interface Cue{maxSpeed:number;breakSpeed:number;squirt:number;tipLimit:number;maxElev:number;minElev?:number;massRatio?:number;curl?:number;dead?:boolean;glide?:number;lift?:number} // curl = how much more a raised cue curves the ball (the Coil), 1 when left out; dead = the Plumb's stop (Ball.dead); glide = the Gyro's wheel (Ball.glide), for a level cue with the tip at or below centre; lift = how much more a soft jump shot rebounds off the slate (the Fallen Star): this at 40% of maxSpeed or less, falling in a straight line to 1 at full speed
 export const RAISED=4*Math.PI/180-1e-9; // a cue at 4 degrees or more is raised: below it the tip control snaps flat
+export const STRAIGHT=3*Math.PI/180; // a hit with a cut of 3 degrees or less is straight (the Plumb)
 export interface Ev{t:'bb'|'rail'|'pocket'|'off'|'land';a:number;b?:number;x:number;y:number;cut?:number;thr?:number;air?:boolean;turn?:number} // turn = how far a cushion turned the ball's direction, radians (rail)
 type Vec3=[number,number,number];
 interface Contact{i:number;j:number;nx:number;ny:number;nz:number;tb:number;cut:number;jn:number;goal:number;f:Vec3|null}
@@ -114,10 +117,12 @@ export function strike(b:Ball,s:Shot,cue:Cue=CUE){
   const cu=el>=RAISED?cue.curl??1:1; // the spin about the line of travel, which curves the ball
   b.vx=v*dx*ce;b.vy=v*dy*ce;b.wx=-k*s.b*dy+cu*k*s.a*se*dx;b.wy=k*s.b*dx+cu*k*s.a*se*dy;b.wz=k*s.a*ce;
   b.z=0;b.vz=0;
+  if(cue.dead||b.dead)b.dead=!!cue.dead; // a trick's flag rides on the cue ball and every strike sets it again, so no look-ahead inherits it
+  const gl=cue.glide&&s.b<=0&&el<RAISED?cue.glide:0;if(gl||b.glide)b.glide=gl;
   // Past 45 degrees the ball is increasingly trapped between tip and slate, so the rebound fades: lift*g/(1+g^4)^(1/4)
   // with g = 16cos^8(elev), a smooth version of min(1,g). 30 degrees gives a long low hop, about 42 the highest, and
   // from 60 up the ball stays on the cloth at any power (masse).
-  if(se>0){b.vz=-v*se;const g=16*ce**8;bounce(b,P.lift*g/Math.sqrt(Math.sqrt(1+g**4)),P.mus*P.grip);}
+  if(se>0){b.vz=-v*se;const g=16*ce**8,lf=cue.lift?1+(cue.lift-1)*Math.min(1,Math.max(0,(1-s.speed/cue.maxSpeed)/0.6)):1;bounce(b,lf*P.lift*g/Math.sqrt(Math.sqrt(1+g**4)),P.mus*P.grip);}
 }
 
 const cutOf=(a:Ball,nx:number,ny:number)=>Math.acos(Math.max(-1,Math.min(1,(a.vx*nx+a.vy*ny)/(hyp(a.vx,a.vy)||1))));
@@ -140,6 +145,8 @@ function land(a:Ball,b:Ball,ev:Ev[]|undefined,i:number,j:number,nx:number,ny:num
     const cx=k*ny*tz,cy=-k*nx*tz,cz=k*(nx*ty-ny*tx);
     a.wx+=cx;a.wy+=cy;a.wz+=cz;b.wx+=cx;b.wy+=cy;b.wz+=cz;}
   a.vx-=jn*nx;a.vy-=jn*ny;b.vx+=jn*nx;b.vy+=jn*ny;
+  if(a.glide)a.glide=0;
+  if(a.dead){a.dead=false;if(cut<=STRAIGHT)a.vx=a.vy=a.wx=a.wy=a.wz=0;} // the Plumb: the speed and all the spin go. Only the cue ball carries the flag, and it is the first ball of its pair
   // cut and thr describe a moving ball a hitting a resting ball b (the cue ball's first hit); thr is b's departure
   // from the line of centres.
   if(ev)ev.push({t:'bb',a:i,b:j,x:a.x,y:a.y,cut,thr:Math.atan2(nx*b.vy-ny*b.vx,nx*b.vx+ny*b.vy)});
@@ -173,6 +180,8 @@ function air(a:Ball,b:Ball,c:Contact,ev?:Ev[]){
   const {nx,ny,nz,tb}=c,o=[a.vx,a.vy,a.vz||0,b.vx,b.vy,b.vz||0],jn=(1+P.eb)/2*((a.vx-b.vx)*nx+(a.vy-b.vy)*ny+((a.vz||0)-(b.vz||0))*nz),hn=hyp(nx,ny)||1,cut=cutOf(a,nx/hn,ny/hn);
   a.vx-=jn*nx;a.vy-=jn*ny;a.vz=(a.vz||0)-jn*nz;b.vx+=jn*nx;b.vy+=jn*ny;b.vz=(b.vz||0)+jn*nz;
   for(const q of [a,b])if(!((q.z??0)>0)&&(q.vz??0)<0)q.vz=0;
+  if(a.dead)a.dead=false; // a hit in the air is the first hit, and no stop
+  if(a.glide)a.glide=0;
   if(!nx&&!ny)a.vx+=1e-3; // dead centre on top of a ball is a balance point that never settles: tip it off, always the same way
   // Put both balls where they would be had the bounce happened at the instant of contact (as the ground path does);
   // without this a ball coming down on top of another sinks into it and can come to rest overlapping.
@@ -216,7 +225,7 @@ export function step(B:Ball[],ev?:Ev[]):boolean{
     }
     const ux=b.vx-R*b.wy,uy=b.vy+R*b.wx,us=hyp(ux,uy),ox=b.vx,oy=b.vy;
     if(us>1e-9){ // sliding: friction opposes the slip of the contact point
-      const k=Math.min(P.mus*g*h,us/3.5),cx=ux/us*k,cy=uy/us*k;
+      const k=Math.min(P.mus*(b.glide||1)*g*h,us/3.5),cx=ux/us*k,cy=uy/us*k;
       b.vx-=cx;b.vy-=cy;b.wx-=2.5/R*cy;b.wy+=2.5/R*cx;moving=true;
     }else{ // rolling
       const sp=hyp(b.vx,b.vy),dec=P.mur*g*h;
@@ -284,7 +293,7 @@ export function step(B:Ball[],ev?:Ev[]):boolean{
       if(tb<0||pot)break;
       b.x-=b.vx*tb;b.y-=b.vy*tb;
       const ux=b.vx,uy=b.vy;
-      cushion(b,-nx,-ny);
+      cushion(b,-nx,-ny);if(b.glide)b.glide=0;
       if(ev)ev.push({t:'rail',a:i,x:b.x,y:b.y,turn:Math.abs(Math.atan2(ux*b.vy-uy*b.vx,ux*b.vx+uy*b.vy))});
       b.x+=b.vx*tb;b.y+=b.vy*tb;win=tb;
     }
@@ -300,33 +309,41 @@ export function step(B:Ball[],ev?:Ev[]):boolean{
 // cluster sets many balls moving, and following them all until the first ball has run len can take a whole break.
 // The default follows every path to len; the app's guide passes a cap so one aim update fits in a frame.
 // follow = false: once the cue ball meets a ball, only that ball is followed on (the guide draws no more of the cue ball).
-export function predict(B:Ball[],shot:Shot,len:number,stick?:Cue,maxSteps=25000,budget=Infinity,follow=true){
+// For the guides of some cues: ends = stop when the first ball hit has met this many things after the hit (a ball, a
+// cushion, a pocket); kick = before its first hit the cue ball's path has no length limit until it has come off more
+// than this many cushions.
+export function predict(B:Ball[],shot:Shot,len:number,stick?:Cue,maxSteps=25000,budget=Infinity,follow=true,ends=Infinity,kick=0){
   const S=B.map(b=>({...b})),ev:Ev[]=[],c=S[0],cue:number[][]=[[c.x,c.y,0]],ob:number[][]=[];
   strike(c,shot,stick);
-  let split=-1,hit:Ev|null=null,o:Ball|null=null,cl=0,ol=0,scratch=false,apex=0;const lands:number[][]=[];
+  let split=-1,hit:Ev|null=null,o:Ball|null=null,cl=0,ol=0,scratch=false,apex=0,rails=0,at=-1,ov=[0,0];const lands:number[][]=[],met:number[][]=[];
   const add=(arr:number[][],b:Ball,count:boolean)=>{const q=arr[arr.length-1],d=q?hyp(b.x-q[0],b.y-q[1]):0;arr.push([b.x,b.y,b.z||0]);return count?d:0;};
   const idle=(b:Ball)=>!b.on||!(b.vx||b.vy||b.wx||b.wy||b.vz);
   for(let i=1;i<=maxSteps;i++){
-    ev.length=0;const mv=step(S,ev);let ce=false,oe=false;
+    ev.length=0;const mv=step(S,ev);let ce=false,oe=false,ne:Ev|null=null;
     if((c.z??0)>apex)apex=c.z!;
     for(const e of ev){
       if(e.t==='land'){if(e.a===0&&split<0)lands.push([e.x,e.y]);continue;}
       if(e.a===0||e.b===0){
         if(e.t==='pocket'||e.t==='off')scratch=true;
         else if(split<0){cue.push([e.x,e.y,c.z||0]);split=cue.length-1;}
-        if(e.t==='bb'&&!hit){hit=e;o=S[e.b!];ob.push([o.x,o.y,0]);}
+        if(e.t==='rail'&&!hit)rails++;
+        if(e.t==='bb'&&!hit){hit=e;o=S[e.b!];ob.push([o.x,o.y,0]);at=cue.length;ov=[hyp(o.vx,o.vy),hyp(o.vx-P.R*o.wy,o.vy+P.R*o.wx)];}
         ce=true;
       }
-      if(o&&(S[e.a]===o||(e.b!==undefined&&S[e.b]===o)))oe=true;
+      if(o&&(S[e.a]===o||(e.b!==undefined&&S[e.b]===o))){oe=true;if(e!==hit&&!ne)ne=e;}
     }
     if(i%4===0||ce)if(c.on)cl+=add(cue,c,split>=0);
     if(o&&(i%4===0||oe)&&o.on)ol+=add(ob,o,true);
+    if(ne){if(!o!.on)ob.push([ne.x,ne.y,0]);met.push([ob.length-1,ne.t==='bb'?0:ne.t==='rail'?1:2,ne.turn||0]);if(met.length>=ends)break;}
     // Only the cue ball and the first ball it hits are drawn, so stop once both are done, not when the whole table is.
     if(!mv||((idle(c)||o&&!follow)&&(!o||idle(o))))break;
-    if(split>=0&&(o&&!follow||cl>=len)&&(!o||ol>=len))break;
+    if(split>=0&&(o?!follow||cl>=len:kick?rails>kick:cl>=len)&&(!o||ol>=len))break;
     if(split>=0&&budget<Infinity){for(const b of S)if(b.on&&(b.vx||b.vy))budget--;if(budget<0)break;}
   }
-  return {cue,ob,split,hit,scratch,lands,apex}; // path points are [x,y,z]; lands = cue ball touchdowns before first contact
+  // path points are [x,y,z]; lands = cue ball touchdowns before first contact. For the first ball hit: met = [index in ob,
+  // 0 a ball, 1 a cushion, 2 a pocket or off the table, the turn at a cushion] for each thing it met after the hit;
+  // ov = its speed and the speed of its contact point on the cloth just after the hit; at = the index in cue of the first point after the hit.
+  return {cue,ob,split,hit,scratch,lands,apex,met,at,ov};
 }
 
 // Outcome of a shot without drawing anything, for the bot. maxSteps caps the cost (1 step = 1 ms of play);
