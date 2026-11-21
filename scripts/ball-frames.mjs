@@ -14,6 +14,7 @@ import { drawAim, drawTable, toScreen } from '../src/render/table.ts';
 import { drawSide, drawTip, drawTipBall, LEVEL, shotTip, SIDE } from '../src/render/tip.ts';
 import { aimGuide } from '../src/shot/aim.ts';
 import { CUES } from '../src/progress/cues.ts';
+import { ART_IDS, cueCtx, paintCard, paintWhole, tablePic, tablePics } from '../src/render/cues/index.ts';
 import { C, CLOTHS } from '../src/theme.ts';
 
 const require = createRequire(import.meta.url);
@@ -137,6 +138,17 @@ for (const land of [true, false]) for (const pull of [0, 0.6]) strip(`stick-${la
 // 17. the whole phone window while a shot is pulled back to 60%: table, guide, stick and the shot controls
 { const B = [ball(P.L / 4, mid)], ids = [0]; for (const [id, x, y] of rack(8)) { ids.push(id); B.push(ball(x, y)); }
   for (const land of [true, false]) strip('shot-' + (land ? 'land' : 'port'), { B: B.map(b => ({ ...b })), ids, shots: [], n: 1, land, aim: { ang: 0.03, speed: 0.6 * CUE.breakSpeed, a: 0, b: 0 }, pull: 0.6 }); }
+// 19. every cue (src/render/cues): the whole cue fat, as the cues page shows it; its card; and at match size at rest
+// and at a 60% pull, mirrored, as the table draws it behind the cue ball
+{ const dpr = PHONE.dpr, row = 104, surface = CanvasKit.MakeSurface(900 * dpr, ART_IDS.length * row * dpr), sk = surface.getCanvas(), c = new JsiSkCanvas(CanvasKit, sk), ctx = cueCtx(Skia, c);
+  c.drawColor(Skia.Color(CLOTHS[0].felt)); c.scale(dpr, dpr);
+  ART_IDS.forEach((id, i) => { c.save(); c.translate(0, i * row);
+    paintWhole(ctx, id, 420, row);
+    c.save(); c.translate(430, 4); c.clipRect(Skia.XYWHRect(0, 0, 104, 96), 1, true); c.drawColor(Skia.Color(C.frame)); paintCard(ctx, id, 104, 96); c.restore();
+    [0, 0.6].forEach((pull, k) => { const p = tablePics(Skia, id, 280, !!k); // the second points left, so it is mirrored to keep its lit edge up
+      for (const off of [2, 0]) { c.save(); c.translate(k ? 870 + off : 548 + off, 30 + k * 44 + off); if (k) { c.rotate(180, 0, 0); c.scale(1, -1); } c.drawPicture(off ? p.shade : tablePic(Skia, p, pull)); c.restore(); } });
+    c.restore(); });
+  writeFileSync(`${out}/cues.png`, surface.makeImageSnapshot().encodeToBytes()); console.log('cues', ART_IDS.length); }
 // 18. the app icon, written to assets/: the 8 ball as the app draws it, on the cloth under the lamp. `felt` off leaves
 // the ball alone on a clear ground, for the Android adaptive icon and the launch screen.
 function icon(file, n, k, felt) {
