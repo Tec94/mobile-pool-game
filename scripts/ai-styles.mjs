@@ -7,7 +7,7 @@
 import { breakSpot, rack, step, strike } from '../src/physics/engine.ts';
 import { choose, handCue, judge, moveCue, newGame, newRec, record, setCall, spotBall } from '../src/rules/rules.ts';
 import { choiceFor, nextSafeties, safetiesArg, think } from '../src/ai/turn.ts';
-import { STYLE_BUMP, STYLE_IDS, STYLE_RANGE } from '../src/ai/styles.ts';
+import { bumpOf, STYLE_IDS, STYLE_RANGE } from '../src/ai/styles.ts';
 
 const argv = process.argv.slice(2), cut = argv.indexOf('--'), nums = (cut < 0 ? argv : argv.slice(0, cut)).map(Number);
 const [n = 200, game = 8, ...rs] = nums, ratings = rs.length ? rs : [1.5, 3, 4.5, 6], only = cut < 0 ? STYLE_IDS : argv.slice(cut + 1);
@@ -22,7 +22,7 @@ function duel(level, a, b, seed) {
   while (s.phase !== 'over' && shots < 200 && !(s.phase === 'break' && shots)) {
     if (s.choice) { s = choose(s, choiceFor(s)); continue; }
     shots++;
-    const seat = s.turn, brk = s.phase === 'break', m = think(B.map(x => ({ ...x })), ids, s, level + ((seat ? b : a) ? STYLE_BUMP[seat ? b : a] : 0), seed * 1000 + shots + seat * 7919, safetiesArg(safe[seat]), seat ? b : a);
+    const seat = s.turn, brk = s.phase === 'break', m = think(B.map(x => ({ ...x })), ids, s, level + ((seat ? b : a) ? bumpOf(seat ? b : a, level) : 0), seed * 1000 + shots + seat * 7919, safetiesArg(safe[seat]), seat ? b : a);
     if (!brk) safe[seat] = nextSafeties(safe[seat], m.safety);
     if (seat !== last) { if (seat === 0) me.visits++; last = seat; }
     if (m.at) moveCue(B, m.at[0], m.at[1], s.hand); if (m.call >= 0) s = setCall(s, m.call);

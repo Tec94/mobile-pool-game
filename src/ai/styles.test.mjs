@@ -3,12 +3,12 @@
 import assert from 'node:assert';
 import test from 'node:test';
 import { aiParams } from './shot-ai.ts';
-import { STYLE_BUMP, STYLE_IDS, STYLE_RANGE, styled } from './styles.ts';
+import { bumpOf, STYLE_BUMP, STYLE_IDS, STYLE_RANGE, styled } from './styles.ts';
 
 test('every style changes the tier (the Closer near the end of a rack), keeps its rating bump small, and no style is no change', () => {
   const t = aiParams(4, () => 0.5);
   assert.equal(styled(t), t);
-  for (const k of STYLE_IDS) { assert.notDeepStrictEqual(styled(t, k, 2), t, k); assert(STYLE_BUMP[k] >= 0 && STYLE_BUMP[k] <= 0.3); assert(STYLE_RANGE[k][0] < STYLE_RANGE[k][1]); }
+  for (const k of STYLE_IDS) { assert.notDeepStrictEqual(styled(t, k, 2), t, k); assert(STYLE_BUMP[k] >= 0 && STYLE_BUMP[k] <= 0.3 && bumpOf(k, STYLE_RANGE[k][0]) <= 0.5); assert(STYLE_RANGE[k][0] < STYLE_RANGE[k][1]); }
 });
 test('the Closer is sharper only with two balls or fewer to win the rack', () => {
   const t = aiParams(4, () => 0.5);
@@ -17,5 +17,7 @@ test('the Closer is sharper only with two balls or fewer to win the rack', () =>
 test('the Banker plays banks and kicks, the Wall plays safe sooner, the Gunslinger never does', () => {
   const t = aiParams(2, () => 0.5);
   assert(styled(t, 'banker').types.includes('bank') && styled(t, 'banker').types.includes('kick'));
-  assert(styled(t, 'wall').safeAt > (t.safeAt ?? 0.3)); assert.deepStrictEqual(styled(t, 'gun').safetyAngles, []);
+  const hi = aiParams(5, () => 0.5); assert(styled(hi, 'wall').safeAt > (hi.safeAt ?? 0.3)); // from Shark: safe on more pots
+  assert(styled(t, 'wall').safetyAngles.length > t.safetyAngles.length); // below: safe more often than the plain tier can
+  assert.deepStrictEqual(styled(t, 'gun').safetyAngles, []);
 });
