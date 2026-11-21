@@ -1,5 +1,5 @@
 // The table and where it sits on the screen. The app and scripts/ball-frames.mjs both draw it with drawTable.
-import type { Skia, SkCanvas } from '@shopify/react-native-skia';
+import type { Skia, SkCanvas, SkFont } from '@shopify/react-native-skia';
 import { HOLES, P, POCKET } from '../physics/engine.ts';
 import { C, CLOTHS } from '../theme.ts';
 
@@ -70,8 +70,10 @@ export function drawTable(api: typeof Skia, canvas: SkCanvas, v: View, cloth = C
 // `ob` is the path of the ball it meets first, from that ball. `bad` = the rules do not let the cue ball hit that ball
 // first: the ghost is a prohibited sign in the warning colour and the ball's path is not drawn, as the shot is a foul.
 // `stub` = [from, to]: where the cue ball leaves the ghost ball, only a hint, so it is fainter and fades out.
-// x = what a cue's trick adds: fill = the ghost ball is filled in (the Plumb: the cue ball stops there).
-export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: number[][], ghost?: number[] | null, lands: number[][] = [], lost = false, ob: number[][] = [], bad = false, stub: number[][] = [], x: { fill?: boolean } = {}) {
+// x = what a cue's trick adds: fill = the ghost ball is filled in (the Plumb: the cue ball stops there); the
+// Optic's mark = [x, y] where the cue ball's roll ends, ring =
+// [x, y, radius] how far the first ball hit would run, and note = that distance as text by the ball (with font) when the ring is too wide to draw.
+export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: number[][], ghost?: number[] | null, lands: number[][] = [], lost = false, ob: number[][] = [], bad = false, stub: number[][] = [], x: { fill?: boolean; mark?: number[] | null; ring?: number[] | null; note?: string; font?: SkFont | null } = {}) {
   const r = P.R * v.s, p = api.Paint(); p.setAntiAlias(true); p.setColor(api.Color(C.chalk)); p.setStyle(1); p.setStrokeCap(1); p.setStrokeJoin(1); // stroke, round, round
   p.setAlphaf(0.92); p.setStrokeWidth(0.19 * r);
   let run: number[][] = [];
@@ -92,5 +94,8 @@ export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: numbe
     canvas.drawCircle(g.x, g.y, 0.92 * r, p);
     if (x.fill && !bad) { p.setStyle(0); p.setAlphaf(0.75); canvas.drawCircle(g.x, g.y, 0.92 * r, p); p.setStyle(1); p.setAlphaf(0.9); } // 0 = PaintStyle.Fill
   }
+  if (x.mark) { const g = toScreen(v, x.mark[0], x.mark[1]); p.setStyle(0); canvas.drawCircle(g.x, g.y, 0.4 * r, p); p.setStyle(1); } // 0 = PaintStyle.Fill
+  if (x.ring) { const g = toScreen(v, x.ring[0], x.ring[1]); p.setAlphaf(0.5); p.setStrokeWidth(0.12 * r); canvas.drawCircle(g.x, g.y, x.ring[2] * v.s, p); p.setAlphaf(0.9); p.setStrokeWidth(0.16 * r); }
+  if (x.note && x.font && ghost) { const g = toScreen(v, ghost[0], ghost[1]), f = api.Paint(); f.setAntiAlias(true); f.setColor(api.Color(C.chalk)); canvas.drawText(x.note, g.x + 1.6 * r, g.y - 1.6 * r, f, x.font); }
   if (lost) { const q = path[path.length - 1], g = toScreen(v, q[0], q[1]); p.setColor(api.Color(C.warn)); canvas.drawCircle(g.x, g.y, 0.92 * r, p); }
 }

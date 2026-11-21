@@ -1,9 +1,9 @@
 // Run: npm test   (checks the shot controls: what a touch does to the aim and the power, and what the guide shows)
 import assert from 'node:assert';
-import { CUE, P, predict } from '../physics/engine.ts';
+import { CUE, P, predict, step, strike } from '../physics/engine.ts';
 import { DIAL, shotLayout } from '../render/cue.ts';
 import { RAIL } from '../render/table.ts';
-import { aimGuide, dialTurn, guideLen, nearest, nudge, powerTick, previewPower, pullPower, railLabel, release, SENS, shorten, swing, tapAim } from './aim.ts';
+import { aimGuide, dialTurn, guideLen, nearest, nudge, pointAt, powerTick, previewPower, pullPower, railLabel, release, rollOut, SENS, shorten, swing, tapAim } from './aim.ts';
 const mk = (x, y, on = true) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on });
 const near = (a, b, tol, msg) => assert(Math.abs(a - b) < tol, `${msg}: ${a} vs ${b}`);
 const len = p => p.slice(1).reduce((s, q, i) => s + Math.hypot(q[0] - p[i][0], q[1] - p[i][1]), 0);
@@ -160,4 +160,11 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
   const lone = aimGuide([mk(0.6, 0.4)], sh(1, 3), 7, 20000, CUE, false, 1, 'vernier').path, e = end(lone), wall = Math.min(e[0], P.L - e[0], e[1], P.W - e[1]);
   assert(wall < 0.03 && len(lone) > 1.5, `with no ball to meet the line stops at a third cushion (${len(lone).toFixed(2)} m, ${(wall * 100).toFixed(1)} cm from it)`);
   ok('the guides of the Daybreak, the Banker and the Vernier');
+}
+{ // the Optic's numbers: a centre hit slides 12v²/(49 x 0.2 x 9.81) m and then rolls at 5/7 of v
+  near(rollOut(0.7), 12 * 0.49 / (49 * 0.2 * 9.81) + 0.25 / (2 * 0.008 * 9.81), 1e-9, 'the cue ball formula');
+  const B = [mk(0.4, mid), mk(0.9, mid)], g = aimGuide(B, { ang: 0, speed: 0.8, a: 0, b: 0 }, 4), S = B.map(b => ({ ...b })); strike(S[0], { ang: 0, speed: 0.8, a: 0, b: 0 }); while (step(S));
+  near(g.roll, S[1].x - 0.9, 0.01 * g.roll, 'the ring of the first ball is how far the engine rolls it');
+  assert.deepStrictEqual([pointAt([[0, 0], [1, 0], [1, 1]], 1.5), pointAt([[0, 0], [1, 0]], 1.5)], [[1, 0.5], null], 'the mark is on the path, or nowhere past its end');
+  ok('the roll of a ball on bare cloth');
 }

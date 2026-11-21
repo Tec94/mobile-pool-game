@@ -41,6 +41,14 @@ export const guideLen = (aim: number) => (aim <= 0 ? 0 : 0.1 + (Math.min(10, aim
 export const LONG = 7; // from this Aim a stub after the contact shows where the cue ball leaves the ghost ball
 export const STUB = 4 * 0.028575; // m, 4 ball radii (P.R): the stub is this long at every Aim, power and spin, from a 30 degree cut
 const FULL = 0.052; // sine of a 3 degree cut: fuller than this the cue ball stops or runs on through, and the tangent says nothing
+// How far a ball runs on bare cloth, m: v = its speed, u = the speed of its contact point on the cloth (u = v for a
+// ball struck at its centre, which slides until it rolls at 5/7 of v). It slides, then rolls. The Optic's numbers.
+export const rollOut = (v: number, u = v) => (14 * v * u - 2 * u * u) / (49 * P.mus * P.g) + (v - u / 3.5) ** 2 / (2 * P.mur * P.g);
+// The point d metres along a path, or null when the path is shorter.
+export function pointAt(path: number[][], d: number) {
+  for (let i = 1; i < path.length; i++) { const a = path[i - 1], b = path[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (d <= l && l > 0) return [a[0] + (b[0] - a[0]) * d / l, a[1] + (b[1] - a[1]) * d / l]; d -= l; }
+  return null;
+}
 // The Banker's Bank sight: BANK = metres of the object ball's line shown off the cushion, and the furthest the cushion
 // may be from the ball. A cushion counts when it turns the ball 20 degrees or more (rules.ts potKind) and the ball
 // meets it JAW or more along the cushion from a pocket's jaw, so the line can't be swept to find the pocket.
@@ -72,6 +80,7 @@ export function nearest(B: Ball[], keep = 0) {
 //    stub, and on a kick the guide stops at the first cushion.
 //  'banker': on a bank (see BANK) the object ball's line runs to the cushion and BANK off it, or to the next thing it meets.
 //  'vernier': on a kick the cue ball's line runs on off 2 cushions to the ball, and stops at a third. No stub.
+// roll = how far the first ball hit would run on bare cloth with the speed the hit gives it, m (the Optic's ring).
 export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, stick?: Cue, real = false, scale = 1, trick = '') {
   const L = guideLen(aim) * scale, day = trick === 'daybreak', far = !day && (real || aim >= LONG);
   const g = day ? predict(B, shot, Infinity, stick, undefined, budget, false, 1) : trick === 'banker' ? predict(B, shot, 2 * BANK, stick, undefined, budget, false, 2)
@@ -85,11 +94,11 @@ export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, st
   // A kick: the cue ball meets a cushion first. Below LONG the line stops there, so the ring goes there too and no
   // object ball path hangs loose beyond it.
   const q = g.cue[k - 1], h = g.hit, kick = g.split >= 0 && !!h && Math.hypot(q[0] - h.x, q[1] - h.y) > 1e-6;
-  if (kick && !far) return { path: g.cue.slice(0, k), ob: [], ghost: [q[0], q[1]], lands: g.lands, lost: false, first: -1, stub: [] as number[][], dead: false };
-  const dead = !!stick?.dead && !!h && !h.air && h.cut! <= STRAIGHT;
+  if (kick && !far) return { path: g.cue.slice(0, k), ob: [], ghost: [q[0], q[1]], lands: g.lands, lost: false, first: -1, stub: [] as number[][], dead: false, roll: 0 };
+  const roll = h ? rollOut(g.ov[0], g.ov[1]) : 0, dead = !!stick?.dead && !!h && !h.air && h.cut! <= STRAIGHT;
   if (trick === 'vernier') { // the whole line to the ball, or to the last point worked out (a third cushion, the budget, where it stops)
     const path = h && !kick ? g.cue.slice(0, k) : [...g.cue.slice(0, h ? g.at : g.cue.length), ...(h ? [[h.x, h.y, 0]] : [])];
-    return { path, ob: clip(g.ob, L), ghost: h && [h.x, h.y], lands: g.lands, lost: g.scratch && g.split < 0, first: h ? h.b! : -1, stub: [] as number[][], dead };
+    return { path, ob: clip(g.ob, L), ghost: h && [h.x, h.y], lands: g.lands, lost: g.scratch && g.split < 0, first: h ? h.b! : -1, stub: [] as number[][], dead, roll };
   }
   const m = g.met[0], to = m ? g.ob.slice(0, m[0] + 1) : g.ob, reach = to.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - to[i][0], p[1] - to[i][1]), 0);
   const bank = trick === 'banker' && !!m && m[1] === 1 && m[2] >= BEND && reach <= BANK && offJaws(to[to.length - 1][0], to[to.length - 1][1]);
@@ -114,7 +123,7 @@ export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, st
     const ahead = (O.x - h.x) * ux + (O.y - h.y) * uy > 0; // the ball lies ahead of the line: a kick whose line was cut at a near miss gets no stub, not a wrong one
     if (n > 0 && Math.abs(s) > FULL && t > 0 && ahead && !h.air && !g.lands.length) stub = [[h.x, h.y], [h.x + t * ex, h.y + t * ey]];
   }
-  return { path, ob, ghost: h && [h.x, h.y], lands: g.lands, lost: g.scratch && g.split < 0, first: h ? h.b! : -1, stub, dead };
+  return { path, ob, ghost: h && [h.x, h.y], lands: g.lands, lost: g.scratch && g.split < 0, first: h ? h.b! : -1, stub, dead, roll };
 }
 // The first len metres of a path: the guide the Coil shows with its cue raised.
 export function shorten(path: number[][], len: number) {
