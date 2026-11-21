@@ -1,24 +1,32 @@
 // The player's progress: total XP (the level comes from it), coins, cues and feat counts (progression design).
-import { CUE_IDS, CUES, type CueId, type CueInfo } from './cues.ts';
-import { type Mastery, readMastery } from './mastery.ts';
+import { CUE_IDS, CUES, type CueId, type CueInfo, plain } from './cues.ts';
+import { fit, type Mastery, MAXXED_AT, maxedCues, NONE, paidCoins, readMastery, readOne, tunable } from './mastery.ts';
 import type { Pay } from './pay.ts';
 import { newRival, readRival, type Rival } from './rival.ts';
 
+// How a feat is counted in a match is in pay.ts and App.tsx; a feat here is its count and what a full one gives.
 export const FEATS = {
-  reel: { name: 'Reel It In', count: 25, cue: 'rod' },
-  bank: { name: 'Bank Robber', count: 50, cue: 'crowbar' },
-  combo: { name: 'Combo Chef', count: 30, cue: 'chopsticks' },
-  kick: { name: 'Kick Start', count: 15, cue: 'periscope' },
-  sharp: { name: 'Sharpshooter', count: 100, cue: 'cactus' }, // Tough or harder pots
-  spin: { name: 'Spin Doctor', count: 75, cue: 'wizard' },
-  purist: { name: 'Purist', count: 10, coins: 500 },          // wins with the aim line off
+  reel: { name: 'Reel It In', count: 25, coins: 500 },
+  bank: { name: 'Bank Robber', count: 30, cue: 'banker' },
+  combo: { name: 'Combo Chef', count: 30, coins: 500 },
+  kick: { name: 'Kick Start', count: 15, cue: 'vernier' },
+  sharp: { name: 'Sharpshooter', count: 200, cue: 'seer' },   // Tough or harder pots
+  spin: { name: 'Spin Doctor', count: 75, cue: 'coil' },
+  purist: { name: 'Purist', count: 10, cue: 'nonchalant' },   // wins with the aim line off
   giant: { name: 'Giant Killer', count: 1, coins: 500 },      // beat Shark or harder with the Twig
   long: { name: 'Long Shot', count: 25, coins: 300 },
-  escape: { name: 'Escape Artist', count: 20, coins: 300 },
-  lives: { name: 'Nine Lives', count: 15, coins: 300 },
+  escape: { name: 'Escape Artist', count: 20, cue: 'star' },
+  lives: { name: 'Nine Lives', count: 30, cue: 'hindsight' },
   order: { name: 'In Order', count: 10, coins: 300 },
+  legend: { name: 'Living Legend', count: 10, cue: 'daybreak' }, // wins against Legend, or a Rival rated 6.0 or more
+  thirteen: { name: 'Thirteen', count: 13, cue: 'sixseven' },    // the 6 and the 7 potted in one turn
+  heater: { name: 'Heater', count: 1, cue: 'aura' },             // 7 balls of yours potted in one turn
+  unbeaten: { name: 'Unbeaten', count: 5, cue: 'marble' },       // wins in a row
+  tuning: { name: 'Tuningmaxxing', count: MAXXED_AT, cue: 'maxxed' }, // counted from the cues, not saved: mastery.ts maxedCues
 } satisfies Record<string, { name: string; count: number; cue?: CueId; coins?: number }>;
 export type FeatId = keyof typeof FEATS;
+// The feat's name on screen: the Maxxed's feat has a plain name for when its cue shows its plain copy (cues.ts JOKE_COPY).
+export const featName = (id: FeatId) => (id === 'tuning' && plain('maxxed') ? 'Tuned up' : FEATS[id].name);
 
 // feats: progress from play and from scenarios apart, since scenarios may give at most half of a count.
 export interface Profile { xp: number; coins: number; owned: CueId[]; cue: CueId; feats: Partial<Record<FeatId, { play: number; scen: number }>>; mastery: Partial<Record<CueId, Mastery>>; rival: Rival; trophies: number[]; tour?: { seed: number; xp: number; coins: number }; pp?: { day: string; n: number } }
@@ -37,20 +45,24 @@ export function levelOf(xp: number) {
   return level === MAX_LEVEL ? { level, into: 0, need: 0 } : { level, into: xp, need: toLeave(level) };
 }
 
-// Add pay. Each level-up pays 50 + 10 x the new level, and level 20 gives the Twig. from, to and bonus are for the results card.
+// The cues a level gives (Ratchet 8, Optic 14, Twig 20, Gyro 28, Airbrake 40): anyone at or past the level has them.
+const LEVEL_CUES = CUE_IDS.filter(id => (CUES[id] as CueInfo).level).map(id => [id, (CUES[id] as CueInfo).level!] as const);
+const withLevelCues = (p: Profile, level: number) => LEVEL_CUES.reduce((q, [id, at]) => (level >= at ? unlock(q, id) : q), p);
+
+// Add pay. Each level-up pays 50 + 10 x the new level, and some levels give a cue. from, to and bonus are for the results card.
 export function gain(p: Profile, pay: Pay) {
   const from = levelOf(p.xp).level, to = levelOf(p.xp + pay.xp).level;
   let bonus = 0; for (let l = from + 1; l <= to; l++) bonus += 50 + 10 * l;
-  const next = { ...p, xp: p.xp + pay.xp, coins: p.coins + pay.coins + bonus };
-  return { profile: to >= 20 ? unlock(next, 'twig') : next, from, to, bonus };
+  return { profile: withLevelCues({ ...p, xp: p.xp + pay.xp, coins: p.coins + pay.coins + bonus }, to), from, to, bonus };
 }
 
 // The level line of the results card, one line so a level-up makes the card no taller: the level and the XP into
-// it, or the level-up with its coins and the Twig at level 20.
+// it, or the level-up with its coins and the cue the level gave (the last one, if a jump passed two).
 export function levelNote({ profile, from, to, bonus }: ReturnType<typeof gain>) {
   const { level, into, need } = levelOf(profile.xp), xp = need ? `${into}/${need} XP` : '';
   if (to === from) return [`Level ${level}`, xp].filter(Boolean).join(' · ');
-  return [`Level ${to}! +${bonus} coins`, from < 20 && to >= 20 ? 'Twig unlocked' : xp].filter(Boolean).join(' · ');
+  const got = LEVEL_CUES.filter(([, at]) => from < at && to >= at).pop();
+  return [`Level ${to}! +${bonus} coins`, got ? `${CUES[got[0]].name} unlocked` : xp].filter(Boolean).join(' · ');
 }
 
 // A cue with a price that is not owned, for at most the coins there are. Anything else leaves the profile as it is.
@@ -61,8 +73,9 @@ export function buy(p: Profile, id: CueId): Profile {
 // The cue in use or one not owned returns the same profile, so the cues page saves nothing.
 export const select = (p: Profile, id: CueId): Profile => (p.owned.includes(id) && p.cue !== id ? { ...p, cue: id } : p);
 
-export function featCount(p: Profile, id: FeatId) {
+export function featCount(p: Pick<Profile, 'feats' | 'mastery'>, id: FeatId) {
   const f = p.feats[id], count = FEATS[id].count;
+  if (id === 'tuning') return Math.min(count, maxedCues(p));
   return f ? Math.min(count, f.play + Math.min(f.scen, Math.floor(count / 2))) : 0;
 }
 // Count n more of a feat, from play or from a scenario. Reaching the count gives its cue or its coins, once.
@@ -92,19 +105,47 @@ export const PACKS: [string, number][] = [['Pots', 1], ['Cut shots', 3], ['Banks
 export const VENUES: [string, number][] = [['Garage', 0], ['Corner Bar', 8], ['Social Club', 18], ['Pool Hall', 29], ['Tournament Floor', 40], ['Penthouse', 52]];
 export const opens = (gates: [string, number][], n: number) => gates.filter(g => n >= g[1]).map(g => g[0]);
 
+// The 15 cues of the first roster that retired with the cue redesign (the House Cue and the Twig stayed). to = the
+// new cue its owner gets, with its mastery and tuning. price = what it cost: back in full when no cue takes its place,
+// and the difference back when the new cue costs less (5,400 for a Lightning Rod, 6,000 for a Rocket). The Fishing Rod
+// and the Chopsticks came from feats that now pay 500 coins, so that is their price.
+const OLD: Record<string, { to?: CueId; price?: number }> = {
+  rocket: { to: 'ram', price: 12000 }, wizard: { to: 'marquise' }, pencil: { to: 'surveyor' }, golden: { to: 'heirloom' }, noodle: { to: 'whisper', price: 1500 },
+  lightning: { to: 'ironwood', price: 6000 }, crowbar: { to: 'banker' }, periscope: { to: 'vernier' }, cactus: { to: 'seer' },
+  broomstick: { price: 400 }, baguette: { price: 900 }, trombone: { price: 3000 }, icicle: { price: 8000 }, rod: { price: 500 }, chopsticks: { price: 500 },
+};
+// A save from before the redesign: its old cues become new cues or coins. Gives the new cues, their mastery, the coins
+// back and the new id of each old cue. A point on a stat the new cue locks comes off (its paid step stays, to place
+// again); tuning on a cue that takes none, or that left with no cue in its place, is paid back, and its cue XP is lost.
+// It needs no mark to run once: the old ids are in a save only until its first write, and reading the same save twice gives the same profile.
+function handOver(o: any) {
+  const out = { owned: [] as CueId[], mastery: {} as Profile['mastery'], coins: 0, now: {} as Record<string, CueId> };
+  for (const [old, { to, price = 0 }] of Object.entries(OLD)) {
+    if (!Array.isArray(o.owned) || !o.owned.includes(old)) continue;
+    const m = readOne(o.mastery?.[old]) ?? NONE, keeps = !!to && tunable(to);
+    out.coins += (to ? Math.max(0, price - ((CUES[to] as CueInfo).price ?? 0)) : price) + (keeps ? 0 : paidCoins(m));
+    if (!to) continue;
+    out.owned.push(to); out.now[old] = to;
+    const lock = (CUES[to] as CueInfo).lock ?? [];
+    out.mastery[to] = keeps ? fit(to, { ...m, power: lock.includes('power') ? 0 : m.power, spin: lock.includes('spin') ? 0 : m.spin, aim: lock.includes('aim') ? 0 : m.aim }) : { ...NONE, xp: m.xp };
+  }
+  return out;
+}
+
 // The profile from the saved text, like readSettings: a value that is missing, of the wrong type or out of range takes
-// its default, unknown cues and feats are dropped, House Cue is always owned, level 20 owns the Twig and the selected
-// cue is an owned one.
+// its default, unknown cues and feats are dropped, the cues of the first roster are handed over (handOver), House Cue
+// is always owned, a level's cue and a full feat's cue are owned even if the save lost them, and the selected cue is an owned one.
 export function readProfile(text: string | null): Profile {
   let o: any = null;
   try { o = JSON.parse(text ?? 'null'); } catch {}
   if (!o || typeof o !== 'object') return { ...NEW, owned: [...NEW.owned], mastery: {}, rival: newRival(), trophies: [0, 0, 0, 0] };
   const num = (v: unknown) => (typeof v === 'number' && v >= 0 ? Math.min(1e9, Math.floor(v)) : 0);
-  const xp = num(o.xp), twig = levelOf(xp).level >= 20; // the Twig comes with level 20, even if the save lost it
-  const owned = CUE_IDS.filter(id => id === 'house' || (id === 'twig' && twig) || (Array.isArray(o.owned) && o.owned.includes(id)));
-  const feats: Profile['feats'] = {};
+  const xp = num(o.xp), was = handOver(o), feats: Profile['feats'] = {};
   for (const id of Object.keys(FEATS) as FeatId[]) { const f = o.feats?.[id]; if (f && typeof f === 'object') feats[id] = { play: num(f.play), scen: num(f.scen) }; }
-  return { xp, coins: num(o.coins), owned, cue: owned.includes(o.cue) ? o.cue : 'house', feats, mastery: readMastery(o.mastery), rival: readRival(o.rival),
+  const mastery = { ...readMastery(o.mastery), ...was.mastery }, full = (Object.keys(FEATS) as FeatId[]).filter(id => featCount({ feats, mastery }, id) >= FEATS[id].count).map(id => (FEATS[id] as { cue?: CueId }).cue);
+  const p = withLevelCues({ ...NEW, owned: CUE_IDS.filter(id => id === 'house' || was.owned.includes(id) || full.includes(id) || (Array.isArray(o.owned) && o.owned.includes(id))) }, levelOf(xp).level);
+  const owned = CUE_IDS.filter(id => p.owned.includes(id)), cue = was.now[o.cue] ?? o.cue; // in the roster's order, as the rack shows them
+  return { xp, coins: Math.min(1e9, num(o.coins) + was.coins), owned, cue: owned.includes(cue) ? cue : 'house', feats, mastery, rival: readRival(o.rival),
     trophies: [0, 1, 2, 3].map(i => { const m = o.trophies?.[i]; return Number.isInteger(m) && m >= 0 && m <= 3 ? m : 0; }),
     ...(o.tour && Number.isInteger(o.tour.seed) ? { tour: { seed: o.tour.seed, xp: num(o.tour.xp), coins: num(o.tour.coins) } } : {}),
     ...(typeof o.pp?.day === 'string' ? { pp: { day: o.pp.day, n: num(o.pp.n) } } : {}) };

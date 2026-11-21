@@ -3,6 +3,7 @@
 import type { Skia, SkCanvas, SkFont } from '@shopify/react-native-skia';
 import { P } from '../physics/engine.ts';
 import { C, CREAM, DARK, type Paint } from '../theme.ts';
+import { type ArtId, type CuePics, tablePic, tablePics } from './cues/index.ts';
 import { BAR, fit, RAIL, toScreen } from './table.ts';
 import type { Inset, View } from './table.ts';
 
@@ -22,10 +23,18 @@ function stick(api: typeof Skia, canvas: SkCanvas, ax: number, ay: number, bx: n
 // tip, ferrule, maple shaft and forearm, the wrap in the lower butt and a maple butt cap, so the end still shows off the table.
 const LEN = 1.1, CUE_PARTS: Part[] = [[0, 0.008, C.accent], [0.008, 0.025, C.white], [0.025, 0.66, C.frame], [0.66, 0.88, C.ink], [0.88, 1, C.frame]];
 // The cue on the table, behind the cue ball at (x, y) along the aim and pulled back by the power (0..1).
+// art = the player's own cue (render/cues), drawn with its shadow in place of the plain stick; its parts move with the pull.
 // shortcut: seen from above at full length whatever the elevation; the side picture in the tip sheet shows the tilt.
-export function drawCue(api: typeof Skia, canvas: SkCanvas, v: View, x: number, y: number, ang: number, power: number) {
+const own: (CuePics | undefined)[] = []; // the art cue's pictures, a set for each way it faces
+export function drawCue(api: typeof Skia, canvas: SkCanvas, v: View, x: number, y: number, ang: number, power: number, art?: ArtId) {
   const ux = Math.cos(ang), uy = Math.sin(ang), gap = P.R + 0.0015 + power * 0.22, a = toScreen(v, x - ux * gap, y - uy * gap), b = toScreen(v, x - ux * (gap + LEN), y - uy * (gap + LEN));
-  stick(api, canvas, a.x, a.y, b.x, b.y, Math.max(2, 0.013 * v.s), Math.max(3, 0.03 * v.s), CUE_PARTS);
+  if (!art) return stick(api, canvas, a.x, a.y, b.x, b.y, Math.max(2, 0.013 * v.s), Math.max(3, 0.03 * v.s), CUE_PARTS);
+  // A cue that points left is mirrored across its length, so its top stays up and its digits read (the pictures are made for each way).
+  const turn = Math.atan2(b.y - a.y, b.x - a.x), flip = Math.cos(turn) < 0, p = own[+flip] = tablePics(api, art, v.s, flip, own[+flip]);
+  for (const [pic, off] of [[p.shade, 2], [tablePic(api, p, power), 0]] as const) { // the shadow falls down and right on the screen, whichever way the cue points
+    canvas.save(); canvas.translate(a.x + off, a.y + off); canvas.rotate(turn * 180 / Math.PI, 0, 0); if (flip) canvas.scale(1, -1);
+    canvas.drawPicture(pic); canvas.restore();
+  }
 }
 
 // The rail and the dial are slabs: a face on a solid lip of a darker colour under it, squared corners, no outline.

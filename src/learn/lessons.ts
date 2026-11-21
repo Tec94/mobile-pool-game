@@ -147,4 +147,4 @@ export function readDone(text: string | null): string[] {
   try { o = JSON.parse(text ?? 'null'); } catch {}
   return Array.isArray(o) ? LESSONS.map(l => l.id).filter(id => o.includes(id)) : [];
 }
-export const PENCIL_AT = 10; // lessons passed that unlock the Giant Pencil cue (progression design)
+export const PENCIL_AT = 10; // lessons passed that unlock the Surveyor cue (progression design)
