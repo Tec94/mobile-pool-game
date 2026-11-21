@@ -6,7 +6,7 @@ export interface Ball{x:number;y:number;vx:number;vy:number;wx:number;wy:number;
 // The flags of a cue's trick ride on the cue ball: the strike sets them, and the first hit ends them.
 // dead = it stops dead at its first hit when that hit is straight (the Plumb); glide = the cloth's sliding friction on it is times this until its first hit or a cushion (the Gyro), 0 or none = 1
 export interface Shot{ang:number;speed:number;a:number;b:number;elev?:number}
-export interface Cue{maxSpeed:number;breakSpeed:number;squirt:number;tipLimit:number;maxElev:number;minElev?:number;massRatio?:number;curl?:number;dead?:boolean;glide?:number} // curl = how much more a raised cue curves the ball (the Coil), 1 when left out; dead = the Plumb's stop (Ball.dead); glide = the Gyro's wheel (Ball.glide), for a level cue with the tip at or below centre
+export interface Cue{maxSpeed:number;breakSpeed:number;squirt:number;tipLimit:number;maxElev:number;minElev?:number;massRatio?:number;curl?:number;dead?:boolean;glide?:number;lift?:number} // curl = how much more a raised cue curves the ball (the Coil), 1 when left out; dead = the Plumb's stop (Ball.dead); glide = the Gyro's wheel (Ball.glide), for a level cue with the tip at or below centre; lift = how much more a soft jump shot rebounds off the slate (the Fallen Star): this at 40% of maxSpeed or less, falling in a straight line to 1 at full speed
 export const RAISED=4*Math.PI/180-1e-9; // a cue at 4 degrees or more is raised: below it the tip control snaps flat
 export const STRAIGHT=3*Math.PI/180; // a hit with a cut of 3 degrees or less is straight (the Plumb)
 export interface Ev{t:'bb'|'rail'|'pocket'|'off'|'land';a:number;b?:number;x:number;y:number;cut?:number;thr?:number;air?:boolean;turn?:number} // turn = how far a cushion turned the ball's direction, radians (rail)
@@ -122,7 +122,7 @@ export function strike(b:Ball,s:Shot,cue:Cue=CUE){
   // Past 45 degrees the ball is increasingly trapped between tip and slate, so the rebound fades: lift*g/(1+g^4)^(1/4)
   // with g = 16cos^8(elev), a smooth version of min(1,g). 30 degrees gives a long low hop, about 42 the highest, and
   // from 60 up the ball stays on the cloth at any power (masse).
-  if(se>0){b.vz=-v*se;const g=16*ce**8;bounce(b,P.lift*g/Math.sqrt(Math.sqrt(1+g**4)),P.mus*P.grip);}
+  if(se>0){b.vz=-v*se;const g=16*ce**8,lf=cue.lift?1+(cue.lift-1)*Math.min(1,Math.max(0,(1-s.speed/cue.maxSpeed)/0.6)):1;bounce(b,lf*P.lift*g/Math.sqrt(Math.sqrt(1+g**4)),P.mus*P.grip);}
 }
 
 const cutOf=(a:Ball,nx:number,ny:number)=>Math.acos(Math.max(-1,Math.min(1,(a.vx*nx+a.vy*ny)/(hyp(a.vx,a.vy)||1))));

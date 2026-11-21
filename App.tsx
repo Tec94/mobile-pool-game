@@ -44,7 +44,7 @@ import { armChalk, chalkResult, dailyClear, dailyPick, dayKey, grantChalk } from
 import { loadDaily, saveDaily } from './src/daily/save';
 import { loadStars, saveStars } from './src/scenarios/save';
 import { levelNote } from './src/progress/profile';
-import { type CueId, CUES, guideScale, plain, sketch, type Stat, stick } from './src/progress/cues';
+import { type CueId, CUES, guideScale, LOW_TIP, plain, sketch, type Stat, stick } from './src/progress/cues';
 import { maxStats, nextPick } from './src/progress/mastery';
 import { afterSoft, auraLine, maxLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, OVER, overdrive, RAM_LINE, ramOwes, ratchet, SOFT, softHands, softLine } from './src/progress/tricks';
 import { loadSettings, saveSettings } from './src/settings/save';
@@ -678,7 +678,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
         </View>
       )}
       {/* The tip and cue angle sheet, at the centre of the window. A touch outside it closes it and does nothing else; the rail still shoots. */}
-      {sheet && !card && <TipSheet store={tip} land={view.land} keep={width - lay.rail.left} calm={calm} felt={CLOTHS[cloth].felt} blend={set.zones} onDone={() => setSheet(false)} />}
+      {sheet && !card && <TipSheet store={tip} land={view.land} keep={width - lay.rail.left} calm={calm} felt={CLOTHS[cloth].felt} blend={set.zones} low={vs && own === 'star' ? LOW_TIP : 1} onDone={() => setSheet(false)} />}
       {/* The end of the rack: the frame score in a race, the pay at the end of the match. Over the controls, which wait. */}
       {over && !paused && (
         <Results rules={rules} kind={tour ? `Tournament · ${tour.round}` : vs ? 'Quick match' : undefined} title={tour && done ? (win ? 'Knocked out' : tour.next ? `Through to the ${tour.next.toLowerCase()}` : 'Champion') : `${names[win]} wins${race > 1 ? done ? ' the match' : ' the frame' : ''}`} gold={!vs || win === 0}

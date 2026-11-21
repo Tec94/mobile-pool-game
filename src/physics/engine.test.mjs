@@ -440,3 +440,10 @@ console.log('all checks passed');
   const c = mk(0.4, 0.5); strike(c, { ang: 0, speed: 2, a: 0, b: -0.3, elev: 10 / D }, gyro); assert(!c.glide, 'not with the cue raised');
   const B = [mk(1.9, 0.5)]; strike(B[0], { ang: 0, speed: 2, a: 0, b: 0 }, gyro); assert(B[0].glide === 0.71); for (let i = 0; i < 400; i++) step(B); assert(B[0].glide === 0 && B[0].vx < 0, 'a cushion ends it');
   console.log('flywheel ok'); }
+{ // the Fallen Star's Meteor: a soft jump lifts 1.6 times as much, and the extra fades to nothing at full power
+  const { predict, simulate, CUE } = EngineAll, star = { ...CUE, lift: 1.6 }, up = { ang: 0, a: 0, b: 0, elev: 40 / D };
+  const over = (cue, pull) => simulate([mk(0.5, 0.5), mk(0.65 + 2 * R, 0.5)], { ...up, speed: pull * cue.maxSpeed }, cue, 300).first < 0; // a ball 15 cm ahead; 0.3 s, before the cue ball can come back
+  assert(over(star, 0.5) && !over(CUE, 0.5) && !over(star, 0.4) && over(CUE, 0.8), 'it clears a ball from a 50% pull, where any other cue needs about 75%');
+  const top = (cue, pull) => predict([mk(0.5, 0.5)], { ...up, speed: pull * cue.maxSpeed }, 0.3, cue).apex;
+  assert(top(star, 1) === top(CUE, 1) && top(star, 0.7) > top(CUE, 0.7), 'no higher at full power, a little higher between');
+  console.log('meteor ok'); }

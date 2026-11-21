@@ -43,15 +43,17 @@ export function TipButton({ store, onPress, land }: { store: TipStore; onPress: 
 // under the slab takes the touch, so it never aims the cue or turns the dial. The catcher stops `keep` pt short of the
 // right edge, where the power rail is: a pull there shoots, and the strike closes the sheet. Android back and the screen
 // reader's escape close it too.
+// low = how far below centre the tip may go, as a part of the limit (the Fallen Star's cue: a half).
 const TRIM = 183 / 214; // the ring's picture is empty right of the ball and under it (src/render/tip.ts): the box ends at the ball
-export function TipSheet({ store, land, keep, calm, felt, blend, onDone }: { store: TipStore; land: boolean; keep: number; calm: boolean; felt: string; blend: boolean; onDone: () => void }) {
+export function TipSheet({ store, land, keep, calm, felt, blend, low = 1, onDone }: { store: TipStore; land: boolean; keep: number; calm: boolean; felt: string; blend: boolean; low?: number; onDone: () => void }) {
   const t = useSyncExternalStore(store.sub, store.get), { width } = useWindowDimensions(), D = land ? 150 : Math.min(180, Math.floor((width - keep - 156) / TRIM)); // portrait: 294 pt wide on a 375 pt phone, smaller where the room left of the rail is less (156 = paddings, gap and the side picture)
   const size = useRef(D), drag = useRef<{ on: 'ring' | 'pad'; from: Tip; x: number; y: number; t: number; moved: boolean; a: number; e: number } | null>(null);
   if (size.current !== D) drag.current = null; // the phone turned during a drag: the touch no longer maps to the ring
   size.current = D; // the pan responder is created once, so it reads the latest size
+  const floor = useRef(low); floor.current = low;
   const close = useRef(onDone); close.current = onDone;
   useEffect(() => { const sub = BackHandler.addEventListener('hardwareBackPress', () => { close.current(); return true; }); return () => sub.remove(); }, []); // registered last, so it runs before the pause card's
-  const ring = useMemo(() => picture(c => drawTip(Skia, c, D, t, blend)), [D, t, blend]);
+  const ring = useMemo(() => picture(c => drawTip(Skia, c, D, t, blend, low)), [D, t, blend, low]);
   const side = useMemo(() => picture(c => drawSide(Skia, c, t.elev, felt)), [t.elev, felt]);
   const put = ({ tip, bump }: { tip: Tip; bump: boolean }) => { store.set(tip); if (bump) tick(); };
 
@@ -72,13 +74,13 @@ export function TipSheet({ store, land, keep, calm, felt, blend, onDone }: { sto
       } else {
         if (!d.moved && Math.hypot(g.dx, g.dy) < 6) return;
         d.moved = true; const k = padReach(size.current);
-        put(moveSpin(store.get(), d.from.x + g.dx / k, d.from.y - g.dy / k));
+        put(moveSpin(store.get(), d.from.x + g.dx / k, d.from.y - g.dy / k, floor.current));
       }
     },
     onPanResponderRelease: () => {
       const d = drag.current, now = store.get(); drag.current = null; if (!d) return;
       if (d.on === 'ring') { if (now.elev > 0 && now.elev < 4) { store.set({ ...now, elev: 0 }); tap(); } } // almost level means level
-      else if (!d.moved && Date.now() - d.t < 300) { const c = size.current / 2, k = padReach(size.current); store.set(tapSpin(now, (d.x - c) / k, -(d.y - c) / k).tip); tap(); }
+      else if (!d.moved && Date.now() - d.t < 300) { const c = size.current / 2, k = padReach(size.current); store.set(tapSpin(now, (d.x - c) / k, -(d.y - c) / k, floor.current).tip); tap(); }
     },
     onPanResponderTerminationRequest: () => false, // a second finger on the table must not take the drag and shoot
     onPanResponderTerminate: () => { drag.current = null; },
@@ -86,7 +88,7 @@ export function TipSheet({ store, land, keep, calm, felt, blend, onDone }: { sto
 
   // VoiceOver and TalkBack: the control is one adjustable element. Swipe up and down change the elevation; the
   // actions menu moves the tip.
-  const nudge = (dx: number, dy: number) => store.set(moveSpin(t, t.x + dx, t.y + dy).tip);
+  const nudge = (dx: number, dy: number) => store.set(moveSpin(t, t.x + dx, t.y + dy, low).tip);
   const acts: Record<string, () => void> = { increment: () => store.set(moveElev(t, t.elev + 5).tip), decrement: () => store.set(moveElev(t, t.elev - 5).tip),
     'Tip higher': () => nudge(0, 0.2), 'Tip lower': () => nudge(0, -0.2), 'Tip left': () => nudge(-0.2, 0), 'Tip right': () => nudge(0.2, 0) };
 
