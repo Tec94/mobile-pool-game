@@ -402,7 +402,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     Haptics.impactAsync(power > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
     if (vs) cands.current = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules); // shortcut: a full candidate search on the strike frame, cheap next to a guide
     const sh = shotOf(power); snap(sh);
-    t.rec = L ? newLessonRec() : newRec(); strike(t.B[0], sh, cue); moving.current = true; wake.current();
+    t.rec = L ? newLessonRec() : newRec(sh); strike(t.B[0], sh, cue); moving.current = true; wake.current();
     tip.set(LEVEL); setSheet(false); setTools(false); shot.set({ power: 0, fine: false, locked: true });
   };
   // The AI's shot: its cue ball in hand, its line-up, its call, then the strike as fire() makes it. The AI plans on the
@@ -417,14 +417,14 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     if (m.call >= 0) t.rules = setCall(t.rules, m.call); // at the strike: a new ruling now would start the AI's turn again
     safe.current = nextSafeties(safe.current, m.safety);
     const sh = { ...m.shot, speed: Math.min(m.shot.speed, top), a: hold(m.shot.a), b: hold(m.shot.b) }; snap(sh);
-    t.rec = newRec(); strike(t.B[0], sh, STICK); moving.current = true; paint(); redraw();
+    t.rec = newRec(sh); strike(t.B[0], sh, STICK); moving.current = true; paint(); redraw();
   };
   // A tournament match reopened with a shot in flight: the same shot again from the same table.
   useEffect(() => {
     const t = table.current, sh = snap0?.shot;
     if (!sh) return;
     if (t.rules.turn === 0) cands.current = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules);
-    t.rec = newRec(); strike(t.B[0], sh, t.rules.turn === 0 ? cue : STICK); moving.current = true; shot.set({ power: 0, locked: true }); paint(); redraw();
+    t.rec = newRec(sh); strike(t.B[0], sh, t.rules.turn === 0 ? cue : STICK); moving.current = true; shot.set({ power: 0, locked: true }); paint(); redraw();
   }, []);
   // The AI's moves on the table play out over time: tween runs f(eased 0..1) each frame for ms, rests, then done().
   // drop() ends a tween the turn left (a pause, a new ruling, leaving the match) and runs its undo.

@@ -92,9 +92,33 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, true), phase: 'play', turn: 1, 
   const after = judge(setCall(s, holeOf(c)), rec(1, [[1, holeOf(c)]]));
   let r = potPay(cands, rec(1, [[1, holeOf(c)]]), s, after, 0, { tier: 2 }); assert(r.pay.xp > 0 && r.run === 1 && r.own === 1, 'a pot pays, counts as own and the run goes on');
   eq(potPay([], rec(1, [[1, holeOf(c)]]), s, after, 0, { tier: 2 }).pay, { xp: 9, coins: 4 }, 'no candidate: a fluke, Routine x0.9');
-  const foul = judge(s, rec(1, [[1, 0], [0, 1]])); eq(potPay(cands, rec(1, [[1, 0], [0, 1]]), s, foul, 2, { tier: 2 }), { pay: { xp: 0, coins: 0 }, run: 0, own: 0 }, 'a foul pays nothing and ends the run');
+  const foul = judge(s, rec(1, [[1, 0], [0, 1]])); eq(potPay(cands, rec(1, [[1, 0], [0, 1]]), s, foul, 2, { tier: 2 }), { pay: { xp: 0, coins: 0 }, run: 0, own: 0, feats: [], mine: [] }, 'a foul pays nothing and ends the run');
   eq(potPay(cands, rec(9, [[9, 0]]), s, judge(s, rec(1, [[9, 0]])), 0, { tier: 2 }).pay, { xp: 0, coins: 0 }, 'their ball pays nothing');
-  const lost = rec(1, [[1, 0], [8, 1], [0, 2]]), end = judge(s, lost); eq(potPay(cands, lost, s, end, 0, { tier: 2 }), { pay: { xp: 0, coins: 0 }, run: 0, own: 0 }, 'the 8 on a scratch loses the rack: its pots are foul pots and pay nothing');
+  const lost = rec(1, [[1, 0], [8, 1], [0, 2]]), end = judge(s, lost); eq(potPay(cands, lost, s, end, 0, { tier: 2 }), { pay: { xp: 0, coins: 0 }, run: 0, own: 0, feats: [], mine: [] }, 'the 8 on a scratch loses the rack: its pots are foul pots and pay nothing');
+  // A pot is typed by what happened, and its difficulty is the easiest way the picker found. easy = the same ways as Routine pots (x0.9 at Regular: 9 XP).
+  const ENDS = [[0, 4], [4, 1], [1, 3], [3, 5], [5, 2], [2, 0]], h = holeOf(c), other = [4, 5].find(k => k !== h), cut = 30 * Math.PI / 180, far = k => ENDS.findIndex(e => !e.includes(k)); // far = a cushion that does not end at pocket k
+  const easy = cands.map(k => ({ ...k, tol: k.tol * 12 })), paid = (more, cs = easy, vs = { tier: 2 }) => potPay(cs, rec(1, [[1, h]], more), q, after, 0, vs, 0.4), q = { ...s, hand: null }; // q: not ball in hand, which pays no type bonus
+  eq([r.feats, r.mine, paid({}).pay.xp, paid({}).feats], [['sharp'], [1], 9, []], 'a Tough pot is a tough pot; a Routine pot counts for no feat');
+  eq([paid({ cush: [[0, far(h), cut]] }).pay.xp, paid({ cush: [[0, far(h), cut]] }).feats], [14, ['kick']], 'the cue ball off a cushion first: a kick, x1.5, though a direct pot was on');
+  eq([paid({ cush: [[1, far(h), cut]] }).pay.xp, paid({ cush: [[1, far(h), cut]] }).feats], [11, ['bank']], 'the potted ball off a cushion: a bank, x1.25');
+  eq(paid({ cush: [[1, far(h), 0.2]] }).feats, [], 'a touch that turns the ball less than 20 degrees is no bank');
+  eq(paid({ cush: [[1, ENDS.findIndex(e => e.includes(h)), cut]] }).feats, [], 'nor is the cushion that ends at its pocket');
+  eq([paid({ first: 3 }).pay.xp, paid({ first: 3 }).feats], [11, ['combo']], 'the potted ball was not the first ball hit: a combo');
+  const all = paid({ first: 3, cush: [[0, far(h), cut], [1, far(h), cut]] }); eq([all.feats, all.pay.xp], [['kick', 'bank', 'combo'], 14], 'a pot counts for every feat that fits and pays as the type that pays most');
+  eq(potPay(easy, rec(1, [[1, other]]), q, judge(setCall(s, other), rec(1, [[1, other]])), 0, { tier: 2 }).pay, { xp: 9, coins: 4 }, 'no way found to that pocket: a fluke');
+  eq([paid({ cush: [[0, 0, cut], [0, 2, cut]] }, []).pay, paid({ cush: [[0, 0, cut], [0, 2, cut]] }, []).feats], [{ xp: 34, coins: 14 }, ['kick', 'sharp']], 'a kick off 2 cushions with no way found: a Tough kick, and a tough pot');
+  eq(paid({ cush: [[0, 0, cut]] }, []).pay.xp, 9, 'off 1 cushion with no way found: a fluke, a plain pot');
+  eq([paid({ high: 0.031 }, []).pay.xp, paid({ high: 0.029 }, []).pay.xp], [23, 9], 'a jump pot (3 cm or more off the cloth) with no way found: Tough');
+  const up = { ang: 0, speed: 3, a: 0.2, b: 0, elev: 5 * Math.PI / 180 };
+  eq([paid({ shot: up, bend: 0.1 }, []).pay.xp, paid({ shot: up, bend: 0.05 }, []).pay.xp, paid({ shot: { ...up, elev: 0.06 }, bend: 0.1 }, []).pay.xp, paid({ shot: up, bend: 0.1, cush: [[0, 0, 0.1]] }, []).pay.xp], [23, 9, 9, 9], 'a massé pot: the cue raised 4 degrees, the line turned 5, no cushion between');
+  eq(paid({}, [{ ...easy.find(k => k.type === 'direct'), type: 'carom' }]).pay.xp, 11, 'a pot the picker finds only as a carom pays as a combo');
+  // Spin Doctor: Solid or harder, the tip half way out below centre or to a side, against Hustler or harder.
+  const tip = (a, b) => ({ shot: { ang: 0, speed: 2, a, b } }), spin = (more, cs = cands, vs = { tier: 3 }) => paid(more, cs, vs).feats.includes('spin');
+  eq([spin(tip(0, -0.2)), spin(tip(0.2, 0)), spin(tip(0.15, -0.15)), spin(tip(0, 0.4)), spin(tip(0.19, 0.3)), spin(tip(0, -0.19))], [true, true, true, false, false, false], 'draw or side counts, follow alone does not');
+  eq([spin(tip(0, -0.2), easy), spin(tip(0, -0.2), cands, { tier: 2 }), spin(tip(0, -0.2), cands, { boss: 3 })], [false, false, true], 'not on a Routine pot, not below Hustler');
+  eq(potPay(easy, rec(1, [[1, h]], { cush: [[1, far(h), cut]] }), { ...q, phase: 'break' }, { ...after, turn: 0 }, 0, { tier: 2 }).feats, [], 'a pot on the break counts for no feat');
+  eq(potPay(easy, rec(1, [[1, other]], { cush: [[1, far(other), cut]] }), q, judge(setCall(s, h), rec(1, [[1, other]])), 0, { tier: 2 }).feats, [], 'nor does a pot that does not keep the turn');
+  eq([paid({}, easy, { tier: 3 }).pay.xp, paid({}, easy, { tier: 3, cue: 'twig' }).pay.xp], [10, 15], 'the Twig pays 1.5 times in a match');
   const T = [mk(0.6, 0.56), mk(1.1, 0.56), mk(1.6, 0.9)], ids = [0, 1, 10];
   eq([...new Set(candsFor(T, ids, s).map(k => k.ball))], [1], 'solids: candidates for the 1 only');
   eq([...new Set(candsFor(T, ids, { ...s, solids: -1 }).map(k => k.ball))].sort(), [1, 10], 'open table: any ball');

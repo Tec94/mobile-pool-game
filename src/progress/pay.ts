@@ -24,6 +24,9 @@ function vs(v: Vs) {
   if (v.tier !== undefined && !TIER[v.tier - 1]) throw new Error(`AI tier ${v.tier} is not 1 to 6`);
   return (v.boss ? 0.7 + 0.1 * v.boss : v.tier ? TIER[v.tier - 1] : 1) * (v.cue === 'twig' ? 1.5 : 1);
 }
+// The opponent's rating, on the scale of the tiers. Tricks that change pay and some feats need Hustler (3) or harder.
+export const rated = (v: Vs) => v.boss ?? v.tier ?? 0;
+export const hustler = (v: Vs) => rated(v) >= 3;
 const paid = (mult: number, tour = 1): Pay => ({ xp: Math.round(10 * Math.min(12, mult) * tour), coins: Math.round(4 * Math.min(12, mult) * tour) });
 
 export function shotPay(p: Pot): Pay {
