@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { join } from '../worker.js';
+import worker, { join } from '../worker.js';
 
 const rows = [];
 let tries = 0;
@@ -35,4 +35,15 @@ test('past the limit nothing is stored', async () => {
   tries = 100;
   assert.equal((await post('{"email":"e@f.co"}')).status, 429);
   assert.equal(rows.length, 3);
+});
+test('www and the old workers.dev address redirect to runout.win, keeping path and ref', async () => {
+  const env2 = { ASSETS: { fetch: async () => new Response('page') } };
+  for (const host of ['www.runout.win', 'runout-waitlist.jack-cao.workers.dev']) {
+    const r = await worker.fetch(new Request(`https://${host}/?ref=ig`), env2);
+    assert.equal(r.status, 301); assert.equal(r.headers.get('location'), 'https://runout.win/?ref=ig');
+  }
+  assert.equal(await (await worker.fetch(new Request('https://runout.win/?ref=ig'), env2)).text(), 'page');
+  tries = 0;
+  const old = await worker.fetch(new Request('https://runout-waitlist.jack-cao.workers.dev/api/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"email":"g@h.co"}' }), env);
+  assert.equal(old.status, 200);
 });

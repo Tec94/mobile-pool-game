@@ -24,9 +24,16 @@ export async function join(req, env) {
   // shortcut: the limit is per address and per Cloudflare location, so many addresses can still add made-up emails; add Turnstile if junk shows up.
 }
 
+// www and the old workers.dev address send pages to the real domain, keeping path and query (so ?ref= still counts).
+// Posts are let through so a page opened before the move can still join.
+const HOME = 'runout.win';
+const MOVED = /^www\.runout\.win$|\.workers\.dev$/;
+
 export default {
   async fetch(req, env) {
-    const { pathname } = new URL(req.url);
+    const url = new URL(req.url);
+    const { pathname } = url;
+    if (MOVED.test(url.hostname) && (req.method === 'GET' || req.method === 'HEAD')) return Response.redirect(`https://${HOME}${pathname}${url.search}`, 301);
     if (pathname === '/api/join') return req.method === 'POST' ? join(req, env) : new Response('POST only', { status: 405, headers: { allow: 'POST' } });
     return env.ASSETS.fetch(req);
   },
