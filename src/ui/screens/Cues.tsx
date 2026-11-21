@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { PENCIL_AT } from '../../learn/lessons';
 import { keep, profile } from '../../progress';
-import { CUE_IDS, CUES, type CueId, type CueInfo, FAMILIES, soon, specs } from '../../progress/cues';
+import { CUE_IDS, CUES, type CueId, type CueInfo, FAMILIES, specs } from '../../progress/cues';
 import { cueStats, locked, MASTERY_XP, masteryLevel, masteryOf, points, STATS, tunable, tuneDown, tuneUp, upCost, used } from '../../progress/mastery';
 import { buy, FEATS, featCount, type FeatId, featName, type Profile, select } from '../../progress/profile';
 import { C, CREAM, DARK, FONT } from '../../theme';
@@ -51,10 +51,9 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
           picture={pw => <CueArt id={id} w={Math.round(pw)} h={PIC} whole />}>
           <View style={{ gap: 8 }}>
             <Txt style={[TYPE.small, { opacity: 0.8 }]}>{line}</Txt>
-            <View style={{ gap: 2 }} accessible accessibilityLabel={`${c.trick ? `Trick: ${c.trick}${soon(id) ? ', coming soon' : ''}. ` : ''}${c.does} ${c.cost}`}>
+            <View style={{ gap: 2 }} accessible accessibilityLabel={`${c.trick ? `Trick: ${c.trick}. ` : ''}${c.does} ${c.cost}`}>
               {!!c.trick && <View style={styles.trick}>
                 <Txt style={[TYPE.body, styles.bold]}>{c.trick}</Txt>
-                {soon(id) && <View style={styles.soon}><Txt style={[TYPE.small, styles.bold, { color: C.ink }]}>Soon</Txt></View>}
               </View>}
               <Txt style={TYPE.small}>{c.does}</Txt>
               <Txt style={[TYPE.small, { opacity: 0.8 }]}>{c.cost}</Txt>
@@ -154,7 +153,6 @@ const styles = StyleSheet.create({
   linkText: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 16, color: C.chalk, textDecorationLine: 'underline', opacity: 0.9 },
   stat: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   trick: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  soon: { backgroundColor: C.gold, borderRadius: 3, paddingHorizontal: 5 },
   statName: { width: 44, opacity: 0.8 },
   facts: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 24, rowGap: 6 },
   big: { fontFamily: FONT.display, fontSize: 19, lineHeight: 22, color: C.chalk, fontVariant: ['tabular-nums'] },

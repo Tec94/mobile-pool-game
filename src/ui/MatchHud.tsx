@@ -32,7 +32,7 @@ export const hudHeight = (game: number) => TOP + PLATE + 8 + (game === 9 ? STRIP
 // trick = the state of the player's cue trick, after the player's name: its uses left as pips, or a short word
 // (dim = it cannot act now; label = the same for a screen reader).
 export interface Trick { text: string; dim?: boolean; label: string }
-export function MatchHud({ rules, names, push, view, pad, calm, wait, score, pause, style, trick, children }: { rules: State; names: string[]; push: boolean; view: TableView; pad: EdgeInsets; calm: boolean; wait?: string; score?: readonly number[]; pause: ReactNode; style?: StyleId; trick?: Trick | null; children?: ReactNode }) {
+export function MatchHud({ rules, names, push, view, pad, calm, wait, score, pause, style, trick, free, children }: { rules: State; names: string[]; push: boolean; view: TableView; pad: EdgeInsets; calm: boolean; wait?: string; score?: readonly number[]; pause: ReactNode; style?: StyleId; trick?: Trick | null; free?: boolean; children?: ReactNode }) {
   const [a, b] = plates(rules, names), nine = strip(rules), next = nine.find(q => q.next);
   // Landscape: the banner sits between the plates, above the table, where it covers no pocket. Portrait: over the
   // foot rail, between the corner pockets.
@@ -50,7 +50,7 @@ export function MatchHud({ rules, names, push, view, pad, calm, wait, score, pau
       <Txt accessibilityLabel={`${names[i]}: ${score[i]} ${score[i] === 1 ? 'frame' : 'frames'}`} style={[styles.framesText, !i && { color: C.ink }]}>{score[i]}</Txt>
     </Slab>
   );
-  const say = <Banner rules={rules} push={push} calm={calm} wait={wait} fill={view.land ? room : 0} style={view.land ? styles.over : { position: 'absolute', top: view.oy - RAIL * view.s + 4, left: view.ox, width: P.W * view.s, paddingHorizontal: 0.12 * view.s }} />;
+  const say = <Banner rules={rules} push={push} calm={calm} wait={wait} free={free} fill={view.land ? room : 0} style={view.land ? styles.over : { position: 'absolute', top: view.oy - RAIL * view.s + 4, left: view.ox, width: P.W * view.s, paddingHorizontal: 0.12 * view.s }} />;
   return (
     <>
       {/* Landscape: the rail starts under the HUD, so the row spans the window. The plates are as wide as their text and
@@ -108,8 +108,8 @@ function Pip({ id, gone, size, edge = LINE, style, children }: { id: number; gon
 // The ruling on the last shot for a moment (a foul a little longer, in red), then only what the player still has to do
 // (drag the cue ball in hand, call the 8, push out on), which stays until it is done.
 // fill = landscape: the banner is as tall as the row, at most this wide; 0 = portrait: it is as small as its text.
-function Banner({ rules, push, calm, wait, fill, style }: { rules: State; push: boolean; calm: boolean; wait?: string; fill: number; style: ViewStyle }) {
-  const { note, foul, hint } = banner(rules, push, wait), [shown, setShown] = useState({ n: 0, old: true }), last = useRef<{ note: string; balls: number[] } | null>(null);
+function Banner({ rules, push, calm, wait, free, fill, style }: { rules: State; push: boolean; calm: boolean; wait?: string; free?: boolean; fill: number; style: ViewStyle }) {
+  const { note, foul, hint } = banner(rules, push, wait, free), [shown, setShown] = useState({ n: 0, old: true }), last = useRef<{ note: string; balls: number[] } | null>(null);
   useEffect(() => { // a new shot (its balls) or a new ruling pops the note; anything else ends it
     if (!fresh(last.current, note, rules.balls)) { setShown(s => (s.old ? s : { ...s, old: true })); return; }
     last.current = { note, balls: rules.balls };

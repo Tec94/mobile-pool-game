@@ -133,6 +133,15 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, true), phase: 'play', turn: 1, 
     eq([hit(A, { ...q, phase: 'break' }), hit({ tier: 2, cue: 'aura' }), { ...a }], [15, 14, { run: 2, owed: false }], 'the break and a match below Hustler pay the usual way and leave the run');
     eq([potPay(easy, rec(1, [[1, other]]), q, judge(setCall(s, h), rec(1, [[1, other]])), 0, A, 0.4, a).pay.xp, { ...a }], [10, { run: 0, owed: true }], 'a pot that does not keep the turn pays its usual pay and ends the run');
     a.run = 99; a.owed = false; eq([hit({ tier: 6, cue: 'aura' }), a.run], [200, 100], 'the pay tops out at 20 times a plain pot'); }
+  // The Nonchalant's Whatever: the first 2 flukes of a rack pay a flat 60 XP and 24 coins.
+  { const N = { tier: 6, cue: 'nonchalant' }, f = { left: 2 }, fluke = (cs = [], vs = N, st = q, aft = after, more = {}) => potPay(cs, rec(1, [[1, h]], more), st, aft, 3, vs, 0.4, undefined, f).pay;
+    eq([fluke(), fluke(), f.left, fluke(), f.left], [{ xp: 60, coins: 24 }, { xp: 60, coins: 24 }, 0, potPay([], rec(1, [[1, h]]), q, after, 3, N, 0.4).pay, 0], 'flat at any tier and run, twice; the 3rd fluke is a plain pot again');
+    f.left = 2; eq([fluke(easy), fluke([], { tier: 2, cue: 'nonchalant' }).xp, fluke([], N, { ...q, phase: 'break' }).xp === 60, fluke([], N, q, judge(q, rec(1, [[1, h]]))).xp === 60, f.left], [potPay(easy, rec(1, [[1, h]]), q, after, 3, N, 0.4).pay, 12, false, false, 2], 'not a pot with a way found, not below Hustler, not on the break, not a pot that loses the turn');
+    eq([fluke([], N, q, after, { cush: [[0, 0, cut], [0, 2, cut]] }), f.left], [{ xp: 60, coins: 24 }, 1], 'a kick off 2 cushions with no way found pays as the fluke while one is left'); }
+  // The Seer's Omen: once the eye has opened, the shot pays as a plain pot with no run bonus and counts for nothing.
+  { const seen = potPay(cands, rec(1, [[1, h]], { cush: [[0, far(h), cut]] }), q, after, 3, { tier: 6 }, 0.4, undefined, undefined, true), usual = potPay(cands, rec(1, [[1, h]], { cush: [[0, far(h), cut]] }), q, after, 3, { tier: 6 }, 0.4);
+    eq([seen.pay, seen.run, seen.feats, seen.mine, seen.own], [{ xp: 13, coins: 5 }, 3, [], [], 1], 'a Tough kick on a run of 3 against Legend: a plain pot at Legend\'s rate, the run stays, no feat');
+    assert(usual.pay.xp > 40 && usual.run === 4 && usual.feats.includes('kick'), `without the eye it pays ${usual.pay.xp} XP`); }
   // The Six Seven's Sixes and sevens: the 6 and the 7 pay 67 XP and 27 coins flat, no other ball pays, and the pay is held for the end of the rack.
   const ss = { tier: 6, cue: 'sixseven' }, pot6 = (ids, vs = ss, st = q) => { const pots = ids.map(id => [id, h]); return potPay(cands, rec(ids[0], pots), st, judge(setCall({ ...st, solids: -1 }, h), rec(ids[0], pots)), 3, vs, 0.4); };
   eq([pot6([6]).pay, pot6([6]).held, pot6([1]).pay, pot6([1]).held], [{ xp: 67, coins: 27 }, true, { xp: 0, coins: 0 }, true], 'the 6 pays flat at any tier, run and difficulty; the 1 pays nothing');

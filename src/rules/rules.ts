@@ -9,7 +9,7 @@
 // already down (4.4, last sentence); a call names a pocket only, so any legal ball in the called pocket counts (1.7
 // asks for ball and pocket), and no shot is obvious enough to need no call; no spotting of the nearest ball when every legal ball is above the head string (1.6).
 // Add them when a real game shows the need.
-import { type Ball, type Ev, type Game, HOLES, P, POCKET, RAISED, type Shot } from '../physics/engine.ts';
+import { type Ball, type Cue, type Ev, type Game, HOLES, P, POCKET, RAISED, type Shot, step, strike } from '../physics/engine.ts';
 
 export type Hand = false | 'any' | 'kitchen'; // cue ball in hand: anywhere, or above the head string (the kitchen)
 export type Player = 0 | 1;
@@ -206,6 +206,14 @@ function light(n: State): State {
   return { ...n, seed, lit: [k, (k + 1) % 6] };
 }
 export function judge(s: State, r: Rec, push = false): State { return light(rule(s, r, push)); }
+// A whole shot played ahead on a copy of the table, with its ruling (the Seer's Omen). The engine has no randomness, so
+// this is what the shot does. null = the balls did not come to rest within maxSteps.
+export function ahead(B: Ball[], ids: number[], s: State, shot: Shot, stick: Cue, maxSteps = 30000) {
+  const S = B.map(b => ({ ...b })), r = newRec(shot), ev: Ev[] = []; let n = 0, mv = true;
+  strike(S[0], shot, stick);
+  while (mv && n++ < maxSteps) { ev.length = 0; mv = step(S, ev); record(r, ev, S, ids); }
+  return mv ? null : { r, next: judge(s, r) };
+}
 
 // The player to shoot took option i of the choice.
 export function choose(s: State, i: number): State {
