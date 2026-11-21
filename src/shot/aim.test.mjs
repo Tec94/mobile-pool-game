@@ -154,5 +154,10 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
   assert(bank(0.5, 0.3, [mk(0.95, 0.2)]) < 0.7, 'the line stops at the first ball it meets off the cushion');
   for (const [x, y, why] of [[0.5, 0.52, 'the cushion is more than 60 cm away'], [0.8, 0.3, 'the ball meets the cushion within 15 cm of a pocket']]) near(bank(x, y), guideLen(3), 1e-9, why);
   near(len(aimGuide([mk(0.5, mid), mk(1, mid)], sh(0), 3, 8000, CUE, false, 1, 'banker').ob), guideLen(3), 1e-9, 'no bank: 21 cm');
-  ok('the guides of the Daybreak and the Banker');
+  // the Vernier: on a kick the line runs on off the cushion to the ball, however far; alone on the table it stops at a third cushion
+  const kick = trick => aimGuide([mk(0.4, 0.4), mk(1.4, 0.4)], sh(Math.atan2(-0.3725, 0.5)), 7, 3200, CUE, false, 1, trick), v = kick('vernier');
+  assert(v.first === 1 && !v.stub.length && Math.hypot(end(v.path)[0] - 1.4, end(v.path)[1] - 0.4) < 2 * P.R + 1e-3 && kick('').first === -1, 'the line reaches the ball, with no stub; a plain 7 Aim line stops short');
+  const lone = aimGuide([mk(0.6, 0.4)], sh(1, 3), 7, 20000, CUE, false, 1, 'vernier').path, e = end(lone), wall = Math.min(e[0], P.L - e[0], e[1], P.W - e[1]);
+  assert(wall < 0.03 && len(lone) > 1.5, `with no ball to meet the line stops at a third cushion (${len(lone).toFixed(2)} m, ${(wall * 100).toFixed(1)} cm from it)`);
+  ok('the guides of the Daybreak, the Banker and the Vernier');
 }

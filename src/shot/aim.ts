@@ -71,10 +71,11 @@ export function nearest(B: Ball[], keep = 0) {
 //  'daybreak': the object ball's line runs on to the first ball, cushion or pocket it meets, or to where it stops. No
 //    stub, and on a kick the guide stops at the first cushion.
 //  'banker': on a bank (see BANK) the object ball's line runs to the cushion and BANK off it, or to the next thing it meets.
+//  'vernier': on a kick the cue ball's line runs on off 2 cushions to the ball, and stops at a third. No stub.
 export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, stick?: Cue, real = false, scale = 1, trick = '') {
   const L = guideLen(aim) * scale, day = trick === 'daybreak', far = !day && (real || aim >= LONG);
   const g = day ? predict(B, shot, Infinity, stick, undefined, budget, false, 1) : trick === 'banker' ? predict(B, shot, 2 * BANK, stick, undefined, budget, false, 2)
-    : predict(B, shot, L, stick, undefined, budget, real), k = g.split < 0 ? g.cue.length : g.split + 1;
+    : predict(B, shot, L, stick, undefined, budget, real, undefined, trick === 'vernier' ? 2 : 0), k = g.split < 0 ? g.cue.length : g.split + 1;
   // predict runs until both balls have gone the length, so the faster one overshoots it: cut each path to the length.
   const clip = (p: number[][], len: number) => {
     const out = p.slice(0, 1);
@@ -86,6 +87,10 @@ export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, st
   const q = g.cue[k - 1], h = g.hit, kick = g.split >= 0 && !!h && Math.hypot(q[0] - h.x, q[1] - h.y) > 1e-6;
   if (kick && !far) return { path: g.cue.slice(0, k), ob: [], ghost: [q[0], q[1]], lands: g.lands, lost: false, first: -1, stub: [] as number[][], dead: false };
   const dead = !!stick?.dead && !!h && !h.air && h.cut! <= STRAIGHT;
+  if (trick === 'vernier') { // the whole line to the ball, or to the last point worked out (a third cushion, the budget, where it stops)
+    const path = h && !kick ? g.cue.slice(0, k) : [...g.cue.slice(0, h ? g.at : g.cue.length), ...(h ? [[h.x, h.y, 0]] : [])];
+    return { path, ob: clip(g.ob, L), ghost: h && [h.x, h.y], lands: g.lands, lost: g.scratch && g.split < 0, first: h ? h.b! : -1, stub: [] as number[][], dead };
+  }
   const m = g.met[0], to = m ? g.ob.slice(0, m[0] + 1) : g.ob, reach = to.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - to[i][0], p[1] - to[i][1]), 0);
   const bank = trick === 'banker' && !!m && m[1] === 1 && m[2] >= BEND && reach <= BANK && offJaws(to[to.length - 1][0], to[to.length - 1][1]);
   const ob = day ? to : bank ? [...to, ...clip(g.ob.slice(m[0], g.met[1] ? g.met[1][0] + 1 : g.ob.length), BANK).slice(1)] : clip(g.ob, L);
