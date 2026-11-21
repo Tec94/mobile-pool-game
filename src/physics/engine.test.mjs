@@ -391,4 +391,23 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   const two = [mk(0.4, 0.5), mk(1.2, 0.52)];
   assert.deepStrictEqual(predict(two, { ...s, speed: 2 }, 0.4, undefined, 25000, 3200), predict(two, { ...s, speed: 2 }, 0.4), 'a two-ball shot is not cut short');
   console.log(`guide budget ok (rack: ${whole.cue.length} path points uncapped, ${capped.cue.length} capped)`); }
+// 32. A match's rack comes from a seed: its own pattern, and the whole rack up to 14 mm toward the foot rail. No seed
+// is the fixed rack. The fixed rack made the default break the same every time: at Power 6 it potted the 9 every rack.
+{ const { SLIDE } = EngineAll, seeds = Array.from({ length: 500 }, (_, k) => Math.imul(k + 1, 2654435761) | 0), g = 2 * R + 3e-4, play = 1e-4, slides = [];
+  for (const game of [8, 9]) { const T = rack(game, undefined, 0);
+    assert.deepStrictEqual(rack(game, undefined, undefined, 77), rack(game, undefined, undefined, 77), 'the same seed racks the same');
+    assert.notDeepStrictEqual(rack(game, undefined, undefined, 77), rack(game, undefined, undefined, 78), 'another seed racks another way');
+    for (const seed of seeds) { const S = rack(game, g, play, seed), dx = S.map((s, i) => s[1] - T[i][1]), lo = Math.min(...dx), hi = Math.max(...dx); slides.push((lo + hi) / 2); // the slide, give or take one offset
+      assert(lo >= -play - 1e-12 && hi <= SLIDE + play + 1e-12, `the rack slides 0 to 14 mm toward the foot rail, got ${lo * 1e3} to ${hi * 1e3} mm`);
+      assert(hi - lo <= 2 * play + 1e-12 && S.every((s, i) => Math.abs(s[2] - T[i][2]) <= play), 'each ball stays within the play of its spot in the slid rack');
+      for (let i = 0; i < S.length; i++) for (let j = i + 1; j < S.length; j++) assert(Math.hypot(S[i][1] - S[j][1], S[i][2] - S[j][2]) > 2 * R, 'seeded balls overlap'); } }
+  assert(Math.min(...slides) < 0.001 && Math.max(...slides) > 0.013, 'the slide covers the whole 14 mm');
+  CUE.squirt = SQUIRT; CUE.minElev = TILT;
+  const speed = (3.7 + 5 * 0.8 / 9) * CUE.breakSpeed / CUE.maxSpeed, x = L / 4 - 1e-3, y = W / 2; let nine = 0; const kinds = new Set(); // Power 6 at full pull, from the spot the app gives, at the head ball
+  for (const seed of seeds.slice(0, 200)) { const S = rack(9, undefined, undefined, seed);
+    const r = simulate([mk(x, y), ...S.map(s => mk(s[1], s[2]))], { ang: Math.atan2(S[0][2] - y, S[0][1] - x), speed, a: 0, b: 0 }, CUE, 60000), down = r.potted.filter(i => i > 0).map(i => S[i - 1][0]).sort();
+    if (down.includes(9)) nine++; kinds.add(down.join()); }
+  CUE.squirt = 0; CUE.minElev = 0;
+  assert(nine < 40 && kinds.size > 8, `the default break is not the same every rack: the 9 down on ${nine} of 200, ${kinds.size} outcomes`);
+  console.log(`seeded rack ok (the 9 on the break on ${nine} of 200 racks, ${kinds.size} different outcomes)`); }
 console.log('all checks passed');

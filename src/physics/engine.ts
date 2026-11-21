@@ -70,10 +70,18 @@ setTable();
 // no longer gives a mirror-image break. The two back corner balls still take most of the speed, as in the perfect rack.
 // play = 0 gives the perfect rack. At a third of the gap between neighbours (the default: 0.1 mm) no two balls can overlap.
 const RACKS:Record<Game,number[][]>={8:[[1],[9,2],[10,8,3],[11,7,14,4],[5,13,15,6,12]],9:[[1],[2,3],[4,9,5],[6,7],[8]]};
-export function rack(game:Game,g=2*P.R+3e-4,play=(g-2*P.R)/3){
-  const out:[number,number,number][]=[];let s=2;
-  const off=()=>(s=Math.imul(s,1664525)+1013904223|0)/2147483648*play; // -play to play, in whole-number arithmetic so every device agrees
+// seed = a match's rack (the app draws one for every rack; the engine draws no random numbers): the pattern comes from
+// the seed in place of the fixed one, and the whole rack sits up to SLIDE toward the foot rail, one more draw after the
+// offsets. Offsets alone leave the break the same lottery ticket every rack: what a break pots depends on where inside
+// a 1 ms step the cue ball reaches the rack, and 14 mm is one step of cue-ball travel at the fastest break. Before the
+// seed the default 9-ball break at Power 6 potted the 9 every rack. No seed = the fixed rack (lessons, scenarios, benches).
+export const SLIDE=0.014;
+export function rack(game:Game,g=2*P.R+3e-4,play=(g-2*P.R)/3,seed?:number){
+  const out:[number,number,number][]=[];let s=seed===undefined?2:seed|0;
+  const next=()=>(s=Math.imul(s,1664525)+1013904223|0)/2147483648; // -1 to 1, in whole-number arithmetic so every device agrees
+  const off=()=>next()*play;
   RACKS[game].forEach((r,i)=>r.forEach((id,k)=>out.push([id,0.75*P.L+(i-(game===9?2:0))*g*Math.cos(Math.PI/6)+off(),P.W/2+(k-(r.length-1)/2)*g+off()])));
+  if(seed!==undefined){const d=(next()+1)/2*SLIDE;for(const b of out)b[1]+=d;}
   return out;
 }
 // Where the cue ball starts for the break: the head spot, centre of the head string (Jack's call 2026-11-16).
