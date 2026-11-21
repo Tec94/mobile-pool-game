@@ -46,6 +46,17 @@ export const whatever = (s: State, r: Rec, push = false): State => ({ ...judge({
 export const newFlukes = () => ({ left: 2 });
 export const flukeLine = (f: { left: number }) => ({ text: '●'.repeat(f.left) + '○'.repeat(2 - f.left), dim: !f.left, label: f.left ? `Whatever: the next ${f.left === 1 ? 'fluke' : '2 flukes'} this rack pay 6 times a plain pot` : 'Whatever: no paid flukes left this rack' });
 
+// The Seer's Omen: 3 times a rack the player arms the eye and holds the pull still; the eye opens, and the guide is gold
+// when this exact shot pots. left = the uses left this rack; armed = the eye waits for a still pull; open = it has
+// answered and the shot is frozen at pull; plain = the eye opened, so the player's next shot pays as a plain pot.
+export interface Omen { left: number; armed: boolean; open: boolean; gold: boolean; pull: number; plain: boolean }
+export const newOmen = (plain = false): Omen => ({ left: 3, armed: false, open: false, gold: false, pull: 0, plain });
+export const HOLD_MS = 600, STILL = 0.02; // the pull holds still: it moves less than 2% of the rail for 0.6 s
+// Gold: the rules would rule the shot as no foul, with a ball potted that keeps the turn or wins the rack (a ball of
+// the player's, in the called pocket where a call is needed). o = the shot played ahead (rules.ts ahead).
+export const gold = (s: State, o: { r: Rec; next: State } | null) => !!o && !o.next.foul && o.r.pots.some(p => p.id) && (o.next.phase === 'over' ? o.next.winner === s.turn : o.next.turn === s.turn);
+export const omenLine = (o: Omen) => ({ text: '●'.repeat(o.left) + '○'.repeat(3 - o.left), dim: !o.left, label: `Omen: ${o.left} left this rack${o.plain ? '. The next shot pays as a plain pot' : ''}` });
+
 // The Marble's Mog: ahead on balls potted this rack, 8 in every stat; behind, 2; tied, 5.
 // The lead: with the groups set in 8-ball, each group's balls off the table, whoever potted them. Before that, and in
 // 9-ball, sunk = the balls each player potted this rack (noteSunk).

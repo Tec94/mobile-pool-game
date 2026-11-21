@@ -1,8 +1,8 @@
 // Run: npm test   (the progression model: levels, pay, cues, feats, gates and the saved profile)
 import assert from 'node:assert';
-import { CUE } from '../physics/engine.ts';
-import { afterSoft, auraLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, overdrive, ramOwes, ratchet, softCan, softHands, softLine, STEPS, whatever } from './tricks.ts';
-import { judge, newGame, newRec } from '../rules/rules.ts';
+import { CUE, HOLES, P } from '../physics/engine.ts';
+import { afterSoft, auraLine, gold, newOmen, omenLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, overdrive, ramOwes, ratchet, softCan, softHands, softLine, STEPS, whatever } from './tricks.ts';
+import { ahead, judge, newGame, newRec } from '../rules/rules.ts';
 import { CUE_IDS, CUES, soon, specLine, specs, stick } from './cues.ts';
 import { hustler, matchFeats, matchPay, newLedger, noteShot, rackOver, safetyPay, settle, shotPay } from './pay.ts';
 import { cueGain, cueStats, masteryLevel, masteryNote, masteryOf, maxStats, nextPick, readMastery, statsOf, tuneDown, tuneUp, upCost } from './mastery.ts';
@@ -344,6 +344,16 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq([judge(last, eight).winner, whatever(last, eight).winner, whatever(s, { ...eight, first: 1 }).winner], [1, 0, 1], 'on the 8 any pocket wins; the 8 potted early still loses');
   eq(whatever(s, { ...pot, pots: [{ id: 9, pocket: 3 }] }).turn, 1, 'a ball of the opponent\'s does not keep the turn');
   ok('the Nonchalant calls no pocket');
+}
+{ // the Seer's Omen: the shot is played ahead, and gold says it pots
+  const [hx, hy] = HOLES[0], k = Math.SQRT1_2, at = d => ({ x: hx + d * k, y: hy + d * k, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true }); // on the 45 degree line out of a corner pocket
+  const B = [at(0.9), at(0.3), { ...at(0.9), y: P.W - 0.2 }], ids = [0, 1, 9], s = { ...newGame(9), phase: 'play', hand: null, balls: [1, 9] }, ang = -3 * Math.PI / 4, go = (speed, st = s, a = ang) => ahead(B, ids, st, { ang: a, speed, a: 0, b: 0 }, CUE);
+  const pot = go(1); eq([pot.r.pots.map(p => p.id), pot.next.turn, gold(s, pot), B[0].vx, B[1].on], [[1], 0, true, 0, true], 'a straight pot of the 1 is gold, and the table is not touched');
+  eq([gold(s, go(0.3)), gold(s, go(2)), gold(s, go(1, s, ang + Math.PI)), gold(s, null)], [false, false, false, false], 'not a shot that stops short, not a scratch, not a shot that pots nothing, not one that never ends');
+  const in8 = { ...newGame(8), phase: 'play', hand: null, solids: 0, balls: [1, 9], call: 0 };
+  eq([gold(in8, go(1, in8)), gold({ ...in8, solids: 1 }, go(1, { ...in8, solids: 1 })), gold({ ...in8, call: 3 }, go(1, { ...in8, call: 3 }))], [true, false, false], '8-ball: a ball of the player\'s in the called pocket, not a ball of the opponent\'s, not another pocket');
+  eq([omenLine(newOmen()).text, omenLine({ ...newOmen(), left: 1 }).text, newOmen(true).plain], ['●●●', '●○○', true], 'the HUD shows 3 pips; the price owed goes over to the next rack');
+  ok('the Seer sees a pot');
 }
 { // the Whisper's Soft hands: twice a rack a soft shot needs no cushion after the hit
   const s = { ...newGame(9), phase: 'play', hand: null, balls: [1, 2, 9] }, tap = { ...newRec(), first: 1, railAfter: false }, w = newSoft();
