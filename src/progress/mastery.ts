@@ -34,6 +34,11 @@ export function statsOf(id: CueId, m: Mastery = NONE) {
   const c: CueInfo = CUES[id];
   return { power: Math.min(10, c.power + m.power), spin: Math.min(10, c.spin + m.spin), aim: Math.min(10, c.aim + m.aim) };
 }
+// The Maxxed's Statmaxxing: the stat the player picked is 10 and the other two are 5. With no pick yet, Aim.
+export const maxStats = (pick: Stat = 'aim') => ({ power: 5, spin: 5, aim: 5, [pick]: 10 });
+export const nextPick = (pick: Stat = 'aim'): Stat => STATS[(STATS.indexOf(pick) + 1) % STATS.length];
+// The stats a player's cue plays with and its card shows: base and tuning, or the Maxxed's last pick.
+export const cueStats = (p: Profile, id: CueId) => (id === 'maxxed' ? maxStats(p.maxxed) : statsOf(id, masteryOf(p, id)));
 
 // What one more point on a stat costs now: 0 when a paid step is free again, null when it cannot go up.
 export function upCost(p: Profile, id: CueId, stat: Stat): number | null {

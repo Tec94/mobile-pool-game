@@ -52,7 +52,8 @@ export const pullOf = (h: number) => 0.75 * Math.min(h, 300); // px of pull for 
 // cue moves as far as the finger (full power = pullOf(h)). label = the text on the foot ("Pull", "37%"): drawn here, not
 // as React text, so a pull renders no React; no font = no label.
 // The rail is the cream slab (the thing you press to go), so its edge and label are ink.
-export function drawRail(api: typeof Skia, canvas: SkCanvas, w: number, h: number, power: number, label = '', font: SkFont | null = null) {
+// marks = pulls (0..1) shown as a notch at each edge of the rail: where a cue's trick puts a line on the pull.
+export function drawRail(api: typeof Skia, canvas: SkCanvas, w: number, h: number, power: number, label = '', font: SkFont | null = null, marks: number[] = []) {
   const tip = RAIL_TIP + power * pullOf(h), fh = slab(api, canvas, w, h, CREAM);
   if (power > 0) {
     const glow = api.Paint(); glow.setAlphaf(Math.min(1, power * 20)); // fades in over the first 5%, where a release still cancels
@@ -61,6 +62,7 @@ export function drawRail(api: typeof Skia, canvas: SkCanvas, w: number, h: numbe
     canvas.drawRect(api.XYWHRect(0, tip - 2, w, 2), fill(api, C.ink, Math.min(1, power * 20)));
   }
   stick(api, canvas, w / 2, tip, w / 2, tip + 1.3 * h, 8, 12);
+  for (const m of marks) { const y = RAIL_TIP + m * pullOf(h) - 1; canvas.drawRect(api.XYWHRect(0, y, 7, 2), fill(api, C.ink, 0.7)); canvas.drawRect(api.XYWHRect(w - 7, y, 7, 2), fill(api, C.ink, 0.7)); }
   canvas.drawRect(api.XYWHRect(0, fh - RAIL_LABEL, w, RAIL_LABEL), fill(api, CREAM[0]));
   if (font && label) { const m = font.getMetrics(); canvas.drawText(label, (w - font.getTextWidth(label)) / 2, fh - RAIL_LABEL / 2 - (m.ascent + m.descent) / 2, fill(api, C.ink, 0.85), font); }
   canvas.restore();

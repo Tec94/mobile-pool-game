@@ -29,7 +29,10 @@ export const hudHeight = (game: number) => TOP + PLATE + 8 + (game === 9 ? STRIP
 // face. On a phone a slab in a row of a fixed height takes that height anyway (Yoga's legacy stretch), where a browser
 // keeps it small: the stretch makes the two agree.
 // style = the AI's tournament style (seat 1): its glyph after the name.
-export function MatchHud({ rules, names, push, view, pad, calm, wait, score, pause, style, children }: { rules: State; names: string[]; push: boolean; view: TableView; pad: EdgeInsets; calm: boolean; wait?: string; score?: readonly number[]; pause: ReactNode; style?: StyleId; children?: ReactNode }) {
+// trick = the state of the player's cue trick, after the player's name: its uses left as pips, or a short word
+// (dim = it cannot act now; label = the same for a screen reader).
+export interface Trick { text: string; dim?: boolean; label: string }
+export function MatchHud({ rules, names, push, view, pad, calm, wait, score, pause, style, trick, children }: { rules: State; names: string[]; push: boolean; view: TableView; pad: EdgeInsets; calm: boolean; wait?: string; score?: readonly number[]; pause: ReactNode; style?: StyleId; trick?: Trick | null; children?: ReactNode }) {
   const [a, b] = plates(rules, names), nine = strip(rules), next = nine.find(q => q.next);
   // Landscape: the banner sits between the plates, above the table, where it covers no pocket. Portrait: over the
   // foot rail, between the corner pockets.
@@ -55,7 +58,7 @@ export function MatchHud({ rules, names, push, view, pad, calm, wait, score, pau
           the size of the pause button keeps the two sides alike when no push out button is there. */}
       <View style={[styles.hud, { top: pad.top + TOP, left, right }]}>
         <View style={styles.row} accessibilityLiveRegion="polite">
-          {pause}<PlateView p={a} land={view.land} />{frames(0)}{view.land && <View style={styles.gap} onLayout={fit} />}{frames(1)}<PlateView p={b} land={view.land} onX={setSeam} style={style} />{children || (view.land && <View style={styles.even} />)}
+          {pause}<PlateView p={a} land={view.land} trick={trick} />{frames(0)}{view.land && <View style={styles.gap} onLayout={fit} />}{frames(1)}<PlateView p={b} land={view.land} onX={setSeam} style={style} />{children || (view.land && <View style={styles.even} />)}
         </View>
         {view.land && say}
       </View>
@@ -75,12 +78,12 @@ export function MatchHud({ rules, names, push, view, pad, calm, wait, score, pau
 
 // Line 1 the name; line 2 the group's pips (hollow once potted), or Open / Break / On the 8, or the 9-ball foul warning.
 // The player to shoot is a cream slab with ink text, the other a dark one.
-function PlateView({ p, land, onX, style }: { p: Plate; land: boolean; onX?: (x: number) => void; style?: StyleId }) {
+function PlateView({ p, land, onX, style, trick }: { p: Plate; land: boolean; onX?: (x: number) => void; style?: StyleId; trick?: Trick | null }) {
   const ink = p.on ? C.ink : C.chalk, edge = p.on ? C.ink + '66' : LINE;
   return (
-    <View onLayout={onX && (e => onX(e.nativeEvent.layout.x))} accessible accessibilityLabel={style ? `${p.label}, ${NICK[style]}` : p.label} style={land ? styles.plateLand : styles.plate}>
+    <View onLayout={onX && (e => onX(e.nativeEvent.layout.x))} accessible accessibilityLabel={style ? `${p.label}, ${NICK[style]}` : trick ? `${p.label}, ${trick.label}` : p.label} style={land ? styles.plateLand : styles.plate}>
       <Slab paint={p.on ? CREAM : DARK} lip={LIP} radius={3} style={{ flex: 1 }} face={styles.plateFace}>
-        <View style={styles.l1}><Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.name, { color: ink, flexShrink: 1 }]}>{p.name}</Text>{style && <Glyph id={style} size={12} color={ink} />}</View>
+        <View style={styles.l1}><Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.name, { color: ink, flexShrink: 1 }]}>{p.name}</Text>{style && <Glyph id={style} size={12} color={ink} />}{!!trick?.text && <Text maxFontSizeMultiplier={1.2} numberOfLines={1} style={[styles.l2Text, { color: ink, opacity: trick.dim ? 0.4 : 0.85 }]}>{trick.text}</Text>}</View>
         {(p.pips.length > 0 || !!p.text) && <View style={styles.l2}>{/* 9-ball has no line 2 until the foul warning: the name sits at the centre */}
           {p.pips.map(q => <Pip key={q.id} id={q.id} gone={q.gone} size={10} edge={edge} />)}
           {!!p.text && <Text maxFontSizeMultiplier={1.2} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.l2Text, { color: ink + 'B3' }, p.warn && { color: RED }]}>{p.text}</Text>}

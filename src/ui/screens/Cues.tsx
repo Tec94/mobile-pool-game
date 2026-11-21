@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { PENCIL_AT } from '../../learn/lessons';
 import { keep, profile } from '../../progress';
 import { CUE_IDS, CUES, type CueId, type CueInfo, FAMILIES, soon, specs } from '../../progress/cues';
-import { locked, MASTERY_XP, masteryLevel, masteryOf, points, STATS, statsOf, tunable, tuneDown, tuneUp, upCost, used } from '../../progress/mastery';
+import { cueStats, locked, MASTERY_XP, masteryLevel, masteryOf, points, STATS, tunable, tuneDown, tuneUp, upCost, used } from '../../progress/mastery';
 import { buy, FEATS, featCount, type FeatId, featName, type Profile, select } from '../../progress/profile';
 import { C, CREAM, DARK, FONT } from '../../theme';
 import { CueArt } from '../CuePicture';
@@ -25,7 +25,7 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
   const n = Math.max(1, Math.floor((left - 4) / (86 + 8))), cw = Math.floor(Math.min(104, (left - 8 - 8 * (n - 1)) / n)); // 4 pt each side for the chosen outline
   const put = (next: Profile) => { if (next !== p) { keep(next); setP(next); } };
   const foot = (id: CueId) => {
-    const c: CueInfo = CUES[id], f = c.feat as FeatId | undefined, st = statsOf(id, masteryOf(p, id));
+    const c: CueInfo = CUES[id], f = c.feat as FeatId | undefined, st = cueStats(p, id);
     if (p.cue === id) return 'In use';
     if (p.owned.includes(id)) return `${st.power}·${st.spin}·${st.aim}`;
     if (c.price !== undefined) return c.price.toLocaleString('en-US');
@@ -43,7 +43,7 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
     c.price !== undefined && `${c.price.toLocaleString('en-US')} coins`, c.price !== undefined && p.coins < c.price && `${(c.price - p.coins).toLocaleString('en-US')} coins short`,
     f && `${featName(f)}: ${featCount(p, f)} of ${FEATS[f].count}`, c.level && `Reach level ${c.level}`, c.get && (id === 'surveyor' ? `${done.length} of ${PENCIL_AT} lessons passed` : c.get),
   ].filter((x): x is string => !!x).slice(0, 2);
-  const line = [FAMILIES.find(x => x[0] === c.family)![1], ...need, c.quip].filter(Boolean).join(' · '), st = statsOf(id, masteryOf(p, id));
+  const line = [FAMILIES.find(x => x[0] === c.family)![1], ...need, c.quip].filter(Boolean).join(' · '), st = cueStats(p, id);
   return (
     <Shell title="Cues" back={() => go('home')} extra={<Txt style={styles.count}>{`${p.owned.length} / ${CUE_IDS.length}`}</Txt>}>
       <Split at={Math.floor(up / n) * (H + 13)} panel={
@@ -74,7 +74,7 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
         </Panel>}>
         <View style={styles.grid}>
           {CUE_IDS.map((k, i) => {
-            const own = p.owned.includes(k), inUse = p.cue === k, ink = { color: own ? C.ink : C.chalk }, s2 = statsOf(k, masteryOf(p, k));
+            const own = p.owned.includes(k), inUse = p.cue === k, ink = { color: own ? C.ink : C.chalk }, s2 = cueStats(p, k);
             return (
               <Slab key={k} paint={own ? CREAM : DARK} onPress={() => setUp(i)} accessibilityState={{ selected: i === up }}
                 accessibilityLabel={`${CUES[k].name}${inUse ? ', in use' : own ? ', yours' : ''}${own ? `, power ${s2.power}, spin ${s2.spin}, aim ${s2.aim}` : ''}`}
@@ -95,7 +95,7 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
 
 // The real numbers the stats make on the table, then the cue's mastery and its tuning.
 function Advanced({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => void }) {
-  const sp = specs(id, statsOf(id, masteryOf(p, id)));
+  const sp = specs(id, cueStats(p, id));
   const facts: [string, string, string][] = [[sp.shot.toFixed(2), 'm/s', 'Top shot speed'], [sp.brk.toFixed(1), 'm/s', 'Break speed'], [sp.tipMm.toFixed(1), 'mm', 'Tip reach off centre'], [String(sp.guideCm), 'cm', 'Guide past contact']];
   return <>
     <View style={styles.facts}>

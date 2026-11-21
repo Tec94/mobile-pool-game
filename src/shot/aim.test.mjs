@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { CUE, P, predict } from '../physics/engine.ts';
 import { DIAL, shotLayout } from '../render/cue.ts';
 import { RAIL } from '../render/table.ts';
-import { aimGuide, dialTurn, guideLen, nearest, nudge, powerTick, previewPower, pullPower, railLabel, release, SENS, swing, tapAim } from './aim.ts';
+import { aimGuide, dialTurn, guideLen, nearest, nudge, powerTick, previewPower, pullPower, railLabel, release, SENS, shorten, swing, tapAim } from './aim.ts';
 const mk = (x, y, on = true) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on });
 const near = (a, b, tol, msg) => assert(Math.abs(a - b) < tol, `${msg}: ${a} vs ${b}`);
 const len = p => p.slice(1).reduce((s, q, i) => s + Math.hypot(q[0] - p[i][0], q[1] - p[i][1]), 0);
@@ -127,4 +127,9 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
     assert(v.land === land && ui.rail.left > v.ox + (tw - RAIL) * v.s, 'the rail is right of the table');
   }
   ok('the controls and the table fit the window without overlap');
+}
+{ // the Coil's guide with the cue raised: the first 20 cm of the path
+  assert.deepStrictEqual(shorten([[0, 0], [0.1, 0], [0.1, 0.3], [0.5, 0.3]], 0.2), [[0, 0], [0.1, 0], [0.1, 0.1, 0]], 'cut inside the second piece');
+  assert.deepStrictEqual([shorten([[0, 0], [0.1, 0]], 0.2), shorten([], 0.2)], [[[0, 0], [0.1, 0]], []], 'a shorter path is kept; no path stays none');
+  ok('a guide cut to a length');
 }
