@@ -1,7 +1,7 @@
 // Run: npm test   (the progression model: levels, pay, cues, feats, gates and the saved profile)
 import assert from 'node:assert';
 import { CUE } from '../physics/engine.ts';
-import { notch, ratchet, STEPS } from './tricks.ts';
+import { auraLine, notch, ratchet, STEPS } from './tricks.ts';
 import { CUE_IDS, CUES, soon, specLine, specs, stick } from './cues.ts';
 import { hustler, matchFeats, matchPay, newLedger, noteShot, rackOver, safetyPay, settle, shotPay } from './pay.ts';
 import { cueGain, masteryLevel, masteryNote, masteryOf, readMastery, statsOf, tuneDown, tuneUp, upCost } from './mastery.ts';
@@ -321,4 +321,14 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq([STEPS.length, STEPS.every((s, i) => !i || s > STEPS[i - 1])], [10, true], '10 rising steps');
   eq([notch([], 0.33), notch([0.08, 0.33, 0.58], 1), notch([0.08, 0.33, 0.58], 0.33)], [[0.33], [0.33, 0.58, 1], [0.08, 0.58, 0.33]], 'notches: the last 3 pulls, each step once');
   ok('tricks on the controls');
+}
+{ // the Aura's run lives in the profile between matches
+  let p = { ...NEW, owned: ['house', 'aura'], cue: 'aura' };
+  p = matchEnd(p, {}, true, { run: 4, owed: false }); eq(p.aura, { run: 4, owed: false }, 'a settled match saves the run');
+  eq([matchEnd(p, {}, undefined, { run: 4, owed: false }) === p, matchEnd(p, {}).aura], [true, { run: 4, owed: false }], 'the same run writes nothing; a match below Hustler leaves it');
+  eq(matchEnd(p, {}, false).aura, { run: 0, owed: true }, 'a match that was left ends it');
+  eq([select(p, 'house').aura, select({ ...p, aura: { run: 0, owed: false } }, 'house').aura, matchEnd({ ...p, cue: 'house' }, {}, false).aura], [{ run: 0, owed: true }, { run: 0, owed: false }, { run: 4, owed: false }], 'choosing another cue ends a run; with another cue in hand a loss does not');
+  eq([readProfile(JSON.stringify(p)).aura, readProfile(JSON.stringify({ ...p, aura: { run: -3, owed: 'yes' } })).aura, readProfile(JSON.stringify({ ...p, aura: 5 })).aura], [{ run: 4, owed: false }, { run: 0, owed: false }, undefined], 'read defensively');
+  eq([auraLine({ run: 0, owed: false }).text, auraLine({ run: 3, owed: false }).text, auraLine({ run: 0, owed: true }).text], ['x1', 'x1.75', 'x0'], 'the HUD shows what the next pot pays');
+  ok('the Aura keeps its run');
 }

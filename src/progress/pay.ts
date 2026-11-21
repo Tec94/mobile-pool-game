@@ -15,6 +15,7 @@ export interface Pot extends Vs {
   foul?: boolean;       // potted on a foul
   theirs?: boolean;     // the opponent's ball
   show?: boolean;       // the Performative's For show acts on this pot: a bank, a combo or a kick pays 2 times, any other pot half
+  aura?: number;        // the Aura's Aura farming: the pot's place in the run of pots, 1 = the first. Each place adds 25%, in place of the run bonus
 }
 
 // Band of a shot by pRef: its name and multiplier. Sharpshooter counts Tough and harder.
@@ -35,10 +36,10 @@ export function shotPay(p: Pot): Pay {
   if (p.foul || p.theirs) return { xp: 0, coins: 0 };
   const plain = p.pRef === null || p.brk, b = plain ? 1 : band(p.pRef!)[1];
   const type = plain || p.hand ? 1 : TYPE[p.type ?? 'direct'];
-  const usual = (p.hand ? Math.min(b, 1.5) : b) * type * (1 + Math.min(0.7, 0.1 * (p.run ?? 0))) * vs(p);
+  const usual = (p.hand ? Math.min(b, 1.5) : b) * type * (p.aura ? 1 + 0.25 * (p.aura - 1) : 1 + Math.min(0.7, 0.1 * (p.run ?? 0))) * vs(p);
   // For show: the type is what happened, so with ball in hand the 2 times is paid though the type's own bonus is not. A fluke and a break pot pay half. Up to 16 times a plain pot.
   if (p.show) return !plain && (p.type ?? 'direct') !== 'direct' ? paid(2 * usual, p.tour, 16) : paid(Math.min(12, usual) / 2, p.tour);
-  return paid(usual, p.tour);
+  return paid(usual, p.tour, p.aura ? 20 : 12); // the Aura's pay tops out at 20 times a plain pot
 }
 
 // A safety pays as Tough: a legal hit, no pot, not a push-out nor ball in hand, a hard leave and the opponent then
@@ -64,7 +65,10 @@ export function matchPay(m: Match): Pay {
 // ends and not when the player's own shot loses it (or the pair and then the 8 on a foul is a loop); behind = this
 // 8-ball rack the opponent was 3 balls or more ahead; down = this match the player was 2 racks down.
 // held = the Six Seven's pay this rack: paid when the rack ends, and not when the player's own shot loses it.
-export interface Ledger { shots: Pay; run: number; fouls: number; own: number; brk?: number; feats?: Partial<Record<FeatId, number>>; turn?: { ids: number[]; hot?: boolean; pair?: boolean }; pairs?: number; behind?: boolean; down?: boolean; held?: Pay }
+// aura = the Aura's run of pots and whether the next pot is owed (pays nothing): from the profile at the start of the
+// match, changed by potPay, saved when the match settles.
+export interface Ledger { shots: Pay; run: number; fouls: number; own: number; brk?: number; feats?: Partial<Record<FeatId, number>>; turn?: { ids: number[]; hot?: boolean; pair?: boolean }; pairs?: number; behind?: boolean; down?: boolean; held?: Pay; aura?: Aura }
+export interface Aura { run: number; owed: boolean }
 export const newLedger = (): Ledger => ({ shots: { xp: 0, coins: 0 }, run: 0, fouls: 0, own: 0 });
 const count = (l: Ledger, id: FeatId, n = 1) => { if (n) (l.feats ??= {})[id] = (l.feats[id] ?? 0) + n; };
 // p = what potPay gave: feats = the feats its pots count for; mine = the player's own balls potted to keep the turn

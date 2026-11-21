@@ -3,7 +3,7 @@ import { type FeatId, gain, matchEnd, passPlay, runOwe, unlock, type Profile } f
 import { type CueId, CUES } from './progress/cues';
 import { cueGain, masteryNote, masteryOf, statsOf } from './progress/mastery';
 import { loadProfile, saveProfile } from './progress/save';
-import type { Pay } from './progress/pay';
+import type { Aura, Pay } from './progress/pay';
 import { type Mood, rate, score, START } from './progress/rival';
 
 // Pass and play pays a flat amount for a finished match, whoever wins (progression design: 40 XP and 20 coins), for
@@ -26,9 +26,9 @@ export const ownStats = (id: CueId) => statsOf(id, masteryOf(profile(), id));
 // Give a cue and save; an owned cue writes nothing. Learn calls this with 'surveyor' at 10 lessons.
 export function unlockCue(id: CueId) { const p = profile(), q = unlock(p, id); if (q !== p) keep(q); }
 // A match against the AI is over: count its feats and its part in the Unbeaten streak (profile.ts matchEnd), and save.
-// Gives the names of the cues this gave, for the results card.
-export function featsDone(feats: Partial<Record<FeatId, number>>, won?: boolean) {
-  const p = profile(), q = matchEnd(p, feats, won);
+// Gives the names of the cues this gave, for the results card. aura = the Aura's run as the match left it.
+export function featsDone(feats: Partial<Record<FeatId, number>>, won?: boolean, aura?: Aura) {
+  const p = profile(), q = matchEnd(p, feats, won, aura);
   if (q !== p) keep(q);
   return q.owned.filter(id => !p.owned.includes(id)).map(id => CUES[id].name);
 }
