@@ -5,7 +5,7 @@ import { afterSoft, auraLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, o
 import { judge, newGame, newRec } from '../rules/rules.ts';
 import { CUE_IDS, CUES, soon, specLine, specs, stick } from './cues.ts';
 import { hustler, matchFeats, matchPay, newLedger, noteShot, rackOver, safetyPay, settle, shotPay } from './pay.ts';
-import { cueGain, masteryLevel, masteryNote, masteryOf, readMastery, statsOf, tuneDown, tuneUp, upCost } from './mastery.ts';
+import { cueGain, cueStats, masteryLevel, masteryNote, masteryOf, maxStats, nextPick, readMastery, statsOf, tuneDown, tuneUp, upCost } from './mastery.ts';
 import { buy, feat, featCount, featName, FEATS, gain, levelNote, levelOf, matchEnd, NEW, opens, PACKS, passPlay, readProfile, runOwe, select, unlock, VENUES } from './profile.ts';
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
@@ -361,4 +361,12 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   noteSunk(n9, nine, pots(1, 2), nine); noteSunk(n9, { ...nine, turn: 1 }, pots(3), { ...nine, foul: true });
   eq([n9, mogLead(nine, n9), mogLine(1).text, mogLine(-2).text, mogLine(0)], [[2, 0], 2, 'Mogging +3', 'Mogged −3', null], '9-ball: a ball counts for the player who potted it with no foul');
   ok('the Marble\'s Mog');
+}
+{ // the Maxxed's Statmaxxing: the picked stat is 10, the other two are 5
+  eq([maxStats(), maxStats('power'), maxStats('spin')], [{ power: 5, spin: 5, aim: 10 }, { power: 10, spin: 5, aim: 5 }, { power: 5, spin: 10, aim: 5 }], 'with no pick, Aim');
+  eq([nextPick(), nextPick('power'), nextPick('spin')], ['power', 'spin', 'aim'], 'the button steps through the three');
+  const p = { ...NEW, owned: ['house', 'maxxed'], maxxed: 'spin', mastery: { house: { xp: 300, power: 1, spin: 0, aim: 0, paid: 1 } } };
+  eq([cueStats(p, 'maxxed'), cueStats(p, 'house').power, cueStats(NEW, 'maxxed').aim], [{ power: 5, spin: 10, aim: 5 }, CUES.house.power + 1, 10], 'the card and the lessons show the last pick; another cue shows its tuning');
+  eq([readProfile(JSON.stringify(p)).maxxed, readProfile(JSON.stringify({ ...p, maxxed: 'luck' })).maxxed], ['spin', undefined], 'the pick is saved and read defensively');
+  ok('the Maxxed\'s Statmaxxing');
 }

@@ -1,7 +1,8 @@
 // The player's progress for the app: the profile, loaded once, and the pay of a finished match. The model is in src/progress/.
 import { type FeatId, gain, matchEnd, passPlay, runOwe, unlock, type Profile } from './progress/profile';
 import { type CueId, CUES } from './progress/cues';
-import { cueGain, masteryNote, masteryOf, statsOf } from './progress/mastery';
+import { cueGain, cueStats, masteryNote } from './progress/mastery';
+import type { Stat } from './progress/cues';
 import { loadProfile, saveProfile } from './progress/save';
 import type { Aura, Pay } from './progress/pay';
 import { type Mood, rate, score, START } from './progress/rival';
@@ -22,7 +23,9 @@ export function award(pay: Pay, cue?: CueId, then = (p: Profile) => p) {
   return { ...g, mastery: m && cue ? masteryNote(cue, m) : '' };
 }
 // The player's own cue as it plays now, with its tuning.
-export const ownStats = (id: CueId) => statsOf(id, masteryOf(profile(), id));
+export const ownStats = (id: CueId) => cueStats(profile(), id);
+// The Maxxed's pick, saved when it is made: the next rack, the lessons and the cue's card show it.
+export function maxPick(pick: Stat) { const p = profile(); if (p.maxxed !== pick) keep({ ...p, maxxed: pick }); }
 // Give a cue and save; an owned cue writes nothing. Learn calls this with 'surveyor' at 10 lessons.
 export function unlockCue(id: CueId) { const p = profile(), q = unlock(p, id); if (q !== p) keep(q); }
 // A match against the AI is over: count its feats and its part in the Unbeaten streak (profile.ts matchEnd), and save.

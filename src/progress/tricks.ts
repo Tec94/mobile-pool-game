@@ -56,3 +56,5 @@ export const RAM_LINE = { text: 'No guide', label: 'Overdrive: this shot has no 
 export const softLine = (w: Soft) => ({ text: '●'.repeat(w.left) + '○'.repeat(2 - w.left), dim: !softCan(w), label: softCan(w) ? `Soft hands: ${w.left} left this rack` : w.left ? 'Soft hands: not on this turn' : 'Soft hands: none left this rack' });
 // The number is the change to each stat, always 3: not the lead in balls.
 export const mogLine = (lead: number) => (lead > 0 ? { text: 'Mogging +3', label: 'Mogging: 8 in every stat' } : lead < 0 ? { text: 'Mogged −3', dim: true, label: 'Mogged: 2 in every stat' } : null);
+// The Maxxed: the second pick of the rack, as 1 pip.
+export const maxLine = (left: boolean) => ({ text: left ? '●' : '○', dim: !left, label: left ? 'Statmaxxing: 1 more pick this rack, at the start of a turn' : 'Statmaxxing: no more picks this rack' });

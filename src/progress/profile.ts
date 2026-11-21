@@ -1,5 +1,5 @@
 // The player's progress: total XP (the level comes from it), coins, cues and feat counts (progression design).
-import { CUE_IDS, CUES, type CueId, type CueInfo, plain } from './cues.ts';
+import { CUE_IDS, CUES, type CueId, type CueInfo, plain, type Stat, STATS } from './cues.ts';
 import { fit, type Mastery, MAXXED_AT, maxedCues, NONE, paidCoins, readMastery, readOne, tunable } from './mastery.ts';
 import type { Aura, Pay } from './pay.ts';
 import { newRival, readRival, type Rival } from './rival.ts';
@@ -29,11 +29,11 @@ export type FeatId = keyof typeof FEATS;
 export const featName = (id: FeatId) => (id === 'tuning' && plain('maxxed') ? 'Tuned up' : FEATS[id].name);
 
 // feats: progress from play and from scenarios apart, since scenarios may give at most half of a count.
-export interface Profile { xp: number; coins: number; owned: CueId[]; cue: CueId; feats: Partial<Record<FeatId, { play: number; scen: number }>>; mastery: Partial<Record<CueId, Mastery>>; rival: Rival; trophies: number[]; tour?: { seed: number; xp: number; coins: number }; pp?: { day: string; n: number }; open?: true; aura?: Aura; ram?: true }
+export interface Profile { xp: number; coins: number; owned: CueId[]; cue: CueId; feats: Partial<Record<FeatId, { play: number; scen: number }>>; mastery: Partial<Record<CueId, Mastery>>; rival: Rival; trophies: number[]; tour?: { seed: number; xp: number; coins: number }; pp?: { day: string; n: number }; open?: true; aura?: Aura; ram?: true; maxxed?: Stat }
 // trophies: per tournament cup the best medal (src/tournament/bracket.ts medalOf); tour: the run paid so far (progress.ts payRun);
 // pp: the pass and play matches paid on a day (passPlay); open: a match that counts for the Unbeaten streak is in play (matchEnd);
 // aura: the Aura's run of pots, kept from match to match while the Aura stays in hand (pay.ts Aura);
-// ram: the Ram owes a shot with no guide (tricks.ts ramOwes)
+// ram: the Ram owes a shot with no guide (tricks.ts ramOwes); maxxed: the Maxxed's last pick (mastery.ts maxStats)
 export const NEW: Profile = { xp: 0, coins: 0, owned: ['house'], cue: 'house', feats: {}, mastery: {}, rival: newRival(), trophies: [0, 0, 0, 0] };
 // Give a cue (Learn, a boss, a feat, a level). An owned cue returns the same profile, so the caller can skip the save.
 export const unlock = (p: Profile, id: CueId): Profile => (p.owned.includes(id) ? p : { ...p, owned: [...p.owned, id] });
@@ -167,7 +167,8 @@ export function readProfile(text: string | null): Profile {
     trophies: [0, 1, 2, 3].map(i => { const m = o.trophies?.[i]; return Number.isInteger(m) && m >= 0 && m <= 3 ? m : 0; }),
     ...(o.tour && Number.isInteger(o.tour.seed) ? { tour: { seed: o.tour.seed, xp: num(o.tour.xp), coins: num(o.tour.coins) } } : {}),
     ...(typeof o.pp?.day === 'string' ? { pp: { day: o.pp.day, n: num(o.pp.n) } } : {}), ...(o.open === true ? { open: true as const } : {}),
-    ...(o.aura && typeof o.aura === 'object' ? { aura: { run: Math.min(1000, num(o.aura.run)), owed: o.aura.owed === true } } : {}), ...(o.ram === true ? { ram: true as const } : {}) };
+    ...(o.aura && typeof o.aura === 'object' ? { aura: { run: Math.min(1000, num(o.aura.run)), owed: o.aura.owed === true } } : {}), ...(o.ram === true ? { ram: true as const } : {}),
+    ...(STATS.includes(o.maxxed) ? { maxxed: o.maxxed as Stat } : {}) };
 }
 
 // A tournament run (src/tournament/bracket.ts): what it still owes the player, and the profile change that marks it
