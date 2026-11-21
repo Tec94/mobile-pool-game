@@ -4,7 +4,7 @@ import { CUE } from '../physics/engine.ts';
 import { CUES, specLine, specs, stick } from './cues.ts';
 import { matchPay, newLedger, noteShot, safetyPay, settle, shotPay } from './pay.ts';
 import { cueGain, masteryLevel, masteryNote, masteryOf, readMastery, statsOf, tuneDown, tuneUp, upCost } from './mastery.ts';
-import { buy, feat, featCount, gain, levelNote, levelOf, NEW, opens, PACKS, readProfile, runOwe, select, unlock, VENUES } from './profile.ts';
+import { buy, feat, featCount, gain, levelNote, levelOf, NEW, opens, PACKS, passPlay, readProfile, runOwe, select, unlock, VENUES } from './profile.ts';
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 
@@ -182,6 +182,19 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(settle(l, { tier: 2, won: false, early: false }, () => ({ xp: 0, coins: 0 })).chalk, null, 'chalk that paid nothing is no line');
   eq(settle(l, { tier: 2, won: false, early: true }).match, { xp: 0, coins: 0 }, 'an early 8 pays no match pay');
   ok('ledger: shots, fouls, own balls and Fresh Chalk');
+}
+
+{ // pass and play: the flat pay for the first 3 finished matches of a day, nothing for a match lost on a foul or an early 8
+  const flat = { xp: 40, coins: 20 }, play = (p, day, lost = '') => { const r = passPlay(p, day, lost, flat); return [r.mark(p), r.pay, r.note]; };
+  let p = readProfile(null), pay, note;
+  for (let i = 0; i < 3; i++) { [p, pay, note] = play(p, '2026-11-21'); eq([pay, note], [flat, ''], `match ${i + 1} of the day pays`); }
+  eq(p.pp, { day: '2026-11-21', n: 3 }, 'the count is in the profile');
+  [p, pay, note] = play(p, '2026-11-21'); eq([pay, note, p.pp.n], [{ xp: 0, coins: 0 }, 'No pay: 3 paid matches a day.', 3], 'the fourth pays nothing');
+  [p, pay] = play(p, '2026-11-22'); eq([pay, p.pp], [flat, { day: '2026-11-22', n: 1 }], 'a new day pays again');
+  [p, pay, note] = play(p, '2026-11-22', 'a foul'); eq([pay, note, p.pp.n], [{ xp: 0, coins: 0 }, 'No pay: the match ended on a foul.', 1], 'a match lost on a foul pays nothing and is not counted');
+  eq(readProfile(JSON.stringify(p)).pp, p.pp, 'the count is read back');
+  eq([readProfile(JSON.stringify({ pp: { day: 5, n: 2 } })).pp, readProfile(JSON.stringify({ pp: { day: '2026-11-22', n: 'x' } })).pp], [undefined, { day: '2026-11-22', n: 0 }], 'a damaged count is read safely');
+  ok('pass and play pays 3 matches a day');
 }
 
 { // a match won only on the break: no match pay, no Fresh Chalk spent, the break's pots still paid

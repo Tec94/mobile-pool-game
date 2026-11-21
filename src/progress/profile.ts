@@ -21,8 +21,9 @@ export const FEATS = {
 export type FeatId = keyof typeof FEATS;
 
 // feats: progress from play and from scenarios apart, since scenarios may give at most half of a count.
-export interface Profile { xp: number; coins: number; owned: CueId[]; cue: CueId; feats: Partial<Record<FeatId, { play: number; scen: number }>>; mastery: Partial<Record<CueId, Mastery>>; rival: Rival; trophies: number[]; tour?: { seed: number; xp: number; coins: number } }
-// trophies: per tournament cup the best medal (src/tournament/bracket.ts medalOf); tour: the run paid so far (progress.ts payRun)
+export interface Profile { xp: number; coins: number; owned: CueId[]; cue: CueId; feats: Partial<Record<FeatId, { play: number; scen: number }>>; mastery: Partial<Record<CueId, Mastery>>; rival: Rival; trophies: number[]; tour?: { seed: number; xp: number; coins: number }; pp?: { day: string; n: number } }
+// trophies: per tournament cup the best medal (src/tournament/bracket.ts medalOf); tour: the run paid so far (progress.ts payRun);
+// pp: the pass and play matches paid on a day (passPlay)
 export const NEW: Profile = { xp: 0, coins: 0, owned: ['house'], cue: 'house', feats: {}, mastery: {}, rival: newRival(), trophies: [0, 0, 0, 0] };
 // Give a cue (Learn, a boss, a feat, a level). An owned cue returns the same profile, so the caller can skip the save.
 export const unlock = (p: Profile, id: CueId): Profile => (p.owned.includes(id) ? p : { ...p, owned: [...p.owned, id] });
@@ -73,6 +74,19 @@ export function feat(p: Profile, id: FeatId, n = 1, scen = false): Profile {
   return featCount(p, id) >= F.count ? next : { ...next, coins: next.coins + (F.coins ?? 0) };
 }
 
+// Pass and play pays its flat pay for the first PP_CAP finished matches of a day (the Daily Table's day, daily.ts
+// dayKey), and nothing for a match that ended on the loser's own foul or early 8 (lost says which). Before the cap,
+// losing a 9-ball race to 1 on three fouls in five shots, over and over, paid more an hour than honest play against
+// the AI. Gives the pay, the line for the results card when the pay is nothing, and the count to save with the pay.
+// shortcut: the day is the phone's clock, so a clock moved on a day pays 3 more; count on a server if online play comes.
+export const PP_CAP = 3;
+export function passPlay(p: Profile, day: string, lost: string, pay: Pay) {
+  const n = p.pp?.day === day ? p.pp.n : 0, none: Pay = { xp: 0, coins: 0 }, same = (q: Profile) => q;
+  if (lost) return { pay: none, note: `No pay: the match ended on ${lost}.`, mark: same };
+  if (n >= PP_CAP) return { pay: none, note: `No pay: ${PP_CAP} paid matches a day.`, mark: same };
+  return { pay, note: '', mark: (q: Profile): Profile => ({ ...q, pp: { day, n: n + 1 } }) };
+}
+
 // What opens at a level (scenario packs) or a number of stars (venues).
 export const PACKS: [string, number][] = [['Pots', 1], ['Cut shots', 3], ['Banks', 5], ['Position', 8], ['9-ball', 9], ['Combos', 11], ['Kicks', 14], ['Safeties and escapes', 18], ['Trick shots', 22]];
 export const VENUES: [string, number][] = [['Garage', 0], ['Corner Bar', 8], ['Social Club', 18], ['Pool Hall', 29], ['Tournament Floor', 40], ['Penthouse', 52]];
@@ -92,7 +106,8 @@ export function readProfile(text: string | null): Profile {
   for (const id of Object.keys(FEATS) as FeatId[]) { const f = o.feats?.[id]; if (f && typeof f === 'object') feats[id] = { play: num(f.play), scen: num(f.scen) }; }
   return { xp, coins: num(o.coins), owned, cue: owned.includes(o.cue) ? o.cue : 'house', feats, mastery: readMastery(o.mastery), rival: readRival(o.rival),
     trophies: [0, 1, 2, 3].map(i => { const m = o.trophies?.[i]; return Number.isInteger(m) && m >= 0 && m <= 3 ? m : 0; }),
-    ...(o.tour && Number.isInteger(o.tour.seed) ? { tour: { seed: o.tour.seed, xp: num(o.tour.xp), coins: num(o.tour.coins) } } : {}) };
+    ...(o.tour && Number.isInteger(o.tour.seed) ? { tour: { seed: o.tour.seed, xp: num(o.tour.xp), coins: num(o.tour.coins) } } : {}),
+    ...(typeof o.pp?.day === 'string' ? { pp: { day: o.pp.day, n: num(o.pp.n) } } : {}) };
 }
 
 // A tournament run (src/tournament/bracket.ts): what it still owes the player, and the profile change that marks it

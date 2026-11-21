@@ -37,7 +37,7 @@ import { tourMatch as tm, type TourMatch as TM } from './src/tournament/match';
 import { DRAG, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { farGuide, type Guide, type GuideAsk, nearGuide } from './src/shot/far';
 import { guidePacer } from './src/shot/pacer';
-import { award, keep, ownStats, PASS_PLAY, payRun, profile, rivalDone, unlockCue } from './src/progress';
+import { award, keep, ownStats, passPlayPay, payRun, profile, rivalDone, unlockCue } from './src/progress';
 import { shown, tenth } from './src/progress/rival';
 import { clear, clearFeats, isOpen, par, SCENARIOS, type Scenario, starCount, starsFor } from './src/scenarios/scenarios';
 import { armChalk, chalkResult, dailyClear, dailyPick, dayKey, grantChalk } from './src/daily/daily';
@@ -307,11 +307,12 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   apply.current = (s: State) => {
     const t = table.current;
     if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++; if (score.current[s.winner] === race) {
+      const pp = vs ? null : passPlayPay(dayKey(new Date()), s.early ? 'an early 8' : s.foul ? 'a foul' : ''); // the 8 down early, or the last shot a foul: three in a row, the 8 down or off the table on one
       const r = vs ? settle(won.current, { tier: rival || tour ? tenth(level.current) : ai + 1, won: s.winner === 0, early: s.winner === 1 && s.early, tour: tour && tour.stakes * race, racks: score.current[0] }, chalk) // only an early 8 pays nothing
-        : { match: PASS_PLAY, shots: { xp: 0, coins: 0 }, chalk: null, total: PASS_PLAY };
+        : { match: pp!.pay, shots: { xp: 0, coins: 0 }, chalk: null, total: pp!.pay, note: pp!.note };
       // A tournament saves the result, then pays it (with any prize) marked in the profile: tour.done.
       if (tour) { const p = tour.prize(s.winner === 0); prize.current = p && (p.xp || p.coins) ? p : null; }
-      end.current = r; gained.current = tour ? tour.done(s.winner === 0, [...score.current], r.total, own) : award(r.total, vs ? own : undefined); // quick match played the player's own cue
+      end.current = r; gained.current = tour ? tour.done(s.winner === 0, [...score.current], r.total, own) : award(r.total, vs ? own : undefined, pp?.mark); // quick match played the player's own cue
       // The loser's own balls left (8-ball; 7 on an open table) say how close the match was.
       if (rival) { const lose = 1 - s.winner, left = s.solids < 0 ? 7 : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === lose)).length, [a, b] = rivalDone(game, s.winner === 0, left, set.mood); moved.current = `Rival ${shown(a)} to ${shown(b)}`; }
     } }

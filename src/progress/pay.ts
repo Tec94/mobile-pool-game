@@ -1,4 +1,4 @@
-// What a shot and a match pay (progression design). The vs-AI modes call these; pass and play pays PASS_PLAY.
+// What a shot and a match pay (progression design). The vs-AI modes call these; pass and play pays a flat amount (profile.ts passPlay).
 import type { CueId } from './cues.ts';
 
 export interface Pay { xp: number; coins: number }
