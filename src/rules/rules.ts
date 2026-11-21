@@ -9,7 +9,7 @@
 // already down (4.4, last sentence); a call names a pocket only, so any legal ball in the called pocket counts (1.7
 // asks for ball and pocket), and no shot is obvious enough to need no call; no spotting of the nearest ball when every legal ball is above the head string (1.6).
 // Add them when a real game shows the need.
-import { type Ball, type Ev, type Game, HOLES, P, POCKET, type Shot } from '../physics/engine.ts';
+import { type Ball, type Ev, type Game, HOLES, P, POCKET, RAISED, type Shot } from '../physics/engine.ts';
 
 export type Hand = false | 'any' | 'kitchen'; // cue ball in hand: anywhere, or above the head string (the kitchen)
 export type Player = 0 | 1;
@@ -100,7 +100,7 @@ export function potKind(r: Rec, p: { id: number; pocket: number }) {
 // and the cue ball's line 5 degrees or more off its line at the strike when it hit, with no cushion between. The
 // height and the turn are there so that a cue tilted a little does not make a lucky pot a skilled one.
 export const jumped = (r: Rec) => r.high >= 0.03;
-export const massed = (r: Rec) => (r.shot?.elev ?? 0) >= 4 * Math.PI / 180 - 1e-9 && r.bend >= 5 * Math.PI / 180 && !r.cush.some(c => !c[0]);
+export const massed = (r: Rec) => (r.shot?.elev ?? 0) >= RAISED && r.bend >= 5 * Math.PI / 180 && !r.cush.some(c => !c[0]);
 
 // The shooter's own balls still on the table (8-ball, groups decided).
 const own = (s: State, p: Player) => (s.solids < 0 ? [] : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === p)));

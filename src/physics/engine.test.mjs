@@ -410,10 +410,13 @@ const fade = e => { const g = 16 * Math.cos(el(e)) ** 8; return g / (1 + g ** 4)
   CUE.squirt = 0; CUE.minElev = 0;
   assert(nine < 40 && kinds.size > 8, `the default break is not the same every rack: the 9 down on ${nine} of 200, ${kinds.size} outcomes`);
   console.log(`seeded rack ok (the 9 on the break on ${nine} of 200 racks, ${kinds.size} different outcomes)`); }
-{ // tricks of the stick: the Marquise lies dead flat (no curve from side spin)
+{ // tricks of the stick: the Marquise lies dead flat (no curve from side spin), the Coil curves 50% more when raised
   const { strike, step, CUE, P } = EngineAll, deg = Math.PI / 180;
   const drift = (cue, sh) => { const B = [mk(0.5, P.W / 2)]; strike(B[0], sh, cue); for (let i = 0; i < 40000 && B[0].x < 1.5; i++) if (!step(B, [])) break; return B[0].y - P.W / 2; };
   const side = { ang: 0, speed: 4, a: 0.5, b: 0 }, flat = { ...CUE, squirt: 0, minElev: 0 }, hex = { ...CUE, squirt: 0, minElev: TILT };
   assert(Math.abs(drift(flat, side)) < 1e-9 && Math.abs(drift(hex, side)) > 0.01, `a dead flat cue goes straight with full side; at 3 degrees it curves (${drift(hex, side)})`);
+  const up = { ang: 0, speed: 2, a: 0.3, b: 0, elev: 10 * deg }, plain = drift(hex, up), coil = drift({ ...hex, curl: 1.5 }, up);
+  assert(coil / plain > 1.4 && coil / plain < 1.6, `curl 1.5 curves about 50% more at 10 degrees (${plain} to ${coil})`);
+  assert(drift({ ...hex, curl: 1.5 }, side) === drift(hex, side), 'curl does nothing under 4 degrees');
   console.log('stick tricks ok'); }
 console.log('all checks passed');

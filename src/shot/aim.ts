@@ -93,3 +93,12 @@ export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, st
   }
   return { path, ob: clip(g.ob, L), ghost: h && [h.x, h.y], lands: g.lands, lost: g.scratch && g.split < 0, first: h ? h.b! : -1, stub };
 }
+// The first len metres of a path: the guide the Coil shows with its cue raised.
+export function shorten(path: number[][], len: number) {
+  const out = path.slice(0, 1);
+  for (let i = 1; i < path.length && len > 0; i++) {
+    const [ax, ay] = path[i - 1], [bx, by] = path[i], d = Math.hypot(bx - ax, by - ay);
+    out.push(d <= len ? path[i] : [ax + (bx - ax) * len / d, ay + (by - ay) * len / d, path[i][2] ?? 0]); len -= d;
+  }
+  return out;
+}

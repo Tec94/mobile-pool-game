@@ -25,7 +25,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   // the tricks of the stick act in a match against the AI only (on), and never for a matched game
   near(stick('ironwood', false, undefined, true).breakSpeed / stick('ironwood').breakSpeed, 1.2, 'Ironwood: the break 20% faster in a match');
   eq([stick('ironwood', false, undefined, true).maxSpeed, stick('ironwood', true, undefined, true).breakSpeed], [stick('ironwood').maxSpeed, stick('house').breakSpeed], 'the shot speed stays, and a matched game has no trick');
-  eq([stick('marquise', false, undefined, true).minElev, stick('marquise').minElev], [0, CUE.minElev], 'Marquise: dead flat in a match only');
+  eq([stick('marquise', false, undefined, true).minElev, stick('marquise').minElev, stick('coil', false, undefined, true).curl, stick('coil').curl], [0, CUE.minElev, 1.5, undefined], 'Marquise: dead flat; Coil: curl 1.5; neither outside a match');
   eq(stick('ram', true), h, 'matched: House Cue stats, tricks off'); eq(stick('marquise', true).squirt, CUE.squirt, 'a matched Marquise squirts');
   eq(Object.keys(CUES).length, 26, '26 cues'); eq(CUES.house.aim, 5, 'House Cue Aim 5');
   for (const id of CUE_IDS) { const c = CUES[id]; assert([c.price !== undefined, !!c.feat, !!c.level, !!c.get, id === 'house'].filter(Boolean).length === 1, `${id}: one way to get it`); assert(!c.feat || FEATS[c.feat]?.cue === id, `${id}: its feat gives it`); }
