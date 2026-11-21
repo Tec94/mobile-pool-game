@@ -305,6 +305,17 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(readProfile(JSON.stringify({ ...NEW, open: true })).open, true, 'a match in play is read back, so a closed app is a loss');
   ok('feats are counted in matches');
 }
+{ // the Six Seven's pay is held for the end of the rack
+  const six = (ids, run = 1) => ({ pay: { xp: 67 * ids.length, coins: 27 * ids.length }, run, own: ids.length, mine: ids, held: true });
+  let l = newLedger();
+  noteShot(l, six([6]), false, false, true); eq([l.shots, l.held], [{ xp: 0, coins: 0 }, { xp: 67, coins: 27 }], 'the 6: held, not paid yet');
+  noteShot(l, six([7]), false, false, true); eq(l.held, { xp: 134, coins: 134 }, 'the 7 in the same turn: each is topped up to 67 coins');
+  rackOver(l, false, true); eq([l.shots, l.held], [{ xp: 134, coins: 134 }, undefined], 'the rack ends, lost to the AI\'s own pot of the 8: paid');
+  noteShot(l, six([6, 7]), false, false, true); eq(l.held, { xp: 134, coins: 134 }, 'both on one shot');
+  noteShot(l, six([], 0), false, false, true, true); rackOver(l, false, true); eq(l.shots, { xp: 134, coins: 134 }, 'a rack lost on the player\'s own shot pays none of it');
+  noteShot(l, six([6], 0), false, false, true); noteShot(l, six([7]), false, false, true); rackOver(l, true, true); eq(l.shots, { xp: 268, coins: 188 }, 'the 6 and the 7 in two turns: 27 coins each');
+  ok('the Six Seven pays at the end of the rack');
+}
 { // the tricks on the controls
   eq([0, 0.04, 0.05, 0.099, 0.101, 0.2, 0.5, 0.92, 0.94, 1].map(ratchet), [0, 0.04, 0.08, 0.08, 0.12, 0.17, 0.45, 0.86, 1, 1], 'Ratchet: a pull lands on the nearest step; under 5% it still cancels');
   eq([STEPS.length, STEPS.every((s, i) => !i || s > STEPS[i - 1])], [10, true], '10 rising steps');

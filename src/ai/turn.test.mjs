@@ -126,6 +126,12 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, true), phase: 'play', turn: 1, 
   eq([paid(bank, easy, { tier: 2, cue: 'performative' }).pay.xp, potPay(easy, rec(1, [[1, h]], bank), { ...q, bank: 2 }, after, 0, show, 0.4).pay.xp], [11, 13], 'off below Hustler, and off when every pot must be a bank');
   eq(potPay(easy, rec(1, [[1, h]], bank), { ...q, hand: 'any' }, after, 0, show, 0.4).pay.xp, 20, 'with ball in hand the type bonus is not paid, the 2 times is');
   eq(potPay(cands, rec(1, [[1, h]], { cush: [[0, far(h), cut]] }), q, after, 7, { tier: 6, cue: 'performative' }, 0.4).pay, { xp: 160, coins: 64 }, 'up to 16 times a plain pot');
+  // The Six Seven's Sixes and sevens: the 6 and the 7 pay 67 XP and 27 coins flat, no other ball pays, and the pay is held for the end of the rack.
+  const ss = { tier: 6, cue: 'sixseven' }, pot6 = (ids, vs = ss, st = q) => { const pots = ids.map(id => [id, h]); return potPay(cands, rec(ids[0], pots), st, judge(setCall({ ...st, solids: -1 }, h), rec(ids[0], pots)), 3, vs, 0.4); };
+  eq([pot6([6]).pay, pot6([6]).held, pot6([1]).pay, pot6([1]).held], [{ xp: 67, coins: 27 }, true, { xp: 0, coins: 0 }, true], 'the 6 pays flat at any tier, run and difficulty; the 1 pays nothing');
+  eq(pot6([6, 7, 2]).pay, { xp: 134, coins: 54 }, 'the 6 and the 7 on one shot: 27 coins each here, the top-up comes with the pair');
+  eq([pot6([6], { tier: 2, cue: 'sixseven' }).held, pot6([6], ss, { ...q, phase: 'break' }).held, pot6([6], ss, { ...q, phase: 'break' }).pay.xp], [undefined, undefined, 17], 'off below Hustler; on the break the 6 is a plain pot (with the run bonus and Legend\'s rate)');
+  eq(potPay(cands, rec(6, [[6, h]]), { ...q, solids: 1 }, judge(setCall({ ...q, solids: 1 }, h), rec(6, [[6, h]])), 0, ss, 0.4).pay, { xp: 0, coins: 0 }, 'stripes in 8-ball: the 6 is the opponent\'s ball');
   const T = [mk(0.6, 0.56), mk(1.1, 0.56), mk(1.6, 0.9)], ids = [0, 1, 10];
   eq([...new Set(candsFor(T, ids, s).map(k => k.ball))], [1], 'solids: candidates for the 1 only');
   eq([...new Set(candsFor(T, ids, { ...s, solids: -1 }).map(k => k.ball))].sort(), [1, 10], 'open table: any ball');

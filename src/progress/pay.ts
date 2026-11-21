@@ -63,24 +63,27 @@ export function matchPay(m: Match): Pay {
 // player's own balls potted this turn; pairs = the 6 and the 7 potted in one turn this rack, counted when the rack
 // ends and not when the player's own shot loses it (or the pair and then the 8 on a foul is a loop); behind = this
 // 8-ball rack the opponent was 3 balls or more ahead; down = this match the player was 2 racks down.
-export interface Ledger { shots: Pay; run: number; fouls: number; own: number; brk?: number; feats?: Partial<Record<FeatId, number>>; turn?: { ids: number[]; hot?: boolean; pair?: boolean }; pairs?: number; behind?: boolean; down?: boolean }
+// held = the Six Seven's pay this rack: paid when the rack ends, and not when the player's own shot loses it.
+export interface Ledger { shots: Pay; run: number; fouls: number; own: number; brk?: number; feats?: Partial<Record<FeatId, number>>; turn?: { ids: number[]; hot?: boolean; pair?: boolean }; pairs?: number; behind?: boolean; down?: boolean; held?: Pay }
 export const newLedger = (): Ledger => ({ shots: { xp: 0, coins: 0 }, run: 0, fouls: 0, own: 0 });
 const count = (l: Ledger, id: FeatId, n = 1) => { if (n) (l.feats ??= {})[id] = (l.feats[id] ?? 0) + n; };
 // p = what potPay gave: feats = the feats its pots count for; mine = the player's own balls potted to keep the turn
 // (none on the break). hard = the opponent is Hustler or harder; lost = this shot lost the rack.
-export function noteShot(l: Ledger, p: { pay: Pay; run: number; own: number; feats?: FeatId[]; mine?: number[] }, foul: boolean, brkWin = false, hard = false, lost = false) {
-  l.shots.xp += p.pay.xp; l.shots.coins += p.pay.coins; l.run = p.run; l.own += p.own; l.fouls += +foul;
+export function noteShot(l: Ledger, p: { pay: Pay; run: number; own: number; feats?: FeatId[]; mine?: number[]; held?: boolean }, foul: boolean, brkWin = false, hard = false, lost = false) {
+  const to = p.held ? l.held ??= { xp: 0, coins: 0 } : l.shots;
+  to.xp += p.pay.xp; to.coins += p.pay.coins; l.run = p.run; l.own += p.own; l.fouls += +foul;
   if (brkWin) l.brk = (l.brk ?? 0) + 1;
   for (const f of p.feats ?? []) count(l, f);
   const t = l.turn ??= { ids: [] }; t.ids.push(...(p.mine ?? []));
   if (hard && !t.hot && t.ids.length >= 7) { t.hot = true; count(l, 'heater'); }                               // Heater: 7 of your balls in one turn
-  if (hard && !t.pair && t.ids.includes(6) && t.ids.includes(7)) { t.pair = true; l.pairs = (l.pairs ?? 0) + 1; } // Thirteen: the 6 and the 7 in one turn
+  if (hard && !t.pair && t.ids.includes(6) && t.ids.includes(7)) { t.pair = true; l.pairs = (l.pairs ?? 0) + 1; if (p.held) to.coins += 80; } // Thirteen: the 6 and the 7 in one turn. With the Six Seven each of the two is topped up from 27 to 67 coins
   if (!p.run) delete l.turn; // the turn is over
-  if (lost) l.pairs = 0;
+  if (lost) { l.pairs = 0; delete l.held; }
 }
-// A rack is over. Counts its pairs, and in 8-ball a comeback (Nine Lives): won after the opponent was 3 balls ahead.
+// A rack is over. Counts its pairs, pays what the Six Seven held, and in 8-ball a comeback (Nine Lives): won after the opponent was 3 balls ahead.
 export function rackOver(l: Ledger, won: boolean, hard: boolean) {
   count(l, 'thirteen', l.pairs ?? 0);
+  if (l.held) { l.shots.xp += l.held.xp; l.shots.coins += l.held.coins; delete l.held; }
   if (won && hard && l.behind) count(l, 'lives');
   l.pairs = 0; l.behind = false; delete l.turn; l.run = 0;
 }
