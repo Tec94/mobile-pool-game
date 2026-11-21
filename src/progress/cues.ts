@@ -70,7 +70,7 @@ export const CUES = Object.fromEntries(CUE_IDS.map(id => [id, plain(id) ? { ...R
 
 // The tricks that act. A cue whose trick is not built yet shows it with a "Soon" tag and plays as a plain stick with
 // its stats and locks, so no card claims what the table does not do.
-export const BUILT: CueId[] = ['surveyor', 'twig', 'ironwood', 'marquise', 'coil', 'ratchet', 'performative', 'sixseven', 'aura', 'ram'];
+export const BUILT: CueId[] = ['surveyor', 'twig', 'ironwood', 'marquise', 'coil', 'ratchet', 'performative', 'sixseven', 'aura', 'ram', 'whisper'];
 export const soon = (id: CueId) => !!CUES[id].trick && !BUILT.includes(id);
 
 // The engine cue for a cue: Power 1 to 10 gives top speed 3.7 to 4.5 m/s and the break the same share of 12 m/s,

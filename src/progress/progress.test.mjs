@@ -1,7 +1,8 @@
 // Run: npm test   (the progression model: levels, pay, cues, feats, gates and the saved profile)
 import assert from 'node:assert';
 import { CUE } from '../physics/engine.ts';
-import { auraLine, notch, overdrive, ramOwes, ratchet, STEPS } from './tricks.ts';
+import { afterSoft, auraLine, newSoft, notch, overdrive, ramOwes, ratchet, softCan, softHands, softLine, STEPS } from './tricks.ts';
+import { judge, newGame, newRec } from '../rules/rules.ts';
 import { CUE_IDS, CUES, soon, specLine, specs, stick } from './cues.ts';
 import { hustler, matchFeats, matchPay, newLedger, noteShot, rackOver, safetyPay, settle, shotPay } from './pay.ts';
 import { cueGain, masteryLevel, masteryNote, masteryOf, readMastery, statsOf, tuneDown, tuneUp, upCost } from './mastery.ts';
@@ -334,4 +335,19 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq([readProfile(JSON.stringify(p)).aura, readProfile(JSON.stringify({ ...p, aura: { run: -3, owed: 'yes' } })).aura, readProfile(JSON.stringify({ ...p, aura: 5 })).aura], [{ run: 4, owed: false }, { run: 0, owed: false }, undefined], 'read defensively');
   eq([auraLine({ run: 0, owed: false }).text, auraLine({ run: 3, owed: false }).text, auraLine({ run: 0, owed: true }).text], ['x1', 'x1.75', 'x0'], 'the HUD shows what the next pot pays');
   ok('the Aura keeps its run');
+}
+{ // the Whisper's Soft hands: twice a rack a soft shot needs no cushion after the hit
+  const s = { ...newGame(9), phase: 'play', hand: null, balls: [1, 2, 9] }, tap = { ...newRec(), first: 1, railAfter: false }, w = newSoft();
+  const foul = judge(s, tap); eq([foul.foul, foul.hand], [true, 'any'], 'no cushion after the hit is a foul');
+  eq([softHands(w, 0.16, s, tap, foul).foul, softHands(w, 0.1, s, tap, foul, true).foul, softHands(w, 0.1, { ...s, phase: 'break' }, tap, foul).foul, w.left], [true, true, true, 2], 'not above 15% of the pull, not on a push-out, not on the break');
+  const wrong = { ...tap, first: 2 }; eq([softHands(w, 0.1, s, wrong, judge(s, wrong)).foul, softHands(w, 0.1, s, { ...tap, first: -1 }, judge(s, { ...tap, first: -1 })).foul, w.left], [true, true, 2], 'a legal ball must still be hit first');
+  const fine = { ...tap, railAfter: true }; softHands(w, 0.1, s, fine, judge(s, fine)); eq(w.left, 2, 'a shot that needs no saving spends no use');
+  const ok1 = softHands(w, 0.15, s, tap, foul); eq([ok1.foul, ok1.turn, ok1.hand, { ...w }, softLine(w).text], [false, 1, false, { left: 1, turn: 0, at: 0 }, '●○'], 'a soft tap up to a ball: a legal safety, one use spent');
+  w.turn++; eq([softCan(w), softHands(w, 0.1, s, tap, foul).foul, softLine(w).dim], [false, true, true], 'never on 2 of the player\'s turns in a row');
+  w.turn++; eq([softCan(w), softHands(w, 0.1, s, tap, foul).foul, w.left], [true, false, 0], 'the turn after that it acts again');
+  w.turn += 2; eq([softCan(w), softHands(w, 0.1, s, tap, foul).foul, softLine(w).text], [false, true, '○○'], 'twice a rack');
+  // 9-ball: the opponent's foul on the shot straight after leaves its count of fouls in a row as it was
+  const ai = { ...s, turn: 1, fouls: [0, 2] }, miss = { ...newRec(), first: -1 };
+  eq([judge(ai, miss).phase, judge(afterSoft(ai), miss).phase, judge(afterSoft(ai), miss).fouls[1], judge(afterSoft(ai), fine).fouls[1]], ['over', 'play', 2, 0], 'a third foul there does not lose the rack; a legal shot clears the count as usual');
+  ok('the Whisper\'s Soft hands');
 }
