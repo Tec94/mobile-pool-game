@@ -4,14 +4,17 @@ import assert from 'node:assert';
 import { CUE, step, strike } from '../physics/engine.ts';
 import { shotTip } from '../render/tip.ts';
 import { lessonTable, litCushions, newLessonRec, noteLesson, verdict } from '../learn/lessons.ts';
+import { potKind } from '../rules/rules.ts';
 import { NEW, PACKS, featCount, toLeave } from '../progress/profile.ts';
 import { stick } from '../progress/cues.ts';
 import { clear, clearFeats, isOpen, par, pRef, readStars, SCENARIOS, starsFor, totalStars } from './scenarios.ts';
 
+const kinds = []; // [scenario, what its pot was by what happened], for every shot played below that pots its ball
 const play = (s, ang) => {
   const { B, ids } = lessonTable(s), r = newLessonRec(), ev = [];
   strike(B[0], { ang, speed: s.ref.power * CUE.maxSpeed, ...shotTip(s.ref.tip) });
   for (let i = 0; i < 40000; i++) { ev.length = 0; const mv = step(B, ev); noteLesson(r, ev, B, ids); if (!mv) break; }
+  const p = r.pots.find(p => p.id === s.goal.pot), k = p && potKind(r, p); if (k && ang === s.ref.ang) kinds.push([s, k.kicks ? 'kick' : k.bank ? 'bank' : k.combo ? 'combo' : 'direct']);
   return verdict(s, r, B[0]);
 };
 
@@ -36,6 +39,9 @@ for (const s of SCENARIOS) {
   for (let k = 0; k <= 400 && !ok; k++) ok = onTwig(s, s.ref.ang + k * 5e-4) || onTwig(s, s.ref.ang - k * 5e-4);
   assert(ok, `${s.id}: the Twig cannot clear it`);
 }
+// A match pays a pot by what happened on the table (rules.ts potKind). Every reference shot is read as its table's
+// type: 84 pots, direct, bank, combo and kick.
+assert(kinds.length >= 84 && kinds.every(([s, k]) => k === s.type), `a reference shot is read as another type: ${kinds.filter(([s, k]) => k !== s.type).map(([s, k]) => `${s.id} ${k}`)}`);
 PACKS.forEach((_, p) => {
   const pack = SCENARIOS.filter(s => s.pack === p);
   assert.strictEqual(pack.length, 12, `pack ${p} has 12`);

@@ -3,11 +3,12 @@
 // turn (break, group, cue ball in hand, call, shot); choiceFor() answers a decision the rules hand it; potPay() pays
 // the human's pots in a match against the AI.
 import { type Ball, CUE, HOLES, P, type Shot } from '../physics/engine.ts';
-import { canCall, cushionAt, legalSpot, onEight, type Hand, type Rec, type State } from '../rules/rules.ts';
+import { canCall, cushionAt, jumped, legalSpot, massed, onEight, potKind, type Hand, type Rec, type State } from '../rules/rules.ts';
 import { aiShot } from './aim.ts';
 import { styled, type StyleId } from './styles.ts';
 import { aiParams, chooseGroup, type Cand, EDGE, enumerate, makeProb, NINE, type Obj, type Pick, plan, rng, shotOdds, SIGMA_REF, SOLIDS, STRIPES } from './shot-ai.ts';
-import { type Pay, shotPay, type ShotType as PayType, type Vs } from '../progress/pay.ts';
+import { hustler, type Pay, shotPay, type ShotType as PayType, type Vs } from '../progress/pay.ts';
+import type { FeatId } from '../progress/profile.ts';
 
 // The AI's turn. at = where it puts the cue ball in hand (null = where it lies); call = the pocket it calls (-1 none);
 // safety = it played a safety, for safetiesInRow; kind = the pot it played (for npm run bench:styles).
@@ -142,25 +143,40 @@ export interface Safeties { row: number; rack: number }
 export const nextSafeties = (k: Safeties, safety: boolean): Safeties => (safety ? { row: k.row + 1, rack: k.rack + 1 } : { row: 0, rack: k.rack });
 export const safetiesArg = (k: Safeties) => (k.rack >= 4 ? 2 : Math.min(2, k.row));
 
-// Every pot the shooter (s.turn) has on this table, for potPay. Picker units (mm). No caroms or billiards: they pay as flukes.
+// Every pot the shooter (s.turn) has on this table, for potPay. Picker units (mm). With caroms and billiards: a pot
+// the picker can find that way is no fluke.
 export function candsFor(B: Ball[], ids: number[], s: State): Cand[] {
   const g = groupsOf(s, s.turn), legal = legalIds(s, g && g[0]);
-  return enumerate({ x: B[0].x * 1000, y: B[0].y * 1000 }, mm(B, ids), legal, s.game === 9 ? s.balls : legal, false);
+  return enumerate({ x: B[0].x * 1000, y: B[0].y * 1000 }, mm(B, ids), legal, s.game === 9 ? s.balls : legal);
 }
 
-// The human's pots on one shot against the AI (progress/pay.ts): each pot is matched to a candidate the picker found
-// before the strike (same ball, same pocket) for its pRef; none = a fluke. before/after = the State around judge();
-// run = pots in a row this visit before the shot; vs = the opponent (pay.ts). Returns the pay, the run after the shot, and the
-// shooter's own balls potted (for matchPay; the 8 and a foul do not count).
-export function potPay(cands: Cand[], r: Rec, before: State, after: State, run: number, vs: Vs): { pay: Pay; run: number; own: number } {
-  const pay = { xp: 0, coins: 0 }, foul = after.foul, me = before.turn;
+// The human's pots on one shot against the AI (progress/pay.ts). A pot's difficulty is the easiest way the picker found
+// for that ball and pocket before the strike; none = a fluke, paid as a plain pot. Its type is what happened on the
+// table (rules.ts potKind), the one that pays most: a kick, then a bank, then a combo; a pot the picker found only as
+// a carom or a billiard pays as a combo. A pot with no way found pays as a Tough pot when it was a kick off 2
+// cushions or more, a jump or a massé: the picker knows no such ways, and they are no luck.
+// before/after = the State around judge(); run = pots in a row this visit before the shot; vs = the opponent (pay.ts);
+// lim = the cue's tip limit. Returns the pay, the run after the shot, the shooter's own balls potted (for matchPay;
+// the 8 and a foul do not count), and for the feats: feats = what the pots count for, mine = the own balls potted.
+// A pot counts for a feat when it kept the turn or won the rack, and never on the break. Spin Doctor: a Solid or
+// harder pot against Hustler or harder with the tip half way or more out to its limit, below centre or to a side
+// (follow alone does not count).
+const TOUGH = 0.4; // a chance in the Tough band (pay.ts band)
+export function potPay(cands: Cand[], r: Rec, before: State, after: State, run: number, vs: Vs, lim = CUE.tipLimit): { pay: Pay; run: number; own: number; feats: FeatId[]; mine: number[] } {
+  const pay = { xp: 0, coins: 0 }, foul = after.foul, me = before.turn, brk = before.phase === 'break', feats: FeatId[] = [];
   const mine = (id: number) => before.game === 9 || after.solids < 0 || id === 8 || (id < 8) === (after.solids === me);
-  const pots = r.pots.filter(p => p.id);
+  const pots = r.pots.filter(p => p.id), counts = !foul && !brk && (after.turn === me || (after.phase === 'over' && after.winner === me));
+  const odd = jumped(r) || massed(r), sh = r.shot, spun = !!sh && hustler(vs) && Math.hypot(sh.a, Math.min(0, sh.b)) >= lim / 2 - 1e-9;
   for (const p of pots) {
-    // shortcut: a carom or a billiard pays as a fluke, grade them once pay.ts has those types
-    const c = cands.find((k): k is Cand & { type: PayType } => k.ball === p.id && holeOf(k) === p.pocket && k.type !== 'carom' && k.type !== 'billiard');
-    const g = shotPay({ pRef: c ? makeProb(c.tol, SIGMA_REF) : null, type: c?.type, run, brk: before.phase === 'break', hand: !!before.hand, foul, theirs: !mine(p.id), ...vs });
+    const best = cands.reduce<Cand | null>((a, k) => (k.ball === p.id && holeOf(k) === p.pocket && (!a || k.tol > a.tol) ? k : a), null), k = potKind(r, p);
+    const pRef = best ? makeProb(best.tol, SIGMA_REF) : odd || k.kicks >= 2 ? TOUGH : null;
+    const type: PayType = k.kicks ? 'kick' : k.bank ? 'bank' : k.combo || best?.type === 'carom' || best?.type === 'billiard' ? 'combo' : 'direct';
+    const g = shotPay({ pRef, type, run, brk, hand: !!before.hand, foul, theirs: !mine(p.id), ...vs });
     pay.xp += g.xp; pay.coins += g.coins;
+    if (!counts || !mine(p.id)) continue;
+    if (k.kicks) feats.push('kick'); if (k.bank) feats.push('bank'); if (k.combo) feats.push('combo');
+    if (pRef !== null && pRef < 0.55) feats.push('sharp'); if (pRef !== null && pRef < 0.8 && spun) feats.push('spin');
   }
-  return { pay, run: after.turn === me && !foul ? run + pots.length : 0, own: foul ? 0 : pots.filter(p => p.id !== 8 && mine(p.id)).length };
+  const own = foul ? [] : pots.filter(p => p.id !== 8 && mine(p.id)).map(p => p.id);
+  return { pay, run: after.turn === me && !foul ? run + pots.length : 0, own: own.length, feats, mine: counts ? own : [] };
 }

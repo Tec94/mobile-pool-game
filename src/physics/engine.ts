@@ -5,7 +5,7 @@ export type Game=8|9;
 export interface Ball{x:number;y:number;vx:number;vy:number;wx:number;wy:number;wz:number;on:boolean;z?:number;vz?:number}
 export interface Shot{ang:number;speed:number;a:number;b:number;elev?:number}
 export interface Cue{maxSpeed:number;breakSpeed:number;squirt:number;tipLimit:number;maxElev:number;minElev?:number;massRatio?:number}
-export interface Ev{t:'bb'|'rail'|'pocket'|'off'|'land';a:number;b?:number;x:number;y:number;cut?:number;thr?:number;air?:boolean}
+export interface Ev{t:'bb'|'rail'|'pocket'|'off'|'land';a:number;b?:number;x:number;y:number;cut?:number;thr?:number;air?:boolean;turn?:number} // turn = how far a cushion turned the ball's direction, radians (rail)
 type Vec3=[number,number,number];
 interface Contact{i:number;j:number;nx:number;ny:number;nz:number;tb:number;cut:number;jn:number;goal:number;f:Vec3|null}
 // Pool physics. SI units, y-up right-handed coordinates, z points up out of the table.
@@ -281,8 +281,9 @@ export function step(B:Ball[],ev?:Ev[]):boolean{
       }
       if(tb<0||pot)break;
       b.x-=b.vx*tb;b.y-=b.vy*tb;
-      if(ev)ev.push({t:'rail',a:i,x:b.x,y:b.y});
+      const ux=b.vx,uy=b.vy;
       cushion(b,-nx,-ny);
+      if(ev)ev.push({t:'rail',a:i,x:b.x,y:b.y,turn:Math.abs(Math.atan2(ux*b.vy-uy*b.vx,ux*b.vx+uy*b.vy))});
       b.x+=b.vx*tb;b.y+=b.vy*tb;win=tb;
     }
     if(pot){b.on=false;b.vx=b.vy=b.wx=b.wy=b.wz=b.z=b.vz=0;if(ev)ev.push({t:'pocket',a:i,x:b.x,y:b.y});}

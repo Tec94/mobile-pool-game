@@ -29,9 +29,9 @@ export type FeatId = keyof typeof FEATS;
 export const featName = (id: FeatId) => (id === 'tuning' && plain('maxxed') ? 'Tuned up' : FEATS[id].name);
 
 // feats: progress from play and from scenarios apart, since scenarios may give at most half of a count.
-export interface Profile { xp: number; coins: number; owned: CueId[]; cue: CueId; feats: Partial<Record<FeatId, { play: number; scen: number }>>; mastery: Partial<Record<CueId, Mastery>>; rival: Rival; trophies: number[]; tour?: { seed: number; xp: number; coins: number }; pp?: { day: string; n: number } }
+export interface Profile { xp: number; coins: number; owned: CueId[]; cue: CueId; feats: Partial<Record<FeatId, { play: number; scen: number }>>; mastery: Partial<Record<CueId, Mastery>>; rival: Rival; trophies: number[]; tour?: { seed: number; xp: number; coins: number }; pp?: { day: string; n: number }; open?: true }
 // trophies: per tournament cup the best medal (src/tournament/bracket.ts medalOf); tour: the run paid so far (progress.ts payRun);
-// pp: the pass and play matches paid on a day (passPlay)
+// pp: the pass and play matches paid on a day (passPlay); open: a match that counts for the Unbeaten streak is in play (matchEnd)
 export const NEW: Profile = { xp: 0, coins: 0, owned: ['house'], cue: 'house', feats: {}, mastery: {}, rival: newRival(), trophies: [0, 0, 0, 0] };
 // Give a cue (Learn, a boss, a feat, a level). An owned cue returns the same profile, so the caller can skip the save.
 export const unlock = (p: Profile, id: CueId): Profile => (p.owned.includes(id) ? p : { ...p, owned: [...p.owned, id] });
@@ -85,6 +85,18 @@ export function feat(p: Profile, id: FeatId, n = 1, scen = false): Profile {
   if (featCount(next, id) < F.count) return next;
   if (F.cue) return unlock(next, F.cue); // unlock is once, and puts back a cue a damaged save lost
   return featCount(p, id) >= F.count ? next : { ...next, coins: next.coins + (F.coins ?? 0) };
+}
+
+// A match against Hustler or harder is over: its feats (pay.ts matchFeats) and the Unbeaten streak. won: true adds to
+// the streak, false ends it (a full one stays: its cue is given), undefined does neither (a win on the break alone).
+// A match that is left is a loss, and so is one the app was closed in: open marks a match in play, and the next launch reads it.
+export function matchEnd(p: Profile, feats: Partial<Record<FeatId, number>>, won?: boolean): Profile {
+  let q = p;
+  for (const id of Object.keys(feats) as FeatId[]) if (feats[id]) q = feat(q, id, feats[id]);
+  if (won) q = feat(q, 'unbeaten');
+  else if (won === false && q.feats.unbeaten && featCount(q, 'unbeaten') < FEATS.unbeaten.count) q = { ...q, feats: { ...q.feats, unbeaten: { play: 0, scen: 0 } } };
+  if (q.open) { q = { ...q }; delete q.open; }
+  return q;
 }
 
 // Pass and play pays its flat pay for the first PP_CAP finished matches of a day (the Daily Table's day, daily.ts
@@ -148,7 +160,7 @@ export function readProfile(text: string | null): Profile {
   return { xp, coins: Math.min(1e9, num(o.coins) + was.coins), owned, cue: owned.includes(cue) ? cue : 'house', feats, mastery, rival: readRival(o.rival),
     trophies: [0, 1, 2, 3].map(i => { const m = o.trophies?.[i]; return Number.isInteger(m) && m >= 0 && m <= 3 ? m : 0; }),
     ...(o.tour && Number.isInteger(o.tour.seed) ? { tour: { seed: o.tour.seed, xp: num(o.tour.xp), coins: num(o.tour.coins) } } : {}),
-    ...(typeof o.pp?.day === 'string' ? { pp: { day: o.pp.day, n: num(o.pp.n) } } : {}) };
+    ...(typeof o.pp?.day === 'string' ? { pp: { day: o.pp.day, n: num(o.pp.n) } } : {}), ...(o.open === true ? { open: true as const } : {}) };
 }
 
 // A tournament run (src/tournament/bracket.ts): what it still owes the player, and the profile change that marks it
