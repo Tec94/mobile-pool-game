@@ -113,6 +113,22 @@ export function legalFirst(s: State, id: number) {
   const mine = own(s, s.turn);
   return s.phase === 'break' || (s.solids < 0 ? id !== 8 : mine.length ? mine.includes(id) : id === 8);
 }
+// The shooter has no straight line from the cue ball to any part of a ball that may be hit first (Escape Artist):
+// every line across every such ball meets another ball first.
+export function hooked(B: Ball[], ids: number[], s: State) {
+  const c = B[0], D = 2 * P.R, on = B.map((_, i) => i).filter(i => i && B[i].on);
+  for (const t of on) {
+    if (!legalFirst(s, ids[t])) continue;
+    const mid = Math.atan2(B[t].y - c.y, B[t].x - c.x), half = Math.asin(Math.min(1, D / Math.hypot(B[t].x - c.x, B[t].y - c.y)));
+    for (let k = -20; k <= 20; k++) {
+      const a = mid + half * k / 20.5, ux = Math.cos(a), uy = Math.sin(a);
+      // how far along the line the cue ball goes before it meets ball i
+      const reach = (i: number) => { const x = B[i].x - c.x, y = B[i].y - c.y, along = x * ux + y * uy, side = x * uy - y * ux; return along > 0 && Math.abs(side) < D ? along - Math.sqrt(D * D - side * side) : Infinity; };
+      const far = reach(t); if (on.every(i => i === t || reach(i) >= far)) return false;
+    }
+  }
+  return true;
+}
 export const onEight = (s: State) => s.game === 8 && s.phase === 'play' && s.solids >= 0 && !own(s, s.turn).length;
 // The shooter must call a pocket before this shot: on every shot but the break with Call every shot, else on the 8 (4.8c).
 export const canCall = (s: State) => s.game === 8 && s.phase === 'play' && (s.callAll || onEight(s));

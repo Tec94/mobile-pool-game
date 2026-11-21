@@ -1,7 +1,7 @@
 // Run: npm test   (checks the rules against the WPA Rules of Play, 2026-10-21; rule numbers are that edition's)
 import assert from 'node:assert';
 import { P, rack, step, strike } from '../physics/engine.ts';
-import { canCall, choose, cushionAt, handCue, judge, jumped, legalFirst, legalSpot, lowest, massed, moveCue, newGame, newRec, nose, onEight, potKind, record, setCall, spotBall } from './rules.ts';
+import { canCall, choose, cushionAt, handCue, hooked, judge, jumped, legalFirst, legalSpot, lowest, massed, moveCue, newGame, newRec, nose, onEight, potKind, record, setCall, spotBall } from './rules.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
@@ -217,5 +217,16 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
   assert(r.cush.length && !r.cush[0][0] && r.cush[0][2] > 60 * deg && r.cush[0][2] < 100 * deg, `a cushion at 40 degrees turns the cue ball about 80 (${r.cush[0]?.[2] / deg})`);
   eq(potKind({ ...newRec(), first: 1, cush: [[0, 0, 0.4], [0, 2, 0.3], [1, 1, 0.36], [1, 0, 0.2]] }, { id: 1, pocket: 5 }), { kicks: 1, bank: true, combo: false }, 'a touch counts from 20 degrees (0.35 rad)');
   ok('a jump, a massé and the turn at a cushion are read from the engine');
+}
+{ // Escape Artist: no straight line from the cue ball to any part of a ball the shooter may hit
+  const s = { ...newGame(9), phase: 'play', hand: null }, at = (...xy) => [mk(0.5, 0.5), ...xy.map(([x, y]) => mk(x, y))], R = P.R;
+  eq(hooked(at([1.2, 0.5], [0.8, 0.5]), [0, 1, 2], s), true, 'the 2 covers all of the 1');
+  eq(hooked(at([1.2, 0.5], [0.8, 0.5 + 3 * R]), [0, 1, 2], s), false, 'a ball beside the line leaves part of the 1 open');
+  eq(hooked(at([1.2, 0.5], [0.8, 0.5 + 1.2 * R]), [0, 1, 2], s), false, 'half covered: the open edge can be hit');
+  eq(hooked(at([1.2, 0.5], [0.8, 0.5 + 1.2 * R], [0.8, 0.5 - 1.2 * R]), [0, 1, 2, 3], s), true, 'two balls close both edges');
+  eq(hooked(at([1.2, 0.5], [1.6, 0.5]), [0, 1, 2], s), false, 'a ball behind the 1 hides nothing');
+  const e = { ...newGame(8), phase: 'play', hand: null, turn: 0, solids: 0 };
+  eq([hooked(at([1.2, 0.5], [0.8, 0.5]), [0, 1, 9], e), hooked(at([1.2, 0.5], [0.8, 0.5]), [0, 9, 1], e)], [true, false], '8-ball: only a ball of the shooter\'s group counts as open');
+  ok('a snooker is found');
 }
 console.log(`\n${n} checks passed`);
