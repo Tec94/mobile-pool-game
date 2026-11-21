@@ -85,7 +85,7 @@ console.log('scenarios: every reference shot clears');
 { // feats from a first clear count as scenario progress, at most half the count
   const bank = SCENARIOS.find(s => s.type === 'bank');
   let p = NEW; for (let i = 0; i < 40; i++) p = clearFeats(p, bank);
-  assert.strictEqual(featCount(p, 'bank'), 25, 'Bank Robber: half of 50 from scenarios');
+  assert.strictEqual(featCount(p, 'bank'), 15, 'Bank Robber: half of 30 from scenarios');
 }
 { // save
   assert.deepStrictEqual(readStars(null), {}, 'no save');

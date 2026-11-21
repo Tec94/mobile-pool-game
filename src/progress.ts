@@ -23,7 +23,7 @@ export function award(pay: Pay, cue?: CueId, then = (p: Profile) => p) {
 }
 // The player's own cue as it plays now, with its tuning.
 export const ownStats = (id: CueId) => statsOf(id, masteryOf(profile(), id));
-// Give a cue and save; an owned cue writes nothing. Learn calls this with 'pencil' at 10 lessons.
+// Give a cue and save; an owned cue writes nothing. Learn calls this with 'surveyor' at 10 lessons.
 export function unlockCue(id: CueId) { const p = profile(), q = unlock(p, id); if (q !== p) keep(q); }
 // A finished Rival match: move that game's rating (src/progress/rival.ts) and save. Gives the ratings before and after.
 export function rivalDone(game: 8 | 9, won: boolean, left: number, mood: Mood): [number, number] {

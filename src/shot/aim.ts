@@ -58,7 +58,7 @@ export function nearest(B: Ball[], keep = 0) {
 // budget = the limit on the work after the first contact (see predict), so one guide stays inside a frame.
 // stick = the engine cue that will strike, so the guide squirts as the shot will.
 // real = draw the cue ball's real path after the contact in place of the stub (a lesson's watch stage, where the shot
-// plays itself next anyway, and the Giant Pencil's perk), at any Aim. scale = the share of the guide length the cue keeps.
+// plays itself next anyway, and the Surveyor's Sketch), at any Aim. scale = the share of the guide length the cue keeps.
 export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, stick?: Cue, real = false, scale = 1) {
   const L = guideLen(aim) * scale, far = real || aim >= LONG, g = predict(B, shot, L, stick, undefined, budget, real), k = g.split < 0 ? g.cue.length : g.split + 1;
   // predict runs until both balls have gone the length, so the faster one overshoots it: cut each path to the length.

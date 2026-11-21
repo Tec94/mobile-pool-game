@@ -129,7 +129,7 @@ export const wins = (run: Run) => run.res.filter((r, m) => r && human(run, sides
 
 // The prize at the end of a run, by how far the player got: champion all of it, runner-up 50%, a semifinal of 8 20%,
 // the first match lost nothing. XP = the cup's base x rounds x frames (best of 1, 3, 5: 1, 2.6, 4.2), coins half of it:
-// a top run still pays well under the price of the dearest cue (Rocket 12,000).
+// a top run's prize (4,725 coins) stays under the price of the dearest cue (6,000).
 const FRAMES = { 1: 1, 3: 2.6, 5: 4.2 }, SHARE = [0, 0.2, 0.5, 1];
 export function prize(opts: Opts, won: number): Pay {
   const n = rounds(opts.size), share = !won ? 0 : won >= n ? 1 : SHARE[3 - (n - won)];

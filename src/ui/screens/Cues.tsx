@@ -3,16 +3,17 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { PENCIL_AT } from '../../learn/lessons';
 import { keep, profile } from '../../progress';
-import { CUE_IDS, CUES, type CueId, type CueInfo, specs } from '../../progress/cues';
-import { MASTERY_XP, masteryLevel, masteryOf, points, STATS, statsOf, tunable, tuneDown, tuneUp, upCost, used } from '../../progress/mastery';
-import { buy, FEATS, featCount, type FeatId, type Profile, select } from '../../progress/profile';
+import { CUE_IDS, CUES, type CueId, type CueInfo, FAMILIES, soon, specs } from '../../progress/cues';
+import { locked, MASTERY_XP, masteryLevel, masteryOf, points, STATS, statsOf, tunable, tuneDown, tuneUp, upCost, used } from '../../progress/mastery';
+import { buy, FEATS, featCount, type FeatId, featName, type Profile, select } from '../../progress/profile';
 import { C, CREAM, DARK, FONT } from '../../theme';
 import { CueArt } from '../CuePicture';
+import { Glyph } from '../Glyph';
 import type { Props } from '../Menus';
 import { Panel, Shell, Split, useFrame, usePanel } from '../shell';
 import { Blocks, feel, Hatch, Slab, Txt, TYPE } from '../slab';
 
-const H = 150, ART = 100; // a card: the picture above ART, the name at ART..ART + 17, the foot on the last 24 pt of the face
+const H = 150, ART = 100, PIC = 48; // a card: the picture above ART, the name at ART..ART + 17, the foot on the last 24 pt of the face; PIC = the panel's picture, tall enough for what hangs off a cue
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 // The cue rack: cream = owned, dark = not, each with its footer (in use, stats, or what gets it). The panel shows the
@@ -30,26 +31,35 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
     if (c.price !== undefined) return c.price.toLocaleString('en-US');
     if (f) return `${featCount(p, f)}/${FEATS[f].count}`;
     if (c.level) return `Level ${c.level}`;
-    return id === 'pencil' ? `${done.length}/${PENCIL_AT} lessons` : 'Locked';
+    return id === 'surveyor' ? `${done.length}/${PENCIL_AT} lessons` : 'Locked';
   };
   const id = CUE_IDS[up], c: CueInfo = CUES[id], owned = p.owned.includes(id), use = p.cue === id, w = panel - 24;
   const cta = owned ? { label: use ? 'In use' : 'Use', name: use ? `${c.name}, in use` : `Use ${c.name}`, off: use, onPress: () => put(select(p, id)) }
     : c.price !== undefined ? { label: `Buy ${c.price.toLocaleString('en-US')}`, name: `Buy ${c.name} for ${c.price} coins`, off: p.coins < c.price, quiet: true,
       onPress: () => { const next = buy(p, id); if (next !== p) feel(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)); put(next); } }
     : { label: 'Locked', name: `${c.name}, locked`, off: true, onPress: () => {} };
-  // What gets a cue not yet owned.
+  // Its family, and what gets a cue not yet owned.
   const f = c.feat as FeatId | undefined, need = owned ? [] : [
     c.price !== undefined && `${c.price.toLocaleString('en-US')} coins`, c.price !== undefined && p.coins < c.price && `${(c.price - p.coins).toLocaleString('en-US')} coins short`,
-    f && `${FEATS[f].name}: ${featCount(p, f)} of ${FEATS[f].count}`, c.level && `Reach level ${c.level}`, id === 'pencil' && `${done.length} of ${PENCIL_AT} lessons passed`,
+    f && `${featName(f)}: ${featCount(p, f)} of ${FEATS[f].count}`, c.level && `Reach level ${c.level}`, c.get && (id === 'surveyor' ? `${done.length} of ${PENCIL_AT} lessons passed` : c.get),
   ].filter((x): x is string => !!x).slice(0, 2);
-  const line = [...need, c.perk].filter(Boolean).join(' · '), st = statsOf(id, masteryOf(p, id));
+  const line = [FAMILIES.find(x => x[0] === c.family)![1], ...need, c.quip].filter(Boolean).join(' · '), st = statsOf(id, masteryOf(p, id));
   return (
     <Shell title="Cues" back={() => go('home')} extra={<Txt style={styles.count}>{`${p.owned.length} / ${CUE_IDS.length}`}</Txt>}>
       <Split at={Math.floor(up / n) * (H + 13)} panel={
         <Panel head={<Txt numberOfLines={1} style={styles.head}>{c.name}</Txt>} cta={cta}
-          picture={pw => <CueArt id={id} pose={[Math.round(pw), 24, 2, 12, 0, Math.round(pw) - 4, 3]} />}>
+          picture={pw => <CueArt id={id} w={Math.round(pw)} h={PIC} whole />}>
           <View style={{ gap: 8 }}>
-            {!!line && <Txt style={[TYPE.small, { opacity: 0.8 }]}>{line}</Txt>}
+            <Txt style={[TYPE.small, { opacity: 0.8 }]}>{line}</Txt>
+            <View style={{ gap: 2 }} accessible accessibilityLabel={`${c.trick ? `Trick: ${c.trick}${soon(id) ? ', coming soon' : ''}. ` : ''}${c.does} ${c.cost}`}>
+              {!!c.trick && <View style={styles.trick}>
+                <Txt style={[TYPE.body, styles.bold]}>{c.trick}</Txt>
+                {soon(id) && <View style={styles.soon}><Txt style={[TYPE.small, styles.bold, { color: C.ink }]}>Soon</Txt></View>}
+              </View>}
+              <Txt style={TYPE.small}>{c.does}</Txt>
+              <Txt style={[TYPE.small, { opacity: 0.8 }]}>{c.cost}</Txt>
+              {adv && !!c.note && <Txt style={[TYPE.small, { opacity: 0.6 }]}>{c.note}</Txt>}
+            </View>
             {adv ? <Advanced id={id} p={p} put={put} /> : STATS.map(s => (
               <View key={s} style={styles.stat} accessible accessibilityLabel={`${s} ${st[s]} of 10`}>
                 <Txt style={[TYPE.body, styles.statName]}>{cap(s)}</Txt>
@@ -69,7 +79,7 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
               <Slab key={k} paint={own ? CREAM : DARK} onPress={() => setUp(i)} accessibilityState={{ selected: i === up }}
                 accessibilityLabel={`${CUES[k].name}${inUse ? ', in use' : own ? ', yours' : ''}${own ? `, power ${s2.power}, spin ${s2.spin}, aim ${s2.aim}` : ''}`}
                 style={{ width: cw, height: H }} face={i === up && styles.chosen}>
-                <View style={styles.art}><CueArt id={k} pose={[cw, ART - 4, cw / 2, 6, 90, ART - 12, 96 / 27]} /></View>
+                <View style={styles.art}><CueArt id={k} w={cw} h={ART - 4} /></View>
                 <Txt numberOfLines={1} style={[styles.name, ink]}>{CUES[k].name}</Txt>
                 <View style={[styles.foot, { backgroundColor: inUse ? C.gold : own ? CREAM[1] : DARK[1] }]}>
                   <Txt numberOfLines={1} style={[TYPE.small, styles.bold, TYPE.num, ink]}>{foot(k)}</Txt>
@@ -106,7 +116,7 @@ function Mastery({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => v
   const m = masteryOf(p, id), { level, into, need } = masteryLevel(m.xp), pts = points(m), free = pts - used(m);
   const head = `Mastery ${level} of ${MASTERY_XP.length}`, xp = need ? `${into} / ${need} cue XP` : 'Mastered';
   const cost = STATS.map(s => upCost(p, id, s)).find(x => x !== null), tunes = tunable(id) && pts > 0, priced = tunes && !!cost;
-  const next = !tunable(id) ? 'Cannot be tuned' : !pts ? 'Mastery 2 gives a tuning point' : !free ? 'Every point in use' : cost === undefined ? 'No stat has room for more' : `${free} point${free > 1 ? 's' : ''} to place`;
+  const next = !tunable(id) ? 'Takes no tuning' : !pts ? 'Mastery 2 gives a tuning point' : !free ? 'Every point in use' : cost === undefined ? 'No stat has room for more' : `${free} point${free > 1 ? 's' : ''} to place`;
   return (
     <View style={{ gap: 10 }}>
       <View style={styles.mastery}>
@@ -121,9 +131,10 @@ function Mastery({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => v
             <Txt style={styles.keyText}>−</Txt>
           </Slab>
           <Txt style={[TYPE.body, TYPE.num, styles.bold, styles.tuned]}>{`${name} ${m[s] ? `+${m[s]}` : '0'}`}</Txt>
-          <Slab paint={DARK} lip={3} radius={3} onPress={() => put(tuneUp(p, id, s))} disabled={cost === null || p.coins < cost} accessibilityLabel={`${name} up on ${CUES[id].name}${cost ? ` for ${cost} coins` : ''}`} hitSlop={5} face={styles.key}>
-            <Txt style={styles.keyText}>{cost ? `+ ${cost.toLocaleString('en-US')}` : '+'}</Txt>
-          </Slab>
+          {locked(id, s) ? <View style={styles.key} accessible accessibilityLabel={`${name} is locked on ${CUES[id].name}`}><Glyph id="lock" color={C.chalk} /></View> // the price of the trick: no plus
+            : <Slab paint={DARK} lip={3} radius={3} onPress={() => put(tuneUp(p, id, s))} disabled={cost === null || p.coins < cost} accessibilityLabel={`${name} up on ${CUES[id].name}${cost ? ` for ${cost} coins` : ''}`} hitSlop={5} face={styles.key}>
+              <Txt style={styles.keyText}>{cost ? `+ ${cost.toLocaleString('en-US')}` : '+'}</Txt>
+            </Slab>}
         </View>;
       })}</View>}
     </View>
@@ -142,6 +153,8 @@ const styles = StyleSheet.create({
   link: { height: 28, justifyContent: 'center', alignSelf: 'flex-start' },
   linkText: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 16, color: C.chalk, textDecorationLine: 'underline', opacity: 0.9 },
   stat: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  trick: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  soon: { backgroundColor: C.gold, borderRadius: 3, paddingHorizontal: 5 },
   statName: { width: 44, opacity: 0.8 },
   facts: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 24, rowGap: 6 },
   big: { fontFamily: FONT.display, fontSize: 19, lineHeight: 22, color: C.chalk, fontVariant: ['tabular-nums'] },
