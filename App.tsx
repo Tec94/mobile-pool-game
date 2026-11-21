@@ -215,6 +215,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   // A scenario counts its tries; the third star wants a try with the aim guide never on screen (peeked = it was).
   const [tries, setTries] = useState(1), [guideOff, setGuideOff] = useState(false), peeked = useRef(false);
   const les = useRef({ stage, run, said, tries, guideOff }); les.current = { stage, run, said, tries, guideOff };
+  const pure = useRef(!snap0); // Purist: no shot of this match was played with the guide on (a match picked up again does not count)
   const lay = shotLayout(width, height, { ...pad, top: pad.top + HUD }), view = { ...lay.view, dpr: PixelRatio.get(), calm }, where = [view.land, view.s, view.ox, view.oy];
   const { cloth } = set;
   const map = useRef(view); map.current = view; // the pan responder is created once, so it reads the latest mapping
@@ -344,7 +345,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
       // A tournament saves the result, then pays it (with any prize) marked in the profile: tour.done.
       if (tour) { const p = tour.prize(s.winner === 0); prize.current = p && (p.xp || p.coins) ? p : null; }
       // The feats of the match and the streak are saved before the pay; a cue they gave shows on the results card.
-      const got = vs ? featsDone(matchFeats(won.current, { vs: foe(), won: s.winner === 0, cue: own, dry: !!r.note }), hard && !r.note ? s.winner === 0 : undefined, won.current.aura) : [];
+      const got = vs ? featsDone(matchFeats(won.current, { vs: foe(), won: s.winner === 0, cue: own, dry: !!r.note, pure: pure.current }), hard && !r.note ? s.winner === 0 : undefined, won.current.aura) : [];
       end.current = got.length ? { ...r, got } : r; gained.current = tour ? tour.done(s.winner === 0, [...score.current], r.total, own) : award(r.total, vs ? own : undefined, pp?.mark); // quick match played the player's own cue
       // The loser's own balls left (8-ball; 7 on an open table) say how close the match was.
       if (rival) { const lose = 1 - s.winner, left = s.solids < 0 ? 7 : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === lose)).length, [a, b] = rivalDone(game, s.winner === 0, left, set.mood); moved.current = `Rival ${shown(a)} to ${shown(b)}`; }
@@ -382,7 +383,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
         if (!shut() || watching() || lining.current) {
           const bad = !!g && !L && !pushOut && g.first > 0 && !legalFirst(s, ids[g.first]); // the ghost meets a ball the rules do not allow first
           const coiled = vs && s.turn === 0 && own === 'coil' && tip.get().elev >= 4; // the Coil's price: with the cue raised the guide stops 20 cm from the cue ball
-          if (g && !(S && les.current.guideOff) && !dark(power)) { peeked.current = true; if (coiled) drawAim(Skia, c, map.current, shorten(g.path, 0.2)); else {
+          if (g && !((S || vs) && les.current.guideOff) && !dark(power)) { peeked.current = true; if (coiled) drawAim(Skia, c, map.current, shorten(g.path, 0.2)); else {
               // The Optic's Range, for the speed the guide shows: a mark where the cue ball's roll would end before the first ball, and a ring of the first ball's reach. A ring wider than 2.5 m is a number by the ball.
               const far = optic && g.first > 0 && 2 * g.roll > 2.5;
               drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob, bad, g.stub, { fill: g.dead, ...(optic && { mark: pointAt(g.path, rollOut(shotOf(previewPower(power)).speed)), ring: g.first > 0 && !far ? [B[g.first].x, B[g.first].y, g.roll] : null, note: far ? `${g.roll.toFixed(1)} m` : '', font: RAIL_FONT }) });
@@ -452,6 +453,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     if (vs) cands.current = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules); // shortcut: a full candidate search on the strike frame, cheap next to a guide
     const sh = shotOf(power); snap(sh); opened();
     pulled.current = power;
+    if (!les.current.guideOff) pure.current = false;
     if (maxxed && t.rules.phase !== 'break' && pick !== from.current) again.current = false;
     from.current = pick;
     visit.current++;
@@ -614,7 +616,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   const paid = done ? end.current : null;
   const trick = won.current.aura ? auraLine(won.current.aura) : ram && blind.current && rules.phase !== 'break' ? RAM_LINE : vs && own === 'whisper' ? softLine(soft.current) : marble ? mogLine(mogLead(rules, sunk.current)) : maxxed ? maxLine(again.current) : null; // the state of the cue's trick, after the player's name on the HUD
   const rerack = (breaker = over ? 1 - rules.breaker : rules.breaker) => {
-    if (done) { score.current = [0, 0]; if (rival) { level.current = profile().rival[game].rating; moved.current = ''; } won.current = newLedger(); cands.current = []; end.current = null; }
+    if (done) { score.current = [0, 0]; if (rival) { level.current = profile().rival[game].rating; moved.current = ''; } won.current = newLedger(); cands.current = []; end.current = null; pure.current = true; }
     apply.current(newGame(game, breaker as 0 | 1, callAll, bankRule, Math.floor(Math.random() * 2 ** 31)));
   };
 
@@ -718,6 +720,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
               </Text>
             )}
             <Act paint={CREAM} label="Resume" onPress={() => { setPaused(false); setSure(false); }} />
+            {vs && !done && <Act label={guideOff ? 'Aim guide: off' : 'Aim guide: on'} onPress={() => { setGuideOff(!guideOff); les.current.guideOff = !guideOff; dirty(); }} />}{/* Purist asks for it off all match */}
             {tour && !done ? <>
               <Act label="Save and leave" onPress={onQuit} />{/* every strike and ruling is saved: Play on the bracket picks the match up */}
               <Act paint={sure ? [C.warn, '#A33A30'] : undefined} label={sure ? 'Forfeit: a loss, shots still pay. Tap again' : 'Forfeit match'} onPress={() => { if (!sure) return setSure(true); if (hustler(foe())) featsDone({}, false); tour.forfeit([...score.current]); onQuit(); }} />{/* a forfeit ends the Unbeaten streak, as a loss does */}

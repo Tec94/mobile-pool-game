@@ -295,6 +295,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(matchFeats({ ...newLedger(), feats: { kick: 2 } }, { vs: { tier: 6 }, won: true, cue: 'twig' }), { kick: 2, legend: 1, giant: 1 }, 'a win against Legend with the Twig');
   eq(matchFeats(newLedger(), { vs: { tier: 4 }, won: true, cue: 'house' }), {}, 'Shark with another cue: neither');
   eq(matchFeats(newLedger(), { vs: { boss: 6 }, won: true, dry: true }), {}, 'a win on the break alone counts for none');
+  eq([{ tier: 3 }, { tier: 2 }].map(vs => matchFeats(newLedger(), { vs, won: true, pure: true })).concat(matchFeats(newLedger(), { vs: { tier: 3 }, won: false, pure: true }), matchFeats(newLedger(), { vs: { tier: 3 }, won: true })), [{ purist: 1 }, {}, {}, {}], 'Purist: a win against Hustler or harder with the guide off all match');
   eq([matchFeats({ ...newLedger(), down: true }, { vs: { tier: 3 }, won: true }), matchFeats({ ...newLedger(), down: true }, { vs: { tier: 3 }, won: false })], [{ lives: 1 }, {}], 'a 9-ball race won from 2 racks down');
   let p = { ...NEW, open: true };
   p = matchEnd(p, { heater: 1, kick: 3 }, true);
