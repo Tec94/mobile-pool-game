@@ -34,8 +34,8 @@ const ball = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 // One scenario: n cells, each `every` frames (16 ms each) apart, showing w x h metres centred on at(B) or a fixed point.
 // w = 0 shows the whole phone window instead. aim = a shot to draw the aim guide for, as the app does while the player aims;
 // marks = what the rules show (cue ball in hand, called pocket), as the app draws it under the balls, tick ms of its clock a cell; bank = the lit cushions of a bank table, drawn with the marks;
-// pull = the power on the rail, which draws the cue stick behind the cue ball as well; aimStat = the Aim of the cue (House Cue's when left out).
-function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, calm = false, skip = 0, cloth = 0, aim, aimStat, pull, marks, tick = 300, bank }) {
+// pull = the power on the rail, which draws the cue stick behind the cue ball as well; aimStat = the Aim of the cue (House Cue's when left out); art = the player's own cue, drawn in place of the plain stick.
+function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, calm = false, skip = 0, cloth = 0, aim, aimStat, pull, art, marks, tick = 300, bank }) {
   const { dpr } = PHONE, W = land ? PHONE.h : PHONE.w, H = land ? PHONE.w : PHONE.h, lay = shotLayout(W, H, SAFE[land ? 'land' : 'port']), v = { ...lay.view, dpr, calm }, look = newLook(B);
   const cw = Math.round(w ? (land ? w : h) * v.s * dpr : W * dpr), ch = Math.round(w ? (land ? h : w) * v.s * dpr : H * dpr);
   const surface = CanvasKit.MakeSurface(n * cw + (n - 1) * 4, ch);
@@ -47,7 +47,7 @@ function strip(name, { B, ids, shots, n, every = 1, w = 0, h, at, land = true, c
   for (let f = 0; f < n; f++) {
     const p = typeof at === 'function' ? at(B) : at, o = w ? toScreen(v, p[0], p[1]) : { x: W / 2, y: H / 2 };
     c.save(); c.translate(f * (cw + 4), 0); c.clipRect(Skia.XYWHRect(0, 0, cw, ch), 1, true); c.scale(dpr, dpr); c.translate(cw / 2 / dpr - o.x, ch / 2 / dpr - o.y);
-    drawTable(Skia, c, v, CLOTHS[cloth]); if (aim) { const g = aimGuide(B, aim, aimStat ?? CUES.house.aim); drawAim(Skia, c, v, g.path, g.ghost, g.lands, g.lost, g.ob, false, g.stub); if (pull !== undefined) drawCue(Skia, c, v, B[0].x, B[0].y, aim.ang, pull); } // as App.tsx does
+    drawTable(Skia, c, v, CLOTHS[cloth]); if (aim) { const g = aimGuide(B, aim, aimStat ?? CUES.house.aim); drawAim(Skia, c, v, g.path, g.ghost, g.lands, g.lost, g.ob, false, g.stub); if (pull !== undefined) drawCue(Skia, c, v, B[0].x, B[0].y, aim.ang, pull, art); } // as App.tsx does
     if (bank) drawBank(Skia, c, v, bank);
     if (marks) drawMarks(Skia, c, v, { hand: false, x: B[0].x, y: B[0].y, call: -1, ask: false, ms: 500 + f * tick, ...marks });
     drawBalls(kit, c, B, ids, look, v);
@@ -135,6 +135,8 @@ for (const [name, l, cloth] of [['bank-lesson', LESSONS.find(l => l.id === 'bank
   writeFileSync(`${out}/shot-controls.png`, surface.makeImageSnapshot().encodeToBytes()); console.log('shot-controls'); }
 // 16. the cue stick behind the cue ball with the guide, at rest and pulled back to 60%, in landscape and in portrait
 for (const land of [true, false]) for (const pull of [0, 0.6]) strip(`stick-${land ? 'land' : 'port'}-${pull * 100}`, { B: [ball(0.9, mid - 0.1), ball(1.5, mid + 0.02)], ids: [0, 4], shots: [], n: 1, w: 1.9, h: 0.5, at: [0.9, mid], land, aim: { ang: Math.atan2(0.09, 0.6), speed: 2, a: 0, b: 0 }, pull });
+// 16b. the player's own cue in place of the plain stick: pointing right and left (mirrored, so its digits read), in landscape and in portrait
+for (const land of [true, false]) for (const [k, art] of ['sixseven', 'marble'].entries()) strip(`stick-art-${land ? 'land' : 'port'}-${art}`, { B: [ball(1.1, mid - 0.1), ball(k ? 0.5 : 1.7, mid + 0.02)], ids: [0, 4], shots: [], n: 1, w: 2.2, h: 0.5, at: [1.1, mid], land, aim: { ang: k ? Math.PI - 0.15 : 0.15, speed: 2, a: 0, b: 0 }, pull: 0.6 * k, art });
 // 17. the whole phone window while a shot is pulled back to 60%: table, guide, stick and the shot controls
 { const B = [ball(P.L / 4, mid)], ids = [0]; for (const [id, x, y] of rack(8)) { ids.push(id); B.push(ball(x, y)); }
   for (const land of [true, false]) strip('shot-' + (land ? 'land' : 'port'), { B: B.map(b => ({ ...b })), ids, shots: [], n: 1, land, aim: { ang: 0.03, speed: 0.6 * CUE.breakSpeed, a: 0, b: 0 }, pull: 0.6 }); }
