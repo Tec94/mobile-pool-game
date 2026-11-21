@@ -372,7 +372,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   const ram = vs && own === 'ram', blind = useRef(ram && !!profile().ram);
   const powerOf = (pull: number) => (ram && table.current.rules.turn === 0 ? overdrive(pull, table.current.rules.phase !== 'break' && tip.get().elev < 4) : brake.current.armed && table.current.rules.turn === 0 ? Math.min(BRAKE_MAX, pull) : pull);
   const dark = (pull: number) => table.current.rules.turn === 0 && (free || past.current.blind || (ram && ((blind.current && table.current.rules.phase !== 'break') || powerOf(pull) > 1))); // no guide: the Nonchalant; the shot in place of one the Hindsight took back; the Ram's owed shot, and while its pull is past 100%
-  const shotOf = (power: number): Shot => ({ ang: shot.get().aim, speed: Math.max(0.05, powerOf(power) * (table.current.rules.phase === 'break' ? inPlay.current.cue.breakSpeed : inPlay.current.cue.maxSpeed)), ...shotTip(tip.get(), inPlay.current.cue) });
+  const shotOf = (power: number): Shot => { const c = lining.current ? STICK : inPlay.current.cue; return { ang: shot.get().aim, speed: Math.max(0.05, powerOf(power) * (table.current.rules.phase === 'break' ? c.breakSpeed : c.maxSpeed)), ...shotTip(tip.get(), c) }; }; // the AI lines up with the House Cue
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the
   // rack is over. In a lesson: the shot plays itself, or the verdict card is up.
   const bot = () => vs && table.current.rules.turn === 1; // on the AI's turn nothing can be touched
@@ -424,8 +424,8 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
       if (stale.current) { // one guide a frame, however many touches came. While a shot can be made the guide and the cue stick are always there: for the pull on the rail, or for a firm shot without one
         stale.current = false; redo.current = true;
         const { power } = shot.get();
-        const stat = S || vs ? inPlay.current.stats.aim : L ? 10 : GUIDE_AIM;
-        if (!shut() || watching()) guides.ask({ B, shot: shotOf(previewPower(power)), aim: stat, budget: lines === 'daybreak' ? DAY_WORK : lines === 'banker' || guideLen(stat) > 0.45 ? LONG_WORK : GUIDE_WORK, stick: struck(), real: watching() || pen, scale: pen ? guideScale(own) : 1, trick: lines }, power > 0.05); // lessons use the full guide; watch shows the real path, as the shot plays next; so does the Surveyor, on a shorter guide
+        const ai = lining.current, stat = ai ? GUIDE_AIM : S || vs ? inPlay.current.stats.aim : L ? 10 : GUIDE_AIM, trick = ai ? undefined : lines, sketched = !ai && pen; // the AI's line-up shows the House Cue's guide, no cue tricks
+        if (!shut() || watching() || ai) guides.ask({ B, shot: shotOf(previewPower(power)), aim: stat, budget: trick === 'daybreak' ? DAY_WORK : trick === 'banker' || guideLen(stat) > 0.45 ? LONG_WORK : GUIDE_WORK, stick: ai ? STICK : struck(), real: watching() || sketched, scale: sketched ? guideScale(own) : 1, trick }, power > 0.05); // lessons use the full guide; watch shows the real path, as the shot plays next; so does the Surveyor, on a shorter guide
         else { guides.drop(); line.current = null; }
       }
       if (redo.current) { // the stick follows the finger every frame; the line is the newest guide there is, a few frames old when it came from the other thread
@@ -433,10 +433,10 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
         if (!shut() || watching() || lining.current) {
           const bad = !!g && !L && !pushOut && g.first > 0 && !legalFirst(s, ids[g.first]); // the ghost meets a ball the rules do not allow first
           const coiled = vs && s.turn === 0 && own === 'coil' && tip.get().elev >= 4; // the Coil's price: with the cue raised the guide stops 20 cm from the cue ball
-          if (g && !((S || vs) && les.current.guideOff) && !dark(power)) { peeked.current = true; if (coiled) drawAim(Skia, c, map.current, shorten(g.path, 0.2)); else {
+          if (g && !((S || vs) && les.current.guideOff && !lining.current) && !dark(power)) { peeked.current = true; if (coiled) drawAim(Skia, c, map.current, shorten(g.path, 0.2)); else {
               // The Optic's Range, for the speed the guide shows: a mark where the cue ball's roll would end before the first ball, and a ring of the first ball's reach. A ring wider than 2.5 m is a number by the ball.
-              const far = optic && g.first > 0 && 2 * g.roll > 2.5;
-              drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob, bad, g.stub, { fill: g.dead, gold: omen.current.open && omen.current.gold, ...(optic && { mark: pointAt(g.path, rollOut(shotOf(previewPower(power)).speed)), ring: g.first > 0 && !far ? [B[g.first].x, B[g.first].y, g.roll] : null, note: far ? `${g.roll.toFixed(1)} m` : '', font: RAIL_FONT }) });
+              const ranged = optic && !lining.current, far = ranged && g.first > 0 && 2 * g.roll > 2.5;
+              drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob, bad, g.stub, { fill: g.dead, gold: omen.current.open && omen.current.gold, ...(ranged && { mark: pointAt(g.path, rollOut(shotOf(previewPower(power)).speed)), ring: g.first > 0 && !far ? [B[g.first].x, B[g.first].y, g.roll] : null, note: far ? `${g.roll.toFixed(1)} m` : '', font: RAIL_FONT }) });
             } }
           if (!grab.current || grab.current === 'call') drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power, (S || vs) && !lining.current ? own : undefined); // no stick while a finger carries the cue ball in hand; the player's own cue where it counts, the plain stick for the AI and for matched games
         }
