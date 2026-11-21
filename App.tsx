@@ -24,11 +24,11 @@ import { BAR, drawAim, drawTable, onTable, toScreen, toTable } from './src/rende
 import { LEVEL, shotTip } from './src/render/tip';
 import { type Lesson, LESSON_PAY, LESSONS, lessonTable, type LessonRec, litCushions, newLessonRec, noteLesson, PENCIL_AT, SOLO_RUN, soloTable, type Stage, verdict } from './src/learn/lessons';
 import { loadDone, saveDone } from './src/learn/save';
-import { canCall, choose, handCue, judge, legalFirst, moveCue, newGame, newRec, Rec, record, setCall, spotBall, State } from './src/rules/rules';
+import { canCall, choose, handCue, hooked, judge, legalFirst, moveCue, newGame, newRec, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { thinkAsync } from './src/ai/think';
 import { candsFor, choiceFor, type Move, nextSafeties, potPay, type Safeties, safetiesArg, softMove, think } from './src/ai/turn';
 import { type Cand, rng, TIERS } from './src/ai/shot-ai';
-import { type Ledger, newLedger, noteShot, type Pay, settle, type Settled } from './src/progress/pay';
+import { hustler, type Ledger, matchFeats, newLedger, noteShot, type Pay, rackOver, settle, type Settled, type Vs } from './src/progress/pay';
 import type { StyleId } from './src/ai/styles';
 import { medalOf, newRun, type Opts, type Run } from './src/tournament/bracket';
 import { loadRun, saveRun } from './src/tournament/save';
@@ -37,7 +37,7 @@ import { tourMatch as tm, type TourMatch as TM } from './src/tournament/match';
 import { DRAG, nearest, previewPower, swing, TAP_MS, tapAim } from './src/shot/aim';
 import { farGuide, type Guide, type GuideAsk, nearGuide } from './src/shot/far';
 import { guidePacer } from './src/shot/pacer';
-import { award, keep, ownStats, passPlayPay, payRun, profile, rivalDone, unlockCue } from './src/progress';
+import { award, featsDone, keep, matchLeft, matchOpen, ownStats, passPlayPay, payRun, profile, rivalDone, unlockCue } from './src/progress';
 import { shown, tenth } from './src/progress/rival';
 import { clear, clearFeats, isOpen, par, SCENARIOS, type Scenario, starCount, starsFor } from './src/scenarios/scenarios';
 import { armChalk, chalkResult, dailyClear, dailyPick, dayKey, grantChalk } from './src/daily/daily';
@@ -167,6 +167,7 @@ function Root() {
   const first = useRef(true);
   useEffect(() => { if (first.current) first.current = false; else saveSettings(set); }, [set]);
   useEffect(() => { if (done.length >= PENCIL_AT) unlockCue('surveyor'); }, []); // also at launch: lessons passed before cues existed still count
+  useEffect(matchLeft, []); // the app was closed in a match that counts for the Unbeaten streak: a loss, as leaving it is
   // The lock follows the place: the menus are one way up (settings.menus), a match, lesson or table its own (settings.orient).
   const playing = (PLAY as readonly string[]).includes(screen);
   useEffect(() => { ScreenOrientation.lockAsync(playing ? LOCKS[set.orient] : MENU_LOCKS[set.menus]).catch(() => {}); }, [playing, set.orient, set.menus]);
@@ -224,6 +225,10 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   // of the finished match.
   // shortcut: a quick match left from the pause card pays nothing, not even its shots (a tournament forfeit pays them); no safety pay (needs the AI's reply).
   const won = useRef(snap0 ? { ...snap0.ledger, shots: { ...snap0.ledger.shots } } : newLedger()), cands = useRef<Cand[]>([]), end = useRef<Settled | null>(null), prize = useRef<Pay | null>(null);
+  // The opponent, for pay and feats (pay.ts Vs): an AI tier, or the rating of a Rival or a tournament seat. The Twig's Humble reads the cue.
+  const foe = (): Vs => (rival || tour ? { boss: level.current, tour: tour?.stakes, cue: own } : { tier: ai + 1, cue: own });
+  const snooker = useRef(false); // the player came to the table with no straight line to a ball they may hit (Escape Artist)
+  const opened = () => { if (vs && !tour && hustler(foe())) matchOpen(); }; // at a strike: the first one of a match marks it as in play (progress.ts matchOpen)
   const safe = useRef<Safeties>(snap0?.safe ?? { row: 0, rack: 0 }), seed = useRef(snap0?.seed ?? Math.floor(Math.random() * 2 ** 31)), [thinking, setThinking] = useState(false);
   // A tournament match is saved at every strike (with the shot, so a relaunch plays the same shot again) and ruling.
   const snap = (shot?: Shot) => {
@@ -305,19 +310,25 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   // Put a ruling on the table: a new rack, or the balls the rules spot and the cue ball in hand.
   const apply = useRef((s: State) => {});
   apply.current = (s: State) => {
-    const t = table.current;
-    if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++; if (score.current[s.winner] === race) {
+    const t = table.current, hard = hustler(foe()), came = t.rules.turn === 1 && s.turn === 0; // came = the turn passes to the player
+    if (vs && s.game === 8 && s.solids >= 0) { const down = (p: number) => 7 - s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === p)).length; if (down(1) - down(0) >= 3) won.current.behind = true; } // Nine Lives: the opponent 3 balls or more ahead
+    if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++;
+      if (vs) { rackOver(won.current, s.winner === 0, hard); if (game === 9 && race >= 3 && score.current[1] - score.current[0] >= 2) won.current.down = true; } // in 9-ball a comeback is 2 racks down in a race to 3 or 5
+      if (score.current[s.winner] === race) {
       const pp = vs ? null : passPlayPay(dayKey(new Date()), s.early ? 'an early 8' : s.foul ? 'a foul' : ''); // the 8 down early, or the last shot a foul: three in a row, the 8 down or off the table on one
       const r = vs ? settle(won.current, { tier: rival || tour ? tenth(level.current) : ai + 1, won: s.winner === 0, early: s.winner === 1 && s.early, tour: tour && tour.stakes * race, racks: score.current[0] }, chalk) // only an early 8 pays nothing
         : { match: pp!.pay, shots: { xp: 0, coins: 0 }, chalk: null, total: pp!.pay, note: pp!.note };
       // A tournament saves the result, then pays it (with any prize) marked in the profile: tour.done.
       if (tour) { const p = tour.prize(s.winner === 0); prize.current = p && (p.xp || p.coins) ? p : null; }
-      end.current = r; gained.current = tour ? tour.done(s.winner === 0, [...score.current], r.total, own) : award(r.total, vs ? own : undefined, pp?.mark); // quick match played the player's own cue
+      // The feats of the match and the streak are saved before the pay; a cue they gave shows on the results card.
+      const got = vs ? featsDone(matchFeats(won.current, { vs: foe(), won: s.winner === 0, cue: own, dry: !!r.note }), hard && !r.note ? s.winner === 0 : undefined) : [];
+      end.current = got.length ? { ...r, got } : r; gained.current = tour ? tour.done(s.winner === 0, [...score.current], r.total, own) : award(r.total, vs ? own : undefined, pp?.mark); // quick match played the player's own cue
       // The loser's own balls left (8-ball; 7 on an open table) say how close the match was.
       if (rival) { const lose = 1 - s.winner, left = s.solids < 0 ? 7 : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === lose)).length, [a, b] = rivalDone(game, s.winner === 0, left, set.mood); moved.current = `Rival ${shown(a)} to ${shown(b)}`; }
     } }
     if (s.phase === 'break') { table.current = newTable(s); moving.current = false; safe.current = { row: 0, rack: 0 }; won.current.run = 0; }
     else { for (const id of s.spot) spotBall(t.B, t.ids.indexOf(id)); if (s.hand) handCue(t.B, s.hand); Object.assign(t, { rules: s, rec: null, push: false }); }
+    snooker.current = vs && came && s.phase === 'play' && !s.hand && hooked(table.current.B, table.current.ids, s); // judged at the start of a turn, not after a pot of your own, and not with ball in hand
     paint(); redraw();
     if (!(s.phase === 'over' && s.winner >= 0 && score.current[s.winner as 0 | 1] === race)) snap(); // the match end was saved by tour.done
     shot.set({ aim: nearest(table.current.B, shot.get().aim), power: 0, fine: false, locked: shut() }); // the cue points at the nearest ball and the controls unlock
@@ -367,7 +378,11 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
         if (!queue.value.length && L) { table.current.rec = null; ended.current(rec as LessonRec); }
         else if (!queue.value.length) {
           const next = judge(s, rec, pushOut);
-          if (vs && s.turn === 0) noteShot(won.current, potPay(cands.current, rec, s, next, won.current.run, rival || tour ? { boss: level.current, tour: tour?.stakes } : { tier: ai + 1 }), next.foul && next.phase !== 'over', s.phase === 'break' && next.phase === 'over' && next.winner === 0); // a foul that ends the rack does not cost the clean-match bonus; a rack won on the break shot is counted (pay.ts settle)
+          if (vs && s.turn === 0) {
+            const p = potPay(cands.current, rec, s, next, won.current.run, foe(), cue.tipLimit);
+            if (snooker.current && !pushOut && !next.foul && rec.first >= 0) p.feats.push('escape'); // out of a snooker with a legal hit
+            noteShot(won.current, p, next.foul && next.phase !== 'over', s.phase === 'break' && next.phase === 'over' && next.winner === 0, hustler(foe()), next.phase === 'over' && next.winner === 1);
+          } // a foul that ends the rack does not cost the clean-match bonus; a rack won on the break shot is counted (pay.ts settle)
           if (next.phase === 'over' || next.foul) Haptics.notificationAsync(next.winner < 0 ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
           apply.current(next);
         }
@@ -401,8 +416,8 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     if (shut() || (canCall(t.rules) && t.rules.call < 0)) { shot.set({ power: 0 }); return; } // a pocket must be called first: the HUD asks for it
     Haptics.impactAsync(power > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
     if (vs) cands.current = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules); // shortcut: a full candidate search on the strike frame, cheap next to a guide
-    const sh = shotOf(power); snap(sh);
-    t.rec = L ? newLessonRec() : newRec(); strike(t.B[0], sh, cue); moving.current = true; wake.current();
+    const sh = shotOf(power); snap(sh); opened();
+    t.rec = L ? newLessonRec() : newRec(sh); strike(t.B[0], sh, cue); moving.current = true; wake.current();
     tip.set(LEVEL); setSheet(false); setTools(false); shot.set({ power: 0, fine: false, locked: true });
   };
   // The AI's shot: its cue ball in hand, its line-up, its call, then the strike as fire() makes it. The AI plans on the
@@ -416,15 +431,15 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     if (stage < 2) { if (m.at) moveCue(t.B, m.at[0], m.at[1], t.rules.hand); lineUp(m.shot, top, hold, () => play(m, 2)); return; }
     if (m.call >= 0) t.rules = setCall(t.rules, m.call); // at the strike: a new ruling now would start the AI's turn again
     safe.current = nextSafeties(safe.current, m.safety);
-    const sh = { ...m.shot, speed: Math.min(m.shot.speed, top), a: hold(m.shot.a), b: hold(m.shot.b) }; snap(sh);
-    t.rec = newRec(); strike(t.B[0], sh, STICK); moving.current = true; paint(); redraw();
+    const sh = { ...m.shot, speed: Math.min(m.shot.speed, top), a: hold(m.shot.a), b: hold(m.shot.b) }; snap(sh); opened();
+    t.rec = newRec(sh); strike(t.B[0], sh, STICK); moving.current = true; paint(); redraw();
   };
   // A tournament match reopened with a shot in flight: the same shot again from the same table.
   useEffect(() => {
     const t = table.current, sh = snap0?.shot;
     if (!sh) return;
     if (t.rules.turn === 0) cands.current = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules);
-    t.rec = newRec(); strike(t.B[0], sh, t.rules.turn === 0 ? cue : STICK); moving.current = true; shot.set({ power: 0, locked: true }); paint(); redraw();
+    t.rec = newRec(sh); strike(t.B[0], sh, t.rules.turn === 0 ? cue : STICK); moving.current = true; shot.set({ power: 0, locked: true }); paint(); redraw();
   }, []);
   // The AI's moves on the table play out over time: tween runs f(eased 0..1) each frame for ms, rests, then done().
   // drop() ends a tween the turn left (a pause, a new ruling, leaving the match) and runs its undo.
@@ -636,6 +651,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
           {paid && <PayRow label={!vs ? 'Pass and play' : win === 0 ? 'Match win' : 'Match'} xp={paid.match.xp} coins={paid.match.coins} twice={!!paid.chalk} />}
           {paid && vs && <PayRow label="Shots" xp={paid.shots.xp} coins={paid.shots.coins} />}
           {!!paid?.note && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{paid.note}</Text>}
+          {!!paid?.got && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{`New cue: ${paid.got.join(', ')}`}</Text>}
           {paid && prize.current && <PayRow label="Prize" xp={prize.current.xp} coins={prize.current.coins} />}
           {paid && <PayTotal xp={paid.total.xp + (prize.current?.xp ?? 0)} coins={paid.total.coins + (prize.current?.coins ?? 0)} />}
           {done && gained.current && <Gained {...gained.current} />}
@@ -662,9 +678,9 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
             <Act paint={CREAM} label="Resume" onPress={() => { setPaused(false); setSure(false); }} />
             {tour && !done ? <>
               <Act label="Save and leave" onPress={onQuit} />{/* every strike and ruling is saved: Play on the bracket picks the match up */}
-              <Act paint={sure ? [C.warn, '#A33A30'] : undefined} label={sure ? 'Forfeit: a loss, shots still pay. Tap again' : 'Forfeit match'} onPress={() => { if (!sure) return setSure(true); tour.forfeit([...score.current]); onQuit(); }} />
+              <Act paint={sure ? [C.warn, '#A33A30'] : undefined} label={sure ? 'Forfeit: a loss, shots still pay. Tap again' : 'Forfeit match'} onPress={() => { if (!sure) return setSure(true); if (hustler(foe())) featsDone({}, false); tour.forfeit([...score.current]); onQuit(); }} />{/* a forfeit ends the Unbeaten streak, as a loss does */}
             </>
-              : <Act label={tour ? 'Bracket' : S ? 'Leave scenario' : L ? 'Leave lesson' : 'Leave match'} onPress={onQuit} />}
+              : <Act label={tour ? 'Bracket' : S ? 'Leave scenario' : L ? 'Leave lesson' : 'Leave match'} onPress={() => { if (vs && !tour) matchLeft(); onQuit(); }} />}
           </View>
         </View>
       )}
