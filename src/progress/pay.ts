@@ -14,6 +14,7 @@ export interface Pot extends Vs {
   hand?: boolean;       // the first shot after ball in hand
   foul?: boolean;       // potted on a foul
   theirs?: boolean;     // the opponent's ball
+  show?: boolean;       // the Performative's For show acts on this pot: a bank, a combo or a kick pays 2 times, any other pot half
 }
 
 // Band of a shot by pRef: its name and multiplier. Sharpshooter counts Tough and harder.
@@ -28,13 +29,16 @@ function vs(v: Vs) {
 // The opponent's rating, on the scale of the tiers. Tricks that change pay and some feats need Hustler (3) or harder.
 export const rated = (v: Vs) => v.boss ?? v.tier ?? 0;
 export const hustler = (v: Vs) => rated(v) >= 3;
-const paid = (mult: number, tour = 1): Pay => ({ xp: Math.round(10 * Math.min(12, mult) * tour), coins: Math.round(4 * Math.min(12, mult) * tour) });
+const paid = (mult: number, tour = 1, cap = 12): Pay => ({ xp: Math.round(10 * Math.min(cap, mult) * tour), coins: Math.round(4 * Math.min(cap, mult) * tour) });
 
 export function shotPay(p: Pot): Pay {
   if (p.foul || p.theirs) return { xp: 0, coins: 0 };
   const plain = p.pRef === null || p.brk, b = plain ? 1 : band(p.pRef!)[1];
   const type = plain || p.hand ? 1 : TYPE[p.type ?? 'direct'];
-  return paid((p.hand ? Math.min(b, 1.5) : b) * type * (1 + Math.min(0.7, 0.1 * (p.run ?? 0))) * vs(p), p.tour);
+  const usual = (p.hand ? Math.min(b, 1.5) : b) * type * (1 + Math.min(0.7, 0.1 * (p.run ?? 0))) * vs(p);
+  // For show: the type is what happened, so with ball in hand the 2 times is paid though the type's own bonus is not. A fluke and a break pot pay half. Up to 16 times a plain pot.
+  if (p.show) return !plain && (p.type ?? 'direct') !== 'direct' ? paid(2 * usual, p.tour, 16) : paid(Math.min(12, usual) / 2, p.tour);
+  return paid(usual, p.tour);
 }
 
 // A safety pays as Tough: a legal hit, no pot, not a push-out nor ball in hand, a hard leave and the opponent then

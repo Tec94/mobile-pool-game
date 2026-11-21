@@ -166,12 +166,14 @@ export function potPay(cands: Cand[], r: Rec, before: State, after: State, run: 
   const pay = { xp: 0, coins: 0 }, foul = after.foul, me = before.turn, brk = before.phase === 'break', feats: FeatId[] = [];
   const mine = (id: number) => before.game === 9 || after.solids < 0 || id === 8 || (id < 8) === (after.solids === me);
   const pots = r.pots.filter(p => p.id), counts = !foul && !brk && (after.turn === me || (after.phase === 'over' && after.winner === me));
+  // The Performative's For show, against Hustler or harder. Off when Bank shots mode makes every pot a bank; a bank that the mode asks for on the 8 pays its usual pay.
+  const show = vs.cue === 'performative' && hustler(vs) && before.bank !== 2;
   const odd = jumped(r) || massed(r), sh = r.shot, spun = !!sh && hustler(vs) && Math.hypot(sh.a, Math.min(0, sh.b)) >= lim / 2 - 1e-9;
   for (const p of pots) {
     const best = cands.reduce<Cand | null>((a, k) => (k.ball === p.id && holeOf(k) === p.pocket && (!a || k.tol > a.tol) ? k : a), null), k = potKind(r, p);
     const pRef = best ? makeProb(best.tol, SIGMA_REF) : odd || k.kicks >= 2 ? TOUGH : null;
     const type: PayType = k.kicks ? 'kick' : k.bank ? 'bank' : k.combo || best?.type === 'carom' || best?.type === 'billiard' ? 'combo' : 'direct';
-    const g = shotPay({ pRef, type, run, brk, hand: !!before.hand, foul, theirs: !mine(p.id), ...vs });
+    const g = shotPay({ pRef, type, run, brk, hand: !!before.hand, foul, theirs: !mine(p.id), show: show && !(p.id === 8 && before.lit.length > 0), ...vs });
     pay.xp += g.xp; pay.coins += g.coins;
     if (!counts || !mine(p.id)) continue;
     if (k.kicks) feats.push('kick'); if (k.bank) feats.push('bank'); if (k.combo) feats.push('combo');

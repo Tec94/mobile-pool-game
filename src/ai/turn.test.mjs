@@ -119,6 +119,13 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, true), phase: 'play', turn: 1, 
   eq(potPay(easy, rec(1, [[1, h]], { cush: [[1, far(h), cut]] }), { ...q, phase: 'break' }, { ...after, turn: 0 }, 0, { tier: 2 }).feats, [], 'a pot on the break counts for no feat');
   eq(potPay(easy, rec(1, [[1, other]], { cush: [[1, far(other), cut]] }), q, judge(setCall(s, h), rec(1, [[1, other]])), 0, { tier: 2 }).feats, [], 'nor does a pot that does not keep the turn');
   eq([paid({}, easy, { tier: 3 }).pay.xp, paid({}, easy, { tier: 3, cue: 'twig' }).pay.xp], [10, 15], 'the Twig pays 1.5 times in a match');
+  // The Performative's For show: a bank, a combo or a kick pays 2 times its usual pay, any other pot half. Hustler or harder.
+  const show = { tier: 3, cue: 'performative' }, bank = { cush: [[1, far(h), cut]] };
+  eq([paid({}, easy, show).pay, paid(bank, easy, show).pay, paid(bank, easy, { tier: 3 }).pay], [{ xp: 5, coins: 2 }, { xp: 25, coins: 10 }, { xp: 13, coins: 5 }], 'a direct pot pays half, a bank double');
+  eq([paid({}, [], show).pay.xp, paid(bank, [], show).pay.xp], [5, 5], 'a fluke pays half, off a cushion too');
+  eq([paid(bank, easy, { tier: 2, cue: 'performative' }).pay.xp, potPay(easy, rec(1, [[1, h]], bank), { ...q, bank: 2 }, after, 0, show, 0.4).pay.xp], [11, 13], 'off below Hustler, and off when every pot must be a bank');
+  eq(potPay(easy, rec(1, [[1, h]], bank), { ...q, hand: 'any' }, after, 0, show, 0.4).pay.xp, 20, 'with ball in hand the type bonus is not paid, the 2 times is');
+  eq(potPay(cands, rec(1, [[1, h]], { cush: [[0, far(h), cut]] }), q, after, 7, { tier: 6, cue: 'performative' }, 0.4).pay, { xp: 160, coins: 64 }, 'up to 16 times a plain pot');
   const T = [mk(0.6, 0.56), mk(1.1, 0.56), mk(1.6, 0.9)], ids = [0, 1, 10];
   eq([...new Set(candsFor(T, ids, s).map(k => k.ball))], [1], 'solids: candidates for the 1 only');
   eq([...new Set(candsFor(T, ids, { ...s, solids: -1 }).map(k => k.ball))].sort(), [1, 10], 'open table: any ball');
