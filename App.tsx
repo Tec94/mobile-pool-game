@@ -307,7 +307,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   if (vs && own === 'aura' && hustler(foe()) && !won.current.aura) won.current.aura = { ...(profile().aura ?? { run: 0, owed: false }) };
   // The stats and the stick in play. The cue's own, but for a cue whose trick changes its stats in a match (the Marble).
   const inPlay = useRef({ stats: mine, cue });
-  const lines = vs && own === 'daybreak' ? own : undefined; // the cues whose trick is in the guide (aim.ts aimGuide)
+  const lines = vs && (own === 'daybreak' || own === 'banker') ? own : undefined; // the cues whose trick is in the guide (aim.ts aimGuide)
   const struck = () => (inPlay.current.cue.dead && table.current.rules.phase === 'break' ? { ...inPlay.current.cue, dead: false } : inPlay.current.cue); // the stick for the shot now: the Plumb's Dead stop is off on the break
   const setStats = (st: typeof mine) => { const was = inPlay.current.stats; if (st.power === was.power && st.spin === was.spin && st.aim === was.aim) return; inPlay.current = { stats: st, cue: stick(own, false, st, vs) }; dirty(); };
   // The Maxxed's Statmaxxing: one stat is 10. The pick is free before the break shot of a rack. Once a rack the player may

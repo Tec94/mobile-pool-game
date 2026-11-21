@@ -3,7 +3,7 @@
 // guide shows. No drawing and no React here; src/ui/ShotControls.tsx and App.tsx are the shells around it.
 // The aim is an angle in radians in the table frame. The screen shows the table mirrored (toScreen flips one axis in
 // both orientations), so a clockwise turn on the glass is a smaller angle here.
-import { P, predict, STRAIGHT } from '../physics/engine.ts';
+import { P, POCKET, predict, STRAIGHT } from '../physics/engine.ts';
 import type { Ball, Cue, Shot } from '../physics/engine.ts';
 
 const TURN = 2 * Math.PI, DEG = Math.PI / 180, wrap = (a: number) => a - TURN * Math.round(a / TURN);
@@ -41,6 +41,13 @@ export const guideLen = (aim: number) => (aim <= 0 ? 0 : 0.1 + (Math.min(10, aim
 export const LONG = 7; // from this Aim a stub after the contact shows where the cue ball leaves the ghost ball
 export const STUB = 4 * 0.028575; // m, 4 ball radii (P.R): the stub is this long at every Aim, power and spin, from a 30 degree cut
 const FULL = 0.052; // sine of a 3 degree cut: fuller than this the cue ball stops or runs on through, and the tangent says nothing
+// The Banker's Bank sight: BANK = metres of the object ball's line shown off the cushion, and the furthest the cushion
+// may be from the ball. A cushion counts when it turns the ball 20 degrees or more (rules.ts potKind) and the ball
+// meets it JAW or more along the cushion from a pocket's jaw, so the line can't be swept to find the pocket.
+export const BANK = 0.6, JAW = 0.15;
+const BEND = 20 * DEG;
+const offJaws = (x: number, y: number) => { const { cc, sc } = POCKET, end = Math.min(x, P.L - x) < Math.min(y, P.W - y);
+  return end ? y > cc + JAW && y < P.W - cc - JAW : Math.abs(x - P.L / 2) > sc + JAW && x > cc + JAW && x < P.L - cc - JAW; };
 // The angle from the cue ball to the nearest object ball, or `keep` when the table has none.
 export function nearest(B: Ball[], keep = 0) {
   let best = Infinity, ang = keep;
@@ -63,9 +70,10 @@ export function nearest(B: Ball[], keep = 0) {
 // trick = the guide of a cue's trick, in a match against the AI:
 //  'daybreak': the object ball's line runs on to the first ball, cushion or pocket it meets, or to where it stops. No
 //    stub, and on a kick the guide stops at the first cushion.
+//  'banker': on a bank (see BANK) the object ball's line runs to the cushion and BANK off it, or to the next thing it meets.
 export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, stick?: Cue, real = false, scale = 1, trick = '') {
   const L = guideLen(aim) * scale, day = trick === 'daybreak', far = !day && (real || aim >= LONG);
-  const g = day ? predict(B, shot, Infinity, stick, undefined, budget, false, 1)
+  const g = day ? predict(B, shot, Infinity, stick, undefined, budget, false, 1) : trick === 'banker' ? predict(B, shot, 2 * BANK, stick, undefined, budget, false, 2)
     : predict(B, shot, L, stick, undefined, budget, real), k = g.split < 0 ? g.cue.length : g.split + 1;
   // predict runs until both balls have gone the length, so the faster one overshoots it: cut each path to the length.
   const clip = (p: number[][], len: number) => {
@@ -78,8 +86,9 @@ export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, st
   const q = g.cue[k - 1], h = g.hit, kick = g.split >= 0 && !!h && Math.hypot(q[0] - h.x, q[1] - h.y) > 1e-6;
   if (kick && !far) return { path: g.cue.slice(0, k), ob: [], ghost: [q[0], q[1]], lands: g.lands, lost: false, first: -1, stub: [] as number[][], dead: false };
   const dead = !!stick?.dead && !!h && !h.air && h.cut! <= STRAIGHT;
-  const m = g.met[0], to = m ? g.ob.slice(0, m[0] + 1) : g.ob;
-  const ob = day ? to : clip(g.ob, L);
+  const m = g.met[0], to = m ? g.ob.slice(0, m[0] + 1) : g.ob, reach = to.slice(1).reduce((s, p, i) => s + Math.hypot(p[0] - to[i][0], p[1] - to[i][1]), 0);
+  const bank = trick === 'banker' && !!m && m[1] === 1 && m[2] >= BEND && reach <= BANK && offJaws(to[to.length - 1][0], to[to.length - 1][1]);
+  const ob = day ? to : bank ? [...to, ...clip(g.ob.slice(m[0], g.met[1] ? g.met[1][0] + 1 : g.ob.length), BANK).slice(1)] : clip(g.ob, L);
   const after = !far ? [] : clip(g.cue.slice(k - 1), L).slice(1);
   let path = [...g.cue.slice(0, k), ...after], stub: number[][] = [];
   if (h && after.length && !real) {

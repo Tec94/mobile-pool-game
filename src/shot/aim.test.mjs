@@ -148,5 +148,11 @@ let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
   const o = [1.8, 0.3], a = Math.atan2(-0.3, P.L - 1.8), pot = day([mk(o[0] - 0.5 * Math.cos(a), o[1] - 0.5 * Math.sin(a)), mk(...o)], 2, a);
   assert(Math.hypot(end(pot.ob)[0] - P.L, end(pot.ob)[1]) < 0.06 && !pot.stub.length, 'to the pocket, and no stub');
   const kd = day([mk(0.4, 0.4), mk(1.4, 0.4)], 2, Math.atan2(-0.3725, 0.5)); assert(kd.first === -1 && !kd.ob.length, 'a kick stops at the first cushion');
-  ok('the guide of the Daybreak');
+  // the Banker: on a bank the line runs to the cushion and 60 cm off it; any other shot shows the 21 cm of 3 Aim
+  const down = -Math.PI / 4, bank = (x, y, more = []) => len(aimGuide([mk(x - 0.4 * Math.cos(down), y - 0.4 * Math.sin(down)), mk(x, y), ...more], sh(down), 3, 8000, CUE, false, 1, 'banker').ob);
+  near(bank(0.5, 0.3), (0.3 - Rc) * Math.SQRT2 + 0.6, 0.01, 'the way to the cushion and 60 cm off it');
+  assert(bank(0.5, 0.3, [mk(0.95, 0.2)]) < 0.7, 'the line stops at the first ball it meets off the cushion');
+  for (const [x, y, why] of [[0.5, 0.52, 'the cushion is more than 60 cm away'], [0.8, 0.3, 'the ball meets the cushion within 15 cm of a pocket']]) near(bank(x, y), guideLen(3), 1e-9, why);
+  near(len(aimGuide([mk(0.5, mid), mk(1, mid)], sh(0), 3, 8000, CUE, false, 1, 'banker').ob), guideLen(3), 1e-9, 'no bank: 21 cm');
+  ok('the guides of the Daybreak and the Banker');
 }
