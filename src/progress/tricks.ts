@@ -38,6 +38,14 @@ export function softHands(w: Soft, pull: number, s: State, r: Rec, ruled: State,
 // in a row as it was: the state to judge that shot from.
 export const afterSoft = (s: State): State => (s.game === 9 ? { ...s, fouls: s.turn ? [s.fouls[0], s.fouls[1] - 1] : [s.fouls[0] - 1, s.fouls[1]] } : s);
 
+// The Nonchalant's Whatever: the ruling on the player's shot with no pocket to call. Any of the player's balls in any
+// pocket counts, and on the 8 any pocket wins (the 8's own pocket stands in for the call). A bank the mode asks for is
+// still needed. The setting stays as it was for the opponent.
+export const whatever = (s: State, r: Rec, push = false): State => ({ ...judge({ ...s, callAll: false, call: r.pots.find(p => p.id === 8)?.pocket ?? -1 }, r, push), callAll: s.callAll });
+// Its paid flukes: the first 2 of a rack (turn.ts potPay).
+export const newFlukes = () => ({ left: 2 });
+export const flukeLine = (f: { left: number }) => ({ text: '●'.repeat(f.left) + '○'.repeat(2 - f.left), dim: !f.left, label: f.left ? `Whatever: the next ${f.left === 1 ? 'fluke' : '2 flukes'} this rack pay 6 times a plain pot` : 'Whatever: no paid flukes left this rack' });
+
 // The Marble's Mog: ahead on balls potted this rack, 8 in every stat; behind, 2; tied, 5.
 // The lead: with the groups set in 8-ball, each group's balls off the table, whoever potted them. Before that, and in
 // 9-ball, sunk = the balls each player potted this rack (noteSunk).

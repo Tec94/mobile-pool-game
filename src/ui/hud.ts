@@ -31,11 +31,11 @@ export const strip = (s: State) => (s.game === 9 ? range(1, 9).map(id => ({ id, 
 // The banner over the table. note = the ruling on the last shot (shown for a moment); hint = what the player must do
 // now (shown until it is done). The results card and a decision card show the ruling themselves. wait = what the
 // other side is doing (the AI thinks, or '' while it shoots): it takes the place of the hint, even over a decision the
-// AI makes. undefined = the player's own turn.
-export function banner(s: State, push: boolean, wait?: string) {
+// AI makes. undefined = the player's own turn. free = the player calls no pocket (the Nonchalant).
+export function banner(s: State, push: boolean, wait?: string, free = false) {
   if (s.phase === 'over' || (s.choice && wait === undefined)) return { note: '', foul: false, hint: '' };
   if (wait !== undefined) return { note: s.choice ? '' : s.note, foul: !s.choice && s.foul, hint: wait };
-  const ask = canCall(s) && s.call < 0, note = s.note;
+  const ask = !free && canCall(s) && s.call < 0, note = s.note;
   const said = /ball in hand/i.test(note); // the ruling already says it: the hint only says what to do
   const hint = [s.hand === 'kitchen' ? (said ? 'Drag the cue ball behind the line.' : 'Ball in hand behind the line: drag the cue ball.') : s.hand ? (said ? 'Drag the cue ball.' : 'Ball in hand: drag the cue ball.') : '',
     ask ? 'Call a pocket.' : '', push ? 'Push out: no ball or rail needed.' : ''].filter(Boolean).join(' ');

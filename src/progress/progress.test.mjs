@@ -1,7 +1,7 @@
 // Run: npm test   (the progression model: levels, pay, cues, feats, gates and the saved profile)
 import assert from 'node:assert';
 import { CUE } from '../physics/engine.ts';
-import { afterSoft, auraLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, overdrive, ramOwes, ratchet, softCan, softHands, softLine, STEPS } from './tricks.ts';
+import { afterSoft, auraLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, overdrive, ramOwes, ratchet, softCan, softHands, softLine, STEPS, whatever } from './tricks.ts';
 import { judge, newGame, newRec } from '../rules/rules.ts';
 import { CUE_IDS, CUES, soon, specLine, specs, stick } from './cues.ts';
 import { hustler, matchFeats, matchPay, newLedger, noteShot, rackOver, safetyPay, settle, shotPay } from './pay.ts';
@@ -336,6 +336,14 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq([readProfile(JSON.stringify(p)).aura, readProfile(JSON.stringify({ ...p, aura: { run: -3, owed: 'yes' } })).aura, readProfile(JSON.stringify({ ...p, aura: 5 })).aura], [{ run: 4, owed: false }, { run: 0, owed: false }, undefined], 'read defensively');
   eq([auraLine({ run: 0, owed: false }).text, auraLine({ run: 3, owed: false }).text, auraLine({ run: 0, owed: true }).text], ['x1', 'x1.75', 'x0'], 'the HUD shows what the next pot pays');
   ok('the Aura keeps its run');
+}
+{ // the Nonchalant's Whatever: no pocket to call
+  const s = { ...newGame(8), phase: 'play', hand: null, solids: 0, balls: [1, 2, 8, 9, 10] }, pot = { ...newRec(), first: 1, railAfter: true, pots: [{ id: 1, pocket: 3 }] };
+  eq([judge(s, pot).turn, whatever(s, pot).turn, whatever(s, pot).foul, whatever(s, pot).callAll], [1, 0, false, true], 'a ball of the player\'s in any pocket keeps the turn, and the setting stays for the opponent');
+  const last = { ...s, balls: [8, 9, 10] }, eight = { ...newRec(), first: 8, railAfter: true, pots: [{ id: 8, pocket: 5 }] };
+  eq([judge(last, eight).winner, whatever(last, eight).winner, whatever(s, { ...eight, first: 1 }).winner], [1, 0, 1], 'on the 8 any pocket wins; the 8 potted early still loses');
+  eq(whatever(s, { ...pot, pots: [{ id: 9, pocket: 3 }] }).turn, 1, 'a ball of the opponent\'s does not keep the turn');
+  ok('the Nonchalant calls no pocket');
 }
 { // the Whisper's Soft hands: twice a rack a soft shot needs no cushion after the hit
   const s = { ...newGame(9), phase: 'play', hand: null, balls: [1, 2, 9] }, tap = { ...newRec(), first: 1, railAfter: false }, w = newSoft();

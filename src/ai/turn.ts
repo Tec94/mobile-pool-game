@@ -161,8 +161,10 @@ export function candsFor(B: Ball[], ids: number[], s: State): Cand[] {
 // A pot counts for a feat when it kept the turn or won the rack, and never on the break. Spin Doctor: a Solid or
 // harder pot against Hustler or harder with the tip half way or more out to its limit, below centre or to a side
 // (follow alone does not count).
+// flukes = the Nonchalant's paid flukes left this rack, changed here: against Hustler or harder and not on the break, a
+// pot of the shooter's with no way found that keeps the turn or wins the rack pays a flat 60 XP and 24 coins while one is left.
 const TOUGH = 0.4; // a chance in the Tough band (pay.ts band)
-export function potPay(cands: Cand[], r: Rec, before: State, after: State, run: number, vs: Vs, lim = CUE.tipLimit, aura?: Aura): { pay: Pay; run: number; own: number; feats: FeatId[]; mine: number[]; held?: boolean } {
+export function potPay(cands: Cand[], r: Rec, before: State, after: State, run: number, vs: Vs, lim = CUE.tipLimit, aura?: Aura, flukes?: { left: number }): { pay: Pay; run: number; own: number; feats: FeatId[]; mine: number[]; held?: boolean } {
   const pay = { xp: 0, coins: 0 }, foul = after.foul, me = before.turn, brk = before.phase === 'break', feats: FeatId[] = [];
   const mine = (id: number) => before.game === 9 || after.solids < 0 || id === 8 || (id < 8) === (after.solids === me);
   const pots = r.pots.filter(p => p.id), counts = !foul && !brk && (after.turn === me || (after.phase === 'over' && after.winner === me));
@@ -177,13 +179,15 @@ export function potPay(cands: Cand[], r: Rec, before: State, after: State, run: 
   // turn or wins the rack adds 1 to the run, and pays 25% more for each pot before it in the run, in place of the run
   // bonus. Any other shot ends the run, and the next such pot is owed: it pays nothing and starts the new run.
   const au = aura && hustler(vs) && !brk ? aura : null, zero = { xp: 0, coins: 0 };
+  const fl = flukes && hustler(vs) && !brk ? flukes : null;
   const odd = jumped(r) || massed(r), sh = r.shot, spun = !!sh && hustler(vs) && Math.hypot(sh.a, Math.min(0, sh.b)) >= lim / 2 - 1e-9;
   for (const p of pots) {
     const best = cands.reduce<Cand | null>((a, k) => (k.ball === p.id && holeOf(k) === p.pocket && (!a || k.tol > a.tol) ? k : a), null), k = potKind(r, p);
     const pRef = best ? makeProb(best.tol, SIGMA_REF) : odd || k.kicks >= 2 ? TOUGH : null;
     const type: PayType = k.kicks ? 'kick' : k.bank ? 'bank' : k.combo || best?.type === 'carom' || best?.type === 'billiard' ? 'combo' : 'direct';
     const ask = { pRef, type, run: au ? 0 : run, brk, hand: !!before.hand, foul, theirs: !mine(p.id), show: show && !(p.id === 8 && before.lit.length > 0), ...vs };
-    const g = six ? ((p.id === 6 || p.id === 7) && mine(p.id) && !foul ? { xp: 67, coins: 27 } : zero)
+    const g = fl && !best && counts && mine(p.id) && fl.left > 0 ? (fl.left--, { xp: 60, coins: 24 })
+      : six ? ((p.id === 6 || p.id === 7) && mine(p.id) && !foul ? { xp: 67, coins: 27 } : zero)
       : au && counts && mine(p.id) ? (au.owed ? (au.owed = false, au.run = 1, zero) : shotPay({ ...ask, aura: ++au.run }))
       : shotPay(ask);
     pay.xp += g.xp; pay.coins += g.coins;
