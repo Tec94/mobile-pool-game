@@ -14,6 +14,8 @@ export interface Pot extends Vs {
   hand?: boolean;       // the first shot after ball in hand
   foul?: boolean;       // potted on a foul
   theirs?: boolean;     // the opponent's ball
+  show?: boolean;       // the Performative's For show acts on this pot: a bank, a combo or a kick pays 2 times, any other pot half
+  aura?: number;        // the Aura's Aura farming: the pot's place in the run of pots, 1 = the first. Each place adds 25%, in place of the run bonus
 }
 
 // Band of a shot by pRef: its name and multiplier. Sharpshooter counts Tough and harder.
@@ -28,13 +30,16 @@ function vs(v: Vs) {
 // The opponent's rating, on the scale of the tiers. Tricks that change pay and some feats need Hustler (3) or harder.
 export const rated = (v: Vs) => v.boss ?? v.tier ?? 0;
 export const hustler = (v: Vs) => rated(v) >= 3;
-const paid = (mult: number, tour = 1): Pay => ({ xp: Math.round(10 * Math.min(12, mult) * tour), coins: Math.round(4 * Math.min(12, mult) * tour) });
+const paid = (mult: number, tour = 1, cap = 12): Pay => ({ xp: Math.round(10 * Math.min(cap, mult) * tour), coins: Math.round(4 * Math.min(cap, mult) * tour) });
 
 export function shotPay(p: Pot): Pay {
   if (p.foul || p.theirs) return { xp: 0, coins: 0 };
   const plain = p.pRef === null || p.brk, b = plain ? 1 : band(p.pRef!)[1];
   const type = plain || p.hand ? 1 : TYPE[p.type ?? 'direct'];
-  return paid((p.hand ? Math.min(b, 1.5) : b) * type * (1 + Math.min(0.7, 0.1 * (p.run ?? 0))) * vs(p), p.tour);
+  const usual = (p.hand ? Math.min(b, 1.5) : b) * type * (p.aura ? 1 + 0.25 * (p.aura - 1) : 1 + Math.min(0.7, 0.1 * (p.run ?? 0))) * vs(p);
+  // For show: the type is what happened, so with ball in hand the 2 times is paid though the type's own bonus is not. A fluke and a break pot pay half. Up to 16 times a plain pot.
+  if (p.show) return !plain && (p.type ?? 'direct') !== 'direct' ? paid(2 * usual, p.tour, 16) : paid(Math.min(12, usual) / 2, p.tour);
+  return paid(usual, p.tour, p.aura ? 20 : 12); // the Aura's pay tops out at 20 times a plain pot
 }
 
 // A safety pays as Tough: a legal hit, no pot, not a push-out nor ball in hand, a hard leave and the opponent then
@@ -59,24 +64,30 @@ export function matchPay(m: Match): Pay {
 // player's own balls potted this turn; pairs = the 6 and the 7 potted in one turn this rack, counted when the rack
 // ends and not when the player's own shot loses it (or the pair and then the 8 on a foul is a loop); behind = this
 // 8-ball rack the opponent was 3 balls or more ahead; down = this match the player was 2 racks down.
-export interface Ledger { shots: Pay; run: number; fouls: number; own: number; brk?: number; feats?: Partial<Record<FeatId, number>>; turn?: { ids: number[]; hot?: boolean; pair?: boolean }; pairs?: number; behind?: boolean; down?: boolean }
+// held = the Six Seven's pay this rack: paid when the rack ends, and not when the player's own shot loses it.
+// aura = the Aura's run of pots and whether the next pot is owed (pays nothing): from the profile at the start of the
+// match, changed by potPay, saved when the match settles.
+export interface Ledger { shots: Pay; run: number; fouls: number; own: number; brk?: number; feats?: Partial<Record<FeatId, number>>; turn?: { ids: number[]; hot?: boolean; pair?: boolean }; pairs?: number; behind?: boolean; down?: boolean; held?: Pay; aura?: Aura }
+export interface Aura { run: number; owed: boolean }
 export const newLedger = (): Ledger => ({ shots: { xp: 0, coins: 0 }, run: 0, fouls: 0, own: 0 });
 const count = (l: Ledger, id: FeatId, n = 1) => { if (n) (l.feats ??= {})[id] = (l.feats[id] ?? 0) + n; };
 // p = what potPay gave: feats = the feats its pots count for; mine = the player's own balls potted to keep the turn
 // (none on the break). hard = the opponent is Hustler or harder; lost = this shot lost the rack.
-export function noteShot(l: Ledger, p: { pay: Pay; run: number; own: number; feats?: FeatId[]; mine?: number[] }, foul: boolean, brkWin = false, hard = false, lost = false) {
-  l.shots.xp += p.pay.xp; l.shots.coins += p.pay.coins; l.run = p.run; l.own += p.own; l.fouls += +foul;
+export function noteShot(l: Ledger, p: { pay: Pay; run: number; own: number; feats?: FeatId[]; mine?: number[]; held?: boolean }, foul: boolean, brkWin = false, hard = false, lost = false) {
+  const to = p.held ? l.held ??= { xp: 0, coins: 0 } : l.shots;
+  to.xp += p.pay.xp; to.coins += p.pay.coins; l.run = p.run; l.own += p.own; l.fouls += +foul;
   if (brkWin) l.brk = (l.brk ?? 0) + 1;
   for (const f of p.feats ?? []) count(l, f);
   const t = l.turn ??= { ids: [] }; t.ids.push(...(p.mine ?? []));
   if (hard && !t.hot && t.ids.length >= 7) { t.hot = true; count(l, 'heater'); }                               // Heater: 7 of your balls in one turn
-  if (hard && !t.pair && t.ids.includes(6) && t.ids.includes(7)) { t.pair = true; l.pairs = (l.pairs ?? 0) + 1; } // Thirteen: the 6 and the 7 in one turn
+  if (hard && !t.pair && t.ids.includes(6) && t.ids.includes(7)) { t.pair = true; l.pairs = (l.pairs ?? 0) + 1; if (p.held) to.coins += 80; } // Thirteen: the 6 and the 7 in one turn. With the Six Seven each of the two is topped up from 27 to 67 coins
   if (!p.run) delete l.turn; // the turn is over
-  if (lost) l.pairs = 0;
+  if (lost) { l.pairs = 0; delete l.held; }
 }
-// A rack is over. Counts its pairs, and in 8-ball a comeback (Nine Lives): won after the opponent was 3 balls ahead.
+// A rack is over. Counts its pairs, pays what the Six Seven held, and in 8-ball a comeback (Nine Lives): won after the opponent was 3 balls ahead.
 export function rackOver(l: Ledger, won: boolean, hard: boolean) {
   count(l, 'thirteen', l.pairs ?? 0);
+  if (l.held) { l.shots.xp += l.held.xp; l.shots.coins += l.held.coins; delete l.held; }
   if (won && hard && l.behind) count(l, 'lives');
   l.pairs = 0; l.behind = false; delete l.turn; l.run = 0;
 }

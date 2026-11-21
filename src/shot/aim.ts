@@ -32,7 +32,8 @@ export function release(hist: number[][], now: number, power: number) {
   const old = hist.filter(q => now - q[0] >= 80).pop(), p = old && Math.abs(old[1] - power) < 0.04 ? old[1] : power;
   return power > 0.05 && p > 0.05 ? p : 0;
 }
-export const railLabel = (power: number, pulling: boolean) => (power >= 0.05 ? Math.round(power * 100) + '%' : pulling ? 'Cancel' : 'Pull');
+// as = the power the pull stands for, when a cue's trick makes it another number (the Ram's Overdrive)
+export const railLabel = (power: number, pulling: boolean, as = power) => (power >= 0.05 ? Math.round(as * 100) + '%' : pulling ? 'Cancel' : 'Pull');
 export const previewPower = (pull: number) => (pull > 0.05 ? pull : 0.7); // the guide shows the pull, or a firm shot when there is none
 // The guide's length past the first contact grows with every Aim point (Jack: no point may do nothing): 10 cm at Aim 1
 // to 60 cm at Aim 10, metres. 0 = Off; the line to the first contact is always drawn.
@@ -92,4 +93,13 @@ export function aimGuide(B: Ball[], shot: Shot, aim: number, budget?: number, st
     if (n > 0 && Math.abs(s) > FULL && t > 0 && ahead && !h.air && !g.lands.length) stub = [[h.x, h.y], [h.x + t * ex, h.y + t * ey]];
   }
   return { path, ob: clip(g.ob, L), ghost: h && [h.x, h.y], lands: g.lands, lost: g.scratch && g.split < 0, first: h ? h.b! : -1, stub };
+}
+// The first len metres of a path: the guide the Coil shows with its cue raised.
+export function shorten(path: number[][], len: number) {
+  const out = path.slice(0, 1);
+  for (let i = 1; i < path.length && len > 0; i++) {
+    const [ax, ay] = path[i - 1], [bx, by] = path[i], d = Math.hypot(bx - ax, by - ay);
+    out.push(d <= len ? path[i] : [ax + (bx - ax) * len / d, ay + (by - ay) * len / d, path[i][2] ?? 0]); len -= d;
+  }
+  return out;
 }

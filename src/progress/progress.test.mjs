@@ -1,9 +1,11 @@
 // Run: npm test   (the progression model: levels, pay, cues, feats, gates and the saved profile)
 import assert from 'node:assert';
 import { CUE } from '../physics/engine.ts';
+import { afterSoft, auraLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, overdrive, ramOwes, ratchet, softCan, softHands, softLine, STEPS } from './tricks.ts';
+import { judge, newGame, newRec } from '../rules/rules.ts';
 import { CUE_IDS, CUES, soon, specLine, specs, stick } from './cues.ts';
 import { hustler, matchFeats, matchPay, newLedger, noteShot, rackOver, safetyPay, settle, shotPay } from './pay.ts';
-import { cueGain, masteryLevel, masteryNote, masteryOf, readMastery, statsOf, tuneDown, tuneUp, upCost } from './mastery.ts';
+import { cueGain, cueStats, masteryLevel, masteryNote, masteryOf, maxStats, nextPick, readMastery, statsOf, tuneDown, tuneUp, upCost } from './mastery.ts';
 import { buy, feat, featCount, featName, FEATS, gain, levelNote, levelOf, matchEnd, NEW, opens, PACKS, passPlay, readProfile, runOwe, select, unlock, VENUES } from './profile.ts';
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
@@ -22,11 +24,15 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   near(stick('heirloom').maxSpeed, 4.41, 'Power 9');
   near(stick('ram').maxSpeed, 4.5, 'Power 10: the cap'); near(stick('ram').breakSpeed, 12, 'Power 10 break');
   eq(stick('marquise').squirt, 0, 'Marquise: no squirt');
+  // the tricks of the stick act in a match against the AI only (on), and never for a matched game
+  near(stick('ironwood', false, undefined, true).breakSpeed / stick('ironwood').breakSpeed, 1.2, 'Ironwood: the break 20% faster in a match');
+  eq([stick('ironwood', false, undefined, true).maxSpeed, stick('ironwood', true, undefined, true).breakSpeed], [stick('ironwood').maxSpeed, stick('house').breakSpeed], 'the shot speed stays, and a matched game has no trick');
+  eq([stick('marquise', false, undefined, true).minElev, stick('marquise').minElev, stick('coil', false, undefined, true).curl, stick('coil').curl], [0, CUE.minElev, 1.5, undefined], 'Marquise: dead flat; Coil: curl 1.5; neither outside a match');
   eq(stick('ram', true), h, 'matched: House Cue stats, tricks off'); eq(stick('marquise', true).squirt, CUE.squirt, 'a matched Marquise squirts');
   eq(Object.keys(CUES).length, 26, '26 cues'); eq(CUES.house.aim, 5, 'House Cue Aim 5');
   for (const id of CUE_IDS) { const c = CUES[id]; assert([c.price !== undefined, !!c.feat, !!c.level, !!c.get, id === 'house'].filter(Boolean).length === 1, `${id}: one way to get it`); assert(!c.feat || FEATS[c.feat]?.cue === id, `${id}: its feat gives it`); }
   eq(CUE_IDS.filter(id => CUES[id].price !== undefined).reduce((a, id) => a + CUES[id].price, 0), 23100, 'the six coin cues cost 23,100');
-  eq([soon('surveyor'), soon('twig'), soon('house'), soon('ram')], [false, false, false, true], 'a trick that does not act yet is marked Soon; the House Cue has none');
+  eq([soon('surveyor'), soon('twig'), soon('house'), soon('banker')], [false, false, false, true], 'a trick that does not act yet is marked Soon; the House Cue has none');
   ok('cue stats give the engine cue');
   eq(specLine(specs('house')), 'Power: 3.88 m/s top shot, 10.3 m/s break\nSpin: tip up to 10.5 mm off centre\nAim: guide 32 cm past contact', 'House Cue in real units');
   eq(specs('ram').shot.toFixed(2) + ' ' + specs('ram').brk.toFixed(1), '4.50 12.0', 'Ram: Power 10');
@@ -299,4 +305,68 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   p = matchEnd(p, {}, false); eq([featCount(p, 'unbeaten'), p.owned.includes('marble')], [5, true], 'five in a row give the Marble, and a later loss leaves it done');
   eq(readProfile(JSON.stringify({ ...NEW, open: true })).open, true, 'a match in play is read back, so a closed app is a loss');
   ok('feats are counted in matches');
+}
+{ // the Six Seven's pay is held for the end of the rack
+  const six = (ids, run = 1) => ({ pay: { xp: 67 * ids.length, coins: 27 * ids.length }, run, own: ids.length, mine: ids, held: true });
+  let l = newLedger();
+  noteShot(l, six([6]), false, false, true); eq([l.shots, l.held], [{ xp: 0, coins: 0 }, { xp: 67, coins: 27 }], 'the 6: held, not paid yet');
+  noteShot(l, six([7]), false, false, true); eq(l.held, { xp: 134, coins: 134 }, 'the 7 in the same turn: each is topped up to 67 coins');
+  rackOver(l, false, true); eq([l.shots, l.held], [{ xp: 134, coins: 134 }, undefined], 'the rack ends, lost to the AI\'s own pot of the 8: paid');
+  noteShot(l, six([6, 7]), false, false, true); eq(l.held, { xp: 134, coins: 134 }, 'both on one shot');
+  noteShot(l, six([], 0), false, false, true, true); rackOver(l, false, true); eq(l.shots, { xp: 134, coins: 134 }, 'a rack lost on the player\'s own shot pays none of it');
+  noteShot(l, six([6], 0), false, false, true); noteShot(l, six([7]), false, false, true); rackOver(l, true, true); eq(l.shots, { xp: 268, coins: 188 }, 'the 6 and the 7 in two turns: 27 coins each');
+  ok('the Six Seven pays at the end of the rack');
+}
+{ // the tricks on the controls
+  eq([0, 0.04, 0.05, 0.099, 0.101, 0.2, 0.5, 0.92, 0.94, 1].map(ratchet), [0, 0.04, 0.08, 0.08, 0.12, 0.17, 0.45, 0.86, 1, 1], 'Ratchet: a pull lands on the nearest step; under 5% it still cancels');
+  eq([STEPS.length, STEPS.every((s, i) => !i || s > STEPS[i - 1])], [10, true], '10 rising steps');
+  eq([notch([], 0.33), notch([0.08, 0.33, 0.58], 1), notch([0.08, 0.33, 0.58], 0.33)], [[0.33], [0.33, 0.58, 1], [0.08, 0.58, 0.33]], 'notches: the last 3 pulls, each step once');
+  assert(Math.abs(overdrive(5 / 6, true) - 1) < 1e-9, 'Ram: 100% sits at five sixths of the pull'); eq([overdrive(1, true), overdrive(1, false), overdrive(0.5, false)], [1.2, 1, 0.6], 'the full pull is 120%; 100% on the break and with the cue raised');
+  eq([ramOwes(false, 1.1, false), ramOwes(true, 0.8, false), ramOwes(true, 1.1, false), ramOwes(true, 1, true), ramOwes(false, 1, false)], [true, false, true, true, false], 'a strike past 100% owes a blind shot; the next strike that is no break pays it off, or owes again');
+  eq([readProfile(JSON.stringify({ ...NEW, ram: true })).ram, readProfile(JSON.stringify({ ...NEW, ram: 1 })).ram], [true, undefined], 'the owed shot is saved');
+  ok('tricks on the controls');
+}
+{ // the Aura's run lives in the profile between matches
+  let p = { ...NEW, owned: ['house', 'aura'], cue: 'aura' };
+  p = matchEnd(p, {}, true, { run: 4, owed: false }); eq(p.aura, { run: 4, owed: false }, 'a settled match saves the run');
+  eq([matchEnd(p, {}, undefined, { run: 4, owed: false }) === p, matchEnd(p, {}).aura], [true, { run: 4, owed: false }], 'the same run writes nothing; a match below Hustler leaves it');
+  eq(matchEnd(p, {}, false).aura, { run: 0, owed: true }, 'a match that was left ends it');
+  eq([select(p, 'house').aura, select({ ...p, aura: { run: 0, owed: false } }, 'house').aura, matchEnd({ ...p, cue: 'house' }, {}, false).aura], [{ run: 0, owed: true }, { run: 0, owed: false }, { run: 4, owed: false }], 'choosing another cue ends a run; with another cue in hand a loss does not');
+  eq([readProfile(JSON.stringify(p)).aura, readProfile(JSON.stringify({ ...p, aura: { run: -3, owed: 'yes' } })).aura, readProfile(JSON.stringify({ ...p, aura: 5 })).aura], [{ run: 4, owed: false }, { run: 0, owed: false }, undefined], 'read defensively');
+  eq([auraLine({ run: 0, owed: false }).text, auraLine({ run: 3, owed: false }).text, auraLine({ run: 0, owed: true }).text], ['x1', 'x1.75', 'x0'], 'the HUD shows what the next pot pays');
+  ok('the Aura keeps its run');
+}
+{ // the Whisper's Soft hands: twice a rack a soft shot needs no cushion after the hit
+  const s = { ...newGame(9), phase: 'play', hand: null, balls: [1, 2, 9] }, tap = { ...newRec(), first: 1, railAfter: false }, w = newSoft();
+  const foul = judge(s, tap); eq([foul.foul, foul.hand], [true, 'any'], 'no cushion after the hit is a foul');
+  eq([softHands(w, 0.16, s, tap, foul).foul, softHands(w, 0.1, s, tap, foul, true).foul, softHands(w, 0.1, { ...s, phase: 'break' }, tap, foul).foul, w.left], [true, true, true, 2], 'not above 15% of the pull, not on a push-out, not on the break');
+  const wrong = { ...tap, first: 2 }; eq([softHands(w, 0.1, s, wrong, judge(s, wrong)).foul, softHands(w, 0.1, s, { ...tap, first: -1 }, judge(s, { ...tap, first: -1 })).foul, w.left], [true, true, 2], 'a legal ball must still be hit first');
+  const fine = { ...tap, railAfter: true }; softHands(w, 0.1, s, fine, judge(s, fine)); eq(w.left, 2, 'a shot that needs no saving spends no use');
+  const ok1 = softHands(w, 0.15, s, tap, foul); eq([ok1.foul, ok1.turn, ok1.hand, { ...w }, softLine(w).text], [false, 1, false, { left: 1, turn: 0, at: 0 }, '●○'], 'a soft tap up to a ball: a legal safety, one use spent');
+  w.turn++; eq([softCan(w), softHands(w, 0.1, s, tap, foul).foul, softLine(w).dim], [false, true, true], 'never on 2 of the player\'s turns in a row');
+  w.turn++; eq([softCan(w), softHands(w, 0.1, s, tap, foul).foul, w.left], [true, false, 0], 'the turn after that it acts again');
+  w.turn += 2; eq([softCan(w), softHands(w, 0.1, s, tap, foul).foul, softLine(w).text], [false, true, '○○'], 'twice a rack');
+  // 9-ball: the opponent's foul on the shot straight after leaves its count of fouls in a row as it was
+  const ai = { ...s, turn: 1, fouls: [0, 2] }, miss = { ...newRec(), first: -1 };
+  eq([judge(ai, miss).phase, judge(afterSoft(ai), miss).phase, judge(afterSoft(ai), miss).fouls[1], judge(afterSoft(ai), fine).fouls[1]], ['over', 'play', 2, 0], 'a third foul there does not lose the rack; a legal shot clears the count as usual');
+  ok('the Whisper\'s Soft hands');
+}
+{ // the Marble's Mog: 8 in every stat when ahead on balls potted this rack, 2 when behind, 5 when tied
+  eq([mog(2), mog(0), mog(-1)], [{ power: 8, spin: 8, aim: 8 }, { power: 5, spin: 5, aim: 5 }, { power: 2, spin: 2, aim: 2 }], 'ahead, tied, behind');
+  const open = { ...newGame(8), phase: 'play', solids: -1 }, sunk = [0, 0], pots = (...ids) => ({ ...newRec(), pots: ids.map(id => ({ id, pocket: 0 })) });
+  noteSunk(sunk, open, pots(3, 0), { ...open, foul: true }); noteSunk(sunk, { ...open, turn: 1 }, pots(9, 10), open);
+  eq([sunk, mogLead(open, sunk)], [[1, 2], -1], '8-ball before the groups are set: every ball counts for the player who potted it, the cue ball for none');
+  eq([mogLead({ ...open, solids: 0, balls: [1, 2, 8, 9, 10, 11] }, sunk), mogLead({ ...open, solids: 1, balls: [1, 2, 8, 9, 10, 11] }, sunk)], [1, -1], 'groups set: each group\'s balls off the table, whoever potted them');
+  const nine = { ...newGame(9), phase: 'play' }, n9 = [0, 0];
+  noteSunk(n9, nine, pots(1, 2), nine); noteSunk(n9, { ...nine, turn: 1 }, pots(3), { ...nine, foul: true });
+  eq([n9, mogLead(nine, n9), mogLine(1).text, mogLine(-2).text, mogLine(0)], [[2, 0], 2, 'Mogging +3', 'Mogged −3', null], '9-ball: a ball counts for the player who potted it with no foul');
+  ok('the Marble\'s Mog');
+}
+{ // the Maxxed's Statmaxxing: the picked stat is 10, the other two are 5
+  eq([maxStats(), maxStats('power'), maxStats('spin')], [{ power: 5, spin: 5, aim: 10 }, { power: 10, spin: 5, aim: 5 }, { power: 5, spin: 10, aim: 5 }], 'with no pick, Aim');
+  eq([nextPick(), nextPick('power'), nextPick('spin')], ['power', 'spin', 'aim'], 'the button steps through the three');
+  const p = { ...NEW, owned: ['house', 'maxxed'], maxxed: 'spin', mastery: { house: { xp: 300, power: 1, spin: 0, aim: 0, paid: 1 } } };
+  eq([cueStats(p, 'maxxed'), cueStats(p, 'house').power, cueStats(NEW, 'maxxed').aim], [{ power: 5, spin: 10, aim: 5 }, CUES.house.power + 1, 10], 'the card and the lessons show the last pick; another cue shows its tuning');
+  eq([readProfile(JSON.stringify(p)).maxxed, readProfile(JSON.stringify({ ...p, maxxed: 'luck' })).maxxed], ['spin', undefined], 'the pick is saved and read defensively');
+  ok('the Maxxed\'s Statmaxxing');
 }

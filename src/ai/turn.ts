@@ -7,7 +7,7 @@ import { canCall, cushionAt, jumped, legalSpot, massed, onEight, potKind, type H
 import { aiShot } from './aim.ts';
 import { styled, type StyleId } from './styles.ts';
 import { aiParams, chooseGroup, type Cand, EDGE, enumerate, makeProb, NINE, type Obj, type Pick, plan, rng, shotOdds, SIGMA_REF, SOLIDS, STRIPES } from './shot-ai.ts';
-import { hustler, type Pay, shotPay, type ShotType as PayType, type Vs } from '../progress/pay.ts';
+import { type Aura, hustler, type Pay, shotPay, type ShotType as PayType, type Vs } from '../progress/pay.ts';
 import type { FeatId } from '../progress/profile.ts';
 
 // The AI's turn. at = where it puts the cue ball in hand (null = where it lies); call = the pocket it calls (-1 none);
@@ -162,21 +162,36 @@ export function candsFor(B: Ball[], ids: number[], s: State): Cand[] {
 // harder pot against Hustler or harder with the tip half way or more out to its limit, below centre or to a side
 // (follow alone does not count).
 const TOUGH = 0.4; // a chance in the Tough band (pay.ts band)
-export function potPay(cands: Cand[], r: Rec, before: State, after: State, run: number, vs: Vs, lim = CUE.tipLimit): { pay: Pay; run: number; own: number; feats: FeatId[]; mine: number[] } {
+export function potPay(cands: Cand[], r: Rec, before: State, after: State, run: number, vs: Vs, lim = CUE.tipLimit, aura?: Aura): { pay: Pay; run: number; own: number; feats: FeatId[]; mine: number[]; held?: boolean } {
   const pay = { xp: 0, coins: 0 }, foul = after.foul, me = before.turn, brk = before.phase === 'break', feats: FeatId[] = [];
   const mine = (id: number) => before.game === 9 || after.solids < 0 || id === 8 || (id < 8) === (after.solids === me);
   const pots = r.pots.filter(p => p.id), counts = !foul && !brk && (after.turn === me || (after.phase === 'over' && after.winner === me));
+  // The Performative's For show, against Hustler or harder. Off when Bank shots mode makes every pot a bank; a bank that the mode asks for on the 8 pays its usual pay.
+  const show = vs.cue === 'performative' && hustler(vs) && before.bank !== 2;
+  // The Six Seven's Sixes and sevens, against Hustler or harder and not on the break: the 6 and the 7 each pay 6.7 times
+  // a plain pot, flat, and no other ball pays. held = this pay waits for the end of the rack (pay.ts noteShot), where
+  // a pair in one turn is topped up.
+  const six = vs.cue === 'sixseven' && hustler(vs) && !brk;
+  // The Aura's Aura farming, against Hustler or harder and not on the break (the caller leaves aura out on a push-out).
+  // aura is the run so far and is changed here. A ball of the shooter's potted with no foul on a shot that keeps the
+  // turn or wins the rack adds 1 to the run, and pays 25% more for each pot before it in the run, in place of the run
+  // bonus. Any other shot ends the run, and the next such pot is owed: it pays nothing and starts the new run.
+  const au = aura && hustler(vs) && !brk ? aura : null, zero = { xp: 0, coins: 0 };
   const odd = jumped(r) || massed(r), sh = r.shot, spun = !!sh && hustler(vs) && Math.hypot(sh.a, Math.min(0, sh.b)) >= lim / 2 - 1e-9;
   for (const p of pots) {
     const best = cands.reduce<Cand | null>((a, k) => (k.ball === p.id && holeOf(k) === p.pocket && (!a || k.tol > a.tol) ? k : a), null), k = potKind(r, p);
     const pRef = best ? makeProb(best.tol, SIGMA_REF) : odd || k.kicks >= 2 ? TOUGH : null;
     const type: PayType = k.kicks ? 'kick' : k.bank ? 'bank' : k.combo || best?.type === 'carom' || best?.type === 'billiard' ? 'combo' : 'direct';
-    const g = shotPay({ pRef, type, run, brk, hand: !!before.hand, foul, theirs: !mine(p.id), ...vs });
+    const ask = { pRef, type, run: au ? 0 : run, brk, hand: !!before.hand, foul, theirs: !mine(p.id), show: show && !(p.id === 8 && before.lit.length > 0), ...vs };
+    const g = six ? ((p.id === 6 || p.id === 7) && mine(p.id) && !foul ? { xp: 67, coins: 27 } : zero)
+      : au && counts && mine(p.id) ? (au.owed ? (au.owed = false, au.run = 1, zero) : shotPay({ ...ask, aura: ++au.run }))
+      : shotPay(ask);
     pay.xp += g.xp; pay.coins += g.coins;
     if (!counts || !mine(p.id)) continue;
     if (k.kicks) feats.push('kick'); if (k.bank) feats.push('bank'); if (k.combo) feats.push('combo');
     if (pRef !== null && pRef < 0.55) feats.push('sharp'); if (pRef !== null && pRef < 0.8 && spun) feats.push('spin');
   }
+  if (au && !(counts && pots.some(p => mine(p.id)))) { au.run = 0; au.owed = true; }
   const own = foul ? [] : pots.filter(p => p.id !== 8 && mine(p.id)).map(p => p.id);
-  return { pay, run: after.turn === me && !foul ? run + pots.length : 0, own: own.length, feats, mine: counts ? own : [] };
+  return { pay, run: after.turn === me && !foul ? run + pots.length : 0, own: own.length, feats, mine: counts ? own : [], ...(six && { held: true }) };
 }

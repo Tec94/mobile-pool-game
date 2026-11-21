@@ -4,7 +4,8 @@
 export type Game=8|9;
 export interface Ball{x:number;y:number;vx:number;vy:number;wx:number;wy:number;wz:number;on:boolean;z?:number;vz?:number}
 export interface Shot{ang:number;speed:number;a:number;b:number;elev?:number}
-export interface Cue{maxSpeed:number;breakSpeed:number;squirt:number;tipLimit:number;maxElev:number;minElev?:number;massRatio?:number}
+export interface Cue{maxSpeed:number;breakSpeed:number;squirt:number;tipLimit:number;maxElev:number;minElev?:number;massRatio?:number;curl?:number} // curl = how much more a raised cue curves the ball (the Coil), 1 when left out
+export const RAISED=4*Math.PI/180-1e-9; // a cue at 4 degrees or more is raised: below it the tip control snaps flat
 export interface Ev{t:'bb'|'rail'|'pocket'|'off'|'land';a:number;b?:number;x:number;y:number;cut?:number;thr?:number;air?:boolean;turn?:number} // turn = how far a cushion turned the ball's direction, radians (rail)
 type Vec3=[number,number,number];
 interface Contact{i:number;j:number;nx:number;ny:number;nz:number;tb:number;cut:number;jn:number;goal:number;f:Vec3|null}
@@ -110,7 +111,8 @@ export function strike(b:Ball,s:Shot,cue:Cue=CUE){
   // slower: v = v0 (1+m)/(1+m+2.5 off^2), the standard tip-ball impact result (32% slower at the miscue limit).
   const mr=cue.massRatio??0.316,v=s.speed*(1+mr)/(1+mr+2.5*(s.a*s.a+s.b*s.b));
   const ang=s.ang+s.a*cue.squirt,dx=Math.cos(ang),dy=Math.sin(ang),k=2.5*v/P.R;
-  b.vx=v*dx*ce;b.vy=v*dy*ce;b.wx=-k*s.b*dy+k*s.a*se*dx;b.wy=k*s.b*dx+k*s.a*se*dy;b.wz=k*s.a*ce;
+  const cu=el>=RAISED?cue.curl??1:1; // the spin about the line of travel, which curves the ball
+  b.vx=v*dx*ce;b.vy=v*dy*ce;b.wx=-k*s.b*dy+cu*k*s.a*se*dx;b.wy=k*s.b*dx+cu*k*s.a*se*dy;b.wz=k*s.a*ce;
   b.z=0;b.vz=0;
   // Past 45 degrees the ball is increasingly trapped between tip and slate, so the rebound fades: lift*g/(1+g^4)^(1/4)
   // with g = 16cos^8(elev), a smooth version of min(1,g). 30 degrees gives a long low hop, about 42 the highest, and
