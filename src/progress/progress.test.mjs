@@ -1,6 +1,7 @@
 // Run: npm test   (the progression model: levels, pay, cues, feats, gates and the saved profile)
 import assert from 'node:assert';
 import { CUE } from '../physics/engine.ts';
+import { notch, ratchet, STEPS } from './tricks.ts';
 import { CUE_IDS, CUES, soon, specLine, specs, stick } from './cues.ts';
 import { hustler, matchFeats, matchPay, newLedger, noteShot, rackOver, safetyPay, settle, shotPay } from './pay.ts';
 import { cueGain, masteryLevel, masteryNote, masteryOf, readMastery, statsOf, tuneDown, tuneUp, upCost } from './mastery.ts';
@@ -303,4 +304,10 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   p = matchEnd(p, {}, false); eq([featCount(p, 'unbeaten'), p.owned.includes('marble')], [5, true], 'five in a row give the Marble, and a later loss leaves it done');
   eq(readProfile(JSON.stringify({ ...NEW, open: true })).open, true, 'a match in play is read back, so a closed app is a loss');
   ok('feats are counted in matches');
+}
+{ // the tricks on the controls
+  eq([0, 0.04, 0.05, 0.099, 0.101, 0.2, 0.5, 0.92, 0.94, 1].map(ratchet), [0, 0.04, 0.08, 0.08, 0.12, 0.17, 0.45, 0.86, 1, 1], 'Ratchet: a pull lands on the nearest step; under 5% it still cancels');
+  eq([STEPS.length, STEPS.every((s, i) => !i || s > STEPS[i - 1])], [10, true], '10 rising steps');
+  eq([notch([], 0.33), notch([0.08, 0.33, 0.58], 1), notch([0.08, 0.33, 0.58], 0.33)], [[0.33], [0.33, 0.58, 1], [0.08, 0.58, 0.33]], 'notches: the last 3 pulls, each step once');
+  ok('tricks on the controls');
 }

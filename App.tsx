@@ -45,6 +45,7 @@ import { loadDaily, saveDaily } from './src/daily/save';
 import { loadStars, saveStars } from './src/scenarios/save';
 import { levelNote } from './src/progress/profile';
 import { type CueId, CUES, guideScale, sketch, stick } from './src/progress/cues';
+import { notch, ratchet } from './src/progress/tricks';
 import { loadSettings, saveSettings } from './src/settings/save';
 import { RIVAL, type Settings } from './src/settings/settings';
 import { BALLS, C, CLOTHS, CREAM, DARK, FONT } from './src/theme';
@@ -227,6 +228,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   const won = useRef(snap0 ? { ...snap0.ledger, shots: { ...snap0.ledger.shots } } : newLedger()), cands = useRef<Cand[]>([]), end = useRef<Settled | null>(null), prize = useRef<Pay | null>(null);
   // The opponent, for pay and feats (pay.ts Vs): an AI tier, or the rating of a Rival or a tournament seat. The Twig's Humble reads the cue.
   const foe = (): Vs => (rival || tour ? { boss: level.current, tour: tour?.stakes, cue: own } : { tier: ai + 1, cue: own });
+  const notches = useRef<number[]>([]); // the Ratchet's last 3 pulls of the rack, as notches on the rail
   const snooker = useRef(false); // the player came to the table with no straight line to a ball they may hit (Escape Artist)
   const opened = () => { if (vs && !tour && hustler(foe())) matchOpen(); }; // at a strike: the first one of a match marks it as in play (progress.ts matchOpen)
   const safe = useRef<Safeties>(snap0?.safe ?? { row: 0, rack: 0 }), seed = useRef(snap0?.seed ?? Math.floor(Math.random() * 2 ** 31)), [thinking, setThinking] = useState(false);
@@ -326,7 +328,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
       // The loser's own balls left (8-ball; 7 on an open table) say how close the match was.
       if (rival) { const lose = 1 - s.winner, left = s.solids < 0 ? 7 : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === lose)).length, [a, b] = rivalDone(game, s.winner === 0, left, set.mood); moved.current = `Rival ${shown(a)} to ${shown(b)}`; }
     } }
-    if (s.phase === 'break') { table.current = newTable(s); moving.current = false; safe.current = { row: 0, rack: 0 }; won.current.run = 0; }
+    if (s.phase === 'break') { table.current = newTable(s); moving.current = false; safe.current = { row: 0, rack: 0 }; won.current.run = 0; notches.current = []; }
     else { for (const id of s.spot) spotBall(t.B, t.ids.indexOf(id)); if (s.hand) handCue(t.B, s.hand); Object.assign(t, { rules: s, rec: null, push: false }); }
     snooker.current = vs && came && s.phase === 'play' && !s.hand && hooked(table.current.B, table.current.ids, s); // judged at the start of a turn, not after a pot of your own, and not with ball in hand
     paint(); redraw();
@@ -418,6 +420,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     Haptics.impactAsync(power > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
     if (vs) cands.current = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules); // shortcut: a full candidate search on the strike frame, cheap next to a guide
     const sh = shotOf(power); snap(sh); opened();
+    if (vs && own === 'ratchet') notches.current = notch(notches.current, power);
     t.rec = L ? newLessonRec() : newRec(sh); strike(t.B[0], sh, cue); moving.current = true; wake.current();
     tip.set(LEVEL); setSheet(false); setTools(false); shot.set({ power: 0, fine: false, locked: true });
   };
@@ -627,7 +630,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
         </View>
       )}
       {/* The shot controls sit inside the safe area where shotLayout puts them. */}
-      <PowerRail store={shot} box={lay.rail} onStrike={fire} wait={!bot() && canCall(rules) && rules.call < 0} />
+      <PowerRail store={shot} box={lay.rail} onStrike={fire} wait={!bot() && canCall(rules) && rules.call < 0} {...(vs && own === 'ratchet' && { snap: ratchet, marks: () => notches.current })} />
       <AimDial store={shot} box={lay.dial} />
       {!(L && stage === 'watch') && <View style={[styles.at, lay.spin]}><TipButton store={tip} land={view.land} onPress={() => { setSheet(!sheet); setTools(false); }} /></View>}
       {!L && !vs && <View style={[styles.at, lay.tools]}><Btn label="•••" name="Table tools" onPress={() => { setTools(!tools); setSheet(false); }} /></View>}

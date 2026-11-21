@@ -33,20 +33,22 @@ const dim = (locked: boolean) => ({ opacity: locked ? 0.35 : 1, transitionProper
 // shortcut: one finger at a time, so the aim cannot be turned during a pull; that needs gesture-handler.
 // shortcut: no Strike control "Tap" mode; the settings screen adds it.
 // wait = a pocket must be called first: the rail alone looks and acts locked, the aim stays live.
-export function PowerRail({ store, box, onStrike, wait = false }: { store: ShotStore; box: Box; onStrike: (power: number) => void; wait?: boolean }) {
+// For a cue's trick: snap = where a pull lands (the Ratchet's steps), with a tick at each change; marks = the pulls
+// to notch on the rail, read at every draw.
+export function PowerRail({ store, box, onStrike, wait = false, snap, marks }: { store: ShotStore; box: Box; onStrike: (power: number) => void; wait?: boolean; snap?: (pull: number) => number; marks?: () => number[] }) {
   const locked = useSyncExternalStore(store.sub, () => store.get().locked) || wait, [, render] = useReducer((n: number) => n + 1, 0);
   const pic = useSharedValue(EMPTY), pull = useRef<{ from: number; hist: number[][]; id: number; y: number } | null>(null);
-  const now = useRef({ box, onStrike, wait }); now.current = { box, onStrike, wait }; // the pan responder is created once, so it reads the latest
+  const now = useRef({ box, onStrike, wait, snap, marks }); now.current = { box, onStrike, wait, snap, marks }; // the pan responder is created once, so it reads the latest
   useEffect(() => {
     let was = '';
     const draw = () => {
-      const { power } = store.get(), label = railLabel(power, !!pull.current), key = power + label;
-      if (key !== was) { was = key; pic.set(picture(c => drawRail(Skia, c, box.width, box.height, power, label, FONT))); }
+      const { power } = store.get(), label = railLabel(power, !!pull.current), marks = now.current.marks?.() ?? [], key = power + label + marks;
+      if (key !== was) { was = key; pic.set(picture(c => drawRail(Skia, c, box.width, box.height, power, label, FONT, marks))); }
     };
     draw(); return store.sub(draw);
   }, [box.width, box.height]);
-  const setPower = (p: number) => {
-    const k = powerTick(store.get().power, p);
+  const setPower = (to: number) => {
+    const snap = now.current.snap, p = snap ? snap(to) : to, k = snap ? (p === store.get().power || p <= 0.05 ? 0 : p >= 1 ? 2 : 1) : powerTick(store.get().power, p);
     if (k === 2) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); else if (k) tick();
     store.set({ power: p });
   };
@@ -55,7 +57,7 @@ export function PowerRail({ store, box, onStrike, wait = false }: { store: ShotS
     onPanResponderGrant: e => { pull.current = { from: store.get().power, hist: [], id: e.nativeEvent.identifier, y: e.nativeEvent.pageY }; },
     onPanResponderMove: e => { // the pull is the travel of the finger that went down on the rail: a second finger elsewhere does not change the power
       const d = pull.current, f = d && e.nativeEvent.touches.find(t => t.identifier === d.id); if (!d || !f) return;
-      const p = pullPower(f.pageY - d.y, pullOf(now.current.box.height), d.from);
+      const to = pullPower(f.pageY - d.y, pullOf(now.current.box.height), d.from), p = now.current.snap ? now.current.snap(to) : to;
       d.hist.push([Date.now(), p]); if (d.hist.length > 60) d.hist.shift();
       setPower(p);
     },
