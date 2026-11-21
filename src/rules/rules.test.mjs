@@ -1,7 +1,7 @@
 // Run: npm test   (checks the rules against the WPA Rules of Play, 2026-10-21; rule numbers are that edition's)
 import assert from 'node:assert';
 import { P, rack, step, strike } from '../physics/engine.ts';
-import { canCall, choose, cushionAt, handCue, judge, legalFirst, legalSpot, lowest, moveCue, newGame, newRec, nose, onEight, record, setCall, spotBall } from './rules.ts';
+import { canCall, choose, cushionAt, handCue, judge, jumped, legalFirst, legalSpot, lowest, massed, moveCue, newGame, newRec, nose, onEight, potKind, record, setCall, spotBall } from './rules.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
@@ -137,7 +137,7 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
   eq([r.first, r.pots.some(p => p.id === 5)], [3, true], 'a combination pots the second ball');
   { const ox = P.L / 2 - 0.3, oy = 0.3, ang = Math.atan2(-(oy + P.W), 0.3); // off the near long rail into the far side pocket
     r = play([mk(ox - 0.2 * Math.cos(ang), oy - 0.2 * Math.sin(ang)), mk(ox, oy)], [0, 3], { ang, speed: 2, a: 0, b: 0 });
-    eq([r.pots.map(p => p.id), r.pots[0].pocket, r.cush], [[3], 5, [[3, 0]]], 'a bank off the near long rail into the far side pocket: the cushion it touched'); }
+    eq([r.pots.map(p => p.id), r.pots[0].pocket, r.cush.map(c => c.slice(0, 2))], [[3], 5, [[3, 0]]], 'a bank off the near long rail into the far side pocket: the cushion it touched'); }
   { // Bank shots end to end: the engine's bank above, judged with cushion 0 lit and with it dark
     const ox = P.L / 2 - 0.3, oy = 0.3, ang = Math.atan2(-(oy + P.W), 0.3), shoot = id => play([mk(ox - 0.2 * Math.cos(ang), oy - 0.2 * Math.sin(ang)), mk(ox, oy)], [0, id], { ang, speed: 2, a: 0, b: 0 });
     const s = { ...solids1(), bank: 2, callAll: true, call: 5 };
@@ -162,7 +162,7 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
     eq([cushionAt(P.L / 2, 0), cushionAt(0.01, 0)], [-1, -1], 'a pocket mouth is no cushion');
   }
   r = play([mk(0.8, 0.4), mk(0.06, 0.06)], [0, 3], { ang: -1.91, speed: 2.5, a: 0, b: 0 });
-  eq([r.first, r.cush[0]], [3, [0, 0]], 'a kick: the cushion the cue ball touched before the hit');
+  eq([r.first, r.cush[0].slice(0, 2)], [3, [0, 0]], 'a kick: the cushion the cue ball touched before the hit');
   r = play([mk(0.6, 0.6), mk(0.4, 0.4)], [0, 3], { ang: Math.atan2(-0.2, -0.2), speed: 3, a: 0, b: 0 }); assert(!r.cush.some(c => c[0] === 3), 'the jaws of a pocket are no cushion');
   r = play([mk(0.9, 0.6), mk(1.0, 0.6)], [0, 3], { ang: 0, speed: 0.5, a: 0, b: 0 }); eq([r.first, r.railAfter, r.pots.length], [3, false, 0], 'a soft hit reaches no rail');
   r = play([mk(0.3, 0.6), mk(0.45, 0.6)], [0, 3], { ang: 0, speed: 1, a: 0, b: 0 }); eq(r.crossed, false, 'a ball above the head string hit from above it');
@@ -203,5 +203,19 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
   a = judge(s, rec(2, [[8, 0]])); eq([a.phase, a.winner, a.foul, a.early], ['over', 0, false, true], 'the 8 before the group is cleared: lost early');
   a = judge(s, rec(2, [[8, 0], [0]])); eq([a.phase, a.foul, a.early], ['over', true, false], 'the 8 on a scratch: a foul, not early, though the note says the rack is lost');
   ok('foul and early flags');
+}
+{ // what happened on a shot, from the engine: the height of a jump, the turn of a massé, the turn at a cushion
+  const run = (B, sh) => { const r = newRec(sh), ev = [], ids = B.map((_, i) => i); strike(B[0], sh); for (let i = 0; i < 40000; i++) { ev.length = 0; const mv = step(B, ev); record(r, ev, B, ids); if (!mv) break; } return r; };
+  const mid = P.W / 2, deg = Math.PI / 180;
+  let r = run([mk(0.5, mid), mk(1.2, mid)], { ang: 0, speed: 3, a: 0, b: 0 });
+  eq([jumped(r), massed(r), r.first], [false, false, 1], 'a level shot is no jump and no massé'); assert(r.bend < 0.01, 'and goes straight');
+  r = run([mk(0.5, mid), mk(1.4, mid)], { ang: 0, speed: 4.2, a: 0, b: 0, elev: 40 * deg }); assert(jumped(r), `a jump shot leaves the cloth by 3 cm or more (${r.high})`);
+  r = run([mk(0.5, mid), mk(1.404, mid - 0.152)], { ang: 0, speed: 2.5, a: 0.5, b: 0, elev: 30 * deg }); // the ball sits on the curve, off the line of the strike
+  eq([r.first, massed(r), jumped(r)], [1, true, false], `a massé curves into the ball (${r.bend / deg} degrees)`);
+  r = run([mk(0.5, mid), mk(0.5 + 0.8, mid)], { ang: 0, speed: 3, a: 0.3, b: 0 }); eq(massed(r), false, 'side spin on a level cue is no massé');
+  r = run([mk(0.5, 0.3), mk(1.2, 0.3)], { ang: -40 * deg, speed: 3, a: 0, b: 0 }); // off the y = 0 rail first
+  assert(r.cush.length && !r.cush[0][0] && r.cush[0][2] > 60 * deg && r.cush[0][2] < 100 * deg, `a cushion at 40 degrees turns the cue ball about 80 (${r.cush[0]?.[2] / deg})`);
+  eq(potKind({ ...newRec(), first: 1, cush: [[0, 0, 0.4], [0, 2, 0.3], [1, 1, 0.36], [1, 0, 0.2]] }, { id: 1, pocket: 5 }), { kicks: 1, bank: true, combo: false }, 'a touch counts from 20 degrees (0.35 rad)');
+  ok('a jump, a massé and the turn at a cushion are read from the engine');
 }
 console.log(`\n${n} checks passed`);

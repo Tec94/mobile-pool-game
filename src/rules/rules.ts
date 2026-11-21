@@ -9,7 +9,7 @@
 // already down (4.4, last sentence); a call names a pocket only, so any legal ball in the called pocket counts (1.7
 // asks for ball and pocket), and no shot is obvious enough to need no call; no spotting of the nearest ball when every legal ball is above the head string (1.6).
 // Add them when a real game shows the need.
-import { type Ball, type Ev, type Game, HOLES, P, POCKET } from '../physics/engine.ts';
+import { type Ball, type Ev, type Game, HOLES, P, POCKET, type Shot } from '../physics/engine.ts';
 
 export type Hand = false | 'any' | 'kitchen'; // cue ball in hand: anywhere, or above the head string (the kitchen)
 export type Player = 0 | 1;
@@ -37,10 +37,12 @@ export interface State {
 }
 // What happened on one shot. first = number of the first ball the cue ball hit (-1 none); pots in the order they fell;
 // rails = object balls driven to a rail; railAfter = some ball reached a rail after the first hit; crossed = the cue
-// ball crossed the head string, or hit a ball on or below it (3.11); cush = [ball number, cushion] of each touch of a
-// cushion nose by an object ball, and by the cue ball before its first hit (a kick).
-export interface Rec { first: number; pots: { id: number; pocket: number }[]; off: number[]; rails: number[]; railAfter: boolean; crossed: boolean; cush: number[][] }
-export const newRec = (): Rec => ({ first: -1, pots: [], off: [], rails: [], railAfter: false, crossed: false, cush: [] });
+// ball crossed the head string, or hit a ball on or below it (3.11); cush = [ball number, cushion, how far it turned
+// the ball in radians] of each touch of a cushion nose by an object ball, and by the cue ball before its first hit (a kick).
+// For what a pot is paid as (potKind, jumped, massed): shot = the stroke; high = the cue ball's greatest height before
+// its first hit, m; bend = how far its direction has turned from the strike (from) to its first hit, radians.
+export interface Rec { first: number; pots: { id: number; pocket: number }[]; off: number[]; rails: number[]; railAfter: boolean; crossed: boolean; cush: number[][]; shot?: Shot; high: number; bend: number; from?: number }
+export const newRec = (shot?: Shot): Rec => ({ first: -1, pots: [], off: [], rails: [], railAfter: false, crossed: false, cush: [], shot, high: 0, bend: 0 });
 
 export const newGame = (game: Game, breaker: Player = 0, callAll = true, bank: 0 | 1 | 2 = 0, seed = 0): State => ({
   game, turn: breaker, breaker, phase: 'break', balls: Array.from({ length: game === 8 ? 15 : 9 }, (_, i) => i + 1), solids: -1,
@@ -76,12 +78,29 @@ export function record(r: Rec, ev: Ev[], B: Ball[], ids: number[]) {
       if (!id && r.first < 0) { r.first = other; r.crossed ||= e.x > head || B[e.b!].x >= head; }
     } else if (e.t === 'rail') {
       if (!id && r.first < 0 && e.x > head) r.crossed = true;
-      const k = cushionAt(e.x, e.y); if (k >= 0 && (id || r.first < 0)) r.cush.push([id, k]);
+      const k = cushionAt(e.x, e.y); if (k >= 0 && (id || r.first < 0)) r.cush.push([id, k, e.turn ?? Math.PI]);
       rail(id);
     } else if (e.t === 'pocket') { r.pots.push({ id, pocket: nearest(e.x, e.y) }); rail(id); } // 2.7: a potted ball counts as driven to a rail
     else if (e.t === 'off') { r.off.push(id); rail(id); }
   }
+  const c = B[0]; // after the events: on the step of the first hit the cue ball already goes another way
+  if (r.first < 0 && c.on && (c.vx || c.vy)) { const d = Math.atan2(c.vy, c.vx); r.from ??= d; r.bend = Math.abs(Math.atan2(Math.sin(d - r.from), Math.cos(d - r.from))); r.high = Math.max(r.high, c.z || 0); }
 }
+
+// What a pot was, by what happened on the table and not by what was aimed. kicks = the cushions the cue ball came off
+// before its first hit; bank = the potted ball came off a cushion that does not end at its pocket; combo = the potted
+// ball was not the first ball hit. A touch counts when it turns the ball by 20 degrees or more, so a ball that
+// brushes the rail beside its pocket is a direct pot.
+const TURN = 20 * Math.PI / 180;
+export function potKind(r: Rec, p: { id: number; pocket: number }) {
+  const off = (id: number) => r.cush.filter(c => c[0] === id && c[2] >= TURN);
+  return { kicks: off(0).length, bank: off(p.id).some(c => !ENDS[c[1]].includes(p.pocket)), combo: p.id !== r.first };
+}
+// A jump: the cue ball was 3 cm or more off the cloth before its first hit. A massé: the cue raised 4 degrees or more
+// and the cue ball's line 5 degrees or more off its line at the strike when it hit, with no cushion between. The
+// height and the turn are there so that a cue tilted a little does not make a lucky pot a skilled one.
+export const jumped = (r: Rec) => r.high >= 0.03;
+export const massed = (r: Rec) => (r.shot?.elev ?? 0) >= 4 * Math.PI / 180 - 1e-9 && r.bend >= 5 * Math.PI / 180 && !r.cush.some(c => !c[0]);
 
 // The shooter's own balls still on the table (8-ball, groups decided).
 const own = (s: State, p: Player) => (s.solids < 0 ? [] : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === p)));
