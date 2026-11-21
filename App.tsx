@@ -69,9 +69,10 @@ const kit = makeKit(Skia);
 const EMPTY = (() => { const rec = Skia.PictureRecorder(); rec.beginRecording(); return rec.finishRecordingAsPicture(); })();
 
 // A racked table for the start of a game. rec = the record of the shot in play; push = a push out was declared for it.
+// Every rack of a match has its own seed (a re-rack after an illegal break too), so no break is the same twice.
 const newTable = (rules: State) => {
   const [x0, y0] = breakSpot(), ids = [0], B: Ball[] = [{ x: x0 - 1e-3, y: y0, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true }]; // above the head string, not on it
-  for (const [id, x, y] of rack(rules.game)) { ids.push(id); B.push({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true }); }
+  for (const [id, x, y] of rack(rules.game, undefined, undefined, Math.floor(Math.random() * 2 ** 31))) { ids.push(id); B.push({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true }); }
   return { B, ids, look: newLook(B), rules, rec: null as Rec | null, push: false };
 };
 // A tournament match's saved table, as Game plays it (snap.ts).
