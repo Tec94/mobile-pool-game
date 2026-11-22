@@ -57,13 +57,14 @@ function sphere(ctx, id, m, x, y, rad, a, dpr) {
 function makeTable(top, felt, most = 0, bleed = 0) { // bleed = metres the top canvas runs past the table on each side, so a cue can leave it // least = the smallest a ball is drawn, in px across: on a phone-sized table the balls are drawn larger than life so the eye can follow them
   const ctx = top.getContext('2d');
   let s = 1, dpr = 1, least = most, o = 0;
+  const fade = o => { const h = felt.closest('section')?.querySelector('h2'), gap = h ? Math.max(12, felt.getBoundingClientRect().top - h.getBoundingClientRect().bottom) : 22, m = `linear-gradient(transparent ${o - gap + 2}px, #000 ${o - gap * 0.3}px)`; return { maskImage: m, webkitMaskImage: m }; };
   const X = x => o + (RAIL + x) * s, Y = y => o + (RAIL + P.W - y) * s;
   const disc = (x, y, r) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); };
 
   function size() {
     const w = felt.clientWidth; if (!w) return;
     dpr = Math.min(devicePixelRatio || 1, 2); s = w / TW; least = Math.min(most, w * 0.058); // on the narrowest phone the larger balls would touch
-    o = Math.round(bleed * s); if (bleed) Object.assign(top.style, { inset: 'auto', left: `${-o}px`, top: `${-o}px`, width: `calc(100% + ${2 * o}px)`, height: `calc(100% + ${2 * o}px)`, maskImage: `linear-gradient(transparent ${o - 22}px, #000 ${o}px)`, webkitMaskImage: `linear-gradient(transparent ${o - 22}px, #000 ${o}px)` }); // the cue fades out just past the top rail, under the heading
+    o = Math.round(bleed * s); if (bleed) Object.assign(top.style, { inset: 'auto', left: `${-o}px`, top: `${-o}px`, width: `calc(100% + ${2 * o}px)`, height: `calc(100% + ${2 * o}px)`, ...fade(o) }); // the cue fades out in the gap under the heading
     felt.width = Math.round(w * dpr); felt.height = Math.round(w * TH / TW * dpr); top.width = Math.round((w + 2 * o) * dpr); top.height = Math.round((w * TH / TW + 2 * o) * dpr);
     const g = felt.getContext('2d'), k = s * dpr, { L, W } = P, { deep } = CUT, cloth = CLOTHS[0];
     g.setTransform(k, 0, 0, -k, RAIL * k, (RAIL + W) * k); // table metres, y up
@@ -392,7 +393,8 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   function aim() { // the cue comes to the next ball; at NOW it stays there
     if (k > 8) { v.cue = null; state = 'hold'; again.hidden = calm; return choose(); } // all nine are down
     const shot = shotFor(v.B, k), c = v.B[0];
-    v.cue = { x: c.x, y: c.y, ang: shot.ang, elev: 0, back: 0.03, a: 0 }; state = k < NOW ? 'aim' : 'hold'; t = 0; choose();
+    const jack = c.y - Math.sin(shot.ang) * 0.8 > P.W + 0.15; // the butt would leave the table at the top, under the heading: the cue is raised over the rail, as a player does
+    v.cue = { x: c.x, y: c.y, ang: shot.ang, elev: jack ? 0.8 : 0, back: 0.03, a: 0 }; state = k < NOW ? 'aim' : 'hold'; t = 0; choose();
     if (k < NOW) swing = stroke(v, table, shot, PLAN[k][1], () => { strike(v.B[0], shot); state = 'run'; pace = 1; });
     else again.hidden = calm; // the film is over: it can be played again
   }
