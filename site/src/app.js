@@ -63,7 +63,7 @@ function makeTable(top, felt, most = 0, bleed = 0) { // bleed = metres the top c
   function size() {
     const w = felt.clientWidth; if (!w) return;
     dpr = Math.min(devicePixelRatio || 1, 2); s = w / TW; least = Math.min(most, w * 0.058); // on the narrowest phone the larger balls would touch
-    o = Math.round(bleed * s); if (bleed) Object.assign(top.style, { inset: 'auto', left: `${-o}px`, top: `${-o}px`, width: `calc(100% + ${2 * o}px)`, height: `calc(100% + ${2 * o}px)` });
+    o = Math.round(bleed * s); if (bleed) Object.assign(top.style, { inset: 'auto', left: `${-o}px`, top: `${-o}px`, width: `calc(100% + ${2 * o}px)`, height: `calc(100% + ${2 * o}px)`, maskImage: `linear-gradient(transparent ${o - 22}px, #000 ${o}px)`, webkitMaskImage: `linear-gradient(transparent ${o - 22}px, #000 ${o}px)` }); // the cue fades out just past the top rail, under the heading
     felt.width = Math.round(w * dpr); felt.height = Math.round(w * TH / TW * dpr); top.width = Math.round((w + 2 * o) * dpr); top.height = Math.round((w * TH / TW + 2 * o) * dpr);
     const g = felt.getContext('2d'), k = s * dpr, { L, W } = P, { deep } = CUT, cloth = CLOTHS[0];
     g.setTransform(k, 0, 0, -k, RAIL * k, (RAIL + W) * k); // table metres, y up
