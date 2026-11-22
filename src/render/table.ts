@@ -74,7 +74,7 @@ export function drawTable(api: typeof Skia, canvas: SkCanvas, v: View, cloth = C
 // Optic's mark = [x, y] where the cue ball's roll ends, ring =
 // [x, y, radius] how far the first ball hit would run, and note = that distance as text by the ball (with font) when the ring is too wide to draw.
 export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: number[][], ghost?: number[] | null, lands: number[][] = [], lost = false, ob: number[][] = [], bad = false, stub: number[][] = [], x: { fill?: boolean; mark?: number[] | null; ring?: number[] | null; note?: string; font?: SkFont | null; gold?: boolean } = {}) {
-  const r = P.R * v.s, p = api.Paint(); p.setAntiAlias(true); p.setColor(api.Color(x.gold ? C.gold : C.chalk)); // gold = the Seer's eye says this shot pots p.setStyle(1); p.setStrokeCap(1); p.setStrokeJoin(1); // stroke, round, round
+  const r = P.R * v.s, p = api.Paint(); p.setAntiAlias(true); p.setColor(api.Color(x.gold ? C.gold : C.chalk)); p.setStyle(1); p.setStrokeCap(1); p.setStrokeJoin(1); // gold = the Seer's eye says this shot pots; stroke, round, round
   p.setAlphaf(0.92); p.setStrokeWidth(0.19 * r);
   let run: number[][] = [];
   const end = () => { if (run.length > 1) canvas.drawPath(api.Path.Polygon(run.map(([x, y]) => toScreen(v, x, y)), false), p); run = []; };
