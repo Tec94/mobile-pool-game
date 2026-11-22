@@ -364,7 +364,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
 // then the cue comes to the ball of the step in hand (ringed in gold from the start) and waits. A row of the list
 // rings its ball on the table, or the pocket it went down. ----
 {
-  const table = makeTable($('road'), $('road-felt'), 15), v = { B: [], ids: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], look: null, cue: null };
+  const table = makeTable($('road'), $('road-felt'), 22), v = { B: [], ids: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], look: null, cue: null };
   const list = $('steps'), again = $('again'), here = Math.min(NOW, 8);
   let k = 0, state = 'wait', t = 0, swing, pace = 1, acc = 0, sc, sel = here;
   const rows = STEPS.map((name, i) => {
@@ -373,7 +373,6 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     if (i === NOW) b.setAttribute('aria-current', 'step');
     b.innerHTML = `<i class="ball b${i + 1}"><i>${i + 1}</i></i><b>${name}</b><span>${when(i)}</span>`;
     b.onclick = () => { choose(i); $('say').textContent = `The ${i + 1} is ${down(i) ? 'down' : 'on the table'}.`; }; // for a screen reader: the page shows it as a ring on the table
-    b.onfocus = () => { for (const r of rows) r.tabIndex = r === b ? 0 : -1; }; // one stop for the Tab key: the arrows move in the list
     list.appendChild(document.createElement('li')).append(b); return b;
   });
   const down = i => !v.B[i + 1].on;
@@ -383,7 +382,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     v.mark = down(i) || i === NOW ? null : i + 1; v.ring = down(i) ? PLAN[i][0] : null;
     if (sc) sc.dirty = true;
   }
-  list.addEventListener('keydown', e => { const d = e.altKey || e.ctrlKey || e.metaKey ? 0 : { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key], r = rows[rows.indexOf(document.activeElement) + d]; if (d && r) { e.preventDefault(); r.focus(); r.click(); } });
+  list.addEventListener('keydown', e => { const d = e.altKey || e.ctrlKey || e.metaKey ? 0 : { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key], r = rows[rows.indexOf(document.activeElement) + d]; if (d && r) { e.preventDefault(); r.focus(); choose(rows.indexOf(r)); } }); // no line for the screen reader here: the focus reads the row
   // A scratch cannot happen (test/roadmap.test.mjs runs every shot). If it did, the cue ball goes back where it began.
   const mend = () => { if (!v.B[0].on) Object.assign(v.B[0], ball(...SPOTS[0])); };
   function aim() { // the cue comes to the next ball; at NOW it stays there
@@ -400,7 +399,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     if (film) state = 'wait'; else if (v.cue) { v.cue.a = 1; v.cue.back = 0.04; t = 1e6; }
   }
   set(!calm);
-  again.onclick = () => { sel = here; if (document.activeElement === again) rows[sel].focus({ preventScroll: true }); set(true); state = 'aim'; }; // the key hides: the focus must not fall off the page
+  again.onclick = () => { sel = here; $('say').textContent = ''; if (document.activeElement === again) rows[sel].focus({ preventScroll: true }); set(true); state = 'aim'; }; // the key hides: the focus must not fall off the page
   table.canvas.onclick = () => { if (!again.hidden) again.click(); }; // a tap on the table plays it again too
   // The film starts when the table and the row of the step in hand are in view together, so every ball lands in a row
   // the visitor can see; on a screen too short for both, when the whole table is in view.
@@ -420,7 +419,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
       pace += ((v.B[k + 1].on ? 1.15 : 2.8) - pace) * Math.min(1, ms / 200);
       acc += ms * pace; const n = Math.floor(acc); acc -= n;
       const was = v.B[k + 1].on, moving = advance(v.B, v.look, n, true);
-      if (was && !v.B[k + 1].on) choose();
+      if (was && !v.B[k + 1].on) { choose(); if (sel === k && $('say').textContent) $('say').textContent = `The ${k + 1} is down.`; }
       if (!moving) { if (v.B.some((b, i) => b.on !== (!i || i > k + 1))) set(false); else { k++; state = 'rest'; t = 0; } } // a shot that went wrong (it cannot) ends the film
     } else if (state === 'rest') { advance(v.B, v.look, ms, false); if (t > 200) aim(); }
     else if (v.cue) { advance(v.B, v.look, ms, false); v.cue.a = Math.min(1, t / 300); v.cue.back = 0.04 + 0.022 * Math.sin(t / 600) * Math.max(0, 1 - t / 4000); } // hold: the cue feathers at the ball, then is still
