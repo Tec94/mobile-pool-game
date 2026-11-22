@@ -7,9 +7,14 @@ export const STEPS = ['Real physics', '8-ball and 9-ball', 'An AI that banks', '
 export const NOW = 5; // index into STEPS: 5 = the 6 ball
 export const SINCE = 'Sent 20 Nov'; // the tag of the step in hand
 export const FILM = 2; // how many of the done steps are potted before the visitor's eyes; the ones before are down already
-// The film starts when the row of the step in hand and most of the table are in view together (the row may be a tenth
-// under the fold), or, on a screen too short for both, when the whole table is in view. In px, from the top of the screen.
-export const inView = (top, bottom, row, rowH, vh) => (row < vh + rowH * 0.1 + 1 && top > -0.4 * (bottom - top)) || (top > -4 && (row - top > vh && bottom < vh + 4));
+// The film starts when the row of the step in hand and the whole table are in view together (the row may be a tenth
+// under the fold); on a screen too short for both, when the whole table is in view, or the row and most of the table. In px, from the top of the screen.
+export const inView = (top, bottom, row, rowH, vh) => {
+  const rowIn = row < vh + rowH * 0.1 + 1, fits = row - top <= vh; // fits: the table and the row can be on the screen together
+  return top > -4 ? rowIn || (!fits && bottom < vh + 4) : !fits && rowIn && top > -0.4 * (bottom - top); // only a screen too short for both may start it with the table part off the top
+};
+// A visitor who leaves the film before its first ball drops gets the film again when they come back; later, the end.
+export const replays = (k, firstDown) => k === NOW - FILM && !firstDown;
 export const when = i => (i < NOW ? 'Done' : i === NOW ? SINCE : i === NOW + 1 ? 'Next' : 'Later');
 
 // The layout and the run: built shot by shot through the engine, so that every shot pots its ball with the aim up to

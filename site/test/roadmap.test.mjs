@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { HOLES, simulate } from '../../src/physics/engine.ts';
 import { ball } from '../src/presets.mjs';
 import { readFileSync } from 'node:fs';
-import { BALLS, FILM, inView, NOW, PLAN, shotFor, STEPS, when } from '../src/roadmap.mjs';
+import { BALLS, FILM, inView, NOW, PLAN, replays, shotFor, STEPS, when } from '../src/roadmap.mjs';
 
 test('the roadmap has a step and a shot for each of the nine balls', () => { assert.equal(STEPS.length, 9); assert.equal(PLAN.length, 9); assert.equal(BALLS.length, 10); assert.ok(NOW >= 0 && NOW <= 9); });
 test('the run-out: every shot hits its own ball first and pots only it, in under 5 seconds', () => {
@@ -34,3 +34,4 @@ test('the film starts when the table and the row in hand are in view, or the who
   assert.ok(inView(10, 380, 900, 46, 390), 'a short screen: the whole table');
   assert.ok(!inView(10, 420, 900, 46, 390), 'a short screen: the table cut');
 });
+test('leaving the film: again before the first ball drops, the end after', () => { assert.ok(replays(NOW - FILM, false)); assert.ok(!replays(NOW - FILM, true)); assert.ok(!replays(NOW - FILM + 1, false)); });
