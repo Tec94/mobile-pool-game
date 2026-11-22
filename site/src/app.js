@@ -371,7 +371,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     b.type = 'button'; b.className = i < NOW ? 'done' : i === NOW ? 'now' : 'later'; b.tabIndex = i === here ? 0 : -1;
     if (i === NOW) b.setAttribute('aria-current', 'step');
     b.innerHTML = `<i class="ball b${i + 1}"><i>${i + 1}</i></i><b>${name}</b><span>${when(i)}</span>`;
-    b.onclick = () => choose(i);
+    b.onclick = () => { choose(i); $('say').textContent = `The ${i + 1} is ${down(i) ? 'down' : 'on the table'}.`; }; // for a screen reader: the page shows it as a ring on the table
     b.onfocus = () => { for (const r of rows) r.tabIndex = r === b ? 0 : -1; }; // one stop for the Tab key: the arrows move in the list
     list.appendChild(document.createElement('li')).append(b); return b;
   });
