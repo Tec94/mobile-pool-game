@@ -134,6 +134,8 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 @media (max-width: 760px) { .rack { grid-template-columns: repeat(13, 1fr); margin-top: -12px; } }
 
 /* ---------- The roadmap: a nine-ball table, and under it the nine steps in one list, each with its ball ---------- */
+.road { overflow-x: clip; } /* the cue may leave the table */
+#road { pointer-events: none; }
 .road h2 { text-align: center; margin-bottom: .14em; font-size: min(clamp(52px, 14vw, 200px), 18svh); }
 /* the table and the nine rows fit one screen */
 .stand { width: min(1320px, 100vw - 2 * var(--gut), max(520px, (100svh - 450px) * 1.8)); margin-inline: auto; position: relative; container-type: inline-size; }

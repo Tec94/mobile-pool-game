@@ -54,16 +54,17 @@ function sphere(ctx, id, m, x, y, rad, a, dpr) {
 
 // A table on two canvases: `felt` holds the empty table, `top` the balls, the guide and the cue. They are two so that
 // a page can put type between them, printed on the cloth with the balls rolling over it.
-function makeTable(top, felt, most = 0) { // least = the smallest a ball is drawn, in px across: on a phone-sized table the balls are drawn larger than life so the eye can follow them
+function makeTable(top, felt, most = 0, bleed = 0) { // bleed = metres the top canvas runs past the table on each side, so a cue can leave it // least = the smallest a ball is drawn, in px across: on a phone-sized table the balls are drawn larger than life so the eye can follow them
   const ctx = top.getContext('2d');
-  let s = 1, dpr = 1, least = most;
-  const X = x => (RAIL + x) * s, Y = y => (RAIL + P.W - y) * s;
+  let s = 1, dpr = 1, least = most, o = 0;
+  const X = x => o + (RAIL + x) * s, Y = y => o + (RAIL + P.W - y) * s;
   const disc = (x, y, r) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); };
 
   function size() {
-    const w = top.clientWidth; if (!w) return;
+    const w = felt.clientWidth; if (!w) return;
     dpr = Math.min(devicePixelRatio || 1, 2); s = w / TW; least = Math.min(most, w * 0.058); // on the narrowest phone the larger balls would touch
-    felt.width = top.width = Math.round(w * dpr); felt.height = top.height = Math.round(w * TH / TW * dpr);
+    o = Math.round(bleed * s); if (bleed) Object.assign(top.style, { inset: 'auto', left: `${-o}px`, top: `${-o}px`, width: `calc(100% + ${2 * o}px)`, height: `calc(100% + ${2 * o}px)` });
+    felt.width = Math.round(w * dpr); felt.height = Math.round(w * TH / TW * dpr); top.width = Math.round((w + 2 * o) * dpr); top.height = Math.round((w * TH / TW + 2 * o) * dpr);
     const g = felt.getContext('2d'), k = s * dpr, { L, W } = P, { deep } = CUT, cloth = CLOTHS[0];
     g.setTransform(k, 0, 0, -k, RAIL * k, (RAIL + W) * k); // table metres, y up
     const frame = () => { g.beginPath(); g.roundRect(-RAIL, -RAIL, TW, TH, 0.12); };
@@ -161,7 +162,7 @@ function makeTable(top, felt, most = 0) { // least = the smallest a ball is draw
     }
     if (v.cue && v.cue.a > 0) drawCue(v.cue);
   }
-  const toTable = e => { const q = top.getBoundingClientRect(), k = q.width / top.clientWidth || 1; return [(e.clientX - q.left) / k / s - RAIL, P.W - ((e.clientY - q.top) / k / s - RAIL)]; };
+  const toTable = e => { const q = top.getBoundingClientRect(), k = q.width / top.clientWidth || 1; return [((e.clientX - q.left) / k - o) / s - RAIL, P.W - (((e.clientY - q.top) / k - o) / s - RAIL)]; };
   size();
   return { size, draw, toTable, canvas: top, felt };
 }
@@ -185,7 +186,7 @@ function stroke(v, table, shot, power, hit) {
       if (!struck) {
         struck = true; hit(); v.puff = { x: c.x, y: c.y, age: 0 };
         // The table takes the hit: a short shove along the shot that springs back.
-        if (!calm) { const k = (4 + 6 * power) * Math.min(1.2, table.canvas.clientWidth / 400); for (const el of [table.canvas, table.felt]) el.animate([{ translate: `${Math.cos(shot.ang) * k}px ${-Math.sin(shot.ang) * k}px` }, { translate: '0 0' }], { duration: 260, easing: 'cubic-bezier(.2,1.8,.4,1)' }); }
+        if (!calm) { const k = (4 + 6 * power) * Math.min(1.2, table.felt.clientWidth / 400); for (const el of [table.canvas, table.felt]) el.animate([{ translate: `${Math.cos(shot.ang) * k}px ${-Math.sin(shot.ang) * k}px` }, { translate: '0 0' }], { duration: 260, easing: 'cubic-bezier(.2,1.8,.4,1)' }); }
       }
       const q = t - T1 - HOLD - T2; v.puff.age = q;
       c.back = -through * (1 - (1 - Math.min(1, q / 140)) ** 3) + spring * Math.sin(Math.min(1, q / 180) * Math.PI);
@@ -201,7 +202,7 @@ const scenes = [];
 function scene(table, tick) {
   const sc = { table, tick, on: false, dirty: true };
   new IntersectionObserver(([e]) => { sc.on = e.isIntersecting; }, { rootMargin: '100px' }).observe(table.canvas);
-  new ResizeObserver(() => { table.size(); sc.dirty = true; }).observe(table.canvas);
+  new ResizeObserver(() => { table.size(); sc.dirty = true; }).observe(table.felt);
   scenes.push(sc); return sc;
 }
 let last = performance.now();
@@ -366,8 +367,8 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
 // then the cue comes to the ball of the step in hand (ringed in gold from the start) and waits. A row of the list
 // rings its ball on the table, or the pocket it went down. ----
 {
-  const table = makeTable($('road'), $('road-felt'), 22), v = { B: [], ids: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], look: null, cue: null };
-  const list = $('steps'), again = $('again'), here = Math.min(NOW, 8);
+  const table = makeTable($('road'), $('road-felt'), 22, 0.75), v = { B: [], ids: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], look: null, cue: null };
+  const list = $('steps'), again = $('again'), say = $('road-say'), here = Math.min(NOW, 8);
   let k = 0, state = 'wait', t = 0, swing, pace = 1, acc = 0, sc, sel = here;
   const rows = STEPS.map((name, i) => {
     const b = document.createElement('button');
@@ -401,8 +402,10 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     if (film) state = 'wait'; else if (v.cue) { v.cue.a = 1; v.cue.back = 0.04; t = 1e6; }
   }
   set(!calm);
-  again.onclick = () => { sel = here; $('say').textContent = ''; if (document.activeElement === again) rows[sel].focus({ preventScroll: true }); set(true); state = 'aim'; }; // the key hides: the focus must not fall off the page
-  table.canvas.onclick = () => { if (!again.hidden) again.click(); }; // a tap on the table plays it again too
+  // the table into view: the whole stand when it fits the screen, else the table
+  const show = () => (list.parentElement.offsetHeight > innerHeight ? table.felt : list.parentElement).scrollIntoView({ block: 'nearest' });
+  again.onclick = () => { show(); sel = here; say.textContent = ''; if (document.activeElement === again) rows[sel].focus({ preventScroll: true }); set(true); state = 'aim'; }; // the key hides: the focus must not fall off the page
+  table.felt.onclick = () => { if (!again.hidden) again.click(); }; // a tap on the table plays it again too
   // The film starts when the table and the row of the step in hand are in view together, so every ball lands in a row
   // the visitor can see; on a screen too short for both, when the whole table is in view.
   const start = () => { if (state === 'wait') state = 'aim'; }, first = rows[here];
