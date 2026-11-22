@@ -130,7 +130,8 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 .rack canvas { width: 145.5%; margin-left: -22.75%; aspect-ratio: 64 / 420; display: block; pointer-events: none; transition: transform .18s var(--out); } /* wider than its place on the shelf: some cues have wide ends */
 .rack button[aria-pressed=true] { opacity: 1; border-bottom-color: var(--gold); }
 .rack button[aria-pressed=true] canvas { transform: translateY(-14px); }
-@media (max-width: 760px) { .rack { grid-template-columns: repeat(13, 1fr); margin-top: -30px; } }
+@media (max-width: 760px) { .rack { grid-template-columns: repeat(13, 1fr); margin-top: -12px; }
+  .pick > div { flex-basis: 100%; } .bars { justify-content: start; } }
 
 /* ---------- The roadmap: a nine-ball table, and under it the nine steps in one list, each with its ball ---------- */
 .road h2 { text-align: right; margin-bottom: .14em; }

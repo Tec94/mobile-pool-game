@@ -320,11 +320,11 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   const rackEl = $('rack'), name = $('cue-name'), trick = $('cue-trick'), bars = $('cue-bars'), ids = Object.keys(CUES);
   const W = 64, H = 420, K = 2.6, D = 2, room = c => Math.max(0.012, (c.tail || 0) * K + 0.006), art = id => ALL.find(c => c.name === CUES[id].name);
   const S = (H - 8) / (LENGTH + Math.max(...ids.map(id => room(art(id))))); // one scale for all: a cue with something on its end stands taller
-  let at = -1;
+  let at = -1, keyAt = 0, from = null;
   const pick = i => {
     if (i === at) return; at = i;
     [...rackEl.children].forEach((b, j) => { b.setAttribute('aria-pressed', j === i); b.tabIndex = j === i ? 0 : -1; }); // one stop for the Tab key: the arrows move in the rack
-    const cue = CUES[ids[i]]; name.textContent = cue.name; trick.textContent = cue.trick || '';
+    const cue = CUES[ids[i]]; name.textContent = cue.name; trick.textContent = cue.trick || 'No trick';
     bars.querySelectorAll('u').forEach((u, k) => { const n = cue[['power', 'spin', 'aim'][k]]; u.style.setProperty('--n', n); u.setAttribute('aria-label', `${n} of 10`); });
   };
   const paint = () => [...rackEl.children].forEach((b, i) => {
@@ -339,15 +339,21 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     const q = CUES[id]; b.type = 'button'; b.setAttribute('aria-label', `${q.name}: ${q.trick || 'no trick'}. Power ${q.power}, spin ${q.spin}, aim ${q.aim} of 10`); cv.width = W * D; cv.height = H * D;
     // the drawings ask for text as (str, x, y, px), centred: the app's canvas does that, a browser's wants a font
     ctx.fillText = (str, x, y, px) => { ctx.font = `800 ${px}px "Bricolage Grotesque", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; CanvasRenderingContext2D.prototype.fillText.call(ctx, str, x, y); };
-    b.append(cv); b.onpointerenter = b.onfocus = b.onclick = () => pick(i);
+    b.append(cv); b.onfocus = b.onclick = () => pick(i); b.onpointerenter = () => { if (performance.now() - keyAt > 500) pick(i); }; // a pointer at rest over the rack does not take the pick back from the keys
     rackEl.append(b);
   });
-  paint(); document.fonts.ready.then(paint); // the numbers on three cues wait for the font
-  // A finger slid along the rack picks the cue under it (pointerenter does not fire for a touch that moves).
-  rackEl.addEventListener('pointermove', e => { const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('button'); if (el?.parentElement === rackEl) pick([...rackEl.children].indexOf(el)); });
+  document.fonts.ready.then(paint); // the numbers on three cues need the font
+  // A finger slid along the rack picks the cue under it (pointerenter does not fire for a touch that moves); a finger
+  // that moves up or down is scrolling the page, and picks nothing.
+  rackEl.addEventListener('pointerdown', e => { from = [e.clientX, e.clientY]; });
+  rackEl.addEventListener('pointermove', e => {
+    if (performance.now() - keyAt < 500 || (e.pointerType === 'touch' && from && Math.abs(e.clientY - from[1]) > Math.abs(e.clientX - from[0]))) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('button'); if (el?.parentElement === rackEl) pick([...rackEl.children].indexOf(el));
+  });
   rackEl.addEventListener('keydown', e => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
     const row = rackEl.children[13].offsetTop > rackEl.children[0].offsetTop ? 13 : 0, d = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: row, ArrowUp: -row }[e.key]; // on a phone the rack is two shelves
-    if (d) { e.preventDefault(); const i = (at + d + ids.length) % ids.length; pick(i); rackEl.children[i].focus(); }
+    if (d) { e.preventDefault(); keyAt = performance.now(); const i = (at + d + ids.length) % ids.length; pick(i); rackEl.children[i].focus(); }
   });
   pick(ids.indexOf('hindsight'));
 }
