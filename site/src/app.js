@@ -408,8 +408,9 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   set(!calm);
   // the table into view: the whole stand when it fits the screen, else the table
   const show = () => (list.parentElement.offsetHeight > innerHeight ? table.felt : list.parentElement).scrollIntoView({ block: 'nearest' });
-  again.onclick = () => { show(); sel = here; say.textContent = ''; if (document.activeElement === again) rows[sel].focus({ preventScroll: true }); set(true); state = 'aim'; }; // the key hides: the focus must not fall off the page
-  table.felt.onclick = () => { if (!again.hidden) again.click(); }; // a tap on the table plays it again too
+  const replay = () => { sel = here; say.textContent = ''; if (document.activeElement === again) rows[sel].focus({ preventScroll: true }); set(true); state = 'aim'; }; // the key hides: the focus must not fall off the page
+  again.onclick = () => { show(); replay(); };
+  table.felt.onclick = () => { if (!again.hidden) replay(); }; // a tap on the table plays it again too, where it is
   // The film starts when the table and the row of the step in hand are in view together, so every ball lands in a row
   // the visitor can see; on a screen too short for both, when the whole table is in view.
   const start = () => { if (state === 'wait') state = 'aim'; }, first = rows[here];
