@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { simulate } from '../../src/physics/engine.ts';
+import { HOLES, simulate } from '../../src/physics/engine.ts';
 import { ball } from '../src/presets.mjs';
 import { BALLS, NOW, PLAN, shotFor, STEPS } from '../src/roadmap.mjs';
 
@@ -12,6 +12,7 @@ test('the run-out: every shot hits its own ball first and pots only it, in under
     assert.equal(r.first, k + 1, `shot ${k + 1} hits its ball first`);
     assert.deepEqual([...r.potted, ...r.off], [k + 1], `shot ${k + 1} pots only its ball`);
     assert.ok(r.settled && r.steps < 5000, `shot ${k + 1} is over in time`);
+    const [hx, hy] = HOLES[PLAN[k][0]]; assert.ok(Math.hypot(r.balls[k + 1].x - hx, r.balls[k + 1].y - hy) < 0.2, `shot ${k + 1} drops in the pocket the page rings`);
     // room to spare: a tune of the physics, or another browser's arithmetic, must not turn a pot into a miss
     for (const d of [-0.3, -0.1, 0.1, 0.3]) { const shot = shotFor(B, k), q = simulate(B, { ...shot, ang: shot.ang + d * Math.PI / 180 }); assert.deepEqual([...q.potted, ...q.off], [k + 1], `shot ${k + 1} pots ${d} degrees off`); }
     B = r.balls;

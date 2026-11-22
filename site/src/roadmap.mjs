@@ -2,17 +2,17 @@
 // on the ball at NOW, the rest stand on the table. To move the roadmap on, change NOW and SINCE (and STEPS, if the plan changed).
 import { CUE, HOLES, P } from '../../src/physics/engine.ts';
 
-export const STEPS = ['Real physics', '8-ball and 9-ball', 'An AI that banks', 'Tournaments', '26 wild cues', 'App Store review', 'Out on iPhone', 'Leaderboards', 'Online play'];
+export const STEPS = ['Real physics', '8-ball and 9-ball', 'An AI that banks', 'Scenarios and lessons', 'Tournaments', 'App Store review', 'Out on iPhone', 'Leaderboards', 'Online play'];
 export const NOW = 5; // index into STEPS: 5 = the 6 ball
 export const SINCE = 'Sent 20 Nov'; // the tag of the step in hand
-export const FILM = 2; // how many of the done steps are potted before the visitor's eyes; the ones before are down already
+export const FILM = 3; // how many of the done steps are potted before the visitor's eyes; the ones before are down already
 export const when = i => (i < NOW ? 'Done' : i === NOW ? SINCE : i === NOW + 1 ? 'Next' : 'Later');
 
 // The layout and the run: built shot by shot through the engine, so that every shot pots its ball with the aim up to
-// 0.3 degrees off and leaves the next one on. test/roadmap.test.mjs runs them. BALLS = the cue ball, then the 1 to the 9.
+// 0.3 degrees off and leaves the next one on, with room on the table for the cue that waits on the 6 or the 7. test/roadmap.test.mjs runs them. BALLS = the cue ball, then the 1 to the 9.
 export const BALLS = [[0.712, 0.807], [0.906, 0.506], [1.684, 0.387], [2.083, 0.732], [2.041, 1.006], [1.432, 0.656], [1.135, 0.323], [0.306, 0.189], [0.087, 0.914], [0.192, 0.382]];
 // one row a shot: the pocket (HOLES index), power 0..1, tip height (-1 low to 1 high)
-export const PLAN = [[4, 0.5, -0.4], [1, 0.75, 0], [3, 0.5, -0.4], [3, 0.75, -0.4], [4, 0.62, -0.4], [4, 0.62, -0.4], [0, 0.75, -0.4], [2, 0.62, 0], [0, 0.3, -0.4]];
+export const PLAN = [[4, 0.5, -0.4], [1, 0.75, 0], [3, 0.5, -0.4], [3, 0.75, -0.4], [4, 0.25, -0.2], [4, 0.3, -0.6], [0, 0.25, -0.4], [2, 0.25, 0], [0, 0.5, -0.8]];
 
 // Where a ball is sent to drop in pocket h: just inside its mouth.
 export const mouth = h => { const [x, y] = HOLES[h], in_ = 0.012; return h > 3 ? [x, y < 0 ? -0.01 : P.W + 0.01] : [x < 0 ? in_ : P.L - in_, y < 0 ? in_ : P.W - in_]; };

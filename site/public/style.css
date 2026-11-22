@@ -118,7 +118,7 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 .modes .ball { position: absolute; width: 46%; right: -9%; bottom: -30%; box-shadow: 0 0 0 2px #EEF2EA73, clamp(6px, 1vw, 14px) clamp(7px, 1.2vw, 17px) 0 #06120F73; }
 @media (max-width: 760px) { .modes ul { grid-template-columns: 1fr 1fr; } .modes li { aspect-ratio: 1; } .modes .ball { width: 66%; right: -16%; bottom: -22%; } }
 
-/* ---------- The cues: all 26 on a shelf (two shelves on a phone). The picked one steps up 22px in 180ms, as a card does in the app. ---------- */
+/* ---------- The cues: all 26 on a shelf (two shelves on a phone). The picked one steps up and its place on the shelf turns gold. ---------- */
 .pick { padding: clamp(20px, 3vw, 40px) var(--gut) 0; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 14px 40px; }
 #cue-name { display: block; font-size: clamp(38px, 8vw, 120px); color: var(--gold); white-space: nowrap; }
 #cue-trick { display: inline-block; min-height: 26px; margin: 16px 0 0; background: var(--cream); color: var(--ink); box-shadow: 0 3px 0 var(--cream-lip); }
@@ -132,30 +132,29 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 .rack button[aria-pressed=true] canvas { transform: translateY(-14px); }
 @media (max-width: 760px) { .rack { grid-template-columns: repeat(13, 1fr); margin-top: -30px; } }
 
-/* ---------- The roadmap: a nine-ball table, and under it the nine steps, each with its ball ---------- */
+/* ---------- The roadmap: a nine-ball table, and under it the nine steps in one list, each with its ball ---------- */
 .road h2 { text-align: right; margin-bottom: .14em; }
-.stand { width: min(1320px, 100vw - 2 * var(--gut), 64svh * 1.8); margin-inline: auto; position: relative; }
-.road .keys { right: auto; left: 18px; top: 0; translate: 0 -50%; }
-.steps { list-style: none; padding: 0; margin-top: 20px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 18px; }
-.steps button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 6px 12px 6px 8px; border: 0; border-radius: 5px; background: none; color: var(--chalk); text-align: left; }
-.steps button[aria-pressed=true] { background: var(--dark); box-shadow: 0 4px 0 var(--dark-lip); }
-.steps .ball { width: 36px; flex: none; opacity: .35; }
+.stand { width: min(1320px, 100vw - 2 * var(--gut), 50svh * 1.8); margin: 0 var(--gut) 0 auto; position: relative; }
+.steps { list-style: none; padding: 0; margin-top: 18px; display: grid; grid-template-columns: minmax(0, 1fr); }
+.steps button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 5px 12px 5px 8px; border: 0; border-radius: 5px; background: none; color: var(--chalk); text-align: left; }
+.steps button.sel { background: var(--dark); box-shadow: 0 4px 0 var(--dark-lip); }
+.steps .ball { width: 36px; flex: none; opacity: .5; }
 .steps .in .ball, .steps .now .ball { opacity: 1; }
-.steps .in .ball { animation: drop .3s cubic-bezier(.2, 1.7, .4, 1); }
-@keyframes drop { from { scale: 1.6; } }
+.steps .in .ball { animation: drop .34s cubic-bezier(.2, 1.7, .4, 1); }
+@keyframes drop { from { scale: 1.9; } }
 .steps .now .ball { box-shadow: 0 0 0 3px var(--gold); }
-.steps b { flex: 1; min-width: 0; font-size: clamp(19px, 1.9vw, 27px); letter-spacing: -.02em; line-height: 1; white-space: nowrap; }
+.steps b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: clamp(15px, 4.7vw, 26px); letter-spacing: -.02em; line-height: 1.15; white-space: nowrap; }
 .steps span { font: 700 12px/1 var(--ui); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; color: #EEF2EAB3; }
-.steps .later b, .steps .done:not(.in) b { color: #EEF2EA99; }
-.steps .done:not(.in) span { visibility: hidden; }
+.steps .later b { color: #EEF2EA99; }
 .steps .now b, .steps .now span { color: var(--gold); }
+.road .keys { position: static; translate: none; justify-content: flex-end; margin: 12px 0 0; min-height: 47px; }
 @media (max-width: 900px) {
-  .stand { width: calc(100vw - 12px); }
-  .road .keys { position: relative; left: 0; translate: 0 0; justify-content: flex-end; margin: 0 10px 8px; }
+  .stand { width: min(100vw - 12px, 50svh * 1.8); margin-inline: auto; }
   .road h2 { margin-bottom: .3em; }
-  .steps { grid-template-columns: 1fr; gap: 0; margin: 12px 10px 0; }
-  .steps button { min-height: 46px; }
+  .steps { margin: 12px 10px 0; }
+  .road .keys { margin: 12px 10px 0 0; }
 }
+@media (max-width: 360px) { .steps button { gap: 8px; } .steps .ball { width: 30px; } }
 
 /* ---------- The close: one blue block, the form hanging off its lower edge ---------- */
 .last { margin-top: clamp(72px, 12vw, 160px); padding: clamp(28px, 5vw, 80px) 0 0; background: var(--blue); box-shadow: 0 10px 0 var(--blue-lip); color: var(--ink); }
