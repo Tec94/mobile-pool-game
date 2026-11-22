@@ -8,11 +8,11 @@ export const SINCE = 'Sent 20 Nov'; // the tag of the step in hand
 export const FILM = 2; // how many of the done steps are potted before the visitor's eyes; the ones before are down already
 export const when = i => (i < NOW ? 'Done' : i === NOW ? SINCE : i === NOW + 1 ? 'Next' : 'Later');
 
-// The layout and the run: found by a search through the engine (every shot pots its ball with room to spare and
-// leaves the next one on), checked by test/roadmap.test.mjs. BALLS = the cue ball, then the 1 to the 9.
-export const BALLS = [[1.092, 0.434], [1.539, 0.654], [1.117, 0.694], [2.026, 0.17], [1.528, 0.265], [1.809, 0.716], [0.227, 0.163], [0.145, 0.462], [0.613, 0.606], [1.302, 0.89]];
+// The layout and the run: built shot by shot through the engine, so that every shot pots its ball with the aim up to
+// 0.3 degrees off and leaves the next one on. test/roadmap.test.mjs runs them. BALLS = the cue ball, then the 1 to the 9.
+export const BALLS = [[0.712, 0.807], [0.906, 0.506], [1.684, 0.387], [2.083, 0.732], [2.041, 1.006], [1.432, 0.656], [1.135, 0.323], [0.306, 0.189], [0.087, 0.914], [0.192, 0.382]];
 // one row a shot: the pocket (HOLES index), power 0..1, tip height (-1 low to 1 high)
-export const PLAN = [[3, 0.75, -0.7], [5, 0.5, -0.4], [1, 0.75, -0.7], [0, 0.5, -0.7], [3, 0.3, 0.4], [0, 0.3, 0.4], [2, 0.4, -0.7], [5, 0.4, 0], [3, 0.3, 0.7]];
+export const PLAN = [[4, 0.5, -0.4], [1, 0.75, 0], [3, 0.5, -0.4], [3, 0.75, -0.4], [4, 0.62, -0.4], [4, 0.62, -0.4], [0, 0.75, -0.4], [2, 0.62, 0], [0, 0.3, -0.4]];
 
 // Where a ball is sent to drop in pocket h: just inside its mouth.
 export const mouth = h => { const [x, y] = HOLES[h], in_ = 0.012; return h > 3 ? [x, y < 0 ? -0.01 : P.W + 0.01] : [x < 0 ? in_ : P.L - in_, y < 0 ? in_ : P.W - in_]; };
