@@ -127,8 +127,9 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 .bars u { display: block; height: 12px; background: linear-gradient(90deg, var(--gold) calc(var(--n) * 10%), #8885 0); -webkit-mask: repeating-linear-gradient(90deg, #000 0 calc(10% - 3px), transparent 0 10%); mask: repeating-linear-gradient(90deg, #000 0 calc(10% - 3px), transparent 0 10%); transition: background .18s; }
 .rack { display: grid; grid-template-columns: repeat(26, 1fr); row-gap: 30px; margin: 34px var(--gut) 0; touch-action: pan-y; }
 .rack button { min-width: 0; padding: 0; border: 0; border-bottom: clamp(8px, 1.2vw, 16px) solid var(--maple); background: none; color: var(--chalk); opacity: .7; outline-offset: -2px; transition: opacity .18s; }
-.rack canvas { width: 145.5%; margin-left: -22.75%; aspect-ratio: 64 / 420; display: block; pointer-events: none; } /* wider than its place on the shelf: some cues have wide ends */
+.rack canvas { width: 145.5%; margin-left: -22.75%; aspect-ratio: 64 / 420; display: block; pointer-events: none; transition: transform .18s var(--out); } /* wider than its place on the shelf: some cues have wide ends */
 .rack button[aria-pressed=true] { opacity: 1; border-bottom-color: var(--gold); }
+.rack button[aria-pressed=true] canvas { transform: translateY(-14px); }
 @media (max-width: 760px) { .rack { grid-template-columns: repeat(13, 1fr); margin-top: -30px; } }
 
 /* ---------- The roadmap: a nine-ball table, and under it the nine steps, each with its ball ---------- */
@@ -164,4 +165,4 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 footer { padding: clamp(110px, 16vw, 200px) var(--gut) max(40px, env(safe-area-inset-bottom)); font-size: 13px; font-weight: 500; opacity: .6; }
 
 
-@media (prefers-reduced-motion: reduce) { .rack button, .steps .ball, .join.sent .done, .join input { transition: none !important; animation: none; } }
+@media (prefers-reduced-motion: reduce) { .rack button, .rack canvas, .steps .ball, .join.sent .done, .join input { transition: none !important; animation: none; } }

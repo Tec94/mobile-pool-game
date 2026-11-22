@@ -335,7 +335,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   });
   ids.forEach((id, i) => {
     const b = document.createElement('button'), cv = document.createElement('canvas'), ctx = cv.getContext('2d');
-    b.type = 'button'; b.setAttribute('aria-label', CUES[id].name); cv.width = W * D; cv.height = H * D;
+    const q = CUES[id]; b.type = 'button'; b.setAttribute('aria-label', `${q.name}: ${q.trick || 'no trick'}. Power ${q.power}, spin ${q.spin}, aim ${q.aim} of 10`); cv.width = W * D; cv.height = H * D;
     // the drawings ask for text as (str, x, y, px), centred: the app's canvas does that, a browser's wants a font
     ctx.fillText = (str, x, y, px) => { ctx.font = `800 ${px}px "Bricolage Grotesque", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; CanvasRenderingContext2D.prototype.fillText.call(ctx, str, x, y); };
     b.append(cv); b.onpointerenter = b.onfocus = b.onclick = () => pick(i);
@@ -344,7 +344,10 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   paint(); document.fonts.ready.then(paint); // the numbers on three cues wait for the font
   // A finger slid along the rack picks the cue under it (pointerenter does not fire for a touch that moves).
   rackEl.addEventListener('pointermove', e => { const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('button'); if (el?.parentElement === rackEl) pick([...rackEl.children].indexOf(el)); });
-  rackEl.addEventListener('keydown', e => { const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (d) { e.preventDefault(); const i = (at + d + ids.length) % ids.length; pick(i); rackEl.children[i].focus(); } });
+  rackEl.addEventListener('keydown', e => {
+    const row = rackEl.children[13].offsetTop > rackEl.children[0].offsetTop ? 13 : 0, d = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: row, ArrowUp: -row }[e.key]; // on a phone the rack is two shelves
+    if (d) { e.preventDefault(); const i = (at + d + ids.length) % ids.length; pick(i); rackEl.children[i].focus(); }
+  });
   pick(ids.indexOf('hindsight'));
 }
 
