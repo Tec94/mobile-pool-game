@@ -12,7 +12,7 @@ html { -webkit-text-size-adjust: 100%; }
 body { background: var(--ground); color: var(--fg); font: 600 16px/1.3 var(--ui); -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
 h1, h2, b, .brand { font-family: var(--display); font-weight: 800; letter-spacing: -.03em; line-height: .84; }
 h1 span, .last h2 span { display: block; white-space: nowrap; }
-h2 { font-size: clamp(52px, 14vw, 200px); padding-inline: var(--gut); white-space: nowrap; }
+h2 { font-size: clamp(44px, 14vw, 200px); padding-inline: var(--gut); white-space: nowrap; }
 section { padding-top: clamp(72px, 12vw, 160px); position: relative; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 :focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
@@ -113,7 +113,7 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 .modes h2 { text-align: right; }
 .modes ul { list-style: none; padding: 0 var(--gut); margin-top: clamp(20px, 3vw, 44px); display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(10px, 1.6vw, 22px); }
 .modes li { aspect-ratio: 5 / 3; padding: clamp(14px, 2vw, 28px); position: relative; overflow: hidden; }
-.modes li b { display: block; font-size: clamp(21px, 3.4vw, 50px); white-space: nowrap; line-height: 1; }
+.modes li b { display: block; font-size: clamp(16px, 5.4vw, 21px); font-size: max(clamp(16px, 5.4vw, 21px), min(3.4vw, 50px)); white-space: nowrap; line-height: 1; }
 .modes li span { display: block; white-space: nowrap; font-size: clamp(13px, 1.4vw, 19px); font-weight: 700; margin-top: .5em; opacity: .85; }
 .modes .ball { position: absolute; width: 46%; right: -9%; bottom: -30%; box-shadow: 0 0 0 2px #EEF2EA73, clamp(6px, 1vw, 14px) clamp(7px, 1.2vw, 17px) 0 #06120F73; }
 @media (max-width: 760px) { .modes ul { grid-template-columns: 1fr 1fr; } .modes li { aspect-ratio: 1; } .modes .ball { width: 66%; right: -16%; bottom: -22%; } }
@@ -134,7 +134,7 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 @media (max-width: 760px) { .rack { grid-template-columns: repeat(13, 1fr); margin-top: -12px; } }
 
 /* ---------- The roadmap: a nine-ball table, and under it the nine steps in one list, each with its ball ---------- */
-.road h2 { text-align: center; margin-bottom: .14em; }
+.road h2 { text-align: center; margin-bottom: .14em; font-size: min(clamp(52px, 14vw, 200px), 18svh); }
 /* the table and the nine rows fit one screen */
 .stand { width: min(1320px, 100vw - 2 * var(--gut), max(520px, (100svh - 400px) * 1.8)); margin-inline: auto; position: relative; container-type: inline-size; }
 #road { cursor: pointer; }
