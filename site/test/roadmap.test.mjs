@@ -31,7 +31,8 @@ test('the film starts when the table and the row in hand are in view, or the who
   assert.ok(!inView(100, 300, 900, 46, 844), 'the row below the fold');
   assert.ok(!inView(-200, 200, 600, 46, 844), 'most of the table above the screen');
   assert.ok(inView(-130, 230, 700, 40, 810), 'a short desktop: the list centred, a third of the table above');
-  assert.ok(!inView(-81, 129, 700, 46, 844), 'a phone where both fit: not with the table part off the top');
+  assert.ok(!inView(-81, 210, 700, 46, 844), 'a phone where both fit: not with much of the table off the top');
+  assert.ok(inView(-40, 250, 506, 40, 560), 'a short desktop where both just fit: a little of the table off the top');
   assert.ok(inView(10, 380, 900, 46, 390), 'a short screen: the whole table');
   assert.ok(!inView(10, 420, 900, 46, 390), 'a short screen: the table cut');
 });

@@ -378,7 +378,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     b.type = 'button'; b.className = i < NOW ? 'done' : i === NOW ? 'now' : 'later'; b.tabIndex = i === here ? 0 : -1;
     if (i === NOW) b.setAttribute('aria-current', 'step');
     b.innerHTML = `<i class="ball b${i + 1}"><i>${i + 1}</i></i><b>${name}</b><span>${when(i)}</span>`;
-    b.onclick = () => { choose(i); say.textContent = `The ${i + 1} is ${down(i) ? 'down' : i < NOW ? 'about to drop' : 'on the table'}.`; }; // for a screen reader: the page shows it as a ring on the table
+    b.onclick = () => { if (state === 'wait') { show(); start(); } choose(i); say.textContent = `The ${i + 1} is ${down(i) ? 'down' : i < NOW ? 'about to drop' : 'on the table'}.`; }; // a tap on a row also starts a film that is still waiting // for a screen reader: the page shows it as a ring on the table
     list.appendChild(document.createElement('li')).append(b); return b;
   });
   const down = i => !v.B[i + 1].on;
@@ -416,7 +416,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   const seen = () => { if (state !== 'wait') return; const c = table.felt.getBoundingClientRect(), r = first.getBoundingClientRect(); if (inView(c.top, c.bottom, r.bottom, r.height, innerHeight)) start(); };
   addEventListener('scroll', seen, { passive: true }); addEventListener('resize', seen); seen();
   list.addEventListener('focusin', () => { if (state === 'wait') { show(); start(); } }); // a keyboard user Tabs to the rows: show them the film
-  new IntersectionObserver(([e]) => { if (!e.isIntersecting && /aim|run|rest/.test(state)) set(replays(k, !v.B[k + 1].on)); }).observe(table.felt); // scrolled away mid-film
+  new IntersectionObserver(([e]) => { if (!e.isIntersecting && /aim|run|rest/.test(state)) set(replays(k, !v.B[k + 1]?.on)); }).observe(table.felt); // scrolled away mid-film
   sc = scene(table, (ms, me) => {
     t += ms;
     if (state === 'wait' || (state === 'hold' && t > 4500)) { if (me.dirty) { table.draw(v); me.dirty = false; } return; }

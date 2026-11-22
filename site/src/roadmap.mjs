@@ -11,7 +11,7 @@ export const FILM = 2; // how many of the done steps are potted before the visit
 // under the fold); on a screen too short for both, when the whole table is in view, or the row and most of the table. In px, from the top of the screen.
 export const inView = (top, bottom, row, rowH, vh) => {
   const rowIn = row < vh + rowH * 0.1 + 1, fits = row - top <= vh; // fits: the table and the row can be on the screen together
-  return top > -4 ? rowIn || (!fits && bottom < vh + 4) : !fits && rowIn && top > -0.4 * (bottom - top); // only a screen too short for both may start it with the table part off the top
+  return top > -4 ? rowIn || (!fits && bottom < vh + 4) : rowIn && top > (fits ? -0.25 : -0.4) * (bottom - top); // a little of the table off the top; more on a screen too short for both
 };
 // A visitor who leaves the film before its first ball drops gets the film again when they come back; later, the end.
 export const replays = (k, firstDown) => k === NOW - FILM && !firstDown;
