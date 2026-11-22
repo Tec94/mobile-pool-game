@@ -146,7 +146,7 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 .steps .ball { width: 36px; flex: none; }
 .steps .in .ball { animation: drop .34s cubic-bezier(.2, 1.7, .4, 1); }
 /* a done step whose ball the film has still to pot: the ball and the tag come when it drops */
-.steps .due .ball { opacity: .5; }
+.steps .due .ball { opacity: .65; }
 @keyframes drop { from { scale: 1.9; } }
 .steps .now .ball { box-shadow: 0 0 0 3px var(--gold); }
 .steps b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: clamp(15px, 4.9cqw, 26px); letter-spacing: -.02em; line-height: 1.15; white-space: nowrap; }

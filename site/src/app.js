@@ -424,12 +424,12 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     } else if (state === 'run') {
       swing(ms);
       // Once the ball is down the film runs faster, so the cue ball's slow roll to its place does not hold the next shot up.
-      pace += ((v.B[k + 1].on ? Math.max(1.15, 0.75 / PLAN[k][1]) : 5) - pace) * Math.min(1, ms / 200); // a soft shot would hold the film up
+      pace += ((v.B[k + 1].on ? Math.max(1.15, 0.75 / PLAN[k][1]) : 2.5) - pace) * Math.min(1, ms / 200); // a soft shot would hold the film up
       acc += ms * pace; const n = Math.floor(acc); acc -= n;
       const was = v.B[k + 1].on, moving = advance(v.B, v.look, n, true);
       if (was && !v.B[k + 1].on) { choose(); if (sel === k && say.textContent) say.textContent = `The ${k + 1} is down.`; }
       if (!moving) { if (v.B.some((b, i) => b.on !== (!i || i > k + 1))) set(false); else { k++; state = 'rest'; t = 0; } } // a shot that went wrong (it cannot) ends the film
-    } else if (state === 'rest') { advance(v.B, v.look, ms, false); if (t > 200) aim(); }
+    } else if (state === 'rest') { advance(v.B, v.look, ms, false); if (t > 350) aim(); }
     else if (v.cue) { advance(v.B, v.look, ms, false); v.cue.a = Math.min(1, t / 300); v.cue.back = 0.04 + 0.022 * Math.sin(t / 600) * Math.max(0, 1 - t / 4000); } // hold: the cue feathers at the ball, then is still
     table.draw(v);
   });
