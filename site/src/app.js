@@ -379,7 +379,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   const down = i => !v.B[i + 1].on;
   function choose(i = sel) { // row i is lit; its ball is ringed on the table, or the pocket it went down
     sel = i;
-    rows.forEach((b, j) => { b.setAttribute('aria-pressed', j === i); b.classList.toggle('in', down(j)); });
+    rows.forEach((b, j) => { b.setAttribute('aria-pressed', j === i); b.tabIndex = j === i ? 0 : -1; b.classList.toggle('in', down(j)); b.classList.toggle('due', j < NOW && !down(j)); }); // one stop for the Tab key: the arrows move in the list
     v.mark = down(i) || i === NOW ? null : i + 1; v.ring = down(i) ? PLAN[i][0] : null;
     if (sc) sc.dirty = true;
   }
