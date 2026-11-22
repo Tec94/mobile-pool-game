@@ -356,8 +356,8 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   });
   rackEl.addEventListener('keydown', e => {
     if (e.altKey || e.ctrlKey || e.metaKey) return;
-    const row = rackEl.children[13].offsetTop > rackEl.children[0].offsetTop ? 13 : 0, d = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: row, ArrowUp: -row }[e.key]; // on a phone the rack is two shelves
-    if (d) { e.preventDefault(); keyAt = performance.now(); const i = (at + d + ids.length) % ids.length; pick(i); rackEl.children[i].focus(); }
+    const row = rackEl.children[13].offsetTop > rackEl.children[0].offsetTop ? 13 : 0, d = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: row, ArrowUp: -row, Home: -at, End: ids.length - 1 - at }[e.key]; // on a phone the rack is two shelves
+    if (d || e.key === 'Home' || e.key === 'End') { e.preventDefault(); keyAt = performance.now(); const i = (at + d + ids.length) % ids.length; pick(i); rackEl.children[i].focus(); }
   });
   pick(ids.indexOf('hindsight'));
 }
@@ -385,7 +385,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     v.mark = down(i) || i === NOW ? null : i + 1; v.ring = down(i) ? PLAN[i][0] : null;
     if (sc) sc.dirty = true;
   }
-  list.addEventListener('keydown', e => { const d = e.altKey || e.ctrlKey || e.metaKey ? 0 : { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key], r = rows[rows.indexOf(document.activeElement) + d]; if (d && r) { e.preventDefault(); r.focus(); choose(rows.indexOf(r)); } }); // no line for the screen reader here: the focus reads the row
+  list.addEventListener('keydown', e => { const i = rows.indexOf(document.activeElement), j = e.altKey || e.ctrlKey || e.metaKey ? null : { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: 8 }[e.key], r = rows[j]; if (j != null && r) { e.preventDefault(); r.focus(); choose(rows.indexOf(r)); } }); // no line for the screen reader here: the focus reads the row
   // A scratch cannot happen (test/roadmap.test.mjs runs every shot). If it did, the cue ball goes back where it began.
   const mend = () => { if (!v.B[0].on) Object.assign(v.B[0], ball(...SPOTS[0])); };
   function aim() { // the cue comes to the next ball; at NOW it stays there
