@@ -4,13 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Runout: All about Pool</title>
-<meta name="description" content="Runout is a pool game for iPhone with real physics, jump shots, massé and 26 wild cues. Pay once, no ads. Join the waitlist.">
+<meta name="description" content="Runout is a pool game for iPhone with real physics, jump shots, massé, tournaments and 26 wild cues. Pay once, no ads. Join the waitlist.">
 <meta name="theme-color" content="#0E1B19">
 <meta property="og:title" content="Runout: All about Pool">
 <meta property="og:description" content="Real physics. Jump shots. Massé. 26 wild cues. Pay once, no ads. Join the waitlist.">
 <meta property="og:image" content="https://runout.win/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A pool table after the break, with the words Get the first rack and a form to join the waitlist.">
+<meta property="og:url" content="https://runout.win/">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://runout.win/">
 <link rel="icon" href="/icon.png">
 <link rel="apple-touch-icon" href="/icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,7 +26,7 @@
 <body>
 <header class="hero">
   <div class="rig"><canvas id="hero-felt" aria-hidden="true"></canvas><canvas id="hero" role="img" aria-label="A pool table: the cue ball breaks a rack of fifteen balls."></canvas></div>
-  <p class="brand"><img src="/icon.png" alt="" width="36" height="36"> Runout <span class="chip">Coming to iPhone</span></p>
+  <p class="brand"><img src="/icon.png" alt="" width="36" height="36"> Runout <span class="chip">In App Store review</span></p>
   <h1><span>Get the</span> <span>first rack.</span></h1>
   <div class="card">
     <form class="join" method="post" action="/api/join" novalidate>
@@ -59,16 +64,26 @@
     <li class="slab m3"><b>Scenarios</b><span>324 stars to win</span><i class="ball b3"><i>3</i></i></li>
     <li class="slab m4"><b>Learn</b><span>Ghost ball to massé</span><i class="ball b4"><i>4</i></i></li>
     <li class="slab m5"><b>Pass and play</b><span>Two on one phone</span><i class="ball b5"><i>5</i></i></li>
-    <li class="slab m6"><b>Cues</b><span>26 to win</span><i class="ball b6"><i>6</i></i></li>
+    <li class="slab m6"><b>Tournaments</b><span>Four cups to win</span><i class="ball b6"><i>6</i></i></li>
   </ul>
 </section>
 
 <section class="cues">
   <h2>26 wild cues.</h2>
-  <div class="pick"><b id="cue-name"></b>
+  <div class="pick"><div><b id="cue-name"></b><span class="chip" id="cue-trick"></span></div>
     <div class="bars" id="cue-bars"><span>Power</span><u role="img"></u><span>Spin</span><u role="img"></u><span>Aim</span><u role="img"></u></div>
   </div>
   <div class="rack" id="rack" role="group" aria-label="The cues"></div>
+</section>
+
+<section class="road">
+  <h2>The runout.</h2>
+  <div class="stand">
+    <div class="rig"><canvas id="road-felt" aria-hidden="true"></canvas><canvas id="road" role="img" aria-label="A nine-ball table: the cue pots the balls of the finished steps and waits on the ball of the step in hand. The steps are in the list below."></canvas></div>
+    <ol class="steps" id="steps" role="list" aria-label="The roadmap"></ol>
+    <p class="sr" id="road-say" role="status" aria-live="polite"></p>
+    <div class="keys"><button type="button" id="again" aria-label="Play the run again" hidden>Again</button></div>
+  </div>
 </section>
 
 <section class="last">
@@ -87,7 +102,7 @@
 </section>
 </main>
 
-<footer><p>Runout: All about Pool. For iPhone, not out yet. Your name and email are kept only to tell you when it is.</p></footer>
+<footer><p>Runout: All about Pool. For iPhone, not out yet. Your name, email and country are kept only to tell you when it is.</p></footer>
 <script type="module" src="/app.js"></script>
 </body>
 </html>
