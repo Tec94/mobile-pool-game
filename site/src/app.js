@@ -401,9 +401,9 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   set(!calm);
   again.onclick = () => { if (document.activeElement === again) rows[sel].focus({ preventScroll: true }); set(true); state = 'aim'; }; // the key hides: the focus must not fall off the page
   table.canvas.onclick = () => { if (!again.hidden) again.click(); }; // a tap on the table plays it again too
-  // The film starts when the table and the top of the list are in view together; on a screen too short for both,
-  // when the whole table is in view.
-  const start = () => { if (state === 'wait') state = 'aim'; }, first = rows[0];
+  // The film starts when the table and the row of the step in hand are in view together, so every ball lands in a row
+  // the visitor can see; on a screen too short for both, when the whole table is in view.
+  const start = () => { if (state === 'wait') state = 'aim'; }, first = rows[here];
   new IntersectionObserver(([e]) => { if (e.isIntersecting) start(); }, { threshold: 0.9 }).observe(first);
   new IntersectionObserver(([e]) => { if (e.isIntersecting && first.getBoundingClientRect().bottom - table.canvas.getBoundingClientRect().top > innerHeight) start(); }, { threshold: 0.95 }).observe(table.canvas);
   sc = scene(table, (ms, me) => {
