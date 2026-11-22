@@ -405,8 +405,9 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   // The film starts when the table and the row of the step in hand are in view together, so every ball lands in a row
   // the visitor can see; on a screen too short for both, when the whole table is in view.
   const start = () => { if (state === 'wait') state = 'aim'; }, first = rows[here];
-  new IntersectionObserver(([e]) => { if (e.isIntersecting) start(); }, { threshold: 0.9 }).observe(first);
-  new IntersectionObserver(([e]) => { if (e.isIntersecting && first.getBoundingClientRect().bottom - table.canvas.getBoundingClientRect().top > innerHeight) start(); }, { threshold: 0.95 }).observe(table.canvas);
+  const seen = () => { const c = table.canvas.getBoundingClientRect(), r = first.getBoundingClientRect(); if (c.top > -4 && (r.bottom < innerHeight + 4 || (r.bottom - c.top > innerHeight && c.bottom < innerHeight + 4))) start(); };
+  new IntersectionObserver(seen, { threshold: 0.9 }).observe(first);
+  new IntersectionObserver(seen, { threshold: [0.95, 1] }).observe(table.canvas);
   sc = scene(table, (ms, me) => {
     t += ms;
     if (state === 'wait' || (state === 'hold' && t > 4500)) { if (me.dirty) { table.draw(v); me.dirty = false; } return; }
