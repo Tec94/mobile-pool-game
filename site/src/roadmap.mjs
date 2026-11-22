@@ -1,21 +1,12 @@
 // The roadmap is a nine-ball run-out: one ball a step, potted in order. The balls before NOW are down, the cue waits
-// on the ball at NOW, the rest stand on the table. To move the roadmap on, change NOW (and STEPS, if the plan changed).
+// on the ball at NOW, the rest stand on the table. To move the roadmap on, change NOW and SINCE (and STEPS, if the plan changed).
 import { CUE, HOLES, P } from '../../src/physics/engine.ts';
 
-// name = its lines as printed on the cloth
-export const STEPS = [
-  { name: ['Real', 'physics'] },
-  { name: ['8-ball and', '9-ball'] },
-  { name: ['An AI that', 'banks'] },
-  { name: ['Tournaments'] },
-  { name: ['26 wild', 'cues'] },
-  { name: ['App Store', 'review'] },
-  { name: ['Out on', 'iPhone'] },
-  { name: ['Leaderboards'] },
-  { name: ['Online', 'play'] },
-];
+export const STEPS = ['Real physics', '8-ball and 9-ball', 'An AI that banks', 'Tournaments', '26 wild cues', 'App Store review', 'Out on iPhone', 'Leaderboards', 'Online play'];
 export const NOW = 5; // index into STEPS: 5 = the 6 ball
-export const when = i => (i < NOW ? 'Done' : i === NOW ? 'Now' : i === NOW + 1 ? 'Next' : 'Later');
+export const SINCE = 'Sent 20 Nov'; // the tag of the step in hand
+export const FILM = 2; // how many of the done steps are potted before the visitor's eyes; the ones before are down already
+export const when = i => (i < NOW ? 'Done' : i === NOW ? SINCE : i === NOW + 1 ? 'Next' : 'Later');
 
 // The layout and the run: found by a search through the engine (every shot pots its ball with room to spare and
 // leaves the next one on), checked by test/roadmap.test.mjs. BALLS = the cue ball, then the 1 to the 9.

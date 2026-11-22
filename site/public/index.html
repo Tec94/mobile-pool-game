@@ -75,9 +75,11 @@
 
 <section class="road">
   <h2>The runout.</h2>
-  <div class="keys"><button type="button" id="again">Again</button></div>
-  <div class="stand"><div class="rig"><canvas id="road-felt" aria-hidden="true"></canvas><canvas id="road" role="img" aria-label="The roadmap as a nine-ball table: the balls of the finished steps are potted, and the cue is lined up on the next."></canvas><p id="road-name"></p></div></div>
-  <ol class="tray slab" id="tray" aria-label="The roadmap, one ball a step"></ol>
+  <div class="stand">
+    <div class="keys"><button type="button" id="again" aria-label="Play the run again">Again</button></div>
+    <div class="rig"><canvas id="road-felt" aria-hidden="true"></canvas><canvas id="road" role="img" aria-label="A nine-ball table: the cue pots the balls of the finished steps and waits on the ball of the step in hand. The steps are in the list below."></canvas></div>
+    <ol class="steps" id="steps" aria-label="The roadmap"></ol>
+  </div>
 </section>
 
 <section class="last">
