@@ -12,7 +12,7 @@ html { -webkit-text-size-adjust: 100%; }
 body { background: var(--ground); color: var(--fg); font: 600 16px/1.3 var(--ui); -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; overflow-x: hidden; }
 h1, h2, b, .brand { font-family: var(--display); font-weight: 800; letter-spacing: -.03em; line-height: .84; }
 h1 span, .last h2 span { display: block; white-space: nowrap; }
-h2 { font-size: clamp(52px, 14vw, 200px); padding-inline: var(--gut); white-space: nowrap; }
+h2 { font-size: clamp(44px, 14vw, 200px); padding-inline: var(--gut); white-space: nowrap; }
 section { padding-top: clamp(72px, 12vw, 160px); position: relative; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 :focus-visible { outline: 3px solid currentColor; outline-offset: 3px; }
@@ -33,6 +33,7 @@ button.slab[disabled] { opacity: .45; cursor: default; }
 .ball { --c: var(--ink); aspect-ratio: 1; border-radius: 50%; background: var(--c); display: grid; place-items: center; container-type: inline-size; }
 .ball { width: 44px; box-shadow: 0 0 0 1px #EEF2EA73; }
 .ball > i { width: 46%; height: 46%; border-radius: 50%; background: #F6F4EC; color: var(--ink); font: 800 26cqw/1 var(--display); font-style: normal; display: grid; place-items: center; }
+.b1 { --c: #F2C230; } .b7 { --c: #A8323F; } .b9 { background: linear-gradient(#F6F4EC 24%, #F2C230 0 76%, #F6F4EC 0); }
 .b2 { --c: #4B98EE; } .b3 { --c: #E0483C; } .b4 { --c: #8448C8; } .b5 { --c: #EC7428; } .b6 { --c: #3FBF7F; }
 
 /* A table: the cloth canvas under, the balls canvas over. */
@@ -112,22 +113,54 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 .modes h2 { text-align: right; }
 .modes ul { list-style: none; padding: 0 var(--gut); margin-top: clamp(20px, 3vw, 44px); display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(10px, 1.6vw, 22px); }
 .modes li { aspect-ratio: 5 / 3; padding: clamp(14px, 2vw, 28px); position: relative; overflow: hidden; }
-.modes li b { display: block; font-size: clamp(21px, 3.4vw, 50px); white-space: nowrap; line-height: 1; }
+.modes li b { display: block; font-size: clamp(16px, 5.4vw, 21px); font-size: max(clamp(16px, 5.4vw, 21px), min(3.4vw, 50px)); white-space: nowrap; line-height: 1; }
 .modes li span { display: block; white-space: nowrap; font-size: clamp(13px, 1.4vw, 19px); font-weight: 700; margin-top: .5em; opacity: .85; }
 .modes .ball { position: absolute; width: 46%; right: -9%; bottom: -30%; box-shadow: 0 0 0 2px #EEF2EA73, clamp(6px, 1vw, 14px) clamp(7px, 1.2vw, 17px) 0 #06120F73; }
 @media (max-width: 760px) { .modes ul { grid-template-columns: 1fr 1fr; } .modes li { aspect-ratio: 1; } .modes .ball { width: 66%; right: -16%; bottom: -22%; } }
 
-/* ---------- The cues: all 17 in a rack. The picked one steps up 22px in 180ms, as a card does in the app. ---------- */
-.pick { padding: clamp(20px, 3vw, 40px) var(--gut) 0; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 14px 40px; }
-.pick b { font-size: clamp(38px, 8vw, 120px); color: var(--gold); white-space: nowrap; -webkit-text-stroke: 0; }
+/* ---------- The cues: all 26 on a shelf (two shelves on a phone). The picked one steps up and its place on the shelf turns gold. ---------- */
+.pick { padding: clamp(20px, 3vw, 40px) var(--gut) 0; display: flex; flex-wrap: wrap; align-items: end; justify-content: start; gap: 14px 40px; }
+.pick > div { flex-basis: 100%; } .bars { justify-content: start; }
+#cue-name { display: block; font-size: clamp(38px, 8vw, 120px); color: var(--gold); white-space: nowrap; }
+#cue-trick { display: inline-block; min-height: 26px; margin: 16px 0 0; background: var(--cream); color: var(--ink); box-shadow: 0 3px 0 var(--cream-lip); }
+#cue-trick:empty { visibility: hidden; }
 .bars { display: grid; grid-template-columns: auto clamp(150px, 20vw, 280px); gap: 8px 12px; align-items: center; font: 700 14px/1 var(--ui); }
 .bars u { display: block; height: 12px; background: linear-gradient(90deg, var(--gold) calc(var(--n) * 10%), #8885 0); -webkit-mask: repeating-linear-gradient(90deg, #000 0 calc(10% - 3px), transparent 0 10%); mask: repeating-linear-gradient(90deg, #000 0 calc(10% - 3px), transparent 0 10%); transition: background .18s; }
-.rack { --h: min(420px, (100vw - 2 * var(--gut)) / 17 * 9.2); display: flex; margin: 34px var(--gut) 0; padding: 0 1.5%; border-bottom: clamp(10px, 1.4vw, 18px) solid var(--maple); border-radius: 0 0 6px 6px; touch-action: pan-y; }
-.rack button { flex: 1; min-width: 0; padding: 0; border: 0; background: none; display: grid; place-items: end center; transition: transform .18s var(--out); outline-offset: -2px; }
-.rack canvas { height: var(--h); aspect-ratio: 44 / 420; display: block; }
-.rack button[aria-pressed=true] { transform: translateY(-22px); }
+.rack { display: grid; grid-template-columns: repeat(26, 1fr); row-gap: 30px; margin: 34px var(--gut) 0; touch-action: pan-y; }
+.rack button { min-width: 0; padding: 0; border: 0; border-bottom: clamp(8px, 1.2vw, 16px) solid var(--maple); background: none; color: var(--chalk); outline-offset: -2px; }
+.rack canvas { width: 145.5%; margin-left: -22.75%; aspect-ratio: 64 / 420; display: block; pointer-events: none; opacity: .45; transition: transform .18s var(--out), opacity .18s; } /* wider than its place on the shelf: some cues have wide ends */
+.rack button[aria-pressed=true] { border-bottom-color: var(--gold); box-shadow: 0 6px 0 var(--gold); }
+.rack button[aria-pressed=true] canvas { opacity: 1; transform: translateY(-30px); }
+@media (max-width: 760px) { .rack { grid-template-columns: repeat(13, 1fr); margin-top: -12px; } }
+
+/* ---------- The roadmap: a nine-ball table, and under it the nine steps in one list, each with its ball ---------- */
+.road { overflow-x: clip; } /* the cue may leave the table */
+#road { pointer-events: none; }
+.road h2 { text-align: center; margin-bottom: .3em; font-size: min(clamp(52px, 14vw, 200px), 18svh); }
+/* the table and the nine rows fit one screen */
+.stand { width: min(1320px, 100vw - 2 * var(--gut), max(520px, (100svh - 450px) * 1.8)); margin-inline: auto; position: relative; container-type: inline-size; }
+.steps { list-style: none; padding: 0; margin-top: 18px; display: grid; grid-template-columns: minmax(0, 1fr); }
+.steps button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 46px; padding: 2px 12px 2px 8px; border: 0; border-radius: 5px; background: none; color: var(--chalk); text-align: left; }
+.steps button[aria-pressed=true] { background: var(--dark); box-shadow: 0 4px 0 var(--dark-lip); }
+.steps .ball { width: 36px; flex: none; }
+.steps .in .ball { animation: drop .34s cubic-bezier(.2, 1.7, .4, 1); }
+@keyframes drop { from { scale: 1.9; } }
+.steps .now .ball { box-shadow: 0 0 0 3px var(--gold); }
+.steps b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: clamp(15px, 4.9cqw, 26px); letter-spacing: -.02em; line-height: 1.15; white-space: nowrap; }
+.steps span { font: 700 clamp(13px, 1.9cqw, 15px)/1 var(--ui); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; color: var(--chalk); margin-left: 4px; }
+.steps .later b, .steps .later span { color: #EEF2EA99; }
+.steps .now b, .steps .now span { color: var(--gold); }
+.road .keys { position: static; translate: none; justify-content: flex-end; margin: 12px 0 0; min-height: 47px; }
+@media (max-width: 900px) {
+  .stand { width: min(100vw - 12px, max(50svh * 1.8, 520px)); margin-inline: auto; }
+  .road h2 { margin-bottom: .55em; }
+  .steps { margin: 12px 10px 0; }
+  .road .keys { margin: 12px 10px 0 0; }
+}
+@media (max-width: 360px) { .steps button { gap: 8px; } .steps .ball { width: 30px; } }
 
 /* ---------- The close: one blue block, the form hanging off its lower edge ---------- */
+.road + .last { margin-top: clamp(28px, 5vw, 70px); }
 .last { margin-top: clamp(72px, 12vw, 160px); padding: clamp(28px, 5vw, 80px) 0 0; background: var(--blue); box-shadow: 0 10px 0 var(--blue-lip); color: var(--ink); }
 .last h2 { font-size: clamp(60px, 16.5vw, 250px); }
 .last .card { margin: clamp(20px, 3vw, 48px) var(--gut) 0 auto; translate: 0 34%; rotate: -2deg; position: relative; box-shadow: 0 6px 0 var(--cream-lip), 10px 16px 0 #16191A40; }
@@ -135,4 +168,4 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 footer { padding: clamp(110px, 16vw, 200px) var(--gut) max(40px, env(safe-area-inset-bottom)); font-size: 13px; font-weight: 500; opacity: .6; }
 
 
-@media (prefers-reduced-motion: reduce) { .rack button, .join.sent .done, .join input { transition: none !important; animation: none; } }
+@media (prefers-reduced-motion: reduce) { .rack button, .rack canvas, .steps .ball, .join.sent .done, .join input { transition: none !important; animation: none; } .road .keys { min-height: 0; } }

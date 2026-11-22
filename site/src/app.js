@@ -8,8 +8,9 @@ import { cushions, RAIL } from '../../src/render/table.ts';
 import { zone } from '../../src/render/tip.ts';
 import { aimGuide } from '../../src/shot/aim.ts';
 import { BALLS, C, CLOTHS } from '../../src/theme.ts';
-import { ALL as CUE_ART, G as cueG, LENGTH as CUE_LEN } from '../../src/render/cues/art.ts';
+import { ALL, G, LENGTH } from '../../src/render/cues/art.ts';
 import { ball, POCKET, PRESETS, shotOf } from './presets.mjs';
+import { BALLS as SPOTS, FILM, inView, NOW, PLAN, replays, shotFor, STEPS, when } from './roadmap.mjs';
 
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $ = id => document.getElementById(id);
@@ -36,6 +37,7 @@ function sphere(ctx, id, m, x, y, rad, a, dpr) {
     for (let c = 0; c < 3; c++) { const base = body[c] + (band[c] - body[c]) * t; d[k + c] = base + (spot[c] - base) * s; }
     d[k + 3] = 255 * Math.min(1, cov);
   }
+  sctx.clearRect(size, 0, 2, size + 2); sctx.clearRect(0, size, size + 2, 2); // a larger ball drawn before left pixels beside this one, and a scaled draw would pick them up
   sctx.putImageData(img, 0, 0);
   ctx.globalAlpha = a; ctx.drawImage(scratch, 0, 0, size, size, x - n / dpr, y - n / dpr, size / dpr, size / dpr);
   if (id > 0) for (const k of [1, -1]) { // the number lies flat on its spot, so it turns and foreshortens with the ball
@@ -52,16 +54,18 @@ function sphere(ctx, id, m, x, y, rad, a, dpr) {
 
 // A table on two canvases: `felt` holds the empty table, `top` the balls, the guide and the cue. They are two so that
 // a page can put type between them, printed on the cloth with the balls rolling over it.
-function makeTable(top, felt) {
+function makeTable(top, felt, most = 0, bleed = 0) { // bleed = metres the top canvas runs past the table on each side, so a cue can leave it // least = the smallest a ball is drawn, in px across: on a phone-sized table the balls are drawn larger than life so the eye can follow them
   const ctx = top.getContext('2d');
-  let s = 1, dpr = 1;
-  const X = x => (RAIL + x) * s, Y = y => (RAIL + P.W - y) * s;
+  let s = 1, dpr = 1, least = most, o = 0;
+  const fade = o => { const h = felt.closest('section')?.querySelector('h2'), gap = h ? Math.max(12, felt.getBoundingClientRect().top - h.getBoundingClientRect().bottom) : 22, m = `linear-gradient(transparent ${o - gap + 2}px, #000 ${o - gap * 0.3}px)`; return { maskImage: m, webkitMaskImage: m }; };
+  const X = x => o + (RAIL + x) * s, Y = y => o + (RAIL + P.W - y) * s;
   const disc = (x, y, r) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); };
 
   function size() {
-    const w = top.clientWidth; if (!w) return;
-    dpr = Math.min(devicePixelRatio || 1, 2); s = w / TW;
-    felt.width = top.width = Math.round(w * dpr); felt.height = top.height = Math.round(w * TH / TW * dpr);
+    const w = felt.clientWidth; if (!w) return;
+    dpr = Math.min(devicePixelRatio || 1, 2); s = w / TW; least = Math.min(most, w * 0.058); // on the narrowest phone the larger balls would touch
+    o = Math.round(bleed * s); if (bleed) Object.assign(top.style, { inset: 'auto', left: `${-o}px`, top: `${-o}px`, width: `calc(100% + ${2 * o}px)`, height: `calc(100% + ${2 * o}px)`, ...fade(o) }); // the cue fades out in the gap under the heading
+    felt.width = Math.round(w * dpr); felt.height = Math.round(w * TH / TW * dpr); top.width = Math.round((w + 2 * o) * dpr); top.height = Math.round((w * TH / TW + 2 * o) * dpr);
     const g = felt.getContext('2d'), k = s * dpr, { L, W } = P, { deep } = CUT, cloth = CLOTHS[0];
     g.setTransform(k, 0, 0, -k, RAIL * k, (RAIL + W) * k); // table metres, y up
     const frame = () => { g.beginPath(); g.roundRect(-RAIL, -RAIL, TW, TH, 0.12); };
@@ -84,11 +88,11 @@ function makeTable(top, felt) {
   }
 
   const lift = z => 1 + 2.5 * z; // a ball in the air is drawn larger: 10 cm up = 25%
-  const shadow = (x, y, z, a = 1) => { const r = P.R * s, o = 0.5 * z * s; ctx.globalAlpha = a * Math.max(0.2, 0.45 - 2 * z); ctx.fillStyle = C.shade; disc(x + 0.28 * r + o, y + 0.36 * r + o, r); ctx.fill(); ctx.globalAlpha = 1; };
+  const shadow = (x, y, z, a = 1) => { const r = Math.max(P.R * s, least / 2), o = 0.5 * z * s; ctx.globalAlpha = a * Math.max(0.2, 0.45 - 2 * z); ctx.fillStyle = C.shade; disc(x + 0.28 * r + o, y + 0.36 * r + o, r); ctx.fill(); ctx.globalAlpha = 1; };
   // The balls, as drawBalls in the app: speed smears, landing rings and balls falling into pockets under everything,
   // then every shadow, then the balls, lowest first so a jumping ball passes over.
   function drawBalls(v) {
-    const { B, ids, look } = v, r = P.R * s, hue = id => (id ? BALLS[(id - 1) % 8] : C.white);
+    const { B, ids, look } = v, r = Math.max(P.R * s, least / 2), hue = id => (id ? BALLS[(id - 1) % 8] : C.white);
     if (!calm) for (let i = 0; i < B.length; i++) {
       const b = B[i]; if (!b.on) continue;
       const px = X(b.x), py = Y(b.y), qx = X(look.last[2 * i]), qy = Y(look.last[2 * i + 1]);
@@ -134,7 +138,8 @@ function makeTable(top, felt) {
   function drawCue(c) {
     const ux = Math.cos(c.ang), uy = Math.sin(c.ang), gap = P.R + 0.0015 + c.back, len = 0.7 * Math.max(0.6, Math.cos(c.elev));
     const ax = X(c.x - ux * gap), ay = Y(c.y - uy * gap), bx = X(c.x - ux * (gap + len)), by = Y(c.y - uy * (gap + len));
-    const w0 = Math.max(2, 0.012 * s), w1 = Math.max(3, 0.026 * s), px = -(by - ay), py = bx - ax, n = Math.hypot(px, py), h = Math.sin(c.elev) * 0.7 * s;
+    const fat = Math.sqrt(Math.max(1, least / 2 / (P.R * s))), w0 = Math.max(2, 0.012 * s * fat), w1 = Math.max(3, 0.026 * s * fat), // a thicker cue for the larger balls
+      px = -(by - ay), py = bx - ax, n = Math.hypot(px, py), h = Math.sin(c.elev) * 0.7 * s;
     const quad = (f, t, col, ox, oy) => {
       const at = (q, side) => { const hw = side * (w0 + (w1 - w0) * q) / 2, o = q * h * 0.45 / (P.R * s); return [ax + (bx - ax) * q + px / n * hw + ox * (1 + o), ay + (by - ay) * q + py / n * hw + oy * (1 + o)]; };
       ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(...at(f, 1)); ctx.lineTo(...at(t, 1)); ctx.lineTo(...at(t, -1)); ctx.lineTo(...at(f, -1)); ctx.fill();
@@ -145,21 +150,23 @@ function makeTable(top, felt) {
     ctx.globalAlpha = 1;
   }
 
-  // v = { B, ids, look, guide, cue, puff: { x, y, age }, ring: HOLES index, fade }
+  // v = { B, ids, look, guide, cue, puff: { x, y, age }, ring: HOLES index, gold, mark: index of a ball to ring in gold, in white, fade }
   function draw(v) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, top.width, top.height);
-    if (v.ring != null) { const [x, y, r] = HOLES[v.ring]; ctx.strokeStyle = C.white; ctx.lineWidth = r * s * 0.2; disc(X(x), Y(y), r * s * 0.62); ctx.stroke(); }
     top.style.opacity = v.fade ?? 1;
     if (v.guide) drawAim(v.guide);
     drawBalls(v);
+    // the rings over the balls: a ball that rolls past a ringed one goes under its ring, and does not seem to touch it
+    if (v.ring != null) { const [x, y, r] = HOLES[v.ring]; ctx.strokeStyle = C.gold; ctx.lineWidth = Math.max(4, r * s * 0.3); disc(X(x), Y(y), Math.max(12, r * s * 0.8)); ctx.stroke(); }
+    for (const [i, col] of [[v.gold, C.gold], [v.mark, C.white]]) if (i != null && v.B[i].on) { const b = v.B[i]; ctx.strokeStyle = col; ctx.lineWidth = Math.max(2.5, P.R * s * 0.3); disc(X(b.x), Y(b.y), Math.max(least / 2 + 5, P.R * s * 1.9)); ctx.stroke(); }
     if (v.puff && v.puff.age < 260) { // chalk off the tip at the hit
       const t = v.puff.age / 260; ctx.globalAlpha = 0.55 * (1 - t); ctx.strokeStyle = C.chalk; ctx.lineWidth = 1.5; disc(X(v.puff.x), Y(v.puff.y), P.R * s * (0.5 + 1.6 * (1 - (1 - t) ** 3))); ctx.stroke(); ctx.globalAlpha = 1;
     }
     if (v.cue && v.cue.a > 0) drawCue(v.cue);
   }
-  const toTable = e => { const q = top.getBoundingClientRect(), k = q.width / top.clientWidth || 1; return [(e.clientX - q.left) / k / s - RAIL, P.W - ((e.clientY - q.top) / k / s - RAIL)]; };
+  const toTable = e => { const q = top.getBoundingClientRect(), k = q.width / top.clientWidth || 1; return [((e.clientX - q.left) / k - o) / s - RAIL, P.W - (((e.clientY - q.top) / k - o) / s - RAIL)]; };
   size();
-  return { size, draw, toTable, canvas: top, felt };
+  return { size, draw, toTable, canvas: top, felt, fat: () => Math.max(1, least / 2 / (P.R * s)) };
 }
 
 // The stroke. The game has no stroke yet (the stick leaves the table on the frame of the strike), so this one is the
@@ -167,21 +174,23 @@ function makeTable(top, felt) {
 // short way past where the ball was (or digs in and springs back when it is raised), rests, and lifts off.
 // It stays where it struck: the ball leaves it behind. Returns what the scene calls each frame.
 function stroke(v, table, shot, power, hit) {
-  const c = v.cue, from = c.back, wind = from + 0.035 + 0.03 * power, T1 = 150, T2 = 105 - 45 * power, up = Math.sin(c.elev);
+  const c = v.cue, T1 = 260, HOLD = 260, T2 = 105 - 45 * power, up = Math.sin(c.elev);
   const through = (0.02 + 0.07 * power) * (1 - up) + 0.004, spring = 0.018 * up * power;
-  let t = 0, struck = false;
+  let t = 0, struck = false, from, wind;
   return ms => {
+    if (from == null) { from = c.back; wind = from + (0.05 + 0.05 * power) * table.fat(); } // on a small table the balls are drawn larger: so is the swing // from where the cue is when the stroke begins: no jump
     t += ms;
-    if (calm && !struck) t = T1 + T2;
+    if (calm && !struck) t = T1 + HOLD + T2;
     if (t < T1) c.back = from + (wind - from) * (1 - (1 - t / T1) ** 2);
-    else if (t < T1 + T2) c.back = wind * (1 - ((t - T1) / T2) ** 3); // it gathers speed all the way into the ball
+    else if (t < T1 + HOLD) c.back = wind; // a beat at the top of the backswing
+    else if (t < T1 + HOLD + T2) c.back = wind * (1 - ((t - T1 - HOLD) / T2) ** 3); // it gathers speed all the way into the ball
     else {
       if (!struck) {
         struck = true; hit(); v.puff = { x: c.x, y: c.y, age: 0 };
         // The table takes the hit: a short shove along the shot that springs back.
-        if (!calm && power > 0.3) { const k = 1 + 3 * power; for (const el of [table.canvas, table.felt]) el.animate([{ translate: `${Math.cos(shot.ang) * k}px ${-Math.sin(shot.ang) * k}px` }, { translate: '0 0' }], { duration: 260, easing: 'cubic-bezier(.2,1.8,.4,1)' }); }
+        if (!calm) { const k = (4 + 6 * power) * Math.min(1.2, table.felt.clientWidth / 400); for (const el of [table.canvas, table.felt]) el.animate([{ translate: `${Math.cos(shot.ang) * k}px ${-Math.sin(shot.ang) * k}px` }, { translate: '0 0' }], { duration: 260, easing: 'cubic-bezier(.2,1.8,.4,1)' }); }
       }
-      const q = t - T1 - T2; v.puff.age = q;
+      const q = t - T1 - HOLD - T2; v.puff.age = q;
       c.back = -through * (1 - (1 - Math.min(1, q / 140)) ** 3) + spring * Math.sin(Math.min(1, q / 180) * Math.PI);
       c.a = q < 520 ? 1 : Math.max(0, 1 - (q - 520) / 180);
       if (q > 520) c.back += 0.04 * ((q - 520) / 180) ** 2;
@@ -195,7 +204,7 @@ const scenes = [];
 function scene(table, tick) {
   const sc = { table, tick, on: false, dirty: true };
   new IntersectionObserver(([e]) => { sc.on = e.isIntersecting; }, { rootMargin: '100px' }).observe(table.canvas);
-  new ResizeObserver(() => { table.size(); sc.dirty = true; }).observe(table.canvas);
+  new ResizeObserver(() => { table.size(); sc.dirty = true; }).observe(table.felt);
   scenes.push(sc); return sc;
 }
 let last = performance.now();
@@ -311,34 +320,123 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   load(p);
 }
 
-// ---- The cues: all of them stand in a rack, drawn by the app's own cue drawings (render/cues/art.ts). The one under the
-// pointer, the finger or the arrow keys steps forward and its name and stats show large. ----
+// ---- The cues: all 26 stand in a rack, each drawn by the app's own drawing (render/cues/art.ts). The one under the
+// pointer, the finger or the arrow keys steps forward and its name, trick and stats show large. ----
 {
-  const rackEl = $('rack'), name = $('cue-name'), bars = $('cue-bars'), dpr = Math.min(devicePixelRatio || 1, 2), W = 44, H = 420, ids = Object.keys(CUES);
-  let at = -1;
+  const rackEl = $('rack'), name = $('cue-name'), trick = $('cue-trick'), bars = $('cue-bars'), ids = Object.keys(CUES);
+  const W = 64, H = 420, K = 2.6, D = 2, room = c => Math.max(0.012, (c.tail || 0) * K + 0.006), art = id => ALL.find(c => c.name === CUES[id].name);
+  const S = (H - 8) / (LENGTH + Math.max(...ids.map(id => room(art(id))))); // one scale for all: a cue with something on its end stands taller
+  let at = -1, keyAt = 0, from = null;
   const pick = i => {
     if (i === at) return; at = i;
-    [...rackEl.children].forEach((b, j) => b.setAttribute('aria-pressed', j === i));
-    const cue = CUES[ids[i]]; name.textContent = cue.name;
+    if (rackEl.contains(document.activeElement)) rackEl.children[i].focus({ preventScroll: true }); // a pick by pointer takes the focus ring along
+    [...rackEl.children].forEach((b, j) => { b.setAttribute('aria-pressed', j === i); b.tabIndex = j === i ? 0 : -1; }); // one stop for the Tab key: the arrows move in the rack
+    const cue = CUES[ids[i]]; name.textContent = cue.name; trick.textContent = cue.trick || 'No trick'; trick.style.visibility = cue.trick ? '' : 'hidden'; // the plain cues: no chip, and the block keeps its height
     bars.querySelectorAll('u').forEach((u, k) => { const n = cue[['power', 'spin', 'aim'][k]]; u.style.setProperty('--n', n); u.setAttribute('aria-label', `${n} of 10`); });
   };
+  const paint = () => [...rackEl.children].forEach((b, i) => {
+    const c = art(ids[i]), ctx = b.firstChild.getContext('2d');
+    ctx.setTransform(D, 0, 0, D, 0, 0); ctx.clearRect(0, 0, W, H);
+    ctx.translate(W / 2, H - 4 - (LENGTH + room(c)) * S); ctx.rotate(Math.PI / 2); // tip up, the end on the shelf
+    const g = G(ctx, c, S, K, 1.3, 0, Math.PI / 2);
+    c.under?.(g); ctx.save(); g.body(); ctx.clip(); c.paint(g); ctx.restore(); c.over?.(g);
+  });
   ids.forEach((id, i) => {
-    const b = document.createElement('button'), cv = document.createElement('canvas'), g = cv.getContext('2d'), art = CUE_ART.find(c => c.name === CUES[id].name);
-    b.type = 'button'; b.setAttribute('aria-label', CUES[id].name); cv.width = W * dpr; cv.height = H * dpr;
-    if (art) { // as paintCue in render/cues/index.ts, standing tip up, with room below the butt for what hangs off it
-      const K = 2.3, S = (H - 16) / (CUE_LEN + Math.max(0.03, (art.tail || 0) * K + 0.012)), c = cueG(g, art, S, K, 1.3, 0, Math.PI / 2);
-      g.setTransform(dpr, 0, 0, dpr, 0, 0); g.translate(W / 2, 8); g.rotate(Math.PI / 2);
-      if (art.under) art.under(c);
-      g.save(); c.body(); g.clip(); art.paint(c); g.restore();
-      if (art.over) art.over(c);
-    }
-    b.append(cv); b.onpointerenter = b.onfocus = b.onclick = () => pick(i);
+    const b = document.createElement('button'), cv = document.createElement('canvas'), ctx = cv.getContext('2d');
+    const q = CUES[id]; b.type = 'button'; b.setAttribute('aria-label', `${q.name}: ${q.trick || 'no trick'}. Power ${q.power}, spin ${q.spin}, aim ${q.aim} of 10`); cv.width = W * D; cv.height = H * D;
+    // the drawings ask for text as (str, x, y, px), centred: the app's canvas does that, a browser's wants a font
+    ctx.fillText = (str, x, y, px) => { ctx.font = `800 ${px}px "Bricolage Grotesque", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; CanvasRenderingContext2D.prototype.fillText.call(ctx, str, x, y); };
+    b.append(cv); b.onfocus = b.onclick = () => pick(i); b.onpointerenter = () => { if (performance.now() - keyAt > 500) pick(i); }; // a pointer at rest over the rack does not take the pick back from the keys
     rackEl.append(b);
   });
-  // A finger slid along the rack picks the cue under it (pointerenter does not fire for a touch that moves).
-  rackEl.addEventListener('pointermove', e => { const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('button'); if (el?.parentElement === rackEl) pick([...rackEl.children].indexOf(el)); });
-  rackEl.addEventListener('keydown', e => { const d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0; if (d) { e.preventDefault(); const i = (at + d + ids.length) % ids.length; pick(i); rackEl.children[i].focus(); } });
-  pick(Math.max(0, ids.indexOf('ram')));
+  document.fonts.ready.then(paint); // the numbers on three cues need the font
+  // A finger slid along the rack picks the cue under it (pointerenter does not fire for a touch that moves); a finger
+  // that moves up or down is scrolling the page, and picks nothing.
+  rackEl.addEventListener('pointerdown', e => { from = [e.clientX, e.clientY]; });
+  rackEl.addEventListener('pointermove', e => {
+    if (performance.now() - keyAt < 500 || (e.pointerType === 'touch' && from && Math.abs(e.clientY - from[1]) > Math.abs(e.clientX - from[0]))) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('button'); if (el?.parentElement === rackEl) pick([...rackEl.children].indexOf(el));
+  });
+  rackEl.addEventListener('keydown', e => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const row = rackEl.children[13].offsetTop > rackEl.children[0].offsetTop ? 13 : 0, d = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: row, ArrowUp: -row, Home: -at, End: ids.length - 1 - at }[e.key]; // on a phone the rack is two shelves
+    if (d || e.key === 'Home' || e.key === 'End') { e.preventDefault(); keyAt = performance.now(); const i = (at + d + ids.length) % ids.length; pick(i); rackEl.children[i].focus(); }
+  });
+  pick(ids.indexOf('hindsight'));
+}
+
+// ---- The roadmap: a nine-ball run-out (roadmap.mjs). The balls of the first steps are down already. When the list
+// under the table comes into view the cue pots the balls of the last steps that are done, and each lands in its row;
+// then the cue comes to the ball of the step in hand (ringed in gold from the start) and waits. A row of the list
+// rings its ball on the table, or the pocket it went down. ----
+{
+  const table = makeTable($('road'), $('road-felt'), 22, 0.75), v = { B: [], ids: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], look: null, cue: null };
+  const list = $('steps'), again = $('again'), say = $('road-say'), here = Math.min(NOW, 8);
+  let k = 0, state = 'wait', t = 0, swing, pace = 1, acc = 0, sc, sel = here;
+  const rows = STEPS.map((name, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = i < NOW ? 'done' : i === NOW ? 'now' : 'later'; b.tabIndex = i === here ? 0 : -1;
+    if (i === NOW) b.setAttribute('aria-current', 'step');
+    b.innerHTML = `<i class="ball b${i + 1}"><i>${i + 1}</i></i><b>${name}</b><span>${when(i)}</span>`;
+    b.onclick = () => { if (state === 'wait') { show(); start(); } choose(i); say.textContent = `The ${i + 1} is ${down(i) ? 'down' : i < NOW ? 'about to drop' : 'on the table'}.`; }; // a tap on a row also starts a film that is still waiting // for a screen reader: the page shows it as a ring on the table
+    list.appendChild(document.createElement('li')).append(b); return b;
+  });
+  const down = i => !v.B[i + 1].on;
+  function choose(i = sel) { // row i is lit; its ball is ringed on the table, or the pocket it went down
+    sel = i;
+    rows.forEach((b, j) => { b.setAttribute('aria-pressed', j === i); b.tabIndex = j === i ? 0 : -1; b.classList.toggle('in', down(j)); }); // one stop for the Tab key: the arrows move in the list
+    v.mark = down(i) || i === NOW ? null : i + 1; v.ring = down(i) ? PLAN[i][0] : null;
+    if (sc) sc.dirty = true;
+  }
+  list.addEventListener('keydown', e => { const i = rows.indexOf(document.activeElement), j = e.altKey || e.ctrlKey || e.metaKey ? null : { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: 8 }[e.key], r = rows[j]; if (j != null && r) { e.preventDefault(); r.focus(); choose(rows.indexOf(r)); } }); // no line for the screen reader here: the focus reads the row
+  // A scratch cannot happen (test/roadmap.test.mjs runs every shot). If it did, the cue ball goes back where it began.
+  const mend = () => { if (!v.B[0].on) Object.assign(v.B[0], ball(...SPOTS[0])); };
+  function aim() { // the cue comes to the next ball; at NOW it stays there
+    if (k > 8) { v.cue = null; state = 'hold'; again.hidden = calm; return choose(); } // all nine are down
+    const shot = shotFor(v.B, k), c = v.B[0];
+    const jack = c.y - Math.sin(shot.ang) * 0.8 > P.W + 0.15; // the butt would leave the table at the top, under the heading: the cue is raised over the rail, as a player does
+    v.cue = { x: c.x, y: c.y, ang: shot.ang, elev: jack ? 0.8 : 0, back: 0.03, a: 0 }; state = k < NOW ? 'aim' : 'hold'; t = 0; choose();
+    if (k < NOW) swing = stroke(v, table, shot, PLAN[k][1], () => { strike(v.B[0], shot); state = 'run'; pace = 1; });
+    else again.hidden = calm; // the film is over: it can be played again
+  }
+  function set(film) { // film = the last FILM shots are still to play; without it, the table as it is when they are over
+    v.B = SPOTS.map(q => ball(...q)); v.look = newLook(v.B); v.puff = null; v.gold = NOW < 9 ? NOW + 1 : null; again.hidden = true;
+    for (k = 0; k < (film ? Math.max(0, NOW - FILM) : NOW); k++) { strike(v.B[0], shotFor(v.B, k)); while (advance(v.B, v.look, 34, true)); v.B[k + 1].on = false; mend(); }
+    v.look.fx.length = 0; aim();
+    if (film) state = 'wait'; else if (v.cue) { v.cue.a = 1; v.cue.back = 0.04; t = 1e6; }
+  }
+  set(!calm);
+  // the table into view: the whole stand when it fits the screen, else the table
+  const show = () => (list.parentElement.offsetHeight > innerHeight ? table.felt : list.parentElement).scrollIntoView({ block: 'nearest' });
+  const replay = () => { sel = here; say.textContent = ''; if (document.activeElement === again) rows[sel].focus({ preventScroll: true }); set(true); state = 'aim'; }; // the key hides: the focus must not fall off the page
+  again.onclick = () => { show(); replay(); };
+  table.felt.onclick = () => { if (!again.hidden) replay(); }; // a tap on the table plays it again too, where it is
+  // The film starts when the table and the row of the step in hand are in view together, so every ball lands in a row
+  // the visitor can see; on a screen too short for both, when the whole table is in view.
+  const start = () => { if (state === 'wait') state = 'aim'; }, first = rows[here];
+  const seen = () => { if (state !== 'wait') return; const c = table.felt.getBoundingClientRect(), r = first.getBoundingClientRect(); if (inView(c.top, c.bottom, r.bottom, r.height, innerHeight)) start(); };
+  addEventListener('scroll', seen, { passive: true }); addEventListener('resize', seen); seen();
+  list.addEventListener('focusin', () => { if (state === 'wait') { show(); start(); } }); // a keyboard user Tabs to the rows: show them the film
+  new IntersectionObserver(([e]) => { if (!e.isIntersecting && /aim|run|rest/.test(state)) set(replays(k, !v.B[k + 1]?.on)); }).observe(table.felt); // scrolled away mid-film
+  sc = scene(table, (ms, me) => {
+    t += ms;
+    if (state === 'wait' || (state === 'hold' && t > 4500)) { if (me.dirty) { table.draw(v); me.dirty = false; } return; }
+    if (state === 'aim') { // the cue comes in and draws back, then the stroke
+      v.cue.a = Math.min(1, t / 140);
+      const IN = k === NOW - FILM ? 900 : 400; // the first shot: the cue settles in a while before the stroke
+      if (t < IN) v.cue.back = 0.03 + 0.1 * PLAN[k][1] * (1 - (1 - Math.min(1, t / (IN - 60))) ** 3); else swing(ms);
+    } else if (state === 'run') {
+      swing(ms);
+      // Once the ball is down the film runs faster, so the cue ball's slow roll to its place does not hold the next shot up.
+      pace += ((v.B[k + 1].on ? Math.max(1.15, 0.75 / PLAN[k][1]) : 2.5) - pace) * Math.min(1, ms / 200); // a soft shot would hold the film up
+      acc += ms * pace; const n = Math.floor(acc); acc -= n;
+      const was = v.B[k + 1].on, moving = advance(v.B, v.look, n, true);
+      if (was && !v.B[k + 1].on) { choose(); if (sel === k && say.textContent) say.textContent = `The ${k + 1} is down.`; }
+      if (!moving) { if (v.B.some((b, i) => b.on !== (!i || i > k + 1))) set(false); else { k++; state = 'rest'; t = 0; } } // a shot that went wrong (it cannot) ends the film
+    } else if (state === 'rest') { advance(v.B, v.look, ms, false); if (t > 350) aim(); }
+    else if (v.cue) { advance(v.B, v.look, ms, false); v.cue.a = Math.min(1, t / 300); v.cue.back = 0.04 + 0.022 * Math.sin(t / 600) * Math.max(0, 1 - t / 4000); } // hold: the cue feathers at the ball, then is still
+    table.draw(v);
+  });
 }
 
 // ---- The waitlist forms ----
