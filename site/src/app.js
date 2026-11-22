@@ -317,14 +317,13 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
 // pointer, the finger or the arrow keys steps forward and its name, trick and stats show large. ----
 {
   const rackEl = $('rack'), name = $('cue-name'), trick = $('cue-trick'), bars = $('cue-bars'), ids = Object.keys(CUES);
-  const W = 44, H = 420, K = 2.6, D = 2, room = c => Math.max(0.012, (c.tail || 0) * K + 0.006), art = id => ALL.find(c => c.name === CUES[id].name);
+  const W = 64, H = 420, K = 2.6, D = 2, room = c => Math.max(0.012, (c.tail || 0) * K + 0.006), art = id => ALL.find(c => c.name === CUES[id].name);
   const S = (H - 8) / (LENGTH + Math.max(...ids.map(id => room(art(id))))); // one scale for all: a cue with something on its end stands taller
   let at = -1;
   const pick = i => {
     if (i === at) return; at = i;
-    [...rackEl.children].forEach((b, j) => b.setAttribute('aria-pressed', j === i));
-    const cue = CUES[ids[i]]; name.textContent = cue.name;
-    trick.replaceChildren(...(cue.trick ? [Object.assign(document.createElement('b'), { textContent: cue.trick }), ' '] : []), cue.does.match(/^.*?\.(?= |$)/)[0]); // the card's first sentence
+    [...rackEl.children].forEach((b, j) => { b.setAttribute('aria-pressed', j === i); b.tabIndex = j === i ? 0 : -1; }); // one stop for the Tab key: the arrows move in the rack
+    const cue = CUES[ids[i]]; name.textContent = cue.name; trick.textContent = cue.trick || '';
     bars.querySelectorAll('u').forEach((u, k) => { const n = cue[['power', 'spin', 'aim'][k]]; u.style.setProperty('--n', n); u.setAttribute('aria-label', `${n} of 10`); });
   };
   const paint = () => [...rackEl.children].forEach((b, i) => {

@@ -121,15 +121,15 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 /* ---------- The cues: all 26 on a shelf (two shelves on a phone). The picked one steps up 22px in 180ms, as a card does in the app. ---------- */
 .pick { padding: clamp(20px, 3vw, 40px) var(--gut) 0; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 14px 40px; }
 #cue-name { display: block; font-size: clamp(38px, 8vw, 120px); color: var(--gold); white-space: nowrap; }
-#cue-trick { font: 600 clamp(15px, 1.5vw, 21px)/1.3 var(--ui); max-width: 38ch; min-height: 2.6em; margin-top: .7em; text-wrap: balance; }
-#cue-trick b { font-size: 1.12em; line-height: inherit; letter-spacing: -.01em; color: var(--gold); }
+#cue-trick { display: inline-block; min-height: 26px; margin: 16px 0 0; background: var(--cream); color: var(--ink); box-shadow: 0 3px 0 var(--cream-lip); }
+#cue-trick:empty { visibility: hidden; }
 .bars { display: grid; grid-template-columns: auto clamp(150px, 20vw, 280px); gap: 8px 12px; align-items: center; font: 700 14px/1 var(--ui); }
 .bars u { display: block; height: 12px; background: linear-gradient(90deg, var(--gold) calc(var(--n) * 10%), #8885 0); -webkit-mask: repeating-linear-gradient(90deg, #000 0 calc(10% - 3px), transparent 0 10%); mask: repeating-linear-gradient(90deg, #000 0 calc(10% - 3px), transparent 0 10%); transition: background .18s; }
 .rack { display: grid; grid-template-columns: repeat(26, 1fr); row-gap: 30px; margin: 34px var(--gut) 0; touch-action: pan-y; }
-.rack button { min-width: 0; padding: 0; border: 0; border-bottom: clamp(8px, 1.2vw, 16px) solid var(--maple); background: none; outline-offset: -2px; }
-.rack canvas { width: 100%; aspect-ratio: 44 / 420; display: block; transition: transform .18s var(--out); }
-.rack button[aria-pressed=true] canvas { transform: translateY(-22px); }
-@media (max-width: 760px) { .rack { grid-template-columns: repeat(13, 1fr); } #cue-trick { min-height: 3.9em; } }
+.rack button { min-width: 0; padding: 0; border: 0; border-bottom: clamp(8px, 1.2vw, 16px) solid var(--maple); background: none; color: var(--chalk); opacity: .7; outline-offset: -2px; transition: opacity .18s; }
+.rack canvas { width: 145.5%; margin-left: -22.75%; aspect-ratio: 64 / 420; display: block; pointer-events: none; } /* wider than its place on the shelf: some cues have wide ends */
+.rack button[aria-pressed=true] { opacity: 1; border-bottom-color: var(--gold); }
+@media (max-width: 760px) { .rack { grid-template-columns: repeat(13, 1fr); margin-top: -30px; } }
 
 /* ---------- The roadmap: a nine-ball table. The step is printed on the cloth; the potted balls lie in the tray on its lower edge. ---------- */
 .road h2 { text-align: right; margin-bottom: .14em; }
@@ -168,4 +168,4 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 footer { padding: clamp(110px, 16vw, 200px) var(--gut) max(40px, env(safe-area-inset-bottom)); font-size: 13px; font-weight: 500; opacity: .6; }
 
 
-@media (prefers-reduced-motion: reduce) { .rack canvas, .tray .ball, #road-name, .join.sent .done, .join input { transition: none !important; animation: none; } }
+@media (prefers-reduced-motion: reduce) { .rack button, .steps .ball, .join.sent .done, .join input { transition: none !important; animation: none; } }
