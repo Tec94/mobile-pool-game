@@ -10,7 +10,7 @@ import { aimGuide } from '../../src/shot/aim.ts';
 import { BALLS, C, CLOTHS } from '../../src/theme.ts';
 import { ALL, G, LENGTH } from '../../src/render/cues/art.ts';
 import { ball, POCKET, PRESETS, shotOf } from './presets.mjs';
-import { BALLS as SPOTS, FILM, NOW, PLAN, shotFor, STEPS, when } from './roadmap.mjs';
+import { BALLS as SPOTS, FILM, inView, NOW, PLAN, shotFor, STEPS, when } from './roadmap.mjs';
 
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $ = id => document.getElementById(id);
@@ -406,9 +406,10 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   // The film starts when the table and the row of the step in hand are in view together, so every ball lands in a row
   // the visitor can see; on a screen too short for both, when the whole table is in view.
   const start = () => { if (state === 'wait') state = 'aim'; }, first = rows[here];
-  const seen = () => { const c = table.canvas.getBoundingClientRect(), r = first.getBoundingClientRect(); if (c.top > -4 && (r.bottom < innerHeight + 4 || (r.bottom - c.top > innerHeight && c.bottom < innerHeight + 4))) start(); };
-  new IntersectionObserver(seen, { threshold: 0.9 }).observe(first);
-  new IntersectionObserver(seen, { threshold: [0.95, 1] }).observe(table.canvas);
+  const seen = () => { if (state !== 'wait') return; const c = table.canvas.getBoundingClientRect(), r = first.getBoundingClientRect(); if (inView(c.top, c.bottom, r.bottom, r.height, innerHeight)) start(); };
+  addEventListener('scroll', seen, { passive: true }); addEventListener('resize', seen); seen();
+  list.addEventListener('focusin', () => { if (state === 'wait') { list.parentElement.scrollIntoView({ block: 'nearest' }); start(); } }); // a keyboard user Tabs to the rows: show them the film
+  new IntersectionObserver(([e]) => { if (!e.isIntersecting && /aim|run|rest/.test(state)) set(false); }).observe(table.canvas); // scrolled away mid-film: the rows must not be left half done
   sc = scene(table, (ms, me) => {
     t += ms;
     if (state === 'wait' || (state === 'hold' && t > 4500)) { if (me.dirty) { table.draw(v); me.dirty = false; } return; }

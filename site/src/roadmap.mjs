@@ -6,7 +6,10 @@ import { CUE, HOLES, P } from '../../src/physics/engine.ts';
 export const STEPS = ['Real physics', '8-ball and 9-ball', 'An AI that banks', 'Scenarios and lessons', 'Tournaments', 'App Store review', 'Out on iPhone', 'Leaderboards', 'Online play'];
 export const NOW = 5; // index into STEPS: 5 = the 6 ball
 export const SINCE = 'Sent 20 Nov'; // the tag of the step in hand
-export const FILM = 3; // how many of the done steps are potted before the visitor's eyes; the ones before are down already
+export const FILM = 2; // how many of the done steps are potted before the visitor's eyes; the ones before are down already
+// The film starts when the table and the row of the step in hand are in view together (the row may be a tenth under
+// the fold), or, on a screen too short for both, when the whole table is in view. In px, from the top of the screen.
+export const inView = (top, bottom, row, rowH, vh) => top > -4 && (row < vh + rowH * 0.1 + 1 || (row - top > vh && bottom < vh + 4));
 export const when = i => (i < NOW ? 'Done' : i === NOW ? SINCE : i === NOW + 1 ? 'Next' : 'Later');
 
 // The layout and the run: built shot by shot through the engine, so that every shot pots its ball with the aim up to
