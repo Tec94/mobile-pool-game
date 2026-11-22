@@ -54,15 +54,15 @@ function sphere(ctx, id, m, x, y, rad, a, dpr) {
 
 // A table on two canvases: `felt` holds the empty table, `top` the balls, the guide and the cue. They are two so that
 // a page can put type between them, printed on the cloth with the balls rolling over it.
-function makeTable(top, felt, least = 0) { // least = the smallest a ball is drawn, in px across: on a phone-sized table the balls are drawn larger than life so the eye can follow them
+function makeTable(top, felt, most = 0) { // least = the smallest a ball is drawn, in px across: on a phone-sized table the balls are drawn larger than life so the eye can follow them
   const ctx = top.getContext('2d');
-  let s = 1, dpr = 1;
+  let s = 1, dpr = 1, least = most;
   const X = x => (RAIL + x) * s, Y = y => (RAIL + P.W - y) * s;
   const disc = (x, y, r) => { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); };
 
   function size() {
     const w = top.clientWidth; if (!w) return;
-    dpr = Math.min(devicePixelRatio || 1, 2); s = w / TW;
+    dpr = Math.min(devicePixelRatio || 1, 2); s = w / TW; least = Math.min(most, w * 0.058); // on the narrowest phone the larger balls would touch
     felt.width = top.width = Math.round(w * dpr); felt.height = top.height = Math.round(w * TH / TW * dpr);
     const g = felt.getContext('2d'), k = s * dpr, { L, W } = P, { deep } = CUT, cloth = CLOTHS[0];
     g.setTransform(k, 0, 0, -k, RAIL * k, (RAIL + W) * k); // table metres, y up
@@ -85,7 +85,7 @@ function makeTable(top, felt, least = 0) { // least = the smallest a ball is dra
     g.fillStyle = C.pocket; for (const [x, y, r] of HOLES) { g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); }
   }
 
-  const lift = z => (1 + 2.5 * z) * Math.max(1, least / 2 / (P.R * s)); // a ball in the air is drawn larger: 10 cm up = 25%
+  const lift = z => 1 + 2.5 * z; // a ball in the air is drawn larger: 10 cm up = 25%
   const shadow = (x, y, z, a = 1) => { const r = Math.max(P.R * s, least / 2), o = 0.5 * z * s; ctx.globalAlpha = a * Math.max(0.2, 0.45 - 2 * z); ctx.fillStyle = C.shade; disc(x + 0.28 * r + o, y + 0.36 * r + o, r); ctx.fill(); ctx.globalAlpha = 1; };
   // The balls, as drawBalls in the app: speed smears, landing rings and balls falling into pockets under everything,
   // then every shadow, then the balls, lowest first so a jumping ball passes over.
@@ -136,7 +136,8 @@ function makeTable(top, felt, least = 0) { // least = the smallest a ball is dra
   function drawCue(c) {
     const ux = Math.cos(c.ang), uy = Math.sin(c.ang), gap = P.R + 0.0015 + c.back, len = 0.7 * Math.max(0.6, Math.cos(c.elev));
     const ax = X(c.x - ux * gap), ay = Y(c.y - uy * gap), bx = X(c.x - ux * (gap + len)), by = Y(c.y - uy * (gap + len));
-    const w0 = Math.max(2, 0.012 * s), w1 = Math.max(3, 0.026 * s), px = -(by - ay), py = bx - ax, n = Math.hypot(px, py), h = Math.sin(c.elev) * 0.7 * s;
+    const fat = Math.sqrt(Math.max(1, least / 2 / (P.R * s))), w0 = Math.max(2, 0.012 * s * fat), w1 = Math.max(3, 0.026 * s * fat), // a thicker cue for the larger balls
+      px = -(by - ay), py = bx - ax, n = Math.hypot(px, py), h = Math.sin(c.elev) * 0.7 * s;
     const quad = (f, t, col, ox, oy) => {
       const at = (q, side) => { const hw = side * (w0 + (w1 - w0) * q) / 2, o = q * h * 0.45 / (P.R * s); return [ax + (bx - ax) * q + px / n * hw + ox * (1 + o), ay + (by - ay) * q + py / n * hw + oy * (1 + o)]; };
       ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(...at(f, 1)); ctx.lineTo(...at(t, 1)); ctx.lineTo(...at(t, -1)); ctx.lineTo(...at(f, -1)); ctx.fill();
@@ -151,7 +152,7 @@ function makeTable(top, felt, least = 0) { // least = the smallest a ball is dra
   function draw(v) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, top.width, top.height);
     if (v.ring != null) { const [x, y, r] = HOLES[v.ring]; ctx.strokeStyle = C.gold; ctx.lineWidth = Math.max(3, r * s * 0.3); disc(X(x), Y(y), Math.max(9, r * s * 0.75)); ctx.stroke(); }
-    for (const [i, col] of [[v.gold, C.gold], [v.mark, C.white]]) if (i != null && v.B[i].on) { const b = v.B[i]; ctx.strokeStyle = col; ctx.lineWidth = Math.max(2.5, P.R * s * 0.3); disc(X(b.x), Y(b.y), Math.max(least * 0.95, P.R * s * 1.9)); ctx.stroke(); }
+    for (const [i, col] of [[v.gold, C.gold], [v.mark, C.white]]) if (i != null && v.B[i].on) { const b = v.B[i]; ctx.strokeStyle = col; ctx.lineWidth = Math.max(2.5, P.R * s * 0.3); disc(X(b.x), Y(b.y), Math.max(least / 2 + 5, P.R * s * 1.9)); ctx.stroke(); }
     top.style.opacity = v.fade ?? 1;
     if (v.guide) drawAim(v.guide);
     drawBalls(v);
