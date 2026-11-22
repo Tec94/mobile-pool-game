@@ -171,21 +171,23 @@ function makeTable(top, felt, most = 0) { // least = the smallest a ball is draw
 // short way past where the ball was (or digs in and springs back when it is raised), rests, and lifts off.
 // It stays where it struck: the ball leaves it behind. Returns what the scene calls each frame.
 function stroke(v, table, shot, power, hit) {
-  const c = v.cue, from = c.back, wind = from + 0.035 + 0.03 * power, T1 = 150, T2 = 105 - 45 * power, up = Math.sin(c.elev);
+  const c = v.cue, T1 = 240, HOLD = 120, T2 = 105 - 45 * power, up = Math.sin(c.elev);
   const through = (0.02 + 0.07 * power) * (1 - up) + 0.004, spring = 0.018 * up * power;
-  let t = 0, struck = false;
+  let t = 0, struck = false, from, wind;
   return ms => {
+    if (from == null) { from = c.back; wind = from + 0.05 + 0.05 * power; } // from where the cue is when the stroke begins: no jump
     t += ms;
-    if (calm && !struck) t = T1 + T2;
+    if (calm && !struck) t = T1 + HOLD + T2;
     if (t < T1) c.back = from + (wind - from) * (1 - (1 - t / T1) ** 2);
-    else if (t < T1 + T2) c.back = wind * (1 - ((t - T1) / T2) ** 3); // it gathers speed all the way into the ball
+    else if (t < T1 + HOLD) c.back = wind; // a beat at the top of the backswing
+    else if (t < T1 + HOLD + T2) c.back = wind * (1 - ((t - T1 - HOLD) / T2) ** 3); // it gathers speed all the way into the ball
     else {
       if (!struck) {
         struck = true; hit(); v.puff = { x: c.x, y: c.y, age: 0 };
         // The table takes the hit: a short shove along the shot that springs back.
-        if (!calm && power > 0.3) { const k = 1 + 3 * power; for (const el of [table.canvas, table.felt]) el.animate([{ translate: `${Math.cos(shot.ang) * k}px ${-Math.sin(shot.ang) * k}px` }, { translate: '0 0' }], { duration: 260, easing: 'cubic-bezier(.2,1.8,.4,1)' }); }
+        if (!calm) { const k = (4 + 6 * power) * Math.min(1.2, table.canvas.clientWidth / 400); for (const el of [table.canvas, table.felt]) el.animate([{ translate: `${Math.cos(shot.ang) * k}px ${-Math.sin(shot.ang) * k}px` }, { translate: '0 0' }], { duration: 260, easing: 'cubic-bezier(.2,1.8,.4,1)' }); }
       }
-      const q = t - T1 - T2; v.puff.age = q;
+      const q = t - T1 - HOLD - T2; v.puff.age = q;
       c.back = -through * (1 - (1 - Math.min(1, q / 140)) ** 3) + spring * Math.sin(Math.min(1, q / 180) * Math.PI);
       c.a = q < 520 ? 1 : Math.max(0, 1 - (q - 520) / 180);
       if (q > 520) c.back += 0.04 * ((q - 520) / 180) ** 2;
