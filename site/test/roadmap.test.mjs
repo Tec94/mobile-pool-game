@@ -16,6 +16,10 @@ test('the run-out: every shot hits its own ball first and pots only it, in under
     const [hx, hy] = HOLES[PLAN[k][0]]; assert.ok(Math.hypot(r.balls[k + 1].x - hx, r.balls[k + 1].y - hy) < 0.2, `shot ${k + 1} drops in the pocket the page rings`);
     // room to spare: a tune of the physics, or another browser's arithmetic, must not turn a pot into a miss
     for (const [d, f] of [[-0.3, 1], [-0.1, 1], [0.1, 1], [0.3, 1], [0, 0.97], [0, 1.03]]) { const shot = shotFor(B, k), q = simulate(B, { ...shot, ang: shot.ang + d * Math.PI / 180, speed: shot.speed * f }); assert.deepEqual([...q.potted, ...q.off], [k + 1], `shot ${k + 1} pots ${d} degrees off at ${f} of its speed`); }
+    if (k >= 2 && k <= 6) { // the shots a visitor can see the cue on: it must not lie over a ball (the page draws the balls larger than life)
+      const shot = shotFor(B, k), ux = -Math.cos(shot.ang), uy = -Math.sin(shot.ang);
+      B.forEach((b, i) => { if (!i || !b.on) return; const t = Math.max(0, Math.min(0.8, (b.x - B[0].x) * ux + (b.y - B[0].y) * uy)); assert.ok(t < 0.03 || Math.hypot(B[0].x + ux * t - b.x, B[0].y + uy * t - b.y) >= 0.1, `on shot ${k + 1} the cue is clear of the ${i}`); });
+    }
     B = r.balls;
   }
 });
