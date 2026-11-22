@@ -150,7 +150,7 @@ function makeTable(top, felt, least = 0) { // least = the smallest a ball is dra
   // v = { B, ids, look, guide, cue, puff: { x, y, age }, ring: HOLES index, gold, mark: index of a ball to ring in gold, in white, fade }
   function draw(v) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, top.width, top.height);
-    if (v.ring != null) { const [x, y, r] = HOLES[v.ring]; ctx.strokeStyle = C.white; ctx.lineWidth = r * s * 0.2; disc(X(x), Y(y), r * s * 0.62); ctx.stroke(); }
+    if (v.ring != null) { const [x, y, r] = HOLES[v.ring]; ctx.strokeStyle = C.gold; ctx.lineWidth = Math.max(3, r * s * 0.3); disc(X(x), Y(y), Math.max(9, r * s * 0.75)); ctx.stroke(); }
     for (const [i, col] of [[v.gold, C.gold], [v.mark, C.white]]) if (i != null && v.B[i].on) { const b = v.B[i]; ctx.strokeStyle = col; ctx.lineWidth = Math.max(2.5, P.R * s * 0.3); disc(X(b.x), Y(b.y), Math.max(least * 0.95, P.R * s * 1.9)); ctx.stroke(); }
     top.style.opacity = v.fade ?? 1;
     if (v.guide) drawAim(v.guide);
@@ -363,7 +363,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
 // then the cue comes to the ball of the step in hand (ringed in gold from the start) and waits. A row of the list
 // rings its ball on the table, or the pocket it went down. ----
 {
-  const table = makeTable($('road'), $('road-felt'), 12), v = { B: [], ids: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], look: null, cue: null };
+  const table = makeTable($('road'), $('road-felt'), 15), v = { B: [], ids: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], look: null, cue: null };
   const list = $('steps'), again = $('again'), here = Math.min(NOW, 8);
   let k = 0, state = 'wait', t = 0, swing, pace = 1, acc = 0, sc, sel = here;
   const rows = STEPS.map((name, i) => {
@@ -399,7 +399,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     if (film) state = 'wait'; else if (v.cue) { v.cue.a = 1; v.cue.back = 0.04; t = 1e6; }
   }
   set(!calm);
-  again.onclick = () => { if (document.activeElement === again) rows[sel].focus({ preventScroll: true }); set(true); state = 'aim'; }; // the key hides: the focus must not fall off the page
+  again.onclick = () => { sel = here; if (document.activeElement === again) rows[sel].focus({ preventScroll: true }); set(true); state = 'aim'; }; // the key hides: the focus must not fall off the page
   table.canvas.onclick = () => { if (!again.hidden) again.click(); }; // a tap on the table plays it again too
   // The film starts when the table and the row of the step in hand are in view together, so every ball lands in a row
   // the visitor can see; on a screen too short for both, when the whole table is in view.
