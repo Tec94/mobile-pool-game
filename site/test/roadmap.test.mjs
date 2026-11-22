@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { HOLES, simulate } from '../../src/physics/engine.ts';
 import { ball } from '../src/presets.mjs';
-import { BALLS, NOW, PLAN, shotFor, STEPS } from '../src/roadmap.mjs';
+import { readFileSync } from 'node:fs';
+import { BALLS, FILM, NOW, PLAN, shotFor, STEPS, when } from '../src/roadmap.mjs';
 
 test('the roadmap has a step and a shot for each of the nine balls', () => { assert.equal(STEPS.length, 9); assert.equal(PLAN.length, 9); assert.equal(BALLS.length, 10); assert.ok(NOW >= 0 && NOW <= 9); });
 test('the run-out: every shot hits its own ball first and pots only it, in under 5 seconds', () => {
@@ -18,3 +19,5 @@ test('the run-out: every shot hits its own ball first and pots only it, in under
     B = r.balls;
   }
 });
+test('the tags: done before NOW, then the step in hand, the next, the rest', () => { assert.deepEqual([NOW - 1, NOW + 1, NOW + 2].map(when), ['Done', 'Next', 'Later']); assert.ok(FILM <= NOW); });
+test('the chip by the name says the step in hand', () => { assert.ok(readFileSync(new URL('../public/index.html', import.meta.url), 'utf8').includes(`>In ${STEPS[NOW]}<`), 'NOW moved: change the chip, the footer and og.png'); });

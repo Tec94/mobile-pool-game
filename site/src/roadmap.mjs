@@ -1,5 +1,6 @@
 // The roadmap is a nine-ball run-out: one ball a step, potted in order. The balls before NOW are down, the cue waits
 // on the ball at NOW, the rest stand on the table. To move the roadmap on, change NOW and SINCE (and STEPS, if the plan changed).
+// The status is also in public/index.html (the chip by the name, the footer) and in public/og.png: change those too. test/roadmap.test.mjs holds the chip to NOW.
 import { CUE, HOLES, P } from '../../src/physics/engine.ts';
 
 export const STEPS = ['Real physics', '8-ball and 9-ball', 'An AI that banks', 'Scenarios and lessons', 'Tournaments', 'App Store review', 'Out on iPhone', 'Leaderboards', 'Online play'];
