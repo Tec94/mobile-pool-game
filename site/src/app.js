@@ -165,7 +165,7 @@ function makeTable(top, felt, most = 0, bleed = 0) { // bleed = metres the top c
   }
   const toTable = e => { const q = top.getBoundingClientRect(), k = q.width / top.clientWidth || 1; return [((e.clientX - q.left) / k - o) / s - RAIL, P.W - (((e.clientY - q.top) / k - o) / s - RAIL)]; };
   size();
-  return { size, draw, toTable, canvas: top, felt };
+  return { size, draw, toTable, canvas: top, felt, fat: () => Math.max(1, least / 2 / (P.R * s)) };
 }
 
 // The stroke. The game has no stroke yet (the stick leaves the table on the frame of the strike), so this one is the
@@ -173,11 +173,11 @@ function makeTable(top, felt, most = 0, bleed = 0) { // bleed = metres the top c
 // short way past where the ball was (or digs in and springs back when it is raised), rests, and lifts off.
 // It stays where it struck: the ball leaves it behind. Returns what the scene calls each frame.
 function stroke(v, table, shot, power, hit) {
-  const c = v.cue, T1 = 240, HOLD = 200, T2 = 105 - 45 * power, up = Math.sin(c.elev);
+  const c = v.cue, T1 = 260, HOLD = 260, T2 = 105 - 45 * power, up = Math.sin(c.elev);
   const through = (0.02 + 0.07 * power) * (1 - up) + 0.004, spring = 0.018 * up * power;
   let t = 0, struck = false, from, wind;
   return ms => {
-    if (from == null) { from = c.back; wind = from + 0.05 + 0.05 * power; } // from where the cue is when the stroke begins: no jump
+    if (from == null) { from = c.back; wind = from + (0.05 + 0.05 * power) * table.fat(); } // on a small table the balls are drawn larger: so is the swing // from where the cue is when the stroke begins: no jump
     t += ms;
     if (calm && !struck) t = T1 + HOLD + T2;
     if (t < T1) c.back = from + (wind - from) * (1 - (1 - t / T1) ** 2);
