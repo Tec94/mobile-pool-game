@@ -152,11 +152,12 @@ function makeTable(top, felt, most = 0, bleed = 0) { // bleed = metres the top c
   // v = { B, ids, look, guide, cue, puff: { x, y, age }, ring: HOLES index, gold, mark: index of a ball to ring in gold, in white, fade }
   function draw(v) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, top.width, top.height);
-    if (v.ring != null) { const [x, y, r] = HOLES[v.ring]; ctx.strokeStyle = C.gold; ctx.lineWidth = Math.max(3, r * s * 0.3); disc(X(x), Y(y), Math.max(9, r * s * 0.75)); ctx.stroke(); }
-    for (const [i, col] of [[v.gold, C.gold], [v.mark, C.white]]) if (i != null && v.B[i].on) { const b = v.B[i]; ctx.strokeStyle = col; ctx.lineWidth = Math.max(2.5, P.R * s * 0.3); disc(X(b.x), Y(b.y), Math.max(least / 2 + 5, P.R * s * 1.9)); ctx.stroke(); }
     top.style.opacity = v.fade ?? 1;
     if (v.guide) drawAim(v.guide);
     drawBalls(v);
+    // the rings over the balls: a ball that rolls past a ringed one goes under its ring, and does not seem to touch it
+    if (v.ring != null) { const [x, y, r] = HOLES[v.ring]; ctx.strokeStyle = C.gold; ctx.lineWidth = Math.max(4, r * s * 0.3); disc(X(x), Y(y), Math.max(12, r * s * 0.8)); ctx.stroke(); }
+    for (const [i, col] of [[v.gold, C.gold], [v.mark, C.white]]) if (i != null && v.B[i].on) { const b = v.B[i]; ctx.strokeStyle = col; ctx.lineWidth = Math.max(2.5, P.R * s * 0.3); disc(X(b.x), Y(b.y), Math.max(least / 2 + 5, P.R * s * 1.9)); ctx.stroke(); }
     if (v.puff && v.puff.age < 260) { // chalk off the tip at the hit
       const t = v.puff.age / 260; ctx.globalAlpha = 0.55 * (1 - t); ctx.strokeStyle = C.chalk; ctx.lineWidth = 1.5; disc(X(v.puff.x), Y(v.puff.y), P.R * s * (0.5 + 1.6 * (1 - (1 - t) ** 3))); ctx.stroke(); ctx.globalAlpha = 1;
     }
