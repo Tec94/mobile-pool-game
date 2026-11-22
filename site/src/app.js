@@ -54,7 +54,7 @@ function sphere(ctx, id, m, x, y, rad, a, dpr) {
 
 // A table on two canvases: `felt` holds the empty table, `top` the balls, the guide and the cue. They are two so that
 // a page can put type between them, printed on the cloth with the balls rolling over it.
-function makeTable(top, felt) {
+function makeTable(top, felt, least = 0) { // least = the smallest a ball is drawn, in px across: on a phone-sized table the balls are drawn larger than life so the eye can follow them
   const ctx = top.getContext('2d');
   let s = 1, dpr = 1;
   const X = x => (RAIL + x) * s, Y = y => (RAIL + P.W - y) * s;
@@ -85,12 +85,12 @@ function makeTable(top, felt) {
     g.fillStyle = C.pocket; for (const [x, y, r] of HOLES) { g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); }
   }
 
-  const lift = z => 1 + 2.5 * z; // a ball in the air is drawn larger: 10 cm up = 25%
-  const shadow = (x, y, z, a = 1) => { const r = P.R * s, o = 0.5 * z * s; ctx.globalAlpha = a * Math.max(0.2, 0.45 - 2 * z); ctx.fillStyle = C.shade; disc(x + 0.28 * r + o, y + 0.36 * r + o, r); ctx.fill(); ctx.globalAlpha = 1; };
+  const lift = z => (1 + 2.5 * z) * Math.max(1, least / 2 / (P.R * s)); // a ball in the air is drawn larger: 10 cm up = 25%
+  const shadow = (x, y, z, a = 1) => { const r = Math.max(P.R * s, least / 2), o = 0.5 * z * s; ctx.globalAlpha = a * Math.max(0.2, 0.45 - 2 * z); ctx.fillStyle = C.shade; disc(x + 0.28 * r + o, y + 0.36 * r + o, r); ctx.fill(); ctx.globalAlpha = 1; };
   // The balls, as drawBalls in the app: speed smears, landing rings and balls falling into pockets under everything,
   // then every shadow, then the balls, lowest first so a jumping ball passes over.
   function drawBalls(v) {
-    const { B, ids, look } = v, r = P.R * s, hue = id => (id ? BALLS[(id - 1) % 8] : C.white);
+    const { B, ids, look } = v, r = Math.max(P.R * s, least / 2), hue = id => (id ? BALLS[(id - 1) % 8] : C.white);
     if (!calm) for (let i = 0; i < B.length; i++) {
       const b = B[i]; if (!b.on) continue;
       const px = X(b.x), py = Y(b.y), qx = X(look.last[2 * i]), qy = Y(look.last[2 * i + 1]);
@@ -151,7 +151,7 @@ function makeTable(top, felt) {
   function draw(v) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, top.width, top.height);
     if (v.ring != null) { const [x, y, r] = HOLES[v.ring]; ctx.strokeStyle = C.white; ctx.lineWidth = r * s * 0.2; disc(X(x), Y(y), r * s * 0.62); ctx.stroke(); }
-    for (const [i, col] of [[v.gold, C.gold], [v.mark, C.white]]) if (i != null && v.B[i].on) { const b = v.B[i]; ctx.strokeStyle = col; ctx.lineWidth = Math.max(2.5, P.R * s * 0.3); disc(X(b.x), Y(b.y), Math.max(9, P.R * s * 1.9)); ctx.stroke(); }
+    for (const [i, col] of [[v.gold, C.gold], [v.mark, C.white]]) if (i != null && v.B[i].on) { const b = v.B[i]; ctx.strokeStyle = col; ctx.lineWidth = Math.max(2.5, P.R * s * 0.3); disc(X(b.x), Y(b.y), Math.max(least * 0.95, P.R * s * 1.9)); ctx.stroke(); }
     top.style.opacity = v.fade ?? 1;
     if (v.guide) drawAim(v.guide);
     drawBalls(v);
@@ -363,47 +363,49 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
 // then the cue comes to the ball of the step in hand (ringed in gold from the start) and waits. A row of the list
 // rings its ball on the table, or the pocket it went down. ----
 {
-  const table = makeTable($('road'), $('road-felt')), v = { B: [], ids: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], look: null, cue: null };
+  const table = makeTable($('road'), $('road-felt'), 12), v = { B: [], ids: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], look: null, cue: null };
   const list = $('steps'), again = $('again'), here = Math.min(NOW, 8);
-  let k = 0, state = 'wait', t = 0, swing, pace = 1, acc = 0, sc, sel = here, mine = false; // mine = the visitor chose a row: the film leaves the choice alone
+  let k = 0, state = 'wait', t = 0, swing, pace = 1, acc = 0, sc, sel = here;
   const rows = STEPS.map((name, i) => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = i < NOW ? 'done' : i === NOW ? 'now' : 'later'; b.tabIndex = i === here ? 0 : -1;
     if (i === NOW) b.setAttribute('aria-current', 'step');
     b.innerHTML = `<i class="ball b${i + 1}"><i>${i + 1}</i></i><b>${name}</b><span>${when(i)}</span>`;
-    b.onclick = () => { mine = true; choose(i); };
+    b.onclick = () => choose(i);
     b.onfocus = () => { for (const r of rows) r.tabIndex = r === b ? 0 : -1; }; // one stop for the Tab key: the arrows move in the list
     list.appendChild(document.createElement('li')).append(b); return b;
   });
   const down = i => !v.B[i + 1].on;
   function choose(i = sel) { // row i is lit; its ball is ringed on the table, or the pocket it went down
     sel = i;
-    rows.forEach((b, j) => { b.classList.toggle('sel', j === i); b.classList.toggle('in', down(j)); });
+    rows.forEach((b, j) => { b.setAttribute('aria-pressed', j === i); b.classList.toggle('in', down(j)); });
     v.mark = down(i) || i === NOW ? null : i + 1; v.ring = down(i) ? PLAN[i][0] : null;
     if (sc) sc.dirty = true;
   }
-  list.addEventListener('keydown', e => { const d = /Right|Down/.test(e.key) ? 1 : /Left|Up/.test(e.key) ? -1 : 0, r = rows[rows.indexOf(document.activeElement) + d]; if (d && r) { e.preventDefault(); r.focus(); r.click(); } });
+  list.addEventListener('keydown', e => { const d = e.altKey || e.ctrlKey || e.metaKey ? 0 : { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key], r = rows[rows.indexOf(document.activeElement) + d]; if (d && r) { e.preventDefault(); r.focus(); r.click(); } });
   // A scratch cannot happen (test/roadmap.test.mjs runs every shot). If it did, the cue ball goes back where it began.
   const mend = () => { if (!v.B[0].on) Object.assign(v.B[0], ball(...SPOTS[0])); };
   function aim() { // the cue comes to the next ball; at NOW it stays there
-    if (k > 8) { v.cue = null; state = 'hold'; return choose(mine ? sel : 8); } // all nine are down
+    if (k > 8) { v.cue = null; state = 'hold'; again.hidden = calm; return choose(); } // all nine are down
     const shot = shotFor(v.B, k), c = v.B[0];
-    v.cue = { x: c.x, y: c.y, ang: shot.ang, elev: 0, back: 0.03, a: 0 }; state = k < NOW ? 'aim' : 'hold'; t = 0; choose(mine ? sel : k);
+    v.cue = { x: c.x, y: c.y, ang: shot.ang, elev: 0, back: 0.03, a: 0 }; state = k < NOW ? 'aim' : 'hold'; t = 0; choose();
     if (k < NOW) swing = stroke(v, table, shot, PLAN[k][1], () => { strike(v.B[0], shot); state = 'run'; pace = 1; });
     else again.hidden = calm; // the film is over: it can be played again
   }
   function set(film) { // film = the last FILM shots are still to play; without it, the table as it is when they are over
-    v.B = SPOTS.map(q => ball(...q)); v.look = newLook(v.B); v.puff = null; v.gold = NOW < 9 ? NOW + 1 : null; mine = false; again.hidden = true;
+    v.B = SPOTS.map(q => ball(...q)); v.look = newLook(v.B); v.puff = null; v.gold = NOW < 9 ? NOW + 1 : null; again.hidden = true;
     for (k = 0; k < (film ? Math.max(0, NOW - FILM) : NOW); k++) { strike(v.B[0], shotFor(v.B, k)); while (advance(v.B, v.look, 34, true)); v.B[k + 1].on = false; mend(); }
     v.look.fx.length = 0; aim();
     if (film) state = 'wait'; else if (v.cue) { v.cue.a = 1; v.cue.back = 0.04; t = 1e6; }
   }
   set(!calm);
-  again.onclick = () => { set(true); state = 'aim'; };
-  // The film starts when the whole table is in view, or the list down to the step in hand (a screen can be too short for the table).
-  const start = () => { if (state === 'wait') state = 'aim'; };
-  new IntersectionObserver(([e]) => { if (e.isIntersecting) start(); }, { threshold: 0.8 }).observe(rows[here]);
-  new IntersectionObserver(([e]) => { if (e.isIntersecting) start(); }, { threshold: 0.95 }).observe(table.canvas);
+  again.onclick = () => { if (document.activeElement === again) rows[sel].focus({ preventScroll: true }); set(true); state = 'aim'; }; // the key hides: the focus must not fall off the page
+  table.canvas.onclick = () => { if (!again.hidden) again.click(); }; // a tap on the table plays it again too
+  // The film starts when the table and the top of the list are in view together; on a screen too short for both,
+  // when the whole table is in view.
+  const start = () => { if (state === 'wait') state = 'aim'; }, first = rows[0];
+  new IntersectionObserver(([e]) => { if (e.isIntersecting) start(); }, { threshold: 0.9 }).observe(first);
+  new IntersectionObserver(([e]) => { if (e.isIntersecting && first.getBoundingClientRect().bottom - table.canvas.getBoundingClientRect().top > innerHeight) start(); }, { threshold: 0.95 }).observe(table.canvas);
   sc = scene(table, (ms, me) => {
     t += ms;
     if (state === 'wait' || (state === 'hold' && t > 4500)) { if (me.dirty) { table.draw(v); me.dirty = false; } return; }
@@ -417,7 +419,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
       acc += ms * pace; const n = Math.floor(acc); acc -= n;
       const was = v.B[k + 1].on, moving = advance(v.B, v.look, n, true);
       if (was && !v.B[k + 1].on) choose();
-      if (!moving) { if (v.B[k + 1].on || !v.B[0].on) set(false); else { k++; state = 'rest'; t = 0; } } // a shot that went wrong (it cannot) ends the film
+      if (!moving) { if (v.B.some((b, i) => b.on !== (!i || i > k + 1))) set(false); else { k++; state = 'rest'; t = 0; } } // a shot that went wrong (it cannot) ends the film
     } else if (state === 'rest') { advance(v.B, v.look, ms, false); if (t > 200) aim(); }
     else if (v.cue) { advance(v.B, v.look, ms, false); v.cue.a = Math.min(1, t / 300); v.cue.back = 0.04 + 0.022 * Math.sin(t / 600) * Math.max(0, 1 - t / 4000); } // hold: the cue feathers at the ball, then is still
     table.draw(v);

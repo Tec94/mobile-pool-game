@@ -135,22 +135,24 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 
 /* ---------- The roadmap: a nine-ball table, and under it the nine steps in one list, each with its ball ---------- */
 .road h2 { text-align: right; margin-bottom: .14em; }
-.stand { width: min(1320px, 100vw - 2 * var(--gut), 50svh * 1.8); margin: 0 var(--gut) 0 auto; position: relative; }
+.stand { width: min(1320px, 100vw - 2 * var(--gut), 60svh * 1.8); margin: 0 var(--gut) 0 auto; position: relative; container-type: inline-size; }
+#road { cursor: pointer; }
 .steps { list-style: none; padding: 0; margin-top: 18px; display: grid; grid-template-columns: minmax(0, 1fr); }
-.steps button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 5px 12px 5px 8px; border: 0; border-radius: 5px; background: none; color: var(--chalk); text-align: left; }
-.steps button.sel { background: var(--dark); box-shadow: 0 4px 0 var(--dark-lip); }
-.steps .ball { width: 36px; flex: none; opacity: .5; }
-.steps .in .ball, .steps .now .ball { opacity: 1; }
+.steps button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 46px; padding: 4px 12px 4px 8px; border: 0; border-radius: 5px; background: none; color: var(--chalk); text-align: left; }
+.steps button[aria-pressed=true] { background: var(--dark); box-shadow: 0 4px 0 var(--dark-lip); }
+.steps .ball { width: 36px; flex: none; }
+.steps .later .ball { opacity: .5; }
 .steps .in .ball { animation: drop .34s cubic-bezier(.2, 1.7, .4, 1); }
 @keyframes drop { from { scale: 1.9; } }
 .steps .now .ball { box-shadow: 0 0 0 3px var(--gold); }
-.steps b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: clamp(15px, 4.7vw, 26px); letter-spacing: -.02em; line-height: 1.15; white-space: nowrap; }
-.steps span { font: 700 12px/1 var(--ui); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; color: #EEF2EAB3; }
-.steps .later b { color: #EEF2EA99; }
+.steps b { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: clamp(15px, 4.9cqw, 26px); letter-spacing: -.02em; line-height: 1.15; white-space: nowrap; }
+.steps span { font: 700 12px/1 var(--ui); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; color: var(--chalk); margin-left: 4px; }
+.steps .later b, .steps .later span { color: #EEF2EA99; }
 .steps .now b, .steps .now span { color: var(--gold); }
 .road .keys { position: static; translate: none; justify-content: flex-end; margin: 12px 0 0; min-height: 47px; }
 @media (max-width: 900px) {
-  .stand { width: min(100vw - 12px, 50svh * 1.8); margin-inline: auto; }
+  .stand { width: min(100vw - 12px, max(50svh * 1.8, 520px)); margin-inline: auto; }
+  .steps b { flex: 1; }
   .road h2 { margin-bottom: .3em; }
   .steps { margin: 12px 10px 0; }
   .road .keys { margin: 12px 10px 0 0; }
@@ -158,6 +160,7 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 @media (max-width: 360px) { .steps button { gap: 8px; } .steps .ball { width: 30px; } }
 
 /* ---------- The close: one blue block, the form hanging off its lower edge ---------- */
+.road + .last { margin-top: clamp(28px, 5vw, 70px); }
 .last { margin-top: clamp(72px, 12vw, 160px); padding: clamp(28px, 5vw, 80px) 0 0; background: var(--blue); box-shadow: 0 10px 0 var(--blue-lip); color: var(--ink); }
 .last h2 { font-size: clamp(60px, 16.5vw, 250px); }
 .last .card { margin: clamp(20px, 3vw, 48px) var(--gut) 0 auto; translate: 0 34%; rotate: -2deg; position: relative; box-shadow: 0 6px 0 var(--cream-lip), 10px 16px 0 #16191A40; }
