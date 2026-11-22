@@ -172,7 +172,7 @@ function makeTable(top, felt, most = 0, bleed = 0) { // bleed = metres the top c
 // short way past where the ball was (or digs in and springs back when it is raised), rests, and lifts off.
 // It stays where it struck: the ball leaves it behind. Returns what the scene calls each frame.
 function stroke(v, table, shot, power, hit) {
-  const c = v.cue, T1 = 240, HOLD = 120, T2 = 105 - 45 * power, up = Math.sin(c.elev);
+  const c = v.cue, T1 = 240, HOLD = 200, T2 = 105 - 45 * power, up = Math.sin(c.elev);
   const through = (0.02 + 0.07 * power) * (1 - up) + 0.004, spring = 0.018 * up * power;
   let t = 0, struck = false, from, wind;
   return ms => {
@@ -409,7 +409,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   // The film starts when the table and the row of the step in hand are in view together, so every ball lands in a row
   // the visitor can see; on a screen too short for both, when the whole table is in view.
   const start = () => { if (state === 'wait') state = 'aim'; }, first = rows[here];
-  const seen = () => { if (state !== 'wait') return; const c = table.canvas.getBoundingClientRect(), r = first.getBoundingClientRect(); if (inView(c.top, c.bottom, r.bottom, r.height, innerHeight)) start(); };
+  const seen = () => { if (state !== 'wait') return; const c = table.felt.getBoundingClientRect(), r = first.getBoundingClientRect(); if (inView(c.top, c.bottom, r.bottom, r.height, innerHeight)) start(); };
   addEventListener('scroll', seen, { passive: true }); addEventListener('resize', seen); seen();
   list.addEventListener('focusin', () => { if (state === 'wait') { show(); start(); } }); // a keyboard user Tabs to the rows: show them the film
   new IntersectionObserver(([e]) => { if (!e.isIntersecting && /aim|run|rest/.test(state)) set(state !== 'aim' || k > NOW - FILM); }).observe(table.felt); // scrolled away mid-film: the end at once, or before the first stroke, the film again when they come back
@@ -418,7 +418,8 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     if (state === 'wait' || (state === 'hold' && t > 4500)) { if (me.dirty) { table.draw(v); me.dirty = false; } return; }
     if (state === 'aim') { // the cue comes in and draws back, then the stroke
       v.cue.a = Math.min(1, t / 140);
-      if (t < 400) v.cue.back = 0.03 + 0.1 * PLAN[k][1] * (1 - (1 - Math.min(1, t / 340)) ** 3); else swing(ms);
+      const IN = k === NOW - FILM ? 900 : 400; // the first shot: the cue settles in a while before the stroke
+      if (t < IN) v.cue.back = 0.03 + 0.1 * PLAN[k][1] * (1 - (1 - Math.min(1, t / (IN - 60))) ** 3); else swing(ms);
     } else if (state === 'run') {
       swing(ms);
       // Once the ball is down the film runs faster, so the cue ball's slow roll to its place does not hold the next shot up.

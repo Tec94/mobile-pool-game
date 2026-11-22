@@ -29,7 +29,8 @@ test('the film starts when the table and the row in hand are in view, or the who
   assert.ok(inView(100, 300, 700, 46, 844), 'both in view');
   assert.ok(inView(100, 300, 848, 46, 844), 'the row a tenth under the fold');
   assert.ok(!inView(100, 300, 900, 46, 844), 'the row below the fold');
-  assert.ok(!inView(-50, 200, 600, 46, 844), 'the table above the screen');
+  assert.ok(!inView(-200, 200, 600, 46, 844), 'most of the table above the screen');
+  assert.ok(inView(-130, 230, 700, 40, 810), 'a desktop: the list centred, a third of the table above');
   assert.ok(inView(10, 380, 900, 46, 390), 'a short screen: the whole table');
   assert.ok(!inView(10, 420, 900, 46, 390), 'a short screen: the table cut');
 });
