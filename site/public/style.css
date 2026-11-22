@@ -140,22 +140,19 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 /* the table and the nine rows fit one screen */
 .stand { width: min(1320px, 100vw - 2 * var(--gut), max(520px, (100svh - 450px) * 1.8)); margin-inline: auto; position: relative; container-type: inline-size; }
 .steps { list-style: none; padding: 0; margin-top: 18px; display: grid; grid-template-columns: minmax(0, 1fr); }
-.steps button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 40px; padding: 2px 12px 2px 8px; border: 0; border-radius: 5px; background: none; color: var(--chalk); text-align: left; }
+.steps button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 46px; padding: 2px 12px 2px 8px; border: 0; border-radius: 5px; background: none; color: var(--chalk); text-align: left; }
 .steps button[aria-pressed=true] { background: var(--dark); box-shadow: 0 4px 0 var(--dark-lip); }
 .steps .ball { width: 36px; flex: none; }
 .steps .in .ball { animation: drop .34s cubic-bezier(.2, 1.7, .4, 1); }
-/* a done step whose ball the film has still to pot: the ball comes up to full when it drops */
-.steps .due .ball { opacity: .65; }
 @keyframes drop { from { scale: 1.9; } }
 .steps .now .ball { box-shadow: 0 0 0 3px var(--gold); }
 .steps b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: clamp(15px, 4.9cqw, 26px); letter-spacing: -.02em; line-height: 1.15; white-space: nowrap; }
-.steps span { font: 700 clamp(12px, 1.9cqw, 15px)/1 var(--ui); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; color: var(--chalk); margin-left: 4px; }
+.steps span { font: 700 clamp(13px, 1.9cqw, 15px)/1 var(--ui); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; color: var(--chalk); margin-left: 4px; }
 .steps .later b, .steps .later span { color: #EEF2EA99; }
 .steps .now b, .steps .now span { color: var(--gold); }
 .road .keys { position: static; translate: none; justify-content: flex-end; margin: 12px 0 0; min-height: 47px; }
 @media (max-width: 900px) {
   .stand { width: min(100vw - 12px, max(50svh * 1.8, 520px)); margin-inline: auto; }
-  .steps button { min-height: 46px; }
   .road h2 { margin-bottom: .55em; }
   .steps { margin: 12px 10px 0; }
   .road .keys { margin: 12px 10px 0 0; }
