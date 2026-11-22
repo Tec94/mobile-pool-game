@@ -139,13 +139,12 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 .road h2 { text-align: center; margin-bottom: .3em; font-size: min(clamp(52px, 14vw, 200px), 18svh); }
 /* the table and the nine rows fit one screen */
 .stand { width: min(1320px, 100vw - 2 * var(--gut), max(520px, (100svh - 450px) * 1.8)); margin-inline: auto; position: relative; container-type: inline-size; }
-#road { cursor: pointer; }
 .steps { list-style: none; padding: 0; margin-top: 18px; display: grid; grid-template-columns: minmax(0, 1fr); }
 .steps button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 40px; padding: 2px 12px 2px 8px; border: 0; border-radius: 5px; background: none; color: var(--chalk); text-align: left; }
 .steps button[aria-pressed=true] { background: var(--dark); box-shadow: 0 4px 0 var(--dark-lip); }
 .steps .ball { width: 36px; flex: none; }
 .steps .in .ball { animation: drop .34s cubic-bezier(.2, 1.7, .4, 1); }
-/* a done step whose ball the film has still to pot: the ball and the tag come when it drops */
+/* a done step whose ball the film has still to pot: the ball comes up to full when it drops */
 .steps .due .ball { opacity: .65; }
 @keyframes drop { from { scale: 1.9; } }
 .steps .now .ball { box-shadow: 0 0 0 3px var(--gold); }
