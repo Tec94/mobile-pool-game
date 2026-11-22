@@ -329,6 +329,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   let at = -1, keyAt = 0, from = null;
   const pick = i => {
     if (i === at) return; at = i;
+    if (rackEl.contains(document.activeElement)) rackEl.children[i].focus({ preventScroll: true }); // a pick by pointer takes the focus ring along
     [...rackEl.children].forEach((b, j) => { b.setAttribute('aria-pressed', j === i); b.tabIndex = j === i ? 0 : -1; }); // one stop for the Tab key: the arrows move in the rack
     const cue = CUES[ids[i]]; name.textContent = cue.name; trick.textContent = cue.trick || 'No trick'; trick.style.visibility = cue.trick ? '' : 'hidden'; // the plain cues: no chip, and the block keeps its height
     bars.querySelectorAll('u').forEach((u, k) => { const n = cue[['power', 'spin', 'aim'][k]]; u.style.setProperty('--n', n); u.setAttribute('aria-label', `${n} of 10`); });
