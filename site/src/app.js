@@ -419,7 +419,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     } else if (state === 'run') {
       swing(ms);
       // Once the ball is down the film runs faster, so the cue ball's slow roll to its place does not hold the next shot up.
-      pace += ((v.B[k + 1].on ? 1.15 : 2.8) - pace) * Math.min(1, ms / 200);
+      pace += ((v.B[k + 1].on ? Math.max(1.15, 0.75 / PLAN[k][1]) : 5) - pace) * Math.min(1, ms / 200); // a soft shot would hold the film up
       acc += ms * pace; const n = Math.floor(acc); acc -= n;
       const was = v.B[k + 1].on, moving = advance(v.B, v.look, n, true);
       if (was && !v.B[k + 1].on) { choose(); if (sel === k && $('say').textContent) $('say').textContent = `The ${k + 1} is down.`; }
