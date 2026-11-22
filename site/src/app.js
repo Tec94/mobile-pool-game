@@ -375,7 +375,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     b.type = 'button'; b.className = i < NOW ? 'done' : i === NOW ? 'now' : 'later'; b.tabIndex = i === here ? 0 : -1;
     if (i === NOW) b.setAttribute('aria-current', 'step');
     b.innerHTML = `<i class="ball b${i + 1}"><i>${i + 1}</i></i><b>${name}</b><span>${when(i)}</span>`;
-    b.onclick = () => { choose(i); $('say').textContent = `The ${i + 1} is ${down(i) ? 'down' : 'on the table'}.`; }; // for a screen reader: the page shows it as a ring on the table
+    b.onclick = () => { choose(i); say.textContent = `The ${i + 1} is ${down(i) ? 'down' : 'on the table'}.`; }; // for a screen reader: the page shows it as a ring on the table
     list.appendChild(document.createElement('li')).append(b); return b;
   });
   const down = i => !v.B[i + 1].on;
@@ -411,8 +411,8 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   const start = () => { if (state === 'wait') state = 'aim'; }, first = rows[here];
   const seen = () => { if (state !== 'wait') return; const c = table.canvas.getBoundingClientRect(), r = first.getBoundingClientRect(); if (inView(c.top, c.bottom, r.bottom, r.height, innerHeight)) start(); };
   addEventListener('scroll', seen, { passive: true }); addEventListener('resize', seen); seen();
-  list.addEventListener('focusin', () => { if (state === 'wait') { list.parentElement.scrollIntoView({ block: 'nearest' }); start(); } }); // a keyboard user Tabs to the rows: show them the film
-  new IntersectionObserver(([e]) => { if (!e.isIntersecting && /aim|run|rest/.test(state)) set(false); }).observe(table.canvas); // scrolled away mid-film: the rows must not be left half done
+  list.addEventListener('focusin', () => { if (state === 'wait') { show(); start(); } }); // a keyboard user Tabs to the rows: show them the film
+  new IntersectionObserver(([e]) => { if (!e.isIntersecting && /aim|run|rest/.test(state)) set(state !== 'aim' || k > NOW - FILM); }).observe(table.felt); // scrolled away mid-film: the end at once, or before the first stroke, the film again when they come back
   sc = scene(table, (ms, me) => {
     t += ms;
     if (state === 'wait' || (state === 'hold' && t > 4500)) { if (me.dirty) { table.draw(v); me.dirty = false; } return; }
@@ -425,7 +425,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
       pace += ((v.B[k + 1].on ? Math.max(1.15, 0.75 / PLAN[k][1]) : 5) - pace) * Math.min(1, ms / 200); // a soft shot would hold the film up
       acc += ms * pace; const n = Math.floor(acc); acc -= n;
       const was = v.B[k + 1].on, moving = advance(v.B, v.look, n, true);
-      if (was && !v.B[k + 1].on) { choose(); if (sel === k && $('say').textContent) $('say').textContent = `The ${k + 1} is down.`; }
+      if (was && !v.B[k + 1].on) { choose(); if (sel === k && say.textContent) say.textContent = `The ${k + 1} is down.`; }
       if (!moving) { if (v.B.some((b, i) => b.on !== (!i || i > k + 1))) set(false); else { k++; state = 'rest'; t = 0; } } // a shot that went wrong (it cannot) ends the film
     } else if (state === 'rest') { advance(v.B, v.look, ms, false); if (t > 200) aim(); }
     else if (v.cue) { advance(v.B, v.look, ms, false); v.cue.a = Math.min(1, t / 300); v.cue.back = 0.04 + 0.022 * Math.sin(t / 600) * Math.max(0, 1 - t / 4000); } // hold: the cue feathers at the ball, then is still
