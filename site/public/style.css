@@ -119,7 +119,8 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 @media (max-width: 760px) { .modes ul { grid-template-columns: 1fr 1fr; } .modes li { aspect-ratio: 1; } .modes .ball { width: 66%; right: -16%; bottom: -22%; } }
 
 /* ---------- The cues: all 26 on a shelf (two shelves on a phone). The picked one steps up and its place on the shelf turns gold. ---------- */
-.pick { padding: clamp(20px, 3vw, 40px) var(--gut) 0; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 14px 40px; }
+.pick { padding: clamp(20px, 3vw, 40px) var(--gut) 0; display: flex; flex-wrap: wrap; align-items: end; justify-content: start; gap: 14px 40px; }
+.pick > div { flex-basis: 100%; } .bars { justify-content: start; }
 #cue-name { display: block; font-size: clamp(38px, 8vw, 120px); color: var(--gold); white-space: nowrap; }
 #cue-trick { display: inline-block; min-height: 26px; margin: 16px 0 0; background: var(--cream); color: var(--ink); box-shadow: 0 3px 0 var(--cream-lip); }
 #cue-trick:empty { visibility: hidden; }
@@ -130,8 +131,7 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 .rack canvas { width: 145.5%; margin-left: -22.75%; aspect-ratio: 64 / 420; display: block; pointer-events: none; transition: transform .18s var(--out); } /* wider than its place on the shelf: some cues have wide ends */
 .rack button[aria-pressed=true] { opacity: 1; border-bottom-color: var(--gold); box-shadow: 0 6px 0 var(--gold); }
 .rack button[aria-pressed=true] canvas { transform: translateY(-30px); }
-@media (max-width: 760px) { .rack { grid-template-columns: repeat(13, 1fr); margin-top: -12px; }
-  .pick > div { flex-basis: 100%; } .bars { justify-content: start; } }
+@media (max-width: 760px) { .rack { grid-template-columns: repeat(13, 1fr); margin-top: -12px; } }
 
 /* ---------- The roadmap: a nine-ball table, and under it the nine steps in one list, each with its ball ---------- */
 .road h2 { text-align: center; margin-bottom: .14em; }
