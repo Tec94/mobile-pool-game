@@ -102,8 +102,8 @@ const ROW = 34, GAP = 2, LINE = 2;
 function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { run: Run; again: () => void }) {
   const { land, side, width, height } = useFrame(), panelW = usePanel(), R = rounds(run.opts.size), next = nextMatch(run);
   const legend = [...new Set(run.field.map(f => f.style).filter((x): x is StyleId => !!x))]; // the styles in this field
-  // short rows so eight players fit a landscape phone; in portrait taller ones fill the room above the card (about 400 pt)
-  const row = land ? (height < 430 ? 28 : ROW) : Math.min(56, Math.max(ROW, ((height - 400 - 20 * legend.length) / (run.opts.size / 2) - 10) / 2));
+  // short rows so eight players fit a landscape phone; in portrait taller ones fill the room above the card, title bar and safe area (about 480 pt) and the legend (22 pt a line)
+  const row = land ? (height < 430 ? 28 : ROW) : Math.min(56, Math.max(ROW, ((height - 480 - 22 * legend.length) / (run.opts.size / 2) - 10) / 2));
   const BLOCK = 2 * row + GAP, UNIT = BLOCK + 8;
   const areaW = land ? width - 2 * side - panelW - 16 : width - 2 * side, gapX = land ? 20 : 12, colW = (areaW - (R - 1) * gapX) / R;
   const x = (r: number) => r * (colW + gapX), mid = (r: number, k: number) => (k + 0.5) * (1 << r) * UNIT - 7;

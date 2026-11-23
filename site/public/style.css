@@ -165,7 +165,20 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 .last h2 { font-size: clamp(60px, 16.5vw, 250px); }
 .last .card { margin: clamp(20px, 3vw, 48px) var(--gut) 0 auto; translate: 0 34%; rotate: -2deg; position: relative; box-shadow: 0 6px 0 var(--cream-lip), 10px 16px 0 #16191A40; }
 @media (max-width: 520px) { .last .card { margin-inline: var(--gut); width: auto; rotate: -1deg; } }
+footer a { color: inherit; text-underline-offset: 3px; }
 footer { padding: clamp(110px, 16vw, 200px) var(--gut) max(40px, env(safe-area-inset-bottom)); font-size: 13px; font-weight: 500; opacity: .6; }
 
 
 @media (prefers-reduced-motion: reduce) { .rack button, .rack canvas, .steps .ball, .join.sent .done, .join input { transition: none !important; animation: none; } .road .keys { min-height: 0; } }
+
+/* Support and privacy pages: one readable column. */
+.doc { font-weight: 500; font-size: 17px; line-height: 1.5; }
+.doc header, .doc main, .doc footer { max-width: 680px; margin-inline: auto; padding-inline: var(--gut); }
+.doc header { padding-block: 28px 0; } .doc .brand { color: inherit; text-decoration: none; }
+.doc h1 { font-size: clamp(56px, 16vw, 112px); margin-top: 48px; }
+.doc h2 { font-size: 32px; padding: 0; margin: 44px 0 12px; white-space: normal; line-height: 1; }
+.doc p, .doc dd { margin-bottom: 12px; } .doc dt { font: 700 18px/1.3 var(--ui); margin-top: 20px; } .doc dd { opacity: .8; }
+.doc .when { opacity: .6; font-size: 14px; margin-top: 16px; }
+.doc a { color: inherit; text-underline-offset: 3px; } .doc code { font-size: .9em; }
+.doc .key { display: inline-block; text-decoration: none; padding: 10px 14px; margin-left: 6px; font-weight: 700; }
+.doc footer { padding-block: 80px max(40px, env(safe-area-inset-bottom)); }

@@ -46,3 +46,6 @@ ball-frames/
 # waitlist site: wrangler state and the bundle esbuild makes
 site/.wrangler/
 site/public/app.js
+
+# App Clip icons, made from assets/icon.png at prebuild
+targets/*/Assets.xcassets/
