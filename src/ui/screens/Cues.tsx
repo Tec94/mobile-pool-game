@@ -22,7 +22,7 @@ const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
   const [p, setP] = useState(profile), [up, setUp] = useState(() => CUE_IDS.indexOf(p.cue)), [adv, setAdv] = useState(false);
   const { land, side, width } = useFrame(), panel = usePanel(), left = land ? width - 2 * side - panel - 16 : width - 2 * side;
-  const n = Math.max(1, Math.floor((left - 4) / (86 + 8))), cw = Math.floor(Math.min(104, (left - 8 - 8 * (n - 1)) / n)); // 4 pt each side for the chosen outline
+  const n = Math.max(1, Math.floor((left - 4) / (86 + 8))), cw = Math.floor((left - 8 - 8 * (n - 1)) / n); // 4 pt each side for the chosen outline
   const put = (next: Profile) => { if (next !== p) { keep(next); setP(next); } };
   const foot = (id: CueId) => {
     const c: CueInfo = CUES[id], f = c.feat as FeatId | undefined, st = cueStats(p, id);
