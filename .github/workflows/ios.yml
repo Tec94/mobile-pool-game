@@ -28,6 +28,7 @@ jobs:
         run: |
           clip="build/Build/Products/${{ inputs.configuration }}-iphoneos/Runout.app/AppClips/RunoutClip.app"
           du -sh "$clip" && test "$(du -sm "$clip" | cut -f1)" -lt 100
+          ls -l "$clip/main.jsbundle"  # the App Clip runs the same JS as the app
       - name: Package .ipa
         run: |
           mkdir Payload && cp -R "build/Build/Products/${{ inputs.configuration }}-iphoneos/Runout.app" Payload/
