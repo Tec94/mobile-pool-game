@@ -47,3 +47,9 @@ test('www and the old workers.dev address redirect to runout.win, keeping path a
   const old = await worker.fetch(new Request('https://runout-waitlist.jack-cao.workers.dev/api/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"email":"g@h.co"}' }), env);
   assert.equal(old.status, 200);
 });
+test('serves the App Clip association file as JSON without a redirect', async () => {
+  const r = await worker.fetch(new Request('https://runout.win/.well-known/apple-app-site-association'), env);
+  assert.equal(r.status, 200);
+  assert.match(r.headers.get('content-type'), /^application\/json/);
+  assert.deepEqual((await r.json()).appclips.apps, ['T753GG3LAJ.com.tec94.pool.Clip']);
+});
