@@ -39,6 +39,15 @@
             ]
           }
         ]
+      },
+      "associatedDomains": [
+        "appclips:runout.win"
+      ],
+      "appleTeamId": "T753GG3LAJ",
+      "entitlements": {
+        "com.apple.developer.associated-appclip-app-identifiers": [
+          "$(AppIdentifierPrefix)com.tec94.pool.Clip"
+        ]
       }
     },
     "android": {
@@ -103,7 +112,8 @@
             ]
           }
         }
-      ]
+      ],
+      "@bacons/apple-targets"
     ],
     "extra": {
       "eas": {

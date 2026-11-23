@@ -57,6 +57,7 @@ import { Act, hudHeight, MatchHud, PayRow, PayTotal, Results } from './src/ui/Ma
 import { Menus, type Screen } from './src/ui/Menus';
 import { AimDial, PowerRail, RAIL_FONT, shotStore } from './src/ui/ShotControls';
 import { TipButton, TipSheet, tipStore } from './src/ui/TipControl';
+import { CLIP, fullGame } from './src/clip';
 
 const GRAB = 36; // px: a touch this near the cue ball in hand drags it. The ball is smaller than a fingertip, so the
 // ball keeps its distance from the finger and stays in view.
@@ -97,7 +98,8 @@ const MENU_LOCKS = [ScreenOrientation.OrientationLock.LANDSCAPE, ScreenOrientati
 
 // The screen on show and the settings. A match reads its setup when it starts.
 function Root() {
-  const [set, setSet] = useState(loadSettings), [screen, go] = useState<Screen | typeof PLAY[number]>('home');
+  // The App Clip plays one quick match against the Regular tier, calling only the 8, and has no menus.
+  const [set, setSet] = useState((): Settings => CLIP ? { ...loadSettings(), tier: 1, aiGame: 8, aiRace: 1, callAll: false } : loadSettings()), [screen, go] = useState<Screen | typeof PLAY[number]>(CLIP ? 'ai' : 'home');
   const [done, setDone] = useState(loadDone), [lesson, setLesson] = useState(0);
   const learn = (i: number) => { setLesson(i); go('lesson'); };
   const [stars, setStars] = useState(loadStars), [scen, setScen] = useState(0);
@@ -783,7 +785,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
           <View style={styles.acts}>
             {tour && done ? <Act paint={CREAM} label="Bracket" onPress={onQuit} /> : <>
               <Act paint={CREAM} label={done ? 'Rematch' : 'Next rack'} onPress={() => rerack()} />
-              {done && <Act paint={DARK} label="Menu" onPress={onQuit} />}
+              {done && (CLIP ? <Act paint={DARK} label="Get the full game" onPress={fullGame} /> : <Act paint={DARK} label="Menu" onPress={onQuit} />)}
             </>}
           </View>
         </Results>
@@ -804,6 +806,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
               <Act label="Save and leave" onPress={onQuit} />{/* every strike and ruling is saved: Play on the bracket picks the match up */}
               <Act paint={sure ? [C.warn, '#A33A30'] : undefined} label={sure ? 'Forfeit: a loss, shots still pay. Tap again' : 'Forfeit match'} onPress={() => { if (!sure) return setSure(true); if (hustler(foe())) featsDone({}, false); tour.forfeit([...score.current]); onQuit(); }} />{/* a forfeit ends the Unbeaten streak, as a loss does */}
             </>
+              : CLIP ? <Act label="Get the full game" onPress={fullGame} />
               : <Act label={tour ? 'Bracket' : S ? 'Leave scenario' : L ? 'Leave lesson' : 'Leave match'} onPress={() => { if (vs && !tour) matchLeft(); onQuit(); }} />}
           </View>
         </View>
