@@ -7,6 +7,7 @@ for (const [size, w, h] of [['69', 440, 956], ['63', 402, 874]])
     const p = await open(b, w, h, files, 3);
     if (tile) { await p.getByText(tile, { exact: false }).first().click(); await p.waitForTimeout(1500); }
     if (name === 'home') { await p.getByText('Tournament').first().click(); await p.waitForTimeout(1200); await p.getByRole('button', { name: /back/i }).first().click(); await p.waitForTimeout(1200); }
+    if (name === 'cues') { await p.getByText('Daybreak').first().click(); await p.waitForTimeout(800); } // an owned cue not in use: its panel shows Use
     await p.screenshot({ path: `raw/${size}/${name}.png` }); await p.close();
   }
 await b.close();

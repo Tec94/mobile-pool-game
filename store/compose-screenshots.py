@@ -9,16 +9,15 @@ HEAD = F + 'bricolage-grotesque/800ExtraBold/BricolageGrotesque_800ExtraBold.ttf
 SUB = F + 'instrument-sans/600SemiBold/InstrumentSans_600SemiBold.ttf'
 BAR = F + 'instrument-sans/700Bold/InstrumentSans_700Bold.ttf'
 SIZES = {'69': (1320, 2868), '63': (1206, 2622)}
-DROP = {'69': 26, '63': 0, '69-cues': 16}  # pt the phone sits lower, so the bottom edge cuts between lines of text
 INK, CHALK = (22, 25, 26), (238, 242, 234)
 # slide, headline lines, subline, background, text colour (the game's tile colours)
 SLIDES = [
-    ('play', ['Real pool.', 'No ads.'], 'Pay once. Every bank, cut and spin plays true.', (39, 80, 74), CHALK),
+    ('play', ['Real pool.', 'No ads.'], 'Every bank, cut and spin plays true.', (39, 80, 74), CHALK),
     ('spin', ['Curve it.', 'Spin it.'], 'Massé, jump, draw, follow and side spin.', (132, 72, 200), CHALK),
     ('cues', ['26 wild', 'cues.'], 'Each has a trick. Earn them all. None for sale.', (63, 191, 127), INK),
-    ('tour', ['Win the', 'cup.'], 'Six AI levels. Rivals with a game of their own.', (224, 72, 60), CHALK),
+    ('tour', ['Win the', 'cup.'], 'Four cups. Rivals with a game of their own.', (224, 72, 60), CHALK),
     ('learn', ['Learn every', 'shot.'], '13 lessons. 108 scenarios. A new table daily.', (75, 152, 238), INK),
-    ('home', ['One price.', 'All of it.'], 'Cups, daily table, pass and play. Offline.', (239, 230, 210), INK),
+    ('home', ['One price.', 'All of it.'], 'Six AI levels, daily table, pass and play. Offline.', (239, 230, 210), INK),
 ]
 
 
@@ -52,25 +51,25 @@ def slide(raw, out, size, n, name, lines, sub, bg, fg):
     hs = min(fit(HEAD, l, int(66 * k), W - int(56 * k)).size for sl in SLIDES for l in sl[1])  # one size on every slide
     hf = ImageFont.truetype(HEAD, hs)
     sf = fit(SUB, sub, int(19.5 * k), W - int(64 * k))
-    top = int(DROP.get(f'{size}-{name}', DROP[size]) * k) + y + 2 * int(66 * k * 0.98) + int(14 * k) + int(19.5 * k) + int(34 * k)  # the phone sits at the same height on every slide
+    top = y + 2 * int(66 * k * 0.98) + int(14 * k) + int(19.5 * k) + int(34 * k)  # the phone sits at the same height on every slide
     y += (2 - len(lines)) * int(hs * 0.98) // 2  # a one-line headline sits in the middle of the two-line space
     for l in lines:
         d.text((W / 2, y + int(hs * 0.78)), l, font=hf, fill=fg, anchor='ms')  # on the baseline: lines without ascenders sit level
         y += int(hs * 0.98)
     d.text((W / 2, y + int(14 * k) + int(sf.size * 0.8)), sub, font=sf, fill=fg, anchor='ms')
-    # the phone: the capture with a status bar, a black bezel, rounded corners, running off the bottom edge
+    # the phone: the whole screen with a status bar, a black bezel and rounded corners, under the words
     shot = Image.open(f'{raw}/{size}/{name}.png').convert('RGB')
     status_bar(shot, shot.width / (W / 3))
-    sc = 0.84
+    bez = int(9 * k)
+    sc = (H - top - bez - int(30 * k)) / H
     w, h = int(W * sc), int(H * sc)
     shot = shot.resize((w, h), Image.LANCZOS)
-    bez = int(9 * k)
     x = (W - w) // 2
     frame = Image.new('L', (w + 2 * bez, h + 2 * bez), 0)
-    ImageDraw.Draw(frame).rounded_rectangle((0, 0, w + 2 * bez - 1, h + 2 * bez - 1), int(58 * k), fill=255)
+    ImageDraw.Draw(frame).rounded_rectangle((0, 0, w + 2 * bez - 1, h + 2 * bez - 1), int(62 * k * sc), fill=255)
     c.paste((8, 10, 10), (x - bez, top - bez), frame)
     m = Image.new('L', (w, h), 0)
-    ImageDraw.Draw(m).rounded_rectangle((0, 0, w - 1, h - 1), int(50 * k), fill=255)
+    ImageDraw.Draw(m).rounded_rectangle((0, 0, w - 1, h - 1), int(55 * k * sc), fill=255)
     c.paste(shot, (x, top), m)
     c.save(f'{out}/{n:02d}-{name}.png', optimize=True)
     assert c.size == (W, H) and c.mode == 'RGB'
