@@ -12,12 +12,12 @@ SIZES = {'69': (1320, 2868), '63': (1206, 2622)}
 INK, CHALK = (22, 25, 26), (238, 242, 234)
 # slide, headline lines, subline, background, text colour (the game's tile colours)
 SLIDES = [
-    ('play', ['Real pool.', 'No ads.'], 'Every bank, cut and spin plays true.', (39, 80, 74), CHALK),
-    ('spin', ['Curve it.', 'Spin it.'], 'Massé, jump, draw, follow and side spin.', (132, 72, 200), CHALK),
-    ('cues', ['26 wild', 'cues.'], 'Each has a trick. Earn them all. None for sale.', (63, 191, 127), INK),
+    ('play', ['Real pool.', 'No ads.'], '8-ball and 9-ball. Banks and cuts play true.', (239, 230, 210), INK),
+    ('cues', ['26 wild', 'cues.'], 'Every one earned by playing, none sold.', (63, 191, 127), INK),
+    ('spin', ['Bend the', 'cue ball.'], 'Massé, jump and full spin control.', (132, 72, 200), CHALK),
     ('tour', ['Win the', 'cup.'], 'Four cups. Rivals with a game of their own.', (224, 72, 60), CHALK),
-    ('learn', ['Learn every', 'shot.'], '13 lessons. 108 scenarios. A new table daily.', (75, 152, 238), INK),
-    ('home', ['One price.', 'All of it.'], 'Six AI levels, daily table, pass and play. Offline.', (239, 230, 210), INK),
+    ('learn', ['Learn every', 'shot.'], '13 lessons and 108 scenarios to master.', (75, 152, 238), INK),
+    ('home', ['Pay once,', 'own it all.'], 'Six AI levels, daily table, pass and play. Offline.', (39, 80, 74), CHALK),
 ]
 
 
@@ -50,7 +50,7 @@ def slide(raw, out, size, n, name, lines, sub, bg, fg):
     y = int(72 * k)
     hs = min(fit(HEAD, l, int(66 * k), W - int(56 * k)).size for sl in SLIDES for l in sl[1])  # one size on every slide
     hf = ImageFont.truetype(HEAD, hs)
-    sf = fit(SUB, sub, int(19.5 * k), W - int(64 * k))
+    sf = ImageFont.truetype(SUB, min(fit(SUB, sl[2], int(19.5 * k), W - int(64 * k)).size for sl in SLIDES))  # one subline size too
     top = y + 2 * int(66 * k * 0.98) + int(14 * k) + int(19.5 * k) + int(34 * k)  # the phone sits at the same height on every slide
     y += (2 - len(lines)) * int(hs * 0.98) // 2  # a one-line headline sits in the middle of the two-line space
     for l in lines:
