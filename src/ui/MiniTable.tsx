@@ -10,7 +10,7 @@ export interface Table { cue?: [number, number]; balls?: [number, number, number
 
 // ring = the called pocket (index into HOLES, as Goal.pocket); rings = every pocket asks for a call; lit = cushion ids 0..5 as nose(k).
 export function MiniTable({ width: w, cue, balls = [], ring, rings, lit = [], zone, cloth = 0 }: Table & { width: number; cloth?: number }) {
-  const f = Math.max(4, w * 0.06), iw = w - 2 * f, s = iw / P.L, r = Math.max(2.5, w * 0.022), pr = r * 1.3;
+  const f = Math.max(4, w * 0.06), iw = w - 2 * f, s = iw / P.L, r = Math.max(2.5, Math.min(w * 0.022, P.R * s)), pr = r * 1.3;
   const disc = (x: number, y: number, d: number) => ({ position: 'absolute' as const, left: f + x * s - d / 2, top: f + y * s - d / 2, width: d, height: d, borderRadius: d / 2 });
   return (
     <View style={{ width: w, height: w / 2 + f, backgroundColor: C.frame, borderRadius: 6 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">

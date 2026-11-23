@@ -28,11 +28,14 @@ export async function join(req, env) {
 // Posts are let through so a page opened before the move can still join.
 const HOME = 'runout.win';
 const MOVED = /^www\.runout\.win$|\.workers\.dev$/;
+// Lets runout.win links open the App Clip (team id + clip bundle id). Apple wants JSON with no redirect.
+const AASA = { appclips: { apps: ['T753GG3LAJ.com.tec94.pool.Clip'] } };
 
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     const { pathname } = url;
+    if (pathname === '/.well-known/apple-app-site-association') return Response.json(AASA);
     if (MOVED.test(url.hostname) && (req.method === 'GET' || req.method === 'HEAD')) return Response.redirect(`https://${HOME}${pathname}${url.search}`, 301);
     if (pathname === '/api/join') return req.method === 'POST' ? join(req, env) : new Response('POST only', { status: 405, headers: { allow: 'POST' } });
     return env.ASSETS.fetch(req);
