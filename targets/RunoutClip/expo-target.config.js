@@ -1,7 +1,6 @@
 /** @type {import('@bacons/apple-targets/app.plugin').ConfigFunction} */
 module.exports = () => ({
   type: 'clip',
-  name: 'RunoutClip',
   displayName: 'Runout',
   icon: '../../assets/icon.png',
   bundleIdentifier: '.Clip',

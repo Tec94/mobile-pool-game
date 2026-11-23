@@ -1,4 +1,4 @@
-// The App Clip (targets/clip) runs this same bundle from RunoutClip.app: it opens straight into one quick match and
+// The App Clip (targets/RunoutClip) runs this same bundle from RunoutClip.app: it opens straight into one quick match and
 // offers the full game. Paths.bundle is the running .app, so no native module is needed to tell the two apart.
 import { Linking } from 'react-native';
 import { Paths } from 'expo-file-system';
