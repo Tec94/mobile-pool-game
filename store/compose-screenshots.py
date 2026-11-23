@@ -1,4 +1,4 @@
-# Compose App Store screenshots from raw captures of the web build (see store/README.md).
+# Compose App Store screenshots from raw captures of the web build (store/capture/run.sh makes the captures and calls this).
 # Usage: python3 store/compose-screenshots.py <raw-dir> <out-dir>
 # <raw-dir> holds <size>/<slide>.png captured at 3x: 69 = 440x956 pt (1320x2868), 63 = 402x874 pt (1206x2622).
 import sys
@@ -14,10 +14,10 @@ INK, CHALK = (22, 25, 26), (238, 242, 234)
 SLIDES = [
     ('play', ['Real pool.', 'No ads.'], '8-ball and 9-ball. Banks and cuts play true.', (239, 230, 210), INK),
     ('cues', ['26 wild', 'cues.'], 'Every one earned by playing, none sold.', (63, 191, 127), INK),
-    ('spin', ['Bend the', 'cue ball.'], 'Massé, jump and full spin control.', (132, 72, 200), CHALK),
+    ('spin', ['Bend the', 'cue ball.'], 'Massé and full spin control.', (132, 72, 200), CHALK),
     ('tour', ['Win the', 'cup.'], 'Four cups. Rivals with a game of their own.', (224, 72, 60), CHALK),
     ('learn', ['Learn every', 'shot.'], '13 lessons and 108 scenarios to master.', (75, 152, 238), INK),
-    ('home', ['Pay once,', 'own it all.'], 'Six AI levels, daily table, pass and play. Offline.', (39, 80, 74), CHALK),
+    ('home', ['Pay once,', 'own it all.'], 'Six AI levels. Daily table. Works offline.', (244, 196, 48), INK),
 ]
 
 
