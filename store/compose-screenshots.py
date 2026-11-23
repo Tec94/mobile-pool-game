@@ -9,15 +9,16 @@ HEAD = F + 'bricolage-grotesque/800ExtraBold/BricolageGrotesque_800ExtraBold.ttf
 SUB = F + 'instrument-sans/600SemiBold/InstrumentSans_600SemiBold.ttf'
 BAR = F + 'instrument-sans/700Bold/InstrumentSans_700Bold.ttf'
 SIZES = {'69': (1320, 2868), '63': (1206, 2622)}
+DROP = {'69': 26, '63': 0, '69-cues': 16}  # pt the phone sits lower, so the bottom edge cuts between lines of text
 INK, CHALK = (22, 25, 26), (238, 242, 234)
 # slide, headline lines, subline, background, text colour (the game's tile colours)
 SLIDES = [
-    ('play', ['Real pool.', 'No ads.'], 'Pay once. Every bank, cut and spin plays true.', (27, 53, 48), CHALK),
+    ('play', ['Real pool.', 'No ads.'], 'Pay once. Every bank, cut and spin plays true.', (39, 80, 74), CHALK),
     ('spin', ['Curve it.', 'Spin it.'], 'Massé, jump, draw, follow and side spin.', (132, 72, 200), CHALK),
     ('cues', ['26 wild', 'cues.'], 'Each has a trick. Earn them all. None for sale.', (63, 191, 127), INK),
     ('tour', ['Win the', 'cup.'], 'Six AI levels. Rivals with a game of their own.', (224, 72, 60), CHALK),
-    ('scen', ['108 shots', 'to solve.'], '324 stars. 13 lessons. A new table daily.', (75, 152, 238), INK),
-    ('home', ['One price.', 'All of it.'], 'Quick match, cups, daily table, pass and play. Offline.', (239, 230, 210), INK),
+    ('learn', ['Learn every', 'shot.'], '13 lessons. 108 scenarios. A new table daily.', (75, 152, 238), INK),
+    ('home', ['One price.', 'All of it.'], 'Cups, daily table, pass and play. Offline.', (239, 230, 210), INK),
 ]
 
 
@@ -51,7 +52,7 @@ def slide(raw, out, size, n, name, lines, sub, bg, fg):
     hs = min(fit(HEAD, l, int(66 * k), W - int(56 * k)).size for sl in SLIDES for l in sl[1])  # one size on every slide
     hf = ImageFont.truetype(HEAD, hs)
     sf = fit(SUB, sub, int(19.5 * k), W - int(64 * k))
-    top = y + 2 * int(66 * k * 0.98) + int(14 * k) + int(19.5 * k) + int(34 * k)  # the phone sits at the same height on every slide
+    top = int(DROP.get(f'{size}-{name}', DROP[size]) * k) + y + 2 * int(66 * k * 0.98) + int(14 * k) + int(19.5 * k) + int(34 * k)  # the phone sits at the same height on every slide
     y += (2 - len(lines)) * int(hs * 0.98) // 2  # a one-line headline sits in the middle of the two-line space
     for l in lines:
         d.text((W / 2, y + int(hs * 0.78)), l, font=hf, fill=fg, anchor='ms')  # on the baseline: lines without ascenders sit level

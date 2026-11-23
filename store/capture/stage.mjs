@@ -1,7 +1,7 @@
 import { chromium, open, PROFILE, SETTINGS, plan, aimAt, load } from './lib.mjs';
 import { readFileSync, mkdirSync } from 'node:fs';
 const s = JSON.parse(readFileSync(new URL('state0.json', import.meta.url), 'utf8'));
-const POS = { 0: [1.30, 0.66], 13: [1.84, 0.33], 15: [0.55, 0.86], 8: [0.98, 0.52], 9: [1.66, 0.88], 3: [0.40, 0.28], 11: [1.06, 0.17], 2: [0.24, 0.96], 5: [2.02, 0.80], 14: [0.74, 0.66] };
+const POS = { 0: [1.62, 0.98], 13: [1.84, 0.33], 15: [0.55, 0.86], 8: [0.98, 0.52], 9: [1.20, 0.95], 3: [0.40, 0.28], 11: [1.06, 0.17], 2: [0.24, 0.96], 5: [2.02, 0.80], 14: [0.74, 0.66] };
 const OFF = [10, 12];
 s.B.forEach((b, k) => { const id = s.ids[k], p = POS[id]; if (p) { b.on = true; b.x = p[0]; b.y = p[1]; b.vx = b.vy = b.wx = b.wy = b.wz = 0; } else if (id) b.on = false; });
 s.rules.balls = s.ids.filter((id, k) => id && s.B[k].on).sort((a, b) => a - b);
