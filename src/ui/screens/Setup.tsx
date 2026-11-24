@@ -16,7 +16,7 @@ import { BallArt, Key, Keys, Slab, Txt } from '../slab';
 const GAMES: [string, 8 | 9][] = [['8-ball', 8], ['9-ball', 9]];
 const LABEL = 76;
 const RACE_KEYS = RACES.map((r): [string, typeof r] => [String(r), r]);
-const TOP = MASTERS - 1, WIN = matchPay({ tier: MASTERS, won: true, fouls: 1 }); // the Chinese Masters' index in TIERS; what a win pays before the no-foul bonus
+const TOP = MASTERS - 1, WIN = matchPay({ tier: MASTERS, won: true, fouls: 0 }); // the Chinese Masters' index in TIERS; what a win pays at most (no fouls)
 
 // A row: its label, centred on the key face, then its keys. Under 430 pt wide the label goes above.
 // The keys' box has a set width and stretches its child: on a phone, Yoga sizes a wrapping row that shrinks to its
@@ -75,7 +75,7 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
             </Line>
             {set.tier === TOP && <Line label="Win pays">
               <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.note}>
-                <Txt style={{ color: C.gold }}>{`${WIN.xp.toLocaleString('en-US')} XP · ${WIN.coins.toLocaleString('en-US')} coins`}</Txt>{'   Off the ladder. They rarely miss.'}
+                <Txt style={{ color: C.gold }}>{`up to ${WIN.xp.toLocaleString('en-US')} XP · ${WIN.coins.toLocaleString('en-US')} coins`}</Txt>{'   Off the ladder. They rarely miss.'}
               </Txt>
             </Line>}
             {rival && <Line label="Mood"><View style={styles.line}>

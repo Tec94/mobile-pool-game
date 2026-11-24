@@ -152,6 +152,8 @@ export function Results({ rules, title, kind = 'Pass and play', gold, score, nam
   );
 }
 
+const n = (x: number) => x.toLocaleString('en-US'); // 4,320 XP, as the setup screen and the cue shop write it
+
 // A pay line of the results: the XP in a gold chip, "× 2" in a blue chip when Fresh Chalk doubled it, and what it paid.
 // A line that paid nothing is not shown.
 export function PayRow({ label, xp, coins, twice }: { label: string; xp: number; coins: number; twice?: boolean }) {
@@ -160,9 +162,9 @@ export function PayRow({ label, xp, coins, twice }: { label: string; xp: number;
   return (
     <View style={styles.payRow} accessible accessibilityLabel={`${label}: ${k * xp} XP, ${k * coins} coins${twice ? ', doubled by Fresh Chalk' : ''}`}>
       <Txt style={[TYPE.body, styles.payLabel]}>{label}</Txt>
-      <Slab paint={GOLD} lip={LIP} radius={3} face={styles.payChip}><Txt style={styles.chipNum}>{xp}</Txt></Slab>
+      <Slab paint={GOLD} lip={LIP} radius={3} face={styles.payChip}><Txt style={styles.chipNum}>{n(xp)}</Txt></Slab>
       {twice && <><Txt style={TYPE.body}>×</Txt><Slab paint={MODE.daily} lip={LIP} radius={3} face={styles.payChip}><Txt style={styles.chipNum}>2</Txt></Slab><Txt style={[TYPE.small, { color: C.blue }]}>Fresh Chalk</Txt></>}
-      <Txt style={[TYPE.body, styles.payAll]}>{k * xp} XP · {k * coins} coins</Txt>
+      <Txt style={[TYPE.body, styles.payAll]}>{n(k * xp)} XP · {n(k * coins)} coins</Txt>
     </View>
   );
 }
@@ -172,8 +174,8 @@ export function PayTotal({ xp, coins }: { xp: number; coins: number }) {
   if (!xp && !coins) return null;
   return (
     <Slab paint={DARK} face={styles.total}>
-      <Txt style={[styles.big, { color: C.gold }]}>+{xp} XP</Txt>
-      <Txt style={styles.big}>+{coins} coins</Txt>
+      <Txt style={[styles.big, { color: C.gold }]}>+{n(xp)} XP</Txt>
+      <Txt style={styles.big}>+{n(coins)} coins</Txt>
     </Slab>
   );
 }
