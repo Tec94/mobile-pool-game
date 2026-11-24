@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
-      - run: npm test
+      - run: npm run test:all  # npm test plus the calibration tier (*.calib.mjs)
       - run: npx expo prebuild -p ios
       - name: Build without signing
         run: |

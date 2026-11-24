@@ -234,7 +234,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   // The Whisper's Soft hands (tricks.ts): its uses this rack, the pull of the last strike, and whether the player's last shot used it.
   const snooker = useRef(false); // the player came to the table with no straight line to a ball they may hit (Escape Artist)
   const opened = () => { if (vs && !tour && hustler(foe())) matchOpen(); }; // at a strike: the first one of a match marks it as in play (progress.ts matchOpen)
-  const safe = useRef<Safeties>(snap0?.safe ?? { row: 0, rack: 0 }), seed = useRef(snap0?.seed ?? Math.floor(Math.random() * 2 ** 31)), [thinking, setThinking] = useState(false);
+  const safe = useRef<Safeties>(snap0?.safe ?? { row: 0, rack: 0 }), seed = useRef(snap0?.seed ?? Math.floor(Math.random() * 2 ** 31)), asked = useRef<{ rules: State; args: Parameters<typeof thinkAsync>; p: Promise<Move> } | null>(null), [thinking, setThinking] = useState(false);
   // A tournament match is saved at every strike (with the shot, so a relaunch plays the same shot again) and ruling.
   const snap = (shot?: Shot) => {
     if (!tour) return;
@@ -592,8 +592,14 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     setThinking(true);
     if (s.choice) then(() => apply.current(choose(s, choiceFor(s))));
     else {
-      const args = [t.B, t.ids, s, level.current, seed.current++, safetiesArg(safe.current), tour?.style] as const;
-      thinkAsync(...args).then(m => then(() => play(m)), e => { // the runtime failed: think on the JS thread rather than stall the match
+      // A pause or a ruling-free remount of this effect reuses the think already asked for this table: the runtime runs
+      // one think at a time and cannot cancel, so asking again would queue a second full think behind it.
+      if (asked.current?.rules !== s) {
+        const args: Parameters<typeof thinkAsync> = [t.B, t.ids, s, level.current, seed.current++, safetiesArg(safe.current), tour?.style];
+        asked.current = { rules: s, args, p: thinkAsync(...args) };
+      }
+      const { args, p } = asked.current;
+      p.then(m => then(() => play(m)), e => { // the runtime failed: think on the JS thread rather than stall the match
         if (__DEV__) console.warn('AI think failed off the JS thread', e);
         then(() => {
           let m: Move;

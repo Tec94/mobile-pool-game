@@ -17,12 +17,13 @@ npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — re
 npx expo start              # start the dev server
 npm run typecheck           # tsc --noEmit
 npm test                    # every src/**/*.test.mjs (node --test); a new test file is picked up by its name
+npm run test:calib          # the slow AI calibration tier (src/**/*.calib.mjs); run it before pushing an AI change
 npm run frames              # draws every picture once: the drawing code's only check
 npx expo-doctor             # diagnose dependency and config issues
 npx expo install --fix      # fix incompatible package versions
 ```
 
-Run `npm run typecheck && npm test && npm run frames` (what CI runs) before declaring any task done. There is no linter.
+Run `npm run typecheck && npm test && npm run frames` (CI runs `test:all`, which adds the calibration tier) before declaring any task done. There is no linter.
 
 In a cloud session `npx expo install` fails (api.expo.dev is blocked): use `npm install <pkg>@<version from node_modules/expo/bundledNativeModules.json>`.
 
