@@ -153,14 +153,16 @@ function verify(B: Ball[], ids: number[], group: number[], tier: Tier, s: Shot, 
 // first legally, sends a ball to a rail and leaves the best next shot (nextP) where the cue ball really stops; a safety,
 // with its planned spin, stops nearest the planned spot. leave (with its planned spin) and G in mm. end = the deadline (now()).
 // cr, or = the cushions of a kick and a bank (rollout). A tier with tricks also scores a second ball of its own potted
-// (extra; never the 8 or the 9) and checks each new best pot once its aim has converged (check = verify(), the rollouts of
-// the six that pot): sure = that share, -1 unchecked. Checking each new best steers the search to a robust line (only the
-// pick checked: 118 of 200 tables cleared in place of 134); checking before the aim converged checked each secant step.
+// (extra; never the 8 or the 9) and checks each new best pot once its aim has converged or it tries speeds and tips
+// (check = verify(), the rollouts of the six that pot): sure = that share, -1 unchecked. Checking each new best steers
+// the search to a robust line (only the pick checked: 118 of 200 tables cleared in place of 134); checking each secant
+// step was half the checks. Checking only converged pots missed the cushion shots, whose err rarely gets under 4 mm
+// with another speed: 132 and 134 of 200 8- and 9-ball tables cleared in place of 140 and 140.
 // opp = the opponent's group: a tier with tricks scores a safety's leave by the opponent's best pot from where the
 // rollout really left the table (reply), not by the distance to the planned spot.
 function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number, first: number, pk: Pt | null, G: Pt, leave: Pt & { spin: number }, shot: Shot, end: number, cr = 0, or = 0, check?: (s: Shot) => number, opp?: number[]) {
   const g = { x: G.x / 1000, y: G.y / 1000 }, to = pk && { x: pk.x / 1000, y: pk.y / 1000 };
-  let best: Roll | null = null, sims = 0, r0: Roll | null = null, i = 0, gi = 0;
+  let best: Roll | null = null, sims = 0, r0: Roll | null = null, i = 0, gi = 0, tuned = false; // tuned: past the aim, on speed and tip
   const slope = [0, 0]; // d err / d aim, before the right first hit and after it
   const done = (r: Omit<Roll, 'sure'>) => r.legal && (!pk || (r.pot && Math.abs(r.err) < 0.004));
   const run = (s: Shot): Roll => {
@@ -170,7 +172,7 @@ function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number
     const extra = tier.tricks && r.pot && r.legal ? r.pots.filter((j) => j !== k && group.includes(ids[j]) && ids[j] !== winBall(group)).length : 0;
     const off = Math.abs(r.err) * 5 + (pk ? 1 - Math.max(0, p) : opp ? reply(r.S, ids, opp) : Math.hypot(c.x * 1000 - leave.x, c.y * 1000 - leave.y) / 4000);
     const out = { ...r, shot: s, next: p, nextNine: np.nine, extra, sure: -1, score: 8 * +(r.pot && r.legal) + 4 * +!r.scratch + 2 * +r.legal + +r.rail - Math.min(0.99, off) + 0.5 * extra };
-    if (check && out.score > (best?.score ?? -Infinity) && done(out)) { const n = check(s); if (n >= 0) { out.sure = n / 6; out.score -= FAIL * (6 - n); } }
+    if (check && out.score > (best?.score ?? -Infinity) && (done(out) || (tuned && out.legal && !!pk && out.pot))) { const n = check(s); if (n >= 0) { out.sure = n / 6; out.score -= FAIL * (6 - n); } }
     if (!best || out.score > best.score) best = out;
     return out;
   };
@@ -188,6 +190,7 @@ function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number
       r0 = r1;
     }
     // speed and tip, from the best aim so far, with one aim step at each if the ball missed
+    tuned = true;
     for (; gi < grid.length && sims >= 1 && now() < end && best!.score <= 14.9875; gi++) { // stop: all four goals met, a near-certain next shot (or the leave)
       const [m, b, e] = grid[gi];
       if (m === 1 && b === shot.b && e === shot.elev) continue;
