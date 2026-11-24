@@ -6,8 +6,8 @@
 // scenario (src/scenarios): a lesson table played solo with tries, stars and the player's own cue.
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Alert, AppState, BackHandler, PanResponder, PixelRatio, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { Canvas, Picture, Skia, type SkPicture } from '@shopify/react-native-skia';
-import { useFrameCallback, useReducedMotion, useSharedValue } from 'react-native-reanimated';
+import { Canvas, Circle, Picture, Skia, type SkPicture } from '@shopify/react-native-skia';
+import { cancelAnimation, Easing, useAnimatedReaction, useDerivedValue, useFrameCallback, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { scheduleOnUI } from 'react-native-worklets';
 import { StatusBar } from 'expo-status-bar';
 import * as Haptics from 'expo-haptics';
@@ -276,12 +276,21 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     const rec = Skia.PictureRecorder(), { B, rules: s, rec: shot } = table.current;
     const me = !shot && !bot(); // on the AI's turn the human's marks stay off
     const c = rec.beginRecording(); drawBank(Skia, c, view, at.current ? litCushions(at.current) : s.lit); // a bank table's lit cushions, worked out once per table, or the bank shots of a match
-    drawMarks(Skia, c, view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call >= 0 ? s.call : aiCall.current, ask: me && mustCall(s), ms: performance.now(), at: called.current, zone: at.current?.goal.zone });
+    drawMarks(Skia, c, view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call >= 0 ? s.call : aiCall.current, ask: me && mustCall(s), ms: performance.now(), at: called.current, zone: at.current?.goal.zone, pulse: false }); // the growing ring is the <Circle> on the UI thread
     return rec.finishRecordingAsPicture();
   };
   // Frames of play wait in queue and the UI thread shows one on each display refresh (see src/render/pace.ts).
   const queue = useSharedValue<Slot<SkPicture>[]>([]), left = useSharedValue(STILL);
   const seen = useSharedValue([0, 0, 0, 0, 0]); // counts for the readout (refreshes, frames shown, refreshes with no frame ready, frames skipped), then the share of the last refreshes that came less than 12 ms apart: above a half is a 120 Hz display
+  // The ring that grows out of the cue ball in hand, on the UI thread: [x, y, ball radius] in px, and on (0 or 1). The JS loop sleeps meanwhile.
+  const ring = useSharedValue([0, 0, 0]), ringOn = useSharedValue(0), phase = useSharedValue(0);
+  useAnimatedReaction(() => ringOn.value, (on, was) => {
+    if (on === was) return;
+    if (on) phase.value = withRepeat(withTiming(1, { duration: 1400, easing: Easing.linear }), -1, false);
+    else { cancelAnimation(phase); phase.value = 0; }
+  });
+  const ringR = useDerivedValue(() => (1.7 + 1.6 * (1 - (1 - phase.value) ** 3)) * ring.value[2]), ringO = useDerivedValue(() => ringOn.value * 0.7 * (1 - phase.value));
+  const ringX = useDerivedValue(() => ring.value[0]), ringY = useDerivedValue(() => ring.value[1]), ringW = useDerivedValue(() => Math.max(1, 0.16 * ring.value[2]));
   // One function for the life of the screen: a new one would register again and lose a refresh on each React render.
   const beat = useFrameCallback(useCallback(f => {
     'worklet';
@@ -292,19 +301,22 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   }, []), false);
   const live = useRef(beat); live.current = beat;
   // mk = the marks for the shot in play, with its first frame (they do not change while balls move)
-  const push = (pic: SkPicture, ms: number, first: boolean, mk: SkPicture | null) => { 'worklet'; queue.value = first ? [{ pic, ms }] : [...queue.value, { pic, ms }]; if (first) left.value = 0; if (mk) marks.value = mk; };
-  const still = (pic: SkPicture, mk: SkPicture) => { 'worklet'; queue.value = []; left.value = STILL; picture.value = pic; marks.value = mk; };
+  const push = (pic: SkPicture, ms: number, first: boolean, mk: SkPicture | null) => { 'worklet'; queue.value = first ? [{ pic, ms }] : [...queue.value, { pic, ms }]; if (first) { left.value = 0; ringOn.value = 0; } if (mk) marks.value = mk; }; // a shot in play has no ring
+  const setRing = (at: number[], on: number) => { 'worklet'; ring.value = at; ringOn.value = on; };
+  const still = (pic: SkPicture, mk: SkPicture, at: number[], on: number) => { 'worklet'; queue.value = []; left.value = STILL; picture.value = pic; marks.value = mk; setRing(at, on); };
+  // Where the ring is and whether it pulses: the player's own ball in hand, at rest, not paused, motion not reduced.
+  const ringOf = (): [number[], number] => { const { B, rules: s, rec } = table.current, v = map.current, c = toScreen(v, B[0].x, B[0].y); return [[c.x, c.y, P.R * v.s], !v.calm && !held.current && !rec && !bot() && !s.choice && s.hand ? 1 : 0]; };
   const setMarks = (mk: SkPicture) => { 'worklet'; marks.value = mk; };
   const pace = useRef<Pace | null>(null), made = useRef([0, 0]); // made = frames made and the ms they took, for the readout
   // The table as it is now, shown at once in place of any frames that wait. Play that goes on starts its frames again.
   // A ball the rules or a finger moved did not travel there: no speed streak.
   // again = the guide is drawn again too; a ball the AI carries does not need that.
-  const paint = (again = true) => { const { B, look } = table.current; look.last.set(B.flatMap(b => [b.x, b.y])); pace.current = null; if (again) { dirty(); guides.drop(); line.current = null; } scheduleOnUI(still, draw.current(), mark.current()); }; // a guide for the table as it was is not drawn
+  const paint = (again = true) => { const { B, look } = table.current; look.last.set(B.flatMap(b => [b.x, b.y])); pace.current = null; if (again) { dirty(); guides.drop(); line.current = null; } scheduleOnUI(still, draw.current(), mark.current(), ...ringOf()); }; // a guide for the table as it was is not drawn
   useEffect(() => { touch.current = null; paint(); }, where); // a drag measured in the old layout ends when the window turns
   useEffect(() => { const off = [shot.sub(dirty), tip.sub(dirty)]; return () => off.forEach(f => f()); }, []);
   useEffect(() => hind ? shot.sub(() => { if (past.current.was?.kept && shot.get().power > 0.05) { past.current.was = null; redraw(); } }) : undefined, []); // a pot can be taken back until the next pull
   useEffect(() => { if (!seer) return; const off = [shot.sub(() => watch()), tip.sub(() => watch())]; return () => { off.forEach(f => f()); clearTimeout(hold.current.timer); }; }, []);
-  useEffect(() => { held.current = paused; wake.current(); }, [paused]); // the marks stop under the pause card, and move again after it
+  useEffect(() => { held.current = paused; scheduleOnUI(setRing, ...ringOf()); wake.current(); }, [paused]); // the marks and the ring stop under the pause card, and move again after it
   // A lesson plays with the engine's own cue, the one its reference shots are tuned on (src/learn/lessons.test.mjs).
   // A scenario and quick match play with the player's own cue and its aim guide (stick stats count in challenges).
   const own = useMemo(() => snap0?.cue ?? profile().cue, []), mine = useMemo(() => snap0?.stats ?? ownStats(own), []), cue = useMemo(() => (S || vs ? stick(own, false, mine, vs) : L ? CUE : STICK), []), pen = !!(S || vs) && sketch(own); // fixed for the life of the screen: a cue change takes effect at the next table
@@ -367,7 +379,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     t.B.splice(0, t.B.length, ...f.B); t.look.m = f.m; t.look.fx = f.fx as typeof t.look.fx; t.rec = f.rec; k.live = false; k.frames = [];
     const c = t.B[0]; c.vx = c.vy = c.vz = c.wx = c.wy = c.wz = 0; // dead: no speed and no spin
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); moving.current = true; pace.current = null; // the frames made ahead are dropped: the next one starts the queue again
-    scheduleOnUI(still, draw.current(), mark.current()); redraw(); wake.current();
+    scheduleOnUI(still, draw.current(), mark.current(), ...ringOf()); redraw(); wake.current();
   };
   // The Nonchalant's Whatever (tricks.ts): the player calls no pocket and has no guide; flukes = the paid flukes left this rack.
   const free = vs && own === 'nonchalant', flukes = useRef(newFlukes()), mustCall = (s: State) => canCall(s) && !(free && s.turn === 0);
@@ -378,9 +390,9 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the
   // rack is over. In a lesson: the shot plays itself, or the verdict card is up.
   const bot = () => vs && table.current.rules.turn === 1; // on the AI's turn nothing can be touched
-  // The marks move: the ring round the cue ball in hand pulses, a called pocket settles. A called pocket at rest does not.
+  // The marks move while a called pocket settles. At rest they do not, and the ring round the cue ball in hand pulses on the UI thread.
   // Not under the pause card, which hides the table: the loop sleeps there.
-  const beats = () => { const r = table.current.rules; return !map.current.calm && !held.current && ((r.hand && !r.choice) || performance.now() - called.current < SETTLE); };
+  const beats = () => !map.current.calm && !held.current && performance.now() - called.current < SETTLE;
   const shut = () => { const t = table.current; return moving.current || !!t.rec || !!stay.current || !!t.rules.choice || t.rules.phase === 'over' || (!!L && (les.current.stage === 'watch' || !!les.current.said)) || bot(); };
   const watching = () => !!L && les.current.stage === 'watch' && !les.current.said && !moving.current && !table.current.rec; // the reference shot is lined up: its guide shows
   // Put a ruling on the table: a new rack, or the balls the rules spot and the cue ball in hand.
@@ -702,6 +714,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
       <Canvas style={StyleSheet.absoluteFill}>
         <Picture picture={guide} />
         <Picture picture={marks} />
+        <Circle cx={ringX} cy={ringY} r={ringR} color={C.accent} style="stroke" strokeWidth={ringW} opacity={ringO} />
         <Picture picture={picture} />
       </Canvas>
       {hud && <Text pointerEvents="none" style={[styles.rates, { top: pad.top + HUD, left: pad.left + 8 }]}>{rates}</Text>}
