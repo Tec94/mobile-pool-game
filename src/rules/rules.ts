@@ -130,6 +130,9 @@ export function hooked(B: Ball[], ids: number[], s: State) {
   return true;
 }
 export const onEight = (s: State) => s.game === 8 && s.phase === 'play' && s.solids >= 0 && !own(s, s.turn).length;
+// The rack s ended on by's own shot and by won it outright: the 8, or the 9 last. Not given (a foul on the 8, three fouls),
+// nor the 9 with balls left (on the break, a combination): pay.ts rackOver's ran, for the Chinese Masters' x10.
+export const ranOut = (by: Player, s: State) => s.winner === by && (s.game === 8 || !s.balls.length);
 // The shooter must call a pocket before this shot: on every shot but the break with Call every shot, else on the 8 (4.8c).
 export const canCall = (s: State) => s.game === 8 && s.phase === 'play' && (s.callAll || onEight(s));
 export const setCall = (s: State, pocket: number): State => ({ ...s, call: pocket });
