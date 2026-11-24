@@ -57,6 +57,7 @@ export const safetyPay = (s: Safety): Pay =>
 export interface Match { tier: number; won: boolean; fouls: number; ownPotted?: number; early?: boolean; tour?: number; lucky?: boolean } // tour = a tournament match: its round's multiplier x the frames it takes to win (bracket.ts)
 const MASTERS_WIN = 60; // a Masters win's factor where Legend's is 6
 export function matchPay(m: Match): Pay {
+  if (!(m.tier > 0 && m.tier <= MASTERS)) throw new Error(`AI tier ${m.tier} is not over 0 and at most 7`); // a rating (Rival, tour) may be a tenth, as low as 0.5
   const k = m.won ? (m.fouls ? 1 : 1.2) : m.early ? 0 : Math.min(7, m.ownPotted ?? 0) / 7;
   const [xp, coins] = m.won ? [60, 40] : [20, 10], f = m.tier < MASTERS ? m.tier : m.won && !m.lucky ? MASTERS_WIN : 6, t = m.tour ?? 1;
   return { xp: Math.round(xp * f * k * t), coins: Math.round(coins * f * k * t) }; // this order, or a cup's pay moves by 1

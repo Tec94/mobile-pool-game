@@ -74,6 +74,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(matchPay({ tier: 7, won: true, fouls: 1 }), { xp: 3600, coins: 2400 }, 'a win against the Masters: 10 times Legend');
   eq(matchPay({ tier: 7, won: true, fouls: 0 }), { xp: 4320, coins: 2880 }, 'and its no-foul bonus');
   eq(matchPay({ tier: 7, won: false, ownPotted: 7, fouls: 0 }), matchPay({ tier: 6, won: false, ownPotted: 7, fouls: 0 }), 'a loss to the Masters pays as a loss to Legend');
+  for (const tier of [0, 8, NaN]) assert.throws(() => matchPay({ tier, won: true, fouls: 0 }), /tier/, `match tier ${tier} is a bug, as vs() has it`);
   eq(matchPay({ tier: 7, won: false, ownPotted: 7, fouls: 0, early: true }).xp, 0, 'and a concede nothing');
   ok('match pay vs AI');
 }
