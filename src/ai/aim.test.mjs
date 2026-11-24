@@ -3,8 +3,9 @@ import assert from 'node:assert';
 import { CUE, P, simulate, step, strike } from '../physics/engine.ts';
 import { aiShot, correctAim } from './aim.ts';
 import { visit } from './bench.ts';
-import { enumerate, NINE, potProb, SOLIDS, STRIPES, TIERS, randomLayout, rng } from './shot-ai.ts';
+import { enumerate, NINE, potProb, SOLIDS, STRIPES, TIERS as CLOCKED, randomLayout, rng } from './shot-ai.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
+const TIERS = CLOCKED.map(t => ({ ...t, think: Infinity })); // no clock (Tier.think): the same search whatever the machine's load
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 // Direction the object ball leaves in, measured on the engine, independent of aim.ts.
 const leaves = (cue, obj, shot) => {

@@ -28,6 +28,6 @@ test('a match saved after a ruling goes on the same: the next AI move and its sh
   strike(B[0], s.shot); for (let k = 0; k < 60000 && (ev.length = 0, step(B, ev)); k++) record(r, ev, B, s.ids);
   const after = { ...s, B, rules: judge(s.rules, r), shot: undefined }, back = JSON.parse(JSON.stringify(after));
   assert(fits(back, 8));
-  const next = (x) => { const m = think(x.B.map((b) => ({ ...b })), x.ids, x.rules, 3, x.seed, 0, 'banker'); return play({ ...x, shot: m.shot }); };
+  const next = (x) => { const m = think(x.B.map((b) => ({ ...b })), x.ids, x.rules, 3, x.seed, 0, 'banker', Infinity); return play({ ...x, shot: m.shot }); };
   assert.equal(JSON.stringify(next(back)), JSON.stringify(next(after)), "the same table (JSON writes -0 as 0, which changes nothing)");
 });

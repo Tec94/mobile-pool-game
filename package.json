@@ -41,6 +41,8 @@
     "bench:types": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/ai-types.mjs",
     "bench:styles": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/ai-styles.mjs",
     "bench:visit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/ai-visit.mjs",
+    "bench:masters": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/ai-masters.mjs",
+    "bench:why": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/ai-why.mjs",
     "scenarios": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/make-scenarios.mjs",
     "lesson-variants": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/make-lesson-variants.mjs",
     "frames": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/ball-frames.mjs",

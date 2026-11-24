@@ -4,7 +4,7 @@
 // the rollouts on the engine (refine). One uncounted table runs first, so the first tier does not pay for the warm-up.
 import { type Ball, type Ev, HOLES, P, simulate, step, strike } from '../physics/engine.ts';
 import { cushionAt, ENDS } from '../rules/rules.ts';
-import { holeOf, onLit } from './turn.ts';
+import { holeOf, kindOf, onLit } from './turn.ts';
 import { aiShot } from './aim.ts';
 import { type Cand, NINE, randomLayout, rng, SOLIDS, STRIPES, type Tier, TIERS } from './shot-ai.ts';
 
@@ -51,16 +51,18 @@ export function visit(tier: Tier, seed: number, nine = false) {
 
 // Make rate per shot type: on n seeded random 8-ball tables (5 a side, AI on solids) the AI may only try pots of one type
 // (ok) and must take a pot (safetiesInRow 2: no safety), and the engine says whether the ball dropped where it was called. 'lit' = Bank shots mode with a random lit pair.
-// Same tables for every tier, so the rates compare. Run with scripts/ai-types.mjs.
-export const TYPES = ['direct', 'bank', 'kick', 'combo', 'carom', 'billiard', 'lit'] as const;
+// Same tables for every tier, so the rates compare. Run with scripts/ai-types.mjs. bank2 .. kick4 = off that many cushions,
+// jump: the Chinese Masters' trick shots (kindOf); the plain 'bank' and 'kick' are off one.
+export const TYPES = ['direct', 'bank', 'kick', 'combo', 'carom', 'billiard', 'lit', 'bank2', 'bank3', 'bank4', 'kick2', 'kick3', 'kick4', 'jump'] as const;
 export function makeRates(tier: Tier, n: number, types: readonly (typeof TYPES)[number][] = TYPES, safeties = 2) {
   const out = Object.fromEntries(types.map((t) => [t, { tries: 0, made: 0, est: 0, shots: [] as { type: string; tol: number; made: boolean }[] }]));
   for (let i = 0; i < n; i++) for (const type of types) {
     const rnd = rng(5000 + i), { cue, balls } = randomLayout(rnd, 5), B = [cue, ...balls].map(mk), ids = [0, ...balls.map((b) => b.id)];
     const k = Math.floor(rnd() * 6), lit = [k, (k + 1) % 6];
-    const ok = type === 'lit' ? (c: Cand) => onLit(lit, c) : (c: Cand) => c.type === type;
-    const r = aiShot(B, ids, SOLIDS, STRIPES, tier, rng(9000 + i), safeties, ok), pick = r.pick;
-    if (pick.type === 'safety' || pick.type === 'foul' || (type !== 'lit' && pick.type !== type)) continue;
+    const ok = type === 'lit' ? (c: Cand) => onLit(lit, c) : (c: Cand) => kindOf(c) === type;
+    // a trick shot is not forced: its rate is of the tries the Masters accepts (it plays safe on a poor one, aim.ts SAFE_P)
+    const r = aiShot(B, ids, SOLIDS, STRIPES, tier, rng(9000 + i), /\d$|^jump$/.test(type) ? 0 : safeties, ok), pick = r.pick;
+    if (pick.type === 'safety' || pick.type === 'foul' || (type !== 'lit' && kindOf(pick) !== type)) continue;
     const o = out[type]; o.tries++; o.est += pick.p;
     const S = B.map((b) => ({ ...b })), ev: Ev[] = [], hole = holeOf(pick), j = ids.indexOf(pick.ball);
     let first = -1, pocket = -1, scratch = false, banked = false;
@@ -68,7 +70,7 @@ export function makeRates(tier: Tier, n: number, types: readonly (typeof TYPES)[
     for (let s = 0; s < 30000 && step(S, ev); s++) {
       for (const e of ev) {
         if (e.t === 'bb' && e.a === 0 && first < 0) first = e.b!;
-        if (e.t === 'pocket' && e.a === 0) scratch = true;
+        if ((e.t === 'pocket' || e.t === 'off') && e.a === 0) scratch = true;
         if (e.t === 'pocket' && e.a === j) pocket = HOLES.reduce((m, h, q) => ((h[0] - e.x!) ** 2 + (h[1] - e.y!) ** 2 < (HOLES[m][0] - e.x!) ** 2 + (HOLES[m][1] - e.y!) ** 2 ? q : m), 0);
         if (e.t === 'rail' && (e.a === j || (e.a === 0 && first < 0))) { const c = cushionAt(e.x!, e.y!, 1.5 * P.R); if (lit.includes(c) && (e.a === 0 || !ENDS[c].includes(hole))) banked = true; }
       }

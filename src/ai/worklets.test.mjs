@@ -38,19 +38,23 @@ assert.deepStrictEqual(bad, [], 'every function think() reaches is a worklet wit
 assert(seen.size > 50, `${seen.size} worklets`);
 ok(`the worklets plugin compiles think() and ${seen.size - 1} more worklets, none of them broken`);
 
-// A rack on the compiled code, which is also what the JS thread runs: think() for both seats, to the end, at a rating between tiers (the Rival's aiParams).
+// A rack on the compiled code, which is also what the JS thread runs: think() for both seats, to the end, at a rating
+// between tiers (the Rival's aiParams) and at the Chinese Masters' (its tricks; its first shots only).
 const E = load('physics/engine'), Ru = load('rules/rules');
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true }), [bx, by] = E.breakSpot();
-let s = Ru.newGame(8, 0, true), B = [mk(bx - 1e-3, by), ...E.rack(8).map(([, x, y]) => mk(x, y))], shots = 0;
-const ids = [0, ...E.rack(8).map(([id]) => id)];
-while (s.phase !== 'over' && shots < 150 && !(s.phase === 'break' && shots)) { // a rack started over ends the check too
-  if (s.choice) { s = Ru.choose(s, turn.choiceFor(s)); continue; }
-  shots++;
-  const m = turn.think(B.map(b => ({ ...b })), ids, s, 2.5, shots, 0);
-  if (m.at) Ru.moveCue(B, m.at[0], m.at[1], s.hand); if (m.call >= 0) s = Ru.setCall(s, m.call);
-  const r = Ru.newRec(), ev = []; E.strike(B[0], m.shot);
-  for (let k = 0; k < 60000 && (ev.length = 0, E.step(B, ev)); k++) Ru.record(r, ev, B, ids);
-  s = Ru.judge(s, r); for (const id of s.spot) Ru.spotBall(B, ids.indexOf(id)); if (s.hand) Ru.handCue(B, s.hand);
+for (const rating of [2.5, 7]) {
+  const t0 = performance.now(), cap = rating < 7 ? 150 : 4; // a few shots prove the Masters' compiled search: a whole rack of it takes ~10 s
+  let s = Ru.newGame(8, 0, true), B = [mk(bx - 1e-3, by), ...E.rack(8).map(([, x, y]) => mk(x, y))], shots = 0;
+  const ids = [0, ...E.rack(8).map(([id]) => id)];
+  while (s.phase !== 'over' && shots < cap && !(s.phase === 'break' && shots)) { // a rack started over ends the check too
+    if (s.choice) { s = Ru.choose(s, turn.choiceFor(s)); continue; }
+    shots++;
+    const m = turn.think(B.map(b => ({ ...b })), ids, s, rating, shots, 0, undefined, Infinity);
+    if (m.at) Ru.moveCue(B, m.at[0], m.at[1], s.hand); if (m.call >= 0) s = Ru.setCall(s, m.call);
+    const r = Ru.newRec(), ev = []; E.strike(B[0], m.shot);
+    for (let k = 0; k < 60000 && (ev.length = 0, E.step(B, ev)); k++) Ru.record(r, ev, B, ids);
+    s = Ru.judge(s, r); for (const id of s.spot) Ru.spotBall(B, ids.indexOf(id)); if (s.hand) Ru.handCue(B, s.hand);
+  }
+  assert(rating < 7 ? s.phase !== 'play' && shots < cap : shots === cap || s.phase === 'over', `the rack ends at rating ${rating} (${shots} shots, ${s.note})`);
+  ok(`compiled code plays an 8-ball rack at rating ${rating}: ${shots} shots, ${s.note || s.phase}, ${((performance.now() - t0) / 1000).toFixed(1)} s`);
 }
-assert(s.phase !== 'play' && shots < 150, `the rack ends (${shots} shots, ${s.note})`);
-ok(`compiled code plays an 8-ball rack: ${shots} shots, ${s.note || s.phase}`);

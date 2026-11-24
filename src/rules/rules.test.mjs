@@ -1,7 +1,7 @@
 // Run: npm test   (checks the rules against the WPA Rules of Play, 2026-10-21; rule numbers are that edition's)
 import assert from 'node:assert';
 import { P, rack, step, strike } from '../physics/engine.ts';
-import { canCall, choose, cushionAt, handCue, hooked, judge, jumped, legalFirst, legalSpot, lowest, massed, moveCue, newGame, newRec, nose, onEight, potKind, record, setCall, spotBall } from './rules.ts';
+import { canCall, choose, cushionAt, handCue, hooked, judge, jumped, legalFirst, legalSpot, lowest, massed, moveCue, newGame, newRec, nose, onEight, potKind, ranOut, record, setCall, spotBall } from './rules.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
@@ -126,6 +126,15 @@ const solids1 = () => judge(open8(), rec(3, [[3]]));
   let t = { ...p, fouls: [0, 2] }; a = judge(t, rec(-1)); eq([a.phase, a.winner], ['over', 0], '5.8 three fouls in a row lose the rack');
   a = judge(t, rec(1)); eq(a.fouls, [0, 0], 'a legal shot clears the count');
   ok('9-ball follows section 5');
+}
+{ // ranOut: the shooter won the rack on their own shot with no ball given (the Chinese Masters' x10, pay.ts rackOver)
+  const e = { ...solids1(), balls: [8, 9, 12] }, p = judge(newGame(9), rec(1, [], { rails: [1, 2, 3, 4] })), ran = (s, r) => { const a = judge(s, r); return [a.winner, ranOut(s.turn, a)]; };
+  eq(ran(setCall(e, 2), rec(8, [[8, 2]])), [1, true], 'the 8 potted on the shooter\'s own shot: ran out');
+  eq(ran(setCall(e, 2), rec(8, [[8, 3]])), [0, false], 'the opponent\'s foul on the 8: lucky');
+  eq(ran(p, rec(1, [[1], [9, 3]])), [1, false], 'the 9 down with balls left: lucky');
+  eq(ran({ ...p, fouls: [0, 2] }, rec(-1)), [0, false], 'three fouls: lucky');
+  eq(ran({ ...p, balls: [9] }, rec(9, [[9, 3]])), [1, true], 'the 1 to the 9 in order, the 9 last: ran out');
+  ok('a rack run out, or given');
 }
 { // The record is built from the engine's events
   const play = (B, ids, shot) => { const r = newRec(), ev = []; strike(B[0], shot); for (let i = 0, mv = true; mv && i < 60000; i++) { ev.length = 0; mv = step(B, ev); record(r, ev, B, ids); } return r; };

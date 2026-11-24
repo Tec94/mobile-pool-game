@@ -12,6 +12,7 @@ export const CLOTHS = [{ name: 'Slate', felt: '#27504A', cushion: '#1C3A35' }, {
 // A slab's colours: [face, lip]. Cream = the thing you press to go, and the player to shoot; dark = secondary, locked, missed.
 export type Paint = readonly [string, string];
 export const CREAM: Paint = ['#EFE6D2', '#B9AD92'], DARK: Paint = ['#1B3530', '#0A1513'];
+export const SEAL: Paint = ['#B8312A', '#7A1A15']; // the Chinese Masters' chip: seal red, so the meme tier reads as off the ladder
 // Each mode takes its ball's colour. Quick match is cream.
 export const MODE = { daily: ['#4B98EE', '#2A69B8'], scenarios: ['#E0483C', '#A52B22'], learn: ['#8448C8', '#5A2B93'], pass: ['#EC7428', '#B04F12'], cues: ['#3FBF7F', '#2A8C5A'], tour: ['#A8323F', '#74202A'] } satisfies Record<string, Paint>;
 // Text on a face: ink on light faces (cream, daily, pass, cues), chalk on scenarios, learn, tournament and dark.

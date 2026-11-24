@@ -1,8 +1,8 @@
-// The AI thinks off the JS thread: a top tier takes 1 to 2.6 s of engine work with no JIT, which would freeze the
-// screen. think() and all it calls (turn.ts, aim.ts, shot-ai.ts, rules.ts, engine.ts) are worklets by a file-level
-// 'worklet' directive, so they run on a worklet runtime of their own. Only plain data crosses: balls, ids, the State,
-// numbers; the runtime gets copies of what the functions capture. Web has no worklet runtimes: there think() runs on
-// the JS thread after a timeout, so the "thinking" frame paints first.
+// The AI thinks off the JS thread: the Masters takes about 3 s of engine work with no JIT (a 7 s hard stop), which
+// would freeze the screen. think() and all it calls (turn.ts, aim.ts, shot-ai.ts, rules.ts, engine.ts) are worklets by
+// a file-level 'worklet' directive, so they run on a worklet runtime of their own. Only plain data crosses: balls, ids,
+// the State, numbers; the runtime gets copies of what the functions capture. Web has no worklet runtimes: there think()
+// runs on the JS thread after a timeout, so the "thinking" frame paints first.
 import { Platform } from 'react-native';
 import { createWorkletRuntime, runOnRuntimeAsync, type WorkletRuntime } from 'react-native-worklets';
 import type { Ball } from '../physics/engine';

@@ -23,7 +23,7 @@ import { BAR, drawAim, drawTable, onTable, toScreen, toTable } from './src/rende
 import { LEVEL, shotTip } from './src/render/tip';
 import { type Lesson, LESSON_PAY, LESSONS, lessonTable, type LessonRec, litCushions, newLessonRec, noteLesson, PENCIL_AT, SOLO_RUN, soloTable, type Stage, verdict } from './src/learn/lessons';
 import { loadDone, saveDone } from './src/learn/save';
-import { canCall, choose, handCue, hooked, legalFirst, moveCue, newGame, newRec, Rec, record, setCall, spotBall, State } from './src/rules/rules';
+import { canCall, choose, handCue, hooked, legalFirst, moveCue, newGame, newRec, ranOut, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { thinkAsync } from './src/ai/think';
 import { candsFor, choiceFor, type Move, nextSafeties, potPay, type Safeties, safetiesArg, softMove, think } from './src/ai/turn';
 import { rng, TIERS } from './src/ai/shot-ai';
@@ -398,7 +398,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     const t = table.current, hard = hustler(foe()), came = t.rules.turn === 1 && s.turn === 0; // came = the turn passes to the player
     if (vs && s.game === 8 && s.solids >= 0) { const down = (p: number) => 7 - s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === p)).length; if (down(1) - down(0) >= 3) won.current.behind = true; } // Nine Lives: the opponent 3 balls or more ahead
     if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++;
-      if (vs) { rackOver(won.current, s.winner === 0, hard); if (game === 9 && race >= 3 && score.current[1] - score.current[0] >= 2) won.current.down = true; } // in 9-ball a comeback is 2 racks down in a race to 3 or 5
+      if (vs) { rackOver(won.current, s.winner === 0, hard, ranOut(t.rules.turn, s)); if (game === 9 && race >= 3 && score.current[1] - score.current[0] >= 2) won.current.down = true; } // in 9-ball a comeback is 2 racks down in a race to 3 or 5
       if (score.current[s.winner] === race) {
       const pp = vs ? null : passPlayPay(dayKey(new Date()), s.early ? 'an early 8' : s.foul ? 'a foul' : ''); // the 8 down early, or the last shot a foul: three in a row, the 8 down or off the table on one
       const r = vs ? settle(won.current, { tier: rival || tour ? tenth(level.current) : ai + 1, won: s.winner === 0, early: s.winner === 1 && s.early, tour: tour && tour.stakes * race, racks: score.current[0] }, chalk) // only an early 8 pays nothing
@@ -782,6 +782,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
           {paid && <PayRow label={!vs ? 'Pass and play' : win === 0 ? 'Match win' : 'Match'} xp={paid.match.xp} coins={paid.match.coins} twice={!!paid.chalk} />}
           {paid && vs && <PayRow label="Shots" xp={paid.shots.xp} coins={paid.shots.coins} />}
           {!!paid?.note && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{paid.note}</Text>}
+          {!!paid?.why && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{paid.why}</Text>}
           {!!paid?.got && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{`New cue: ${paid.got.join(', ')}`}</Text>}
           {paid && prize.current && <PayRow label="Prize" xp={prize.current.xp} coins={prize.current.coins} />}
           {paid && <PayTotal xp={paid.total.xp + (prize.current?.xp ?? 0)} coins={paid.total.coins + (prize.current?.coins ?? 0)} />}
