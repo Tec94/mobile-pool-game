@@ -3,7 +3,7 @@
 // turn (break, group, cue ball in hand, call, shot); choiceFor() answers a decision the rules hand it; potPay() pays
 // the human's pots in a match against the AI.
 import { type Ball, CUE, HOLES, P, type Shot } from '../physics/engine.ts';
-import { canCall, cushionAt, jumped, legalSpot, massed, onEight, potKind, type Hand, type Rec, type State } from '../rules/rules.ts';
+import { canCall, cushionAt, ENDS, jumped, legalSpot, massed, onEight, potKind, type Hand, type Rec, type State } from '../rules/rules.ts';
 import { aiShot } from './aim.ts';
 import { styled, type StyleId } from './styles.ts';
 import { aiParams, chooseGroup, type Cand, EDGE, enumerate, makeProb, NINE, type Obj, type Pick, plan, rng, shotOdds, SIGMA_REF, SOLIDS, STRIPES } from './shot-ai.ts';
@@ -11,7 +11,7 @@ import { type Aura, hustler, type Pay, shotPay, type ShotType as PayType, type V
 import type { FeatId } from '../progress/profile.ts';
 
 // The AI's turn. at = where it puts the cue ball in hand (null = where it lies); call = the pocket it calls (-1 none);
-// safety = it played a safety, for safetiesInRow; kind = the pot it played (for npm run bench:styles).
+// safety = it played a safety, for safetiesInRow; kind = the pot it played (kindOf, for the benches).
 export interface Move { shot: Shot; at: [number, number] | null; call: number; safety: boolean; kind?: string }
 const mm = (B: Ball[], ids: number[]): Obj[] => B.flatMap((b, i) => (i && b.on ? [{ id: ids[i], x: b.x * 1000, y: b.y * 1000 }] : []));
 const nearHole = (x: number, y: number) => { let k = 0, d = Infinity; HOLES.forEach((h, i) => { const e = (h[0] - x) ** 2 + (h[1] - y) ** 2; if (e < d) { d = e; k = i; } }); return k; };
@@ -92,9 +92,15 @@ export function callFor(s: State, pick: Pick, B: Ball[], ids: number[]) {
   const e = B[ids.indexOf(8)]; return nearHole(e.x, e.y);
 }
 
+// What the AI played, for the benches: its type, with the cushions of a bank or kick off 2 or more ('bank2', 'kick3');
+// an escape is 'escape' and its cushions or 'escapejump'.
+export const kindOf = (p: Pick | Cand) => (p.type === 'foul' ? 'foul' : p.type === 'safety' ? (p.rails ? `escape${p.rails}` : p.elev ? 'escapejump' : 'safety') : p.type + ((p.rails ?? 1) > 1 ? p.rails : ''));
+
 // Bank shots: the pot banks the ball (or kicks the cue ball) off one of the lit cushions. The rail point is a ball
-// centre one radius off the nose, so it is matched a little wider than the engine's touch.
+// centre one radius off the nose, so it is matched a little wider than the engine's touch. Off 2 cushions or more, any
+// of them counts, as rules.ts banked() has it: a bank's cushion only when it does not end at the ball's pocket.
 export const onLit = (lit: number[], c: Cand) => {
+  if ((c.rails ?? 1) > 1) { const h = holeOf(c), q = c.type === 'bank' ? c.paths[1] : c.paths[0]; return q.slice(1, -1).some((X) => { const k = cushionAt(X.x / 1000, X.y / 1000, 1.5 * P.R); return lit.includes(k) && (c.type === 'kick' || !ENDS[k].includes(h)); }); }
   const X = c.type === 'bank' ? c.paths[1][1] : c.type === 'kick' ? c.paths[0][1] : null;
   return !!X && lit.includes(cushionAt(X.x / 1000, X.y / 1000, 1.5 * P.R));
 };
@@ -123,7 +129,7 @@ export function think(B: Ball[], ids: number[], s: State, level: number, seed: n
   }
   const lit = s.lit, ok = lit.length ? (c: Cand) => onLit(lit, c) : undefined; // bank shots: no other pot counts
   const { shot, pick } = aiShot(B, ids, s.game === 9 ? g[0] : ahead(g[0]), g[1], T, rnd, safeties, ok);
-  return { shot, at: s.hand ? [B[0].x, B[0].y] : null, call: callFor(s, pick, B, ids), safety: pick.type === 'safety', kind: pick.type };
+  return { shot, at: s.hand ? [B[0].x, B[0].y] : null, call: callFor(s, pick, B, ids), safety: pick.type === 'safety', kind: kindOf(pick) };
 }
 
 // The AI's move when think() itself fails: a soft hit at the nearest legal ball (as aiShot's 'foul' pick), so the match goes on.
