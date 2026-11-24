@@ -10,20 +10,25 @@ import { P } from '../physics/engine.ts';
 export const W = P.L * 1000, H = P.W * 1000, R = P.R * 1000;
 export interface Pt { x: number; y: number }
 export interface Obj extends Pt { id: number } // a ball on the table: its number and where it is
-export type ShotType = 'direct' | 'bank' | 'kick' | 'combo' | 'carom' | 'billiard';
+export type ShotType = 'direct' | 'bank' | 'kick' | 'combo' | 'carom' | 'billiard' | 'jump';
 // A way to pot. G = cue-ball position at contact, v = its direction there, u = where the first ball leaves, first = that
 // ball's id, via = a combo's first ball or a carom's helper ball, tol = the striker's angular tolerance (radians), paths = polylines for drawing.
-export interface Cand { type: ShotType; ball: number; pocket: number; aim: number; tol: number; cut: number; paths: Pt[][]; G: Pt; v: Pt; u: Pt; first: number; via?: number }
+// rails = the cushions of a bank or kick (1 when left out), elev = a jump's starting cue elevation (radians), set by the finders of a tier with tricks.
+export interface Cand { type: ShotType; ball: number; pocket: number; aim: number; tol: number; cut: number; paths: Pt[][]; G: Pt; v: Pt; u: Pt; first: number; via?: number; rails?: number; elev?: number }
 export interface Leave extends Pt { spin: number; power: number; path: Pt[]; travelled: number; scratch: boolean }
 export interface Planned extends Cand { p: number; score: number; value: number; leave?: Leave; next?: Planned; deep?: boolean } // deep: plan() searched its leaves
 // G, v and u are kept on a safety (the prototype dropped them) so the engine glue maps it like a pot.
-export interface Safety { type: 'safety'; ball: number; aim: number; paths: Pt[][]; leave: Leave; oppBest: number; hooked: boolean; G: Pt; v: Pt; u: Pt }
+// An escape (a hooked tier with tricks kicks or jumps to a legal hit) is a safety with rails or elev, as a Cand has them.
+export interface Safety { type: 'safety'; ball: number; aim: number; paths: Pt[][]; leave: Leave; oppBest: number; hooked: boolean; G: Pt; v: Pt; u: Pt; rails?: number; elev?: number }
 export type Pick = Planned | Safety | { type: 'foul' };
 export interface Tier { name: string; sigma: number; types: ShotType[]; flair: number; temp: number; depth: number; planShare?: number; wPos: number; posErr: number; speedErr: number; tipErr: number; ctrl: number; wLeave: number; rack?: boolean; safetyAngles: number[]; budget: number; tries?: number; caromGap: number; rail: [number, number]; hard: number; run: number; spot?: number;
   // style hooks (src/ai/styles.ts), none on a plain tier: like = score bonus per shot type; safeAt = best pot value under which a
   // safety is weighed (0.3); spinLove = bonus for a leave played with draw or follow; hook = credit for a hook times this;
   // bankAim = aim error on a bank or kick times this
-  like?: Partial<Record<ShotType, number>>; safeAt?: number; spinLove?: number; hook?: number; bankAim?: number }
+  like?: Partial<Record<ShotType, number>>; safeAt?: number; spinLove?: number; hook?: number; bankAim?: number;
+  // trick hooks, only on the Chinese Masters: tricks = most cushions of a bank or kick, and on: jumps, escapes, double pots and
+  // the engine check of every pot (aim.ts verify); show = how much more a checked trick shot is worth; think = ms deadline (aim.ts THINK; a tier with tricks: the hard stop past its ROLLOUTS)
+  tricks?: number; show?: number; think?: number }
 interface Pocket extends Pt { ax: [number, number]; m: number; c: number; back: number }
 interface Rail { k: 'x' | 'y'; v: number }
 
@@ -59,10 +64,11 @@ export const makeProb = (tol: number, sigma: number) => erf(tol / (sigma * Math.
 // Chance a striker with aim error sigma (radians) pots shot s.
 export const potProb = (s: Cand, sigma: number) => makeProb(s.tol, s.type === 'bank' || s.type === 'kick' ? Math.hypot(sigma, RAIL_SIGMA) : sigma);
 // Chance this tier pots shot s, as the engine measures it (npm run bench:types): banks and kicks at the tier's own
-// cushion error (rail), any other shot but a straight pot at its aim error times hard.
+// cushion error (rail), any other shot but a straight pot at its aim error times hard. A bank or kick off n cushions at n
+// times that, a jump at twice the kick's: only a ranking seed, aim.ts measures those on the engine (verify).
 export function tierProb(tier: Tier, s: Cand) {
-  const d = Math.PI / 180;
-  return makeProb(s.tol, s.type === 'bank' ? tier.rail[0] * d : s.type === 'kick' ? tier.rail[1] * d : tier.sigma * (s.type === 'direct' ? 1 : tier.hard) * d);
+  const d = Math.PI / 180 * (s.rails ?? 1);
+  return makeProb(s.tol, s.type === 'bank' ? tier.rail[0] * d : s.type === 'kick' ? tier.rail[1] * d : s.type === 'jump' ? 2 * tier.rail[1] * d : tier.sigma * (s.type === 'direct' ? 1 : tier.hard) * d);
 }
 
 // Half-width of the window a ball arriving along `dir` must pass through, or 0 if it cannot drop.
@@ -87,6 +93,31 @@ function railHit(a: Pt, m: Pt, rail: Rail): Pt | null {
   if (X.x < R - 1 || X.x > W - R + 1 || X.y < R - 1 || X.y > H - R + 1) return null;
   return POCKETS.some((p) => dist(p, X) < 110) ? null : X;
 }
+// Every order of n cushions (indices into RAILS) with no cushion twice in a row, n = 0 to 4.
+const SEQS: number[][][] = [[[]]];
+for (let n = 1; n <= 4; n++) SEQS.push(SEQS[n - 1].flatMap((q) => [0, 1, 2, 3].filter((k) => k !== q[q.length - 1]).map((k) => [...q, k])));
+// The path from a to b off the cushions q in this order (mirror unfolding: b mirrored across the cushions, last first),
+// or null when a crossing is no real cushion hit (railHit). image = a mirrored across them in order: a ball arriving
+// at b comes in on the line from there.
+function unfold(a: Pt, b: Pt, q: number[]): Pt[] | null {
+  const pts = [a];
+  for (let i = 0; i < q.length; i++) {
+    let img = b;
+    for (let j = q.length - 1; j >= i; j--) img = mirror(img, RAILS[q[j]]);
+    const X = railHit(pts[i], img, RAILS[q[i]]);
+    if (!X) return null;
+    pts.push(X);
+  }
+  pts.push(b);
+  return pts;
+}
+const image = (a: Pt, q: number[]) => q.reduce((p, k) => mirror(p, RAILS[k]), a);
+// Every leg of a polyline is clear of balls (the ids in ignore aside; the last leg also ignores last).
+function lanes(pts: Pt[], balls: Obj[], ignore: number[], last: number) {
+  for (let i = 1; i < pts.length; i++) if (!clear(pts[i - 1], pts[i], balls, i < pts.length - 1 ? ignore : [...ignore, last])) return false;
+  return true;
+}
+const span = (pts: Pt[]) => pts.reduce((l, p, i) => (i ? l + dist(pts[i - 1], p) : 0), 0);
 // Striking ball coming from `from` must send ball B along unit vector u, within angle objTol.
 // Returns the ghost-ball position, strike direction, cut angle and the striker's own angular tolerance.
 export function strike(from: Pt, B: Pt, u: Pt, objTol: number) {
@@ -132,9 +163,9 @@ function kiss(from: Pt, X: Pt, T: Pt, slide: number) {
     return [spot(X, b0)];
   });
 }
-// Every way to send ball B into pocket pk: straight, or off one cushion (bank).
-function routes(B: Obj, pk: Pocket, balls: Obj[]) {
-  const out: { u: Pt; objTol: number; path: Pt[]; bank: boolean }[] = [];
+// Every way to send ball B into pocket pk: straight, or off one cushion (bank), or off 2 to `tricks` cushions.
+function routes(B: Obj, pk: Pocket, balls: Obj[], tricks = 0) {
+  const out: { u: Pt; objTol: number; path: Pt[]; bank: boolean; rails?: number }[] = [];
   const u = norm(sub(pk, B)), s = slack(pk, u);
   if (s && clear(B, pk, balls, [B.id])) out.push({ u, objTol: Math.atan(s / dist(B, pk)), path: [B, pk], bank: false });
   for (const rail of RAILS) {
@@ -145,20 +176,51 @@ function routes(B: Obj, pk: Pocket, balls: Obj[]) {
     if (!s2 || !clear(B, X, balls, [B.id]) || !clear(X, pk, balls, [B.id])) continue;
     out.push({ u: norm(sub(m, B)), objTol: Math.atan(s2 / dist(B, m)) * RAIL_FACTOR, path: [B, X, pk], bank: true });
   }
+  // shortcut: the mirror line, as for one cushion, though a ball comes off a cushion shorter than it went in (more so on each
+  // one); the window times RAIL_FACTOR per cushion only ranks it, aim.ts finds the real line and checks it on the engine.
+  for (let n = 2; n <= tricks; n++) for (const q of SEQS[n]) {
+    const last = RAILS[q[n - 1]];
+    if (Math.abs(pk[last.k] - last.v) < 3 * R) continue; // a ball off the pocket's own rail runs along it
+    const path = unfold(B, pk, q);
+    if (!path) continue;
+    const s2 = slack(pk, norm(sub(pk, path[n])));
+    if (!s2 || !lanes(path, balls, [B.id], B.id)) continue;
+    out.push({ u: norm(sub(path[1], B)), objTol: Math.atan(s2 / span(path)) * RAIL_FACTOR ** n, path, bank: true, rails: n });
+  }
   return out;
 }
 
+// A jump clears the balls in the lane from a to b (the ids in ignore aside): there is one, and each lies 200 to 650 mm
+// along it from a. Measured on the engine (a ball in the lane, the object ball 0.1 to 0.7 m past it): no legal hit with
+// the blocker 120 mm away, from 200 mm a cue raised 38 to 45 degrees at 3.5 to 4.5 m/s lands one.
+function jumpable(a: Pt, b: Pt, balls: Obj[], ignore: number[]) {
+  const d = sub(b, a), l = len(d);
+  let n = 0;
+  for (const o of balls) {
+    if (ignore.includes(o.id)) continue;
+    const t = dot(sub(o, a), d) / l;
+    if (Math.abs(d.x * (o.y - a.y) - d.y * (o.x - a.x)) / l >= 2 * R || t < -2 * R || t > l + 2 * R) continue;
+    if (t < 200 || t > 650) return false;
+    n++;
+  }
+  return n > 0;
+}
+const JUMP = 38 * Math.PI / 180, JUMP_FACTOR = 0.5; // a jump's starting elevation; its window against a level pot's, a ranking seed
+
 // All candidate pots for the cue ball against `legal` object balls. Each has an aim angle and a tolerance.
 // legalIds = balls the cue ball may hit first. potIds = balls that may be potted (9-ball: any ball, through the lowest).
-export function enumerate(cue: Pt, balls: Obj[], legalIds: number[], potIds = legalIds, kisses = true) {
+// tricks = most cushions of a bank or kick (Tier.tricks), and with it jumps over a ball in the lane; 0 = one cushion, no jumps.
+export function enumerate(cue: Pt, balls: Obj[], legalIds: number[], potIds = legalIds, kisses = true, tricks = 0) {
   const shots: Cand[] = [], legal = balls.filter((b) => legalIds.includes(b.id)), targets = balls.filter((b) => potIds.includes(b.id));
   const add = (type: ShotType, ball: number, pocket: number, st: Strike, aimDir: Pt, paths: Pt[][], u: Pt, first: number, extra = {}) =>
     shots.push({ type, ball, pocket, aim: Math.atan2(aimDir.y, aimDir.x), tol: st.tol, cut: st.cut, paths, G: st.G, v: st.v, u, first, ...extra });
   for (const B of targets) POCKETS.forEach((pk, pi) => {
-    for (const r of routes(B, pk, balls)) {
+    for (const r of routes(B, pk, balls, tricks)) {
       const st = legalIds.includes(B.id) && strike(cue, B, r.u, r.objTol);
       if (st && clear(cue, st.G, balls, [B.id]))
-        add(r.bank ? 'bank' : 'direct', B.id, pi, st, st.v, [[cue, st.G], r.path], r.u, B.id);
+        add(r.bank ? 'bank' : 'direct', B.id, pi, st, st.v, [[cue, st.G], r.path], r.u, B.id, r.rails ? { rails: r.rails } : {});
+      else if (st && tricks && !r.bank && jumpable(cue, st.G, balls, [B.id]))
+        add('jump', B.id, pi, { ...st, tol: st.tol * JUMP_FACTOR }, st.v, [[cue, st.G], r.path], r.u, B.id, { elev: JUMP });
       if (r.bank) continue; // kick-banks are left out on purpose
       for (const rail of st ? RAILS : []) { // kick: cue ball off one cushion first
         const kst = strike(mirror(cue, rail), B, r.u, r.objTol);
@@ -166,6 +228,12 @@ export function enumerate(cue: Pt, balls: Obj[], legalIds: number[], potIds = le
         const X = railHit(cue, mirror(kst.G, rail), rail);
         if (!X || !clear(cue, X, balls, []) || !clear(X, kst.G, balls, [B.id])) continue;
         add('kick', B.id, pi, { ...kst, tol: kst.tol * RAIL_FACTOR }, norm(sub(X, cue)), [[cue, X, kst.G], r.path], r.u, B.id);
+      }
+      // kick off 2 to `tricks` cushions: the cue ball comes into the ghost ball from its own image across them
+      for (let n = 2; n <= (legalIds.includes(B.id) ? tricks : 0); n++) for (const q of SEQS[n]) {
+        const kst = strike(image(cue, q), B, r.u, r.objTol), path = kst && unfold(cue, kst.G, q);
+        if (!kst || !path || !lanes(path, balls, [], B.id)) continue;
+        add('kick', B.id, pi, { ...kst, tol: kst.tol * RAIL_FACTOR ** n }, norm(sub(path[1], cue)), [path, r.path], r.u, B.id, { rails: n });
       }
       for (const A of legal) { // combo: cue -> A -> B -> pocket (A = B needs no check: strike() refuses a cut of 180 degrees)
         const mid = strike(A, B, r.u, r.objTol);
@@ -273,6 +341,19 @@ function leaves(G: Pt, v: Pt, u: Pt, balls: Obj[], ignore: number[], powers = PO
 // Hustler's spot (0.45, Jack 2026-11-20): it takes the ball-in-hand combo spot only by that margin, so its one-visit clears
 // with ball in hand are 10.1% (2000 racks; 16.4 at EDGE, 4.4 before the 9 went early).
 // Shark's budget of 12 (not 17) and Pro's wLeave of 0.6 (not 0.9: fewer safeties) keep Shark, Pro and Legend apart.
+// The Chinese Masters (2026-11-24, at f92592b): its noise alone adds nothing over Legend (6.22 balls, 52% clears at 60
+// tables): the strength is in tricks, verify, the rescue search and budget 45 (33: 74 of 140 clears in place of 94).
+// At 994bf30 (search budget ROLLOUTS in aim.ts, think 7000 ms only a hard stop), one visit, 200 tables (bench:visit):
+// 8-ball 7.20 balls, 70% clears (Legend 6.00, 47), 9-ball 6.13, 84% (4.46, 49). Against Legend, 400 racks each way
+// (bench:masters): 8-ball 74.3% ±4.3, 9-ball 71.0% ±4.4 (at most 86.8 / 76.5%: Legend wins before it has a shot); it
+// hands the table over with balls up in 25-27% of the racks it gets a visit in. Ridiculous pots 25% / 22%, 3+ cushion
+// or jump pots about 0.74 a rack in 8-ball and 0.34 in 9-ball. Forced make % at 300 tables (bench:types, tables with a
+// try): bank2 96 (52), bank3 85 (11), bank4 95 (7), kick2 93 (87), kick3 93 (37), kick4 95 (7), jump 97 (33).
+// The search counts rollouts, not ms, so every device gets the same rollout budget: one visit, 60 tables (bench:why),
+// 48 and 49 clears on V8's JIT and on its interpreter alike (Legend 31 and 31; at f690253). bench:why: 5.5 ms of aiShot a
+// rollout on JIT, 74 on the interpreter. Think on full racks, interpreter only (a phone; 10 racks, f690253): 8-ball p50
+// 2980 ms, p90 5052, 1 of 57 shots at the hard stop; 9-ball 960 / 3281; JIT p50 168 / 92 ms. Massé, kick-banks and
+// jump-kicks are not built: each is one more finder and its engine checks on every shot, which the phone cannot spare.
 export const TIERS: Tier[] = [
   { name: 'Rookie',  sigma: 0.52, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1, caromGap: 0, rail: [0.91, 1.43], hard: 1.5, run: 0.45 },
   { name: 'Regular', sigma: 0.42, types: ['direct', 'bank'],                  flair: 0.03, temp: 0.08, depth: 0, wPos: 0,   posErr: 0.16, speedErr: 12, tipErr: 0.08, ctrl: 1, wLeave: 0, safetyAngles: [], budget: 2, caromGap: 0, rail: [0.76, 1.29], hard: 1.2, run: 0.5 },
@@ -280,13 +361,17 @@ export const TIERS: Tier[] = [
   { name: 'Shark',   sigma: 0.20, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.05, temp: 0.04, depth: 1, tries: 2, wPos: 0.8, posErr: 0.08, speedErr: 5, tipErr: 0.035, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-30, 0, 30], budget: 12, caromGap: 10000, rail: [0.22, 0.34], hard: 1, run: 0.7 },
   { name: 'Pro',     sigma: 0.12, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.04, temp: 0.02, depth: 1, tries: 3, wPos: 0.9, posErr: 0.05, speedErr: 2.5, tipErr: 0.02, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 24, caromGap: 10000, rail: [0.14, 0.16], hard: 1, run: 0.84 },
   { name: 'Legend',  sigma: 0.05, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1,   posErr: 0.03, speedErr: 1, tipErr: 0.01, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 33, caromGap: 10000, rail: [0.07, 0.08], hard: 1, run: 0.94 },
+  // The meme tier (Jack 2026-11-23): above Legend, near unbeatable. Off the rating scale: the Rival and the cups stop at Legend.
+  { name: 'Chinese Masters', sigma: 0.0125, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard', 'jump'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1, posErr: 0.02, speedErr: 0.25, tipErr: 0.002, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 45, caromGap: 10000, rail: [0.04, 0.05], hard: 1, run: 0.97, tricks: 4, show: 0.15, think: 7000 },
 ];
-// The AI for a rating s on the tier scale (1 Rookie .. 6 Legend; the Rival plays 0.5 to 6.5): numeric dials on the line
+export const MASTERS = 7; // its rating: a whole tier past Legend, and no rating between the two plays any of it
+// The AI for a rating s on the tier scale (1 Rookie .. 6 Legend; the Rival plays 0.5 to 6.5; 7 = the Chinese Masters): numeric dials on the line
 // through the two nearest rows, past 1 and 6 along the end pair's slope. Whole settings come from the upper row with
 // chance f (a seeded draw each turn, rnd), else the lower; no rnd = the nearer row. A whole rating is its tier exactly.
 // tries and ctrl are whole on purpose (a count of rollouts, a flag). Depth comes from the upper row when only it plans,
 // so planShare alone fades planning in (else the draw and the share would multiply).
 export function aiParams(s: number, rnd?: () => number): Tier {
+  if (s >= MASTERS) return { ...TIERS[MASTERS - 1] };
   const i = Math.min(5, Math.max(1, Math.floor(s))), f = s - i, lo = TIERS[i - 1], hi = TIERS[i];
   if (f === 0 || f === 1) return { ...TIERS[i - 1 + f] };
   const at = (a: number, b: number) => Math.max(0, (1 - f) * a + f * b);
@@ -341,7 +426,9 @@ export function shotOdds(tier: Tier, s: Planned, n: number) {
 }
 const need = (balls: Obj[], group: number[]) => (nine(group) ? balls.length : balls.filter((b) => group.includes(b.id)).length + 1);
 const replyCost = (tier: Tier, balls: Obj[], oppGroup: number[]) => REPLY + (tier.rack ? RACK * Math.pow(R_REF, need(balls, oppGroup) - 1) : 0);
-const oppBest = (cue: Pt, balls: Obj[], oppGroup: number[]) => Math.max(0, ...enumerate(cue, balls, legalFor(balls, oppGroup), potFor(balls, oppGroup), false).map((s) => potProb(s, SIGMA_REF)));
+export const oppBest = (cue: Pt, balls: Obj[], oppGroup: number[]) => Math.max(0, ...enumerate(cue, balls, legalFor(balls, oppGroup), potFor(balls, oppGroup), false).map((s) => potProb(s, SIGMA_REF)));
+// A trick shot: a bank or kick off 2 cushions or more, or a jump.
+export const fancy = (s: { type: string; rails?: number; elev?: number }) => (s.rails ?? 1) > 1 || !!s.elev;
 // The tier plays this shot: its type is in the repertoire, and a carom's helper ball is close enough.
 export function plays(tier: Tier, s: Cand, balls: Obj[]) {
   const at = (id?: number) => balls.find((b) => b.id === id)!;
@@ -350,7 +437,8 @@ export function plays(tier: Tier, s: Cand, balls: Obj[]) {
 // ok = the pots this shot may try (bank shots: a bank or kick off a lit cushion); the shots after it are not filtered.
 export function plan(cue: Pt, balls: Obj[], group: number[], tier: Tier, depth: number, width: number, oppGroup?: number[], kisses = true, ok?: (c: Cand) => boolean): Planned[] {
   const win = winBall(group);
-  let cands = enumerate(cue, balls, legalFor(balls, group), potFor(balls, group), kisses);
+  // tricks only for the shot in hand: the shots after it are priced without them, as without kisses
+  let cands = enumerate(cue, balls, legalFor(balls, group), potFor(balls, group), kisses, kisses ? tier.tricks ?? 0 : 0);
   if (ok) cands = cands.filter(ok);
   const inRepertoire = cands.filter((s) => plays(tier, s, balls));
   // outside the repertoire only when nothing else exists, and never a carom or a billiard
@@ -361,6 +449,9 @@ export function plan(cue: Pt, balls: Obj[], group: number[], tier: Tier, depth: 
   }).sort((a, b) => b.score - a.score);
   const shots = all.slice(0, width), alt = all.find((s) => s.ball !== 9);
   if (nine(group) && alt && !shots.includes(alt)) shots.push(alt); // the 9 scores WIN times its chance: keep a route to price it against
+  // a tier with tricks keeps the best trick shot of each family too (bank and kick off 2, 3 and 4 cushions, jump): their
+  // chance here is a seed, so aim.ts gives them engine time. The best two overall were nearly always 2-cushion ones.
+  if (kisses && tier.tricks) for (const s of all) if (fancy(s) && !shots.some((t) => t.type === s.type && t.rails === s.rails)) shots.push(s);
   for (const s of shots) {
     s.value = s.score;
     if (depth && s.type !== 'combo' && s.type !== 'carom' && s.type !== 'billiard') { // these move a second ball, so the table after them is unknown here
@@ -415,6 +506,23 @@ export function safety(cue: Pt, balls: Obj[], group: number[], oppGroup: number[
   return hope ? opts[Math.floor(rnd() * opts.length)] : opts.reduce((a, b) => (b.oppBest < a.oppBest ? b : a));
 }
 
+// A hooked tier with tricks escapes, full on a legal ball: a kick off 1 to 3 cushions or a jump, the fewest cushions
+// first (a jump between one and two), then the shortest. G = the cue ball's centre at contact; aim.ts refines it like a
+// safety, so the engine finds the real line. null = none found: it fouls as any tier would.
+export function escape(cue: Pt, balls: Obj[], group: number[]): Safety | null {
+  let best: Safety | null = null, cost = Infinity;
+  for (const B of balls.filter((b) => legalFor(balls, group).includes(b.id))) for (let n = 0; n <= 3; n++) for (const q of SEQS[n]) {
+    const v = norm(sub(B, image(cue, q))), G = { x: B.x - 2 * R * v.x, y: B.y - 2 * R * v.y }, path = n ? unfold(cue, G, q) : [cue, G];
+    if (!path) continue;
+    const jump = !n && jumpable(cue, G, balls, [B.id]), c = (jump ? 1500 : 1000 * n) + span(path);
+    if (!n && !jump || c >= cost || (!jump && !lanes(path, balls, [], B.id))) continue;
+    const d = norm(sub(path[1], cue)), leave = { spin: 0, power: 700, x: G.x, y: G.y, path: [G], travelled: 0, scratch: false };
+    best = { type: 'safety', ball: B.id, aim: Math.atan2(d.y, d.x), paths: [path], leave, oppBest: 1, hooked: false, G, v, u: v, ...(n ? { rails: n } : { elev: JUMP }) };
+    cost = c;
+  }
+  return best;
+}
+
 // One turn: plan the run, fall back to a safety when no pot is good enough. Returns { ranked, pick }.
 // pick is a pot (with .leave and .next), a safety, or { type: 'foul' } when no ball can be reached.
 // safetiesInRow = visits in a row this side has ended with a safety. After two, it must take its best pot, so a rack cannot stall.
@@ -424,9 +532,9 @@ export function decide(cue: Pt, balls: Obj[], group: number[], oppGroup: number[
   const ranked = plan(cue, balls, group, tier, tier.planShare === undefined || rnd() < tier.planShare ? tier.depth : 0, 4, oppGroup, true, ok);
   // weigh the best pot against the best safety on the same scale; skip the search when a good pot is on
   if (!ranked.length || (tier.safetyAngles.length && ranked[0].value < (tier.safeAt ?? 0.3) && safetiesInRow < 2)) {
-    // shortcut: a fully hooked AI fouls here, add kick safeties when the engine is in
+    // shortcut: a fully hooked AI fouls here but a tier with tricks, which escapes; a hooked Legend could kick too
     const s = safety(cue, balls, group, oppGroup, tier, rnd, !tier.safetyAngles.length);
-    if (!ranked.length) return { ranked, pick: s || { type: 'foul' } };
+    if (!ranked.length) return { ranked, pick: s || (tier.tricks && escape(cue, balls, group)) || { type: 'foul' } };
     const sv = s && tier.wLeave * ((tier.rack && s.hooked ? HOOK * (tier.hook ?? 1) : 0) - replyCost(tier, balls, oppGroup) * s.oppBest);
     if (s && sv! > ranked[0].value) return { ranked, pick: s };
   }

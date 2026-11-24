@@ -1,15 +1,17 @@
 // Run: npm test   (the AI seat in a match: where it puts the cue ball in hand, its call, its decisions, and whole racks
 // played AI against AI through the rules and the engine, with no screen)
 import assert from 'node:assert';
-import { breakSpot, HOLES, P, rack, step, strike } from '../physics/engine.ts';
+import { breakSpot, CUE, HOLES, P, rack, simulate, step, strike } from '../physics/engine.ts';
 import { choose, handCue, judge, legalSpot, moveCue, newGame, newRec, record, setCall, spotBall } from '../rules/rules.ts';
-import { breakShot, callFor, candsFor, choiceFor, comboSpot, groupsOf, holeOf, nextSafeties, onLit, placeCue, potPay, safetiesArg, softMove, think } from './turn.ts';
+import { breakShot, callFor, candsFor, choiceFor, comboSpot, groupsOf, holeOf, nextSafeties, onLit, placeCue, potPay, safetiesArg, softMove, think as clocked, trickBreak } from './turn.ts';
 import { aiShot } from './aim.ts';
 import { makeRates } from './bench.ts';
 import { cushionAt } from '../rules/rules.ts';
-import { enumerate, NINE, randomLayout, rng, SOLIDS, STRIPES, TIERS } from './shot-ai.ts';
+import { enumerate, NINE, randomLayout, rng, SOLIDS, STRIPES, TIERS as CLOCKED } from './shot-ai.ts';
 import { TIER_COUNT } from '../settings/settings.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
+// No clock: every think and aiShot searches the same whatever the machine's load (think's deadline, Tier.think).
+const think = (B, ids, s, level, seed, safeties, style) => clocked(B, ids, s, level, seed, safeties, style, Infinity), TIERS = CLOCKED.map(t => ({ ...t, think: Infinity }));
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
 const mk = (x, y, on = true) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on });
 const rec = (first, pots = [], more = {}) => ({ ...newRec(), first, pots: pots.map(([id, pocket = 0]) => ({ id, pocket })), railAfter: true, crossed: true, ...more });
@@ -66,6 +68,20 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, true), phase: 'play', turn: 1, 
   assert(Math.abs(s.ang - Math.atan2(o.y - B[0].y, o.x - B[0].x)) < 0.006 && s.speed > 10, 'hard, at the 1');
   const m = think(B.map(b => ({ ...b })), ids, newGame(8, 1), 1, 1, 0); eq([m.at, m.call, m.safety], [null, -1, false], 'the break: no placing, no call');
   ok('the AI breaks hard at the apex ball');
+}
+{ // trickBreak, the Chinese Masters' 8-ball break: no harder than a full break and into the 1 first. A tier without tricks,
+  // and the Masters in 9-ball, break as before.
+  const M = TIERS.find(t => t.tricks);
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const { B, ids } = racked(8), s = trickBreak(B, ids, M, rng(seed));
+    assert(s.speed <= CUE.breakSpeed, `seed ${seed}: speed ${s.speed} past the break speed`);
+    eq(ids[simulate(B, s).first], 1, `seed ${seed}: the 1 first`);
+    eq(think(B.map(b => ({ ...b })), ids, newGame(8, 1), TIERS.indexOf(M) + 1, seed, 0).shot, s, `seed ${seed}: the Masters' 8-ball break`);
+    for (const [game, level] of [...TIERS.flatMap((t, i) => (t.tricks ? [] : [[8, i + 1]])), [9, TIERS.indexOf(M) + 1]]) {
+      const t = racked(game); eq(think(t.B.map(b => ({ ...b })), t.ids, newGame(game, 1), level, seed, 0).shot, breakShot(t.B, t.ids, rng(seed)), `seed ${seed}: ${game}-ball at rating ${level} breaks as before`);
+    }
+  }
+  ok('the Chinese Masters breaks no harder than a full break, into the 1; the others as before');
 }
 { // Calls: a pot names the pocket of its path; on the 8 a safety still calls the pocket nearest the 8.
   const pot = { type: 'direct', paths: [[{ x: 0, y: 0 }], [{ x: 1000, y: 500 }, { x: 44, y: 44 }]] }, B = [mk(1, 0.5), mk(P.L - 0.1, P.W - 0.1)], ids = [0, 8];
@@ -194,8 +210,9 @@ for (const [game, tiers, seed] of [[8, [2, 2], 10], [8, [1, 3], 20], [9, [2, 2],
 { // Bank shots on the engine: each tier's forced banks drop where called, off a lit cushion, more often than the tier
   // below (npm run bench:types has the full table at 200-450 tables: 6 9 14 31 44 70%), and the planner's own chance for
   // them is close, since it weighs a bank against a safety on it. Fewer tables for the slow top tiers, whose gaps are wide.
-  const r = TIERS.map((t, i) => makeRates(t, [200, 200, 100, 40, 40, 40][i], ['lit']).lit), made = r.map(x => x.made / x.tries), est = r.map(x => x.est / x.tries);
+  const r = TIERS.map((t, i) => makeRates(t, [200, 200, 100, 40, 40, 40, 20][i], ['lit']).lit), made = r.map(x => x.made / x.tries), est = r.map(x => x.est / x.tries);
   assert(made.every((x, i) => !i || x > made[i - 1]), `make rate rises every tier (${made.map(x => x.toFixed(2))})`);
-  assert(est.every((x, i) => Math.abs(x - made[i]) < 0.2), `the planner's chance is near it (${est.map(x => x.toFixed(2))})`);
+  // the Chinese Masters plays by its engine check (aim.ts verify), not by this chance: left out
+  assert(est.every((x, i) => TIERS[i].tricks || Math.abs(x - made[i]) < 0.2), `the planner's chance is near it (${est.map(x => x.toFixed(2))})`);
   ok('bank shots: forced banks drop more often tier by tier');
 }

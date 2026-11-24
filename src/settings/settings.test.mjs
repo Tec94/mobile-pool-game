@@ -9,16 +9,20 @@ eq(readSettings('[1,2]').race, 1, 'an array is no save'); eq(readSettings('"x"')
 readSettings(null).names[0] = 'x'; eq(DEFAULTS.names[0], 'Player 1', 'the defaults are not shared');
 ok('a missing or damaged save loads the defaults');
 
-const all = { callAll: false, cloth: 1, menus: 1, orient: 2, names: ['Jack', 'Sam'], game: 9, race: 5, tier: 6, aiGame: 9, aiRace: 3, mood: 'tough', zones: false, bank: 2, tour: { cup: 2, size: 4, best: 5, game: 9, callAll: false, bank: 1 } };
+const all = { callAll: false, cloth: 1, menus: 1, orient: 2, names: ['Jack', 'Sam'], game: 9, race: 5, tier: 6, aiGame: 9, aiRace: 3, mood: 'tough', zones: false, bank: 2, tour: { cup: 2, size: 4, best: 5, game: 9, callAll: false, bank: 1 }, v: 2 };
 eq(readSettings(JSON.stringify(all)), all, 'every value round trips');
 eq(readSettings(JSON.stringify({ callAll: false })), { ...DEFAULTS, callAll: false }, 'an older save keeps what it has');
 ok('a good save loads as saved');
 
-const bad = readSettings(JSON.stringify({ callAll: 'no', cloth: 7, menus: 2, orient: 1.5, names: ['  ', 42], game: 10, race: 2, tier: 7, aiGame: '9', aiRace: 4, mood: 'angry', zones: 'no', bank: 3, tour: { cup: 9, size: 6, best: 2, game: 10, callAll: 1, bank: 3 }, extra: 1 }));
+const bad = readSettings(JSON.stringify({ callAll: 'no', cloth: 7, menus: 2, orient: 1.5, names: ['  ', 42], game: 10, race: 2, tier: 8, aiGame: '9', aiRace: 4, mood: 'angry', zones: 'no', bank: 3, tour: { cup: 9, size: 6, best: 2, game: 10, callAll: 1, bank: 3 }, extra: 1 }));
 eq(bad, DEFAULTS, 'out of range and wrong types take their defaults; unknown keys are dropped');
 eq(readSettings(JSON.stringify({ names: ['  Jack  ', 'A very long name indeed'] })).names, ['Jack', 'A very long na'], 'names are trimmed and cut to 14');
 ok('bad values take their defaults');
 eq(readSettings(JSON.stringify({ tier: -1 })).tier, 0, 'no tier below Rookie'); eq(readSettings(JSON.stringify({ tier: 2.5 })).tier, 0, 'a tier is a whole number');
+eq(readSettings(JSON.stringify({ tier: 6 })).tier, 7, 'a save from before the Masters: tier 6 was the Rival, and still is');
+eq(readSettings(JSON.stringify({ tier: 5 })).tier, 5, 'and Legend is Legend');
+eq(readSettings(JSON.stringify({ tier: 6, v: 2 })).tier, 6, 'a new save: tier 6 is the Masters'); eq(readSettings(JSON.stringify({ tier: 7, v: 2 })).tier, 7, 'and 7 the Rival');
+eq(readSettings(JSON.stringify({ tier: 6, v: 3 })).tier, 6, 'a newer save: tier 6 is still the Masters');
 ok('the quick match setup loads in range');
 eq(readSettings(JSON.stringify({ menus: '1' })).menus, 0, 'menus is the number 0 or 1'); eq(readSettings(JSON.stringify({ orient: 1 })).menus, 0, 'a save from before menus: landscape menus, its match setting kept');
 ok('menus load landscape unless saved as portrait');

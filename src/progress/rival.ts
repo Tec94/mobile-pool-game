@@ -20,7 +20,7 @@ export function rate(r: Rating, o: number, mood: Mood): Rating {
 // The rating to one decimal, for the menus, the results card and match pay. The nudge keeps 0.55 (0.5499.. in floats) at 0.6.
 export const tenth = (s: number) => Math.round(s * 10 + 1e-6) / 10;
 export const shown = (s: number) => tenth(s).toFixed(1);
-// Where a rating sits among the tier names, e.g. "between Hustler and Shark". names = the six tier names.
+// Where a rating sits among the tier names, e.g. "between Hustler and Shark". names = the ladder's six tier names, Rookie to Legend: the Rival tops out at 6.5, so never the Chinese Masters.
 export function between(s: number, names: string[]) {
   const r = tenth(s);
   if (r < 1) return `below ${names[0]}`;
