@@ -3,14 +3,14 @@
 // The status is also in public/index.html (the chip by the name, the footer) and in public/og.png: change those too. test/roadmap.test.mjs holds the chip to NOW.
 import { CUE, HOLES, P } from '../../src/physics/engine.ts';
 
-export const STEPS = ['Real physics', '8-ball and 9-ball', 'An AI that banks', 'Scenarios and lessons', 'Tournaments', 'App Store review', 'Out on iPhone', 'Leaderboards', 'Online play'];
+export const STEPS = ['Real physics', '8-ball and 9-ball', 'An AI that banks', 'Scenarios and lessons', 'Tournaments', 'App Store review', 'Out on iPhone', 'Online play', 'Leaderboards'];
 // What the steps after the one in hand hold, a line each, shown with their rows. No dates: none are set.
 export const PLANS = {
   6: ['The waitlist hears first, by email.', 'Pay once. No ads.'],
-  7: ['Daily Table scores, scenario stars and tournament wins.', 'Post yours with a sign-in. No account needed to play.'],
-  8: ['8-ball and 9-ball against real players, on the same physics.', 'The same optional sign-in. Offline play stays as it is.'],
+  7: ['Invite a friend, or get matched with anyone who is on.', 'Ranked games, and tournaments against real players.', '8-ball and 9-ball on the same physics.'],
+  8: ['Daily Table scores, scenario stars, tournament wins and win streaks.', 'Your friends and the world.', 'Out together with online play.'],
 };
-export const ALSO = ['Sign in with Apple, Google or email, only for online play and the boards.', 'A tip jar through Apple. Tips unlock nothing: you still pay once.']; // the rest of the plan, in a block with no ball
+export const ALSO = ['iPad and Android.', 'More cues and more modes.', 'Sign in with Apple, Google or email, only to play online.', 'A tip jar through Apple. Tips unlock nothing: you still pay once.']; // the rest of the plan, in a block with no ball
 export const NOW = 5; // index into STEPS: 5 = the 6 ball
 export const SINCE = 'Sent 20 Nov'; // the tag of the step in hand
 export const FILM = 2; // how many of the done steps are potted before the visitor's eyes; the ones before are down already
