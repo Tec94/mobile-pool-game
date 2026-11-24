@@ -14,7 +14,7 @@ import { Panel, Shell, Split, useFrame, usePanel } from '../shell';
 import { BallArt, Key, Keys, num, Slab, Txt } from '../slab';
 
 const GAMES: [string, 8 | 9][] = [['8-ball', 8], ['9-ball', 9]];
-const LABEL = 76;
+const LABEL = 76, NARROW = 430; // under NARROW pt wide a row's label goes above its keys
 const RACE_KEYS = RACES.map((r): [string, typeof r] => [String(r), r]);
 const TOP = MASTERS - 1, WIN = matchPay({ tier: MASTERS, won: true, fouls: 0 }); // the Chinese Masters' index in TIERS; what a run-out win pays at most (no fouls)
 
@@ -23,7 +23,7 @@ const TOP = MASTERS - 1, WIN = matchPay({ tier: MASTERS, won: true, fouls: 0 });
 // keys a fraction too narrow, so the last key wraps, and gives the row one line's height, so rows overlap.
 // inline = keep the label beside the keys on a narrow window too (a short phone, where the rows must give up height).
 export function Line({ label, inline, note, children }: { label: string; inline?: boolean; note?: ReactNode; children: ReactNode }) {
-  const { width, side, land } = useFrame(), narrow = width < 430 && !inline, panel = usePanel();
+  const { width, side, land } = useFrame(), narrow = width < NARROW && !inline, panel = usePanel();
   return (
     <View style={[styles.line, narrow && { flexDirection: 'column', alignItems: 'stretch', gap: 4 }]}>
       {narrow && note ? <View style={styles.line}><Txt style={[styles.label, { flex: 1 }]}>{label}</Txt>{note}</View>
@@ -43,7 +43,7 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
   const opp = quick ? (rival ? `Rival ${rating}` : TIERS[set.tier].name) : names[1].trim() || 'Player 2', me = quick ? 'You' : names[0].trim() || 'Player 1';
   const start = () => { if (quick) return go('ai'); change({ names: names.map((n, i) => n.trim() || `Player ${i + 1}`) as [string, string] }); go('match'); };
   const { charges, armed } = daily.chalk, { land, height, width, pad } = useFrame(), tight = height < (land ? 380 : 700), il = tight && !land; // an SE-sized phone: labels beside the keys, so the table fits
-  const narrow = width < 430;
+  const narrow = width < NARROW;
   // What a Masters win pays, where nothing scrolls: beside the Opponent label on a phone, else at the panel's foot, the table
   // giving up the height in landscape (strip, gutters, panel padding, head on two lines, the line and gaps: 179 pt, and the button).
   // Only a win that ran out every rack it took pays that; else it pays as a Legend win (the results card says why).
