@@ -343,16 +343,19 @@ function leaves(G: Pt, v: Pt, u: Pt, balls: Obj[], ignore: number[], powers = PO
 // Shark's budget of 12 (not 17) and Pro's wLeave of 0.6 (not 0.9: fewer safeties) keep Shark, Pro and Legend apart.
 // The Chinese Masters (2026-11-24, at f92592b): its noise alone adds nothing over Legend (6.22 balls, 52% clears at 60
 // tables): the strength is in tricks, verify, the rescue search and budget 45 (33: 74 of 140 clears in place of 94).
-// At 994bf30 (search budget ROLLOUTS in aim.ts, think 7000 ms only a hard stop), one visit, 200 tables (bench:visit):
-// 8-ball 7.20 balls, 70% clears (Legend 6.00, 47), 9-ball 6.13, 84% (4.46, 49). Against Legend, 400 racks each way
-// (bench:masters): 8-ball 74.3% ±4.3, 9-ball 71.0% ±4.4 (at most 86.8 / 76.5%: Legend wins before it has a shot); it
-// hands the table over with balls up in 25-27% of the racks it gets a visit in. Ridiculous pots 25% / 22%, 3+ cushion
-// or jump pots about 0.74 a rack in 8-ball and 0.34 in 9-ball. Forced make % at 300 tables (bench:types, tables with a
-// try): bank2 96 (52), bank3 85 (11), bank4 95 (7), kick2 93 (87), kick3 93 (37), kick4 95 (7), jump 97 (33).
+// It plans and is struck inside the House Cue's limits, as the app strikes it (aim.ts lim; the benches strike it so).
+// At a57c25a (search budget ROLLOUTS in aim.ts, think 7000 ms only a hard stop), one visit, 200 tables (bench:visit):
+// 8-ball 7.09 balls, 73% clears, 9-ball 6.00, 77%. Against Legend, both struck as the app strikes them, 200 racks
+// (bench:masters): 8-ball 76.0% ±5.9, 9-ball 65.5% ±6.6 (at most 89.5 / 69.5%: Legend wins before it has a shot); it
+// hands the table over with balls up in 22-24% of the racks it gets a visit in. Ridiculous pots 24% / 19%. Forced
+// made / tried at 300 tables (bench.ts makeRates): bank2 116/123, bank3 38/41, bank4 24/31, kick2 235/255, kick3 82/83,
+// kick4 21/24, jump 102/103. Planned on the engine CUE (4.5 m/s, tip 0.5) and clamped after, it won 53.0 / 44.0% and
+// made bank4 6/21, kick3 5/111.
 // The search counts rollouts, not ms, so every device gets the same rollout budget: one visit, 60 tables (bench:why),
 // 48 and 49 clears on V8's JIT and on its interpreter alike (Legend 31 and 31; at f690253). bench:why: 5.5 ms of aiShot a
 // rollout on JIT, 74 on the interpreter. Think on full racks, interpreter only (a phone; 10 racks, f690253): 8-ball p50
-// 2980 ms, p90 5052, 1 of 57 shots at the hard stop; 9-ball 960 / 3281; JIT p50 168 / 92 ms. Massé, kick-banks and
+// 2980 ms, p90 5052, 1 of 57 shots at the hard stop; 9-ball 960 / 3281; JIT p50 168 / 92 ms. At a57c25a (10 racks):
+// 8-ball p50 2024, p90 3677, none at the hard stop; 9-ball 625 / 2123. Massé, kick-banks and
 // jump-kicks are not built: each is one more finder and its engine checks on every shot, which the phone cannot spare.
 export const TIERS: Tier[] = [
   { name: 'Rookie',  sigma: 0.52, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1, caromGap: 0, rail: [0.91, 1.43], hard: 1.5, run: 0.45 },
