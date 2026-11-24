@@ -116,10 +116,11 @@ export function matchFeats(l: Ledger, m: { vs: Vs; won: boolean; cue?: CueId; dr
 // nothing for the win and spends no Fresh Chalk (note says why): with a seeded rack the 9 still goes down on about 6%
 // of 9-ball breaks, and breaking, then leaving when it stays up, paid about as much an hour as playing Rookie well.
 // The break's pots still pay as shots. A rack the AI hands over (three fouls, an early 8) is not won on the break.
-export interface Settled { match: Pay; shots: Pay; chalk: Pay | null; total: Pay; note?: string; got?: string[] } // got = the cues the match's feats gave
-export const BREAK_ONLY = 'Won on the break: no match pay.';
+// luck = why a Masters win paid as Legend's: setup says it pays up to x10. Not note, which cancels the feats.
+export interface Settled { match: Pay; shots: Pay; chalk: Pay | null; total: Pay; note?: string; luck?: string; got?: string[] } // got = the cues the match's feats gave
+export const BREAK_ONLY = 'Won on the break: no match pay.', NOT_RUN = 'A rack was not run out: pays as a Legend win.';
 export function settle(l: Ledger, m: { tier: number; won: boolean; early: boolean; tour?: number; racks?: number }, chalk?: (won: boolean, match: Pay) => Pay): Settled {
   const dry = m.won && !!m.racks && (l.brk ?? 0) >= m.racks;
   const match = dry ? { xp: 0, coins: 0 } : matchPay({ ...m, fouls: l.fouls, ownPotted: l.own, lucky: l.lucky }), x = chalk && !dry ? chalk(m.won, match) : null, c = x && (x.xp || x.coins) ? x : null;
-  return { match, shots: { ...l.shots }, chalk: c, total: { xp: match.xp + l.shots.xp + (c?.xp ?? 0), coins: match.coins + l.shots.coins + (c?.coins ?? 0) }, ...(dry && { note: BREAK_ONLY }) };
+  return { match, shots: { ...l.shots }, chalk: c, total: { xp: match.xp + l.shots.xp + (c?.xp ?? 0), coins: match.coins + l.shots.coins + (c?.coins ?? 0) }, ...(dry && { note: BREAK_ONLY }), ...(!dry && m.won && m.tier >= MASTERS && l.lucky && { luck: NOT_RUN }) };
 }
