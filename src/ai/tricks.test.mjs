@@ -4,6 +4,7 @@ import { HOLES, simulate, step, strike } from '../physics/engine.ts';
 import { aiShot, ROLLOUTS, tricksTail } from './aim.ts';
 import { holeOf, kindOf, onLit } from './turn.ts';
 import { judge, newGame, newRec, record } from '../rules/rules.ts';
+import { stick } from '../progress/cues.ts';
 import { decide, enumerate, fancy, MASTERS, NINE, norm, plan, POCKETS, R, randomLayout, rng, SOLIDS, STRIPES, sub, TIERS, W, H } from './shot-ai.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
@@ -28,6 +29,17 @@ const M = { ...TIERS[MASTERS - 1], think: Infinity }; // no clock: the same sear
   }
   assert.deepStrictEqual(Object.keys(seen).sort(), ['bank2', 'bank3', 'bank4', 'kick2', 'kick3', 'kick4'], 'every count of cushions is found');
   ok('multi-cushion banks and kicks are real cushion paths, 2 to 4 cushions');
+}
+{ // The Masters plans and strikes inside the House Cue's limits, as the app strikes it (App.tsx play()): its search's
+  // shot (aim) and the struck one, on random tables and on forced jumps (JUMP_SPEED is past the House Cue's top speed).
+  const house = stick('house', true), rnd = rng(21), kinds = new Set();
+  for (let i = 0; i < 12; i++) {
+    const { B, ids } = table(randomLayout(rnd, 7)), r = aiShot(B, ids, SOLIDS, STRIPES, M, rnd, i < 6 ? 2 : 0, i < 6 ? undefined : (c) => kindOf(c) === 'jump');
+    kinds.add(kindOf(r.pick));
+    for (const s of [r.aim, r.shot]) assert(s.speed <= house.maxSpeed && Math.abs(s.a) <= house.tipLimit && Math.abs(s.b) <= house.tipLimit, `${kindOf(r.pick)}: ${JSON.stringify(s)}`);
+  }
+  assert(kinds.has('jump'), 'a jump was played');
+  ok('the Masters\' shots stay inside the House Cue\'s speed and tip limits');
 }
 { // Tiers 0 to 5 never get a trick shot: no tricks in their plan, and their enumerate is the one they had.
   const rnd = rng(12);

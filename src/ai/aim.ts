@@ -2,6 +2,7 @@
 // The AI's shot on the real engine: correct the picker's ghost-ball aim for throw, squirt and swerve, refine aim, speed
 // and tip with noise-free rollouts within the tier's budget, and turn a pick into an engine Shot with the tier's strike noise. Port of the ai-progression prototype (engine-aim.js) plus the glue.
 import { type Ball, CUE, type Ev, P, type Shot, step, strike } from '../physics/engine.ts';
+import { stick } from '../progress/cues.ts';
 import { type Cand, decide, dist, enumerate, escape, fancy, legalFor, nine, type Obj, oppBest, type Pick, type Planned, plays, POCKETS, potFor, type Pt, nineValue, rackOdds, safety, type Safety, type Tier, tierProb, winBall } from './shot-ai.ts';
 
 // Direction the object ball actually leaves in, for a given strike. Stops at first contact.
@@ -119,12 +120,16 @@ function reply(S: Ball[], ids: number[], opp: number[]) {
 type Roll = ReturnType<typeof rollout> & { shot: Shot; score: number; next: number; nextNine: boolean; extra: number; sure: number };
 const SPEEDS = [1, 1.3, 0.8, 1.7, 0.65, 2.2, 0.5]; // a safety's speeds, tried in this order, times the starting speed
 const DRAW = -(CUE.tipLimit - 0.05);
+// The cue a tier plans on: the Masters on the House Cue's limits, as the app strikes it (App.tsx play()); the rest on CUE.
+const HOUSE = stick('house', true);
+function lim(tier: Tier) { return tier.tricks ? HOUSE : CUE; }
 // A pot's speeds (times the starting speed) and tip heights, spread out first so a small budget still sees draw, follow
 // and long and short rolls; later points fill in between.
 const GRID: [number, number][] = [[1, DRAW], [1, TIP], [1.6, DRAW], [1.6, 0], [0.7, 0], [1.3, TIP], [2.2, DRAW], [0.7, TIP],
   [1.3, DRAW], [1.6, TIP], [0.5, 0], [2.2, 0], [1.3, 0], [0.85, DRAW], [0.85, 0], [1, 0], [2.6, DRAW], [0.6, DRAW]];
 // A jump's speeds (times JUMP_SPEED) and elevations, the measured best first (38 and 45 degrees at 3.5 to 4.5 m/s, a jump
-// over a ball 200 to 600 mm away). Its tip stays at centre: side would curve it (a masse).
+// over a ball 200 to 600 mm away). Its tip stays at centre: side would curve it (a masse). The Masters' stop at the House
+// Cue's top speed (lim).
 const JUMP_SPEED = 4, D = Math.PI / 180;
 const TILT = 0.5 * D; // a jump's tilt error (sd): a hand cannot hold a raised cue to the aim's hundredth of a degree
 const JUMPS: [number, number, number][] = [[1.125, 0, 45 * D], [0.875, 0, 38 * D], [1.125, 0, 38 * D], [1, 0, 45 * D], [0.875, 0, 45 * D], [1, 0, 30 * D], [1.125, 0, 30 * D]];
@@ -146,7 +151,7 @@ const FAIL = 1; // a pot's rollout score lost for each verify() rollout that doe
 // scratch), or -1 when the budget (clk) ran out first.
 function verify(B: Ball[], ids: number[], group: number[], tier: Tier, s: Shot, sd: number, k: number, first: number, to: Pt | null, g: Pt, cr: number, or: number, clk: Clock) {
   const w = ids.indexOf(winBall(group)), f = 2 * tier.speedErr / 100;
-  const ts = [{ ...s, ang: s.ang + 2 * sd }, { ...s, ang: s.ang - 2 * sd }, { ...s, speed: Math.min(CUE.maxSpeed, s.speed * (1 + f)) }, { ...s, speed: s.speed * (1 - f) }, { ...s, a: 2 * tier.tipErr }, { ...s, a: -2 * tier.tipErr }, ...(s.elev ? [{ ...s, elev: s.elev + 2 * TILT }, { ...s, elev: s.elev - 2 * TILT }] : [])];
+  const ts = [{ ...s, ang: s.ang + 2 * sd }, { ...s, ang: s.ang - 2 * sd }, { ...s, speed: Math.min(lim(tier).maxSpeed, s.speed * (1 + f)) }, { ...s, speed: s.speed * (1 - f) }, { ...s, a: 2 * tier.tipErr }, { ...s, a: -2 * tier.tipErr }, ...(s.elev ? [{ ...s, elev: s.elev + 2 * TILT }, { ...s, elev: s.elev - 2 * TILT }] : [])];
   let n = 0;
   for (const t of ts) {
     if (over(clk)) return -1;
@@ -185,7 +190,7 @@ function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number
     return out;
   };
   const next = (r: Roll) => r.shot.ang - (slope[+r.legal] ? Math.max(-0.02, Math.min(0.02, r.err / slope[+r.legal])) : -0.001); // a secant step, or a nudge to measure the slope
-  const grid: [number, number, number?][] = shot.elev ? JUMPS : pk ? GRID : SPEEDS.flatMap((m) => [shot.b, leave.spin * -DRAW].map((b): [number, number] => [m, b])).slice(1);
+  const grid: [number, number, number?][] = shot.elev ? JUMPS : pk ? GRID : SPEEDS.flatMap((m) => [shot.b, leave.spin * (lim(tier).tipLimit - 0.05)].map((b): [number, number] => [m, b])).slice(1);
   return (n: number): Roll => {
     sims += n;
     if (!r0) r0 = run(shot);
@@ -202,7 +207,7 @@ function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number
     for (; gi < grid.length && sims >= 1 && !over(clk) && best!.score <= 14.9875; gi++) { // stop: all four goals met, a near-certain next shot (or the leave)
       const [m, b, e] = grid[gi];
       if (m === 1 && b === shot.b && e === shot.elev) continue;
-      const r = run({ ...shot, ang: best!.shot.ang, speed: Math.min(CUE.maxSpeed, Math.max(0.5, shot.speed * m)), b, ...(e === undefined ? {} : { elev: e }) });
+      const r = run({ ...shot, ang: best!.shot.ang, speed: Math.min(lim(tier).maxSpeed, Math.max(0.5, shot.speed * m)), b: b === DRAW ? -(lim(tier).tipLimit - 0.05) : b, ...(e === undefined ? {} : { elev: e }) });
       if (!done(r) && slope[+r.legal] && sims >= 1) run({ ...r.shot, ang: next(r) });
     }
     return best!;
@@ -311,7 +316,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   let sims = Math.floor(tier.budget - 0.3 * cands.length); // an aim correction costs about 0.3 of a full simulation
   const clk: Clock = { n: 0, cap: tier.tricks ? ROLLOUTS : Infinity, end: t0 + (tier.think ?? THINK) };
   const mkRun = (c: Planned | Safety, free = false): Run => { // free: refined whatever its caller gives it (the rescue and the safety below)
-    const lv = (c.leave ??= { spin: 0, power: 700, x: c.G.x, y: c.G.y, path: [c.G], travelled: 0, scratch: false }), b = c.type === 'billiard' ? ROLL : TIP * lv.spin, speed = c.elev ? JUMP_SPEED : speedFor(c.paths, lv.power, c.v, c.u, b, 1 - 1.5 * tier.speedErr / 100);
+    const lv = (c.leave ??= { spin: 0, power: 700, x: c.G.x, y: c.G.y, path: [c.G], travelled: 0, scratch: false }), b = c.type === 'billiard' ? Math.min(ROLL, lim(tier).tipLimit) : TIP * lv.spin, speed = Math.min(lim(tier).maxSpeed, c.elev ? JUMP_SPEED : speedFor(c.paths, lv.power, c.v, c.u, b, 1 - 1.5 * tier.speedErr / 100));
     // a jump's aim is not corrected here: the probe has no ball to jump over
     const first = ids.indexOf(c.type === 'safety' ? c.ball : c.first), start: Shot = c.elev ? { ang: c.aim, speed, a: 0, b: 0, elev: c.elev } : { ang: correctAim(B[0], B[first], c, speed, 0, b) ?? c.aim, speed, a: 0, b };
     const cr = tier.tricks && (c.type === 'kick' || c.type === 'safety') ? c.rails ?? +(c.type === 'kick') : 0, or = tier.tricks && c.type === 'bank' ? c.rails ?? 1 : 0;
@@ -372,7 +377,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   if (tier.tricks) won = tricksTail(won, { runs, mkRun, score, checkRun, late, stopped, clk }, cands, cue, balls, group, oppGroup, tier, rnd, safetiesInRow, ok);
   const aim = won.shot, played = won.c;
   const t2 = now(), g = () => gauss(rnd);
-  const tip = (x: number) => Math.max(-CUE.tipLimit, Math.min(CUE.tipLimit, x + g() * tier.tipErr)); // tipErr is in ball radii, as a and b are
-  const shot: Shot = { ang: aim.ang + g() * aimSd(tier, played.type), speed: Math.min(CUE.maxSpeed, Math.max(0.5, aim.speed * (1 + g() * tier.speedErr / 100))), a: tip(0), b: tip(aim.b), ...(aim.elev ? { elev: Math.min(CUE.maxElev, aim.elev + g() * TILT) } : {}) };
+  const tip = (x: number) => Math.max(-lim(tier).tipLimit, Math.min(lim(tier).tipLimit, x + g() * tier.tipErr)); // tipErr is in ball radii, as a and b are
+  const shot: Shot = { ang: aim.ang + g() * aimSd(tier, played.type), speed: Math.min(lim(tier).maxSpeed, Math.max(0.5, aim.speed * (1 + g() * tier.speedErr / 100))), a: tip(0), b: tip(aim.b), ...(aim.elev ? { elev: Math.min(CUE.maxElev, aim.elev + g() * TILT) } : {}) };
   return { shot, aim, pick: played, ms: [t1 - t0, t2 - t1], rollouts: clk.n };
 }
