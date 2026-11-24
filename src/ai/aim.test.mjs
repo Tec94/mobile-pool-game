@@ -159,6 +159,15 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   assert(S[1].on, 'the 8 stays on the table');
   console.log('ok bank shots: the fallback tap keeps the 8 up');
 }
+{ // Bank shots, the 9 its only ball and hanging in a jaw, so every hit drops it: the tap drops it with no foul (the
+  // turn passes), not a soft foul that hands ball in hand over.
+  const B = [mk(1.03, 0.509), mk(0.048, 0.034)], ids = [0, 9], { shot, pick } = aiShot(B, ids, STRIPES, SOLIDS, TIERS[0], rng(1), 0, () => false);
+  assert.equal(pick.type, 'foul');
+  const S = B.map(b => ({ ...b })), r = newRec(), ev = []; strike(S[0], shot); while ((ev.length = 0, step(S, ev))) record(r, ev, S, ids);
+  const s = judge({ ...newGame(8, 0, false, 2), phase: 'play', hand: null, solids: 1, balls: [8, 9], lit: [0, 1] }, r);
+  assert(!s.foul, `no foul (${s.note})`);
+  ok('bank shots: with nothing to bank the tap is a legal hit');
+}
 { // 9-ball on the engine: the rollouts weigh a 9 that dropped against the best route (nineValue), as plan() does
   const rails = [[1.9, 0.03], [1.4, 1.09], [2.2, 0.56], [0.9, 0.03], [1.5, 0.2], [1.8, 0.9], [2.2, 0.8]];
   const B = [mk(0.6, 0.6), mk(0.33, 0.33), ...rails.map(([x, y]) => mk(x, y)), mk(0.11, 0.11)], ids = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
