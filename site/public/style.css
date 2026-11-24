@@ -147,7 +147,7 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 @keyframes drop { from { scale: 1.9; } }
 .steps .now .ball { box-shadow: 0 0 0 3px var(--gold); }
 .steps button.now { background: var(--dark); box-shadow: 0 4px 0 var(--dark-lip); } /* the step in hand keeps its slab; when lit it gets a gold edge */
-.steps button.now[aria-pressed=true] { outline: 2px solid var(--gold); outline-offset: -2px; }
+.steps button.now[aria-pressed=true] { box-shadow: inset 0 0 0 2px var(--gold), 0 4px 0 var(--dark-lip); }
 .steps li:has(> .now) { margin-bottom: 8px; }
 .steps b, .steps h3 { font-family: var(--display); font-weight: 800; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: clamp(15px, 4.9cqw, 26px); letter-spacing: -.02em; line-height: 1.15; white-space: nowrap; }
 .steps span { font: 700 clamp(13px, 1.9cqw, 15px)/1 var(--ui); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; color: var(--chalk); margin-left: 4px; }
@@ -163,7 +163,7 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 .steps .plan { list-style: none; padding: 6px 12px 12px 56px; display: grid; gap: 4px; font: 500 clamp(15px, 2.2cqw, 22px)/1.35 var(--ui); max-width: 64ch; text-wrap: pretty; }
 .steps .ahead { margin-top: 12px; --t: var(--ink); color: var(--t); }
 .steps .ahead .later { color: var(--t); padding-top: 8px; }
-.steps .ahead .ball { box-shadow: 0 0 0 2px #16191A40; }
+.steps .ahead .ball { box-shadow: 0 0 0 2px #EEF2EA; }
 .steps .ahead .later span { color: var(--t); }
 .steps .also h3 { padding: 14px 12px 0; font: 800 clamp(19px, 4.9cqw, 26px)/1 var(--display); letter-spacing: -.02em; }
 .steps .also h4 { padding: 12px 12px 0; font: 700 13px/1 var(--ui); letter-spacing: .06em; text-transform: uppercase; opacity: .8; }
@@ -171,7 +171,7 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 .steps .also .plan { padding: 6px 12px 0; } .steps .also .plan:last-child { padding-bottom: 14px; }
 .steps .c7 { --face: #A8323F; --lip: #6E1C26; --t: var(--chalk); }
 .c8 { --face: var(--cream); --lip: var(--cream-lip); } .c9 { --face: var(--gold); --lip: var(--gold-lip); }
-.steps .also { --face: var(--dark); --lip: var(--dark-lip); --t: var(--chalk); } /* the smaller plans: quieter than the steps */
+.steps .also { --face: #8448C8; --lip: #5A2B93; --t: var(--chalk); }
 .road .keys { position: static; translate: none; justify-content: flex-end; margin: 12px 0 0; min-height: 47px; }
 @media (max-width: 900px) {
   .stand { width: min(100vw - 12px, max(50svh * 1.8, 520px)); margin-inline: auto; }
