@@ -133,6 +133,9 @@ const THINK = 2500; // ms: past this from the start of aiShot, refine runs no mo
 // The search's budget: n rollouts run so far, cap (a tier with tricks: ROLLOUTS, so a table gives the same shot on every
 // device), end = the wall clock's hard stop (ms, now()).
 type Clock = { n: number; cap: number; end: number };
+// One shot aiShot refines: its candidate, its search (refine), its check (verify), value, chance, shot and best rollout.
+type Run = { c: Planned | Safety; more: ((n: number) => Roll) | null; verifyAt?: (s: Shot) => number; v: number; p: number; shot: Shot; r: Roll | null };
+type Search = { runs: Run[]; mkRun: (c: Planned | Safety, free?: boolean) => Run; score: (x: Run, n: number) => void; checkRun: (x: Run) => void; late: () => boolean; stopped: () => boolean };
 function over(k: Clock) { return k.n >= k.cap || now() >= k.end; }
 const FAIL = 1; // a pot's rollout score lost for each verify() rollout that does not pot it
 // A tier with tricks checks its pots (refine, aiShot check): the shot again with the aim 2 sd either way, the speed
@@ -218,6 +221,53 @@ const SHOW_MIN = 0.8; // a reel shot plays only checked on 5 of 6 (0.97 x 5/6)
 // (8-ball 144 / 146, 9-ball 163 / 164; 40: 125 / 148). About 4 ms a rollout on Node JIT, 55 on the interpreter.
 const ROLLOUTS = 60;
 const SURE = 0.97, SHOW_GAP = 0.05, SAFE_P = 0.5, RESCUE = 12, RESCUE_SIMS = 20; // a trick shot's chance when verify() pots all six; the most make chance show gives up
+// The Chinese Masters' last word on a shot, after the search (aiShot): a rescue search when no pot is trusted, the
+// fancier pot for show, the reel shot, and the safety it falls back on. won = the best run so far; returns the one to play.
+function tricksTail(won: Run, srch: Search, cands: (Planned | Safety)[], cue: Obj, balls: Obj[], group: number[], oppGroup: number[], tier: Tier, rnd: () => number, safetiesInRow: number, ok?: (c: Cand) => boolean): Run {
+  const { runs, mkRun, score, checkRun, late, stopped } = srch;
+  // A tier with tricks and no pot it trusts (SAFE_P) searches on before it plays safe: the next RESCUE pots of any kind, by
+  // their seed chance, RESCUE_SIMS rollouts each, until the budget runs out. Most of the tables it played safe on had a pot the
+  // geometric ranking put too low.
+  const trusted = () => won.c.type !== 'safety' && won.v > 0 && won.p >= SAFE_P;
+  if (!trusted() && !late()) {
+    const tried = [...cands, ...runs.map((x) => x.c)], more = enumerate(cue, balls, legalFor(balls, group), potFor(balls, group), true, tier.tricks)
+      .filter((c) => (!ok || ok(c)) && plays(tier, c, balls) && !tried.some((t) => t.type === c.type && t.ball === c.ball && t.pocket === c.pocket && Math.abs(t.aim - c.aim) < 1e-6))
+      .map((c): Planned => ({ ...c, p: tierProb(tier, c), score: 0, value: 0 })).sort((a, b) => b.p - a.p).slice(0, RESCUE);
+    for (const c of more) {
+      if (late()) break;
+      const x = mkRun(c, true);
+      score(x, RESCUE_SIMS); checkRun(x); runs.push(x);
+      if (x.v > won.v || (won.c.type !== 'safety' && x.p > won.p && x.v > 0)) won = x;
+      if (trusted()) break;
+    }
+  }
+  // show: a fancier pot (fancy: a cushion past the first, 2 for a jump, 1 for a kiss shot, combo, carom or billiard, and
+  // 1 for each second ball potted) whose value times 1 + show x fancy is at least the best's, whose checked chance is at
+  // most SHOW_GAP under it and whose rollout scored as well (pot, centre, leave), is played in its place. Without that
+  // last check (140 tables, bench why.mjs) it cleared 85 in place of 99 at 37% trick pots; with it 94 at 25%: the chance
+  // tops out at SURE, so value ties hide a worse leave or line.
+  const fl = (x: Run) => (x.v > 0 ? Math.max(0, (x.c.rails ?? 1) - 1) + (x.c.elev ? 2 : 0) + +(x.c.type === 'combo' || x.c.type === 'carom' || x.c.type === 'billiard') + x.r!.extra : 0);
+  const shown = (x: Run) => x.v * (1 + tier.show! * fl(x));
+  for (const x of runs.filter((x) => fl(x) > fl(won) && x.r!.score >= (won.r?.score ?? 0)).sort((a, b) => shown(b) - shown(a))) {
+    if (shown(x) < shown(won)) break;
+    checkRun(x);
+    if (shown(x) >= shown(won) && x.p >= won.p - SHOW_GAP) { won = x; break; }
+  }
+  // the reel shots (3 or 4 cushions, a jump) trade up to SHOW_GAP of checked chance, none of the next shot's, once the best
+  // is checked: the rule above never gives up chance, so they played only when already best (3+ cushion pots 2.7% of
+  // 8-ball pots, now 5.5; 9-ball 3.6, now 6.7; rack wins against Legend alike). Giving up 0.15 or 0.3 of the next shot's
+  // chance as well cost one-visit clears for no more reel shots.
+  const reel = !late() && (won.r?.sure ?? -1) >= 0 ? runs.filter((x) => big(x.c) && x.v > 0 && !big(won.c)).sort((a, b) => b.v - a.v)[0] : undefined;
+  if (reel) { checkRun(reel); if (reel.r!.sure >= 0 && reel.p >= Math.max(SHOW_MIN, won.p - SHOW_GAP) && reel.r!.next >= (won.r?.next ?? 0)) won = reel; }
+  // A tier with tricks has measured its pots: when none pots on the engine, or the best only in under SAFE_P of verify()'s
+  // rollouts, it plays a safety or an escape after all, unless it must shoot (safetiesInRow). Out of rollouts it plays
+  // its best pot, as Legend would, if one potted on the engine; at the hard stop (a slow device) always its best pot.
+  if (!trusted() && won.c.type !== 'safety' && safetiesInRow < 2 && !stopped() && (!late() || won.v <= 0)) {
+    const s = safety(cue, balls, group, oppGroup, tier, rnd, false) ?? escape(cue, balls, group);
+    if (s) { won = mkRun(s, true); score(won, RESCUE_SIMS); }
+  }
+  return won;
+}
 // The AI's turn on the engine table. B and ids as rules.ts has them (ball i is number ids[i], ball 0 the cue ball), in
 // metres. Returns the Shot for strike(), the pick (picker units, mm) and the ms spent picking and correcting the aim.
 // ok = the pots it may try (decide); none = every pot.
@@ -242,7 +292,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   const cands = tier.tricks && pick.type !== 'safety' ? [...lead, ...ranked.filter((c) => fancy(c) && !lead.includes(c))] : lead;
   let sims = Math.floor(tier.budget - 0.3 * cands.length); // an aim correction costs about 0.3 of a full simulation
   const clk: Clock = { n: 0, cap: tier.tricks ? ROLLOUTS : Infinity, end: t0 + (tier.think ?? THINK) };
-  const mkRun = (c: Planned | Safety, free = false) => { // free: refined whatever its caller gives it (the rescue and the safety below)
+  const mkRun = (c: Planned | Safety, free = false): Run => { // free: refined whatever its caller gives it (the rescue and the safety below)
     const lv = (c.leave ??= { spin: 0, power: 700, x: c.G.x, y: c.G.y, path: [c.G], travelled: 0, scratch: false }), b = c.type === 'billiard' ? ROLL : TIP * lv.spin, speed = c.elev ? JUMP_SPEED : speedFor(c.paths, lv.power, c.v, c.u, b, 1 - 1.5 * tier.speedErr / 100);
     // a jump's aim is not corrected here: the probe has no ball to jump over
     const first = ids.indexOf(c.type === 'safety' ? c.ball : c.first), start: Shot = c.elev ? { ang: c.aim, speed, a: 0, b: 0, elev: c.elev } : { ang: correctAim(B[0], B[first], c, speed, 0, b) ?? c.aim, speed, a: 0, b };
@@ -252,7 +302,6 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
     return { c, more: sims < 2 && !free ? null : refine(B, ids, group, tier, k, first, pk, c.G, lv, start, clk, cr, or, verifyAt, tier.tricks && !pk ? oppGroup : undefined), verifyAt, v: -Infinity, p: 0, shot: start, r: null as Roll | null };
   };
   const runs = lead.map((c) => mkRun(c)); // the trick shots' start below: their aim corrections would cost the pick's time
-  type Run = (typeof runs)[number];
   // A tier with tricks: a pot's chance is the share verify() potted (SURE for all six). Its strike noise is so small that the
   // geometric seed says little: it was right about plain pots and wrong about cushion shots, and the engine is right about both.
   // Verify costs six rollouts, so only the pots that could be played are checked (checkRun, best first, below): an unchecked
@@ -300,47 +349,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
     settle();
   }
   let won = best();
-  // A tier with tricks and no pot it trusts (SAFE_P) searches on before it plays safe: the next RESCUE pots of any kind, by
-  // their seed chance, RESCUE_SIMS rollouts each, until the budget runs out. Most of the tables it played safe on had a pot the
-  // geometric ranking put too low.
-  const trusted = () => won.c.type !== 'safety' && won.v > 0 && won.p >= SAFE_P;
-  if (tier.tricks && !trusted() && !late()) {
-    const tried = [...cands, ...runs.map((x) => x.c)], more = enumerate(cue, balls, legalFor(balls, group), potFor(balls, group), true, tier.tricks)
-      .filter((c) => (!ok || ok(c)) && plays(tier, c, balls) && !tried.some((t) => t.type === c.type && t.ball === c.ball && t.pocket === c.pocket && Math.abs(t.aim - c.aim) < 1e-6))
-      .map((c): Planned => ({ ...c, p: tierProb(tier, c), score: 0, value: 0 })).sort((a, b) => b.p - a.p).slice(0, RESCUE);
-    for (const c of more) {
-      if (late()) break;
-      const x = mkRun(c, true);
-      score(x, RESCUE_SIMS); checkRun(x); runs.push(x);
-      if (x.v > won.v || (won.c.type !== 'safety' && x.p > won.p && x.v > 0)) won = x;
-      if (trusted()) break;
-    }
-  }
-  // show: a fancier pot (fancy: a cushion past the first, 2 for a jump, 1 for a kiss shot, combo, carom or billiard, and
-  // 1 for each second ball potted) whose value times 1 + show x fancy is at least the best's, whose checked chance is at
-  // most SHOW_GAP under it and whose rollout scored as well (pot, centre, leave), is played in its place. Without that
-  // last check (140 tables, bench why.mjs) it cleared 85 in place of 99 at 37% trick pots; with it 94 at 25%: the chance
-  // tops out at SURE, so value ties hide a worse leave or line.
-  const fl = (x: Run) => (x.v > 0 ? Math.max(0, (x.c.rails ?? 1) - 1) + (x.c.elev ? 2 : 0) + +(x.c.type === 'combo' || x.c.type === 'carom' || x.c.type === 'billiard') + x.r!.extra : 0);
-  const shown = (x: Run) => x.v * (1 + tier.show! * fl(x));
-  if (tier.show) for (const x of runs.filter((x) => fl(x) > fl(won) && x.r!.score >= (won.r?.score ?? 0)).sort((a, b) => shown(b) - shown(a))) {
-    if (shown(x) < shown(won)) break;
-    checkRun(x);
-    if (shown(x) >= shown(won) && x.p >= won.p - SHOW_GAP) { won = x; break; }
-  }
-  // the reel shots (3 or 4 cushions, a jump) trade up to SHOW_GAP of checked chance, none of the next shot's, once the best
-  // is checked: the rule above never gives up chance, so they played only when already best (3+ cushion pots 2.7% of
-  // 8-ball pots, now 5.5; 9-ball 3.6, now 6.7; rack wins against Legend alike). Giving up 0.15 or 0.3 of the next shot's
-  // chance as well cost one-visit clears for no more reel shots.
-  const reel = tier.show && !late() && (won.r?.sure ?? -1) >= 0 ? runs.filter((x) => big(x.c) && x.v > 0 && !big(won.c)).sort((a, b) => b.v - a.v)[0] : undefined;
-  if (reel) { checkRun(reel); if (reel.r!.sure >= 0 && reel.p >= Math.max(SHOW_MIN, won.p - SHOW_GAP) && reel.r!.next >= (won.r?.next ?? 0)) won = reel; }
-  // A tier with tricks has measured its pots: when none pots on the engine, or the best only in under SAFE_P of verify()'s
-  // rollouts, it plays a safety or an escape after all, unless it must shoot (safetiesInRow). Out of rollouts it plays
-  // its best pot, as Legend would, if one potted on the engine; at the hard stop (a slow device) always its best pot.
-  if (tier.tricks && !trusted() && won.c.type !== 'safety' && safetiesInRow < 2 && !stopped() && (!late() || won.v <= 0)) {
-    const s = safety(cue, balls, group, oppGroup, tier, rnd, false) ?? escape(cue, balls, group);
-    if (s) { won = mkRun(s, true); score(won, RESCUE_SIMS); }
-  }
+  if (tier.tricks) won = tricksTail(won, { runs, mkRun, score, checkRun, late, stopped }, cands, cue, balls, group, oppGroup, tier, rnd, safetiesInRow, ok);
   const aim = won.shot, played = won.c;
   const t2 = now(), g = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd()); // Box-Muller
   const tip = (x: number) => Math.max(-CUE.tipLimit, Math.min(CUE.tipLimit, x + g() * tier.tipErr)); // tipErr is in ball radii, as a and b are
