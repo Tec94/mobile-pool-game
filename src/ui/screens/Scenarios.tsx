@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { profile } from '../../progress';
 import { levelOf, PACKS } from '../../progress/profile';
 import { isOpen, SCENARIOS, starCount, totalStars } from '../../scenarios/scenarios';
 import { C, CREAM, DARK, FONT, MODE } from '../../theme';
 import type { Props, ScenarioProps } from '../Menus';
 import { MiniTable, tableOf } from '../MiniTable';
-import { Shell, Tile, useFrame } from '../shell';
+import { Scroll, Shell, Tile, useFrame } from '../shell';
 import { Slab, Txt, TYPE } from '../slab';
 
 const starLine = (k: number) => `${'★'.repeat(k)}${'☆'.repeat(3 - k)}`;
@@ -28,24 +28,25 @@ export function Scenarios({ go, stars, play }: Pick<Props, 'go'> & ScenarioProps
   const got = (p: number) => SCENARIOS.reduce((n, x) => n + (x.pack === p ? starCount(stars[x.id]) : 0), 0);
   const size = (p: number) => SCENARIOS.filter(x => x.pack === p).length, total = totalStars(stars);
   const cols = land ? 6 : 3, tw = (width - 2 * side - 8 * (cols - 1)) / cols, packOpen = level >= PACKS[pack][1];
+  const perRow = land ? PACKS.length : 3, tabW = Math.floor((width - 2 * side - 5 * (perRow - 1)) / perRow); // floored: fractions could add up past the row and wrap the last tab
   const tables = SCENARIOS.flatMap((x, i) => (x.pack === pack ? [i] : []));
   return (
     <Shell title="Scenarios" back={() => go('home')} extra={<Txt style={styles.total}>{`★ ${total} / ${3 * SCENARIOS.length}`}</Txt>}>
-      <ScrollView contentContainerStyle={{ paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16), gap: 12 }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: side, gap: 5 }}
-          accessibilityRole="radiogroup" accessibilityLabel="Packs">
+      <Scroll style={{ flex: 1, marginBottom: Math.max(pad.bottom, 16) }} contentContainerStyle={{ paddingTop: 12, gap: 12 }}>
+        {/* every pack in view: one row of nine in landscape, rows of three in portrait */}
+        <View style={[styles.tabs, { paddingHorizontal: side }]} accessibilityRole="radiogroup" accessibilityLabel="Packs">
           {PACKS.map(([name, lv], p) => {
             const on = p === pack, ok = level >= lv, ink = { color: C.chalk };
             return (
               <Slab key={name} paint={on ? MODE.scenarios : [C.keyOff, 'transparent']} lip={on ? 3 : 0} radius={3} onPress={() => pick(p)} hitSlop={{ top: 5, bottom: 5 }}
                 accessibilityRole="radio" accessibilityLabel={ok ? `${name}, ${got(p)} of ${3 * size(p)} stars` : `${name}, opens at level ${lv}`} accessibilityState={{ checked: on }} aria-checked={on}
-                style={[{ marginBottom: on ? 0 : 3 }, !ok && { opacity: 0.5 }]} face={styles.tab}>
-                <Txt style={[styles.tabName, ink]}>{name}</Txt>
-                {ok ? <Txt style={[styles.tabSmall, ink]}>{`★ ${got(p)}/${3 * size(p)}`}</Txt> : <><Lock color={C.chalk} /><Txt style={[styles.tabSmall, ink]}>{`Lv ${lv}`}</Txt></>}
+                style={[{ width: tabW, marginBottom: on ? 0 : 3 }, !ok && { opacity: 0.5 }]} face={styles.tab}>
+                <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.tabName, ink]}>{name}</Txt>
+                <View style={styles.tabFoot}>{ok ? <Txt style={[styles.tabSmall, ink]}>{`★ ${got(p)}/${3 * size(p)}`}</Txt> : <><Lock color={C.chalk} /><Txt style={[styles.tabSmall, ink]}>{`Lv ${lv}`}</Txt></>}</View>
               </Slab>
             );
           })}
-        </ScrollView>
+        </View>
         <View style={[styles.grid, { paddingHorizontal: side }]}>
           {tables.map((i, j) => {
             const x = SCENARIOS[i], ok = packOpen && open(i), k = starCount(stars[x.id]), paint = i === next ? CREAM : DARK, ink = { color: i === next ? C.ink : C.chalk };
@@ -62,14 +63,16 @@ export function Scenarios({ go, stars, play }: Pick<Props, 'go'> & ScenarioProps
             );
           })}
         </View>
-      </ScrollView>
+      </Scroll>
     </Shell>
   );
 }
 
 const styles = StyleSheet.create({
   total: { fontFamily: FONT.bold, fontSize: 13, color: C.gold, ...TYPE.num },
-  tab: { height: 34, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  tab: { height: 40, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', gap: 1 },
+  tabFoot: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   tabName: { fontFamily: FONT.bold, fontSize: 13, lineHeight: 16 },
   tabSmall: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, opacity: 0.75, ...TYPE.num },
   grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, rowGap: 13 },

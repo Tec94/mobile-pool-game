@@ -22,7 +22,7 @@ export function Calendar({ go, daily, today, day, playDay }: Pick<Props, 'go'> &
   return (
     <Shell title="Daily Table" back={() => go('home')} extra={run > 0 && <Slab paint={MODE.daily} lip={3} radius={3} accessible accessibilityRole="text" style={{ marginTop: 3 }} face={styles.run}><Txt style={styles.runText}>{`${run}-day run`}</Txt></Slab>}>
       <Split at={Infinity} panel={
-        <Panel head={<><Txt numberOfLines={1} style={styles.head}>{head}</Txt><View style={{ flex: 1 }} /><Txt style={styles.gold} accessibilityLabel={`${n} of 3 stars`}>{starLine(n)}</Txt></>}
+        <Panel always head={<><Txt numberOfLines={1} style={styles.head}>{head}</Txt><View style={{ flex: 1 }} /><Txt style={styles.gold} accessibilityLabel={`${n} of 3 stars`}>{starLine(n)}</Txt></>}
           picture={w => <MiniTable width={w} {...tableOf(SCENARIOS[dailyPick(k, SCENARIOS)])} />}
           cta={{ label: 'Play', name: `Play ${name(k)}, ${THEMES[weekday(k)]}`, onPress: () => playDay(k) }} />}>
         <View style={styles.grid}>
