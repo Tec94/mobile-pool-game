@@ -220,11 +220,11 @@ const big = (c: Planned | Safety) => (c.rails ?? 1) >= 3 || !!c.elev; // a reel 
 const SHOW_MIN = 0.8; // a reel shot plays only checked on 5 of 6 (0.97 x 5/6)
 // A tier with tricks' search, in rollouts: against Legend (npm run bench:masters 200 9) it wins as often as with no cap;
 // with 60 it lost points. About 4 ms a rollout on Node JIT, 55 on the interpreter (the TIERS comment).
-const ROLLOUTS = 90;
+export const ROLLOUTS = 90;
 const SURE = 0.97, SHOW_GAP = 0.05, SAFE_P = 0.5, RESCUE = 12, RESCUE_SIMS = 20; // a trick shot's chance when verify() pots all six; the most make chance show gives up
 // The Chinese Masters' last word on a shot, after the search (aiShot): a rescue search when no pot is trusted, the
 // fancier pot for show, the reel shot, and the safety it falls back on. won = the best run so far; returns the one to play.
-function tricksTail(won: Run, srch: Search, cands: (Planned | Safety)[], cue: Obj, balls: Obj[], group: number[], oppGroup: number[], tier: Tier, rnd: () => number, safetiesInRow: number, ok?: (c: Cand) => boolean): Run {
+export function tricksTail(won: Run, srch: Search, cands: (Planned | Safety)[], cue: Obj, balls: Obj[], group: number[], oppGroup: number[], tier: Tier, rnd: () => number, safetiesInRow: number, ok?: (c: Cand) => boolean): Run {
   const { runs, mkRun, score, checkRun, late, stopped } = srch;
   // A tier with tricks and no pot it trusts (SAFE_P) searches on before it plays safe: the next RESCUE pots of any kind, by
   // their seed chance, RESCUE_SIMS rollouts each, until the budget runs out. Most of the tables it played safe on had a pot the
