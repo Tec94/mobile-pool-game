@@ -65,11 +65,13 @@ export function Strip({ title, back, settings, extra }: { title?: string; back?:
 // The body of a screen with a panel: choices on the left (scrolling), the panel on the right. Portrait: the panel under them.
 // at = the offset to open scrolled to (Infinity = the end).
 export function Split({ children, panel, at, wide }: { children: ReactNode; panel: ReactNode; at?: number; wide?: boolean }) {
-  const { land, side, pad } = useFrame(), w = usePanel(wide), scroll = useRef<ScrollViewInstance>(null), opened = useRef(false);
+  const { land, side, pad } = useFrame(), w = usePanel(wide), scroll = useRef<ScrollViewInstance>(null), dragged = useRef(false);
+  // again on each size or layout change (the More strip shrinks the box after the first try), until the player drags
+  const open = () => { if (!at || dragged.current) return; if (at === Infinity) scroll.current?.scrollToEnd({ animated: false }); else scroll.current?.scrollTo({ y: at, animated: false }); };
   return (
     <View style={{ flex: 1, flexDirection: land ? 'row' : 'column', gap: 16, paddingHorizontal: side, paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16) }}>
       <Scroll scrollRef={scroll} style={{ flex: 1 }} keyboardShouldPersistTaps="handled"
-        onContentSizeChange={() => { if (at && !opened.current) { opened.current = true; if (at === Infinity) scroll.current?.scrollToEnd({ animated: false }); else scroll.current?.scrollTo({ y: at, animated: false }); } }}>{children}</Scroll>
+        onContentSizeChange={open} onLayout={open} onScrollBeginDrag={() => { dragged.current = true; }}>{children}</Scroll>
       <View style={[styles.box, land ? { width: w } : { flexShrink: 1, maxHeight: '60%' }]}>{panel}</View>
     </View>
   );
@@ -77,11 +79,11 @@ export function Split({ children, panel, at, wide }: { children: ReactNode; pane
 
 // A ScrollView that says when it holds more: while content lies past its far edge, that edge fades into bg and a
 // small "More" slab sits in its own strip beyond it, so it never covers content (a press pages on). Scrolled to the
-// end, the near edge fades and the slab reads "Top". The strip stays while the content overflows, so the view never jumps. Menus fit their screen; this is for what cannot.
+// end, the slab reads "Top"; scrolled at all, the near edge fades too. The strip stays while the content overflows, so the view never jumps. Menus fit their screen; this is for what cannot.
 export function Scroll({ horizontal, style, bg = C.menu, scrollRef, onLayout, onContentSizeChange, onScroll, children, ...rest }: ScrollViewProps & { bg?: string; scrollRef?: RefObject<ScrollViewInstance | null> }) {
-  const own = useRef<ScrollViewInstance>(null), ref = scrollRef ?? own, m = useRef({ outer: 0, box: 0, size: 0, at: 0 }), [more, setMore] = useState(false), [over, setOver] = useState(false);
+  const own = useRef<ScrollViewInstance>(null), ref = scrollRef ?? own, m = useRef({ outer: 0, box: 0, size: 0, at: 0 }), [more, setMore] = useState(false), [over, setOver] = useState(false), [top, setTop] = useState(false), [fade, setFade] = useState(18);
   // over = the content is longer than the whole view, measured outside the strip, so the strip showing cannot change it
-  const check = () => { const { outer, box, size, at } = m.current; setOver(outer > 0 && size > outer + 1); setMore(box > 0 && size - box - at > 6); };
+  const check = () => { const { outer, box, size, at } = m.current; setOver(outer > 0 && size > outer + 1); setMore(box > 0 && size - box - at > 6); setTop(at > 6); setFade(Math.min(18, box / 3)); }; // a short box keeps two thirds clear
   const page = () => { const { box, at } = m.current, to = more ? at + box * 0.8 : 0; ref.current?.scrollTo(horizontal ? { x: to } : { y: to }); };
   return (
     <View style={[styles.box, style, horizontal && { flexDirection: 'row' }]} onLayout={e => { m.current.outer = horizontal ? e.nativeEvent.layout.width : e.nativeEvent.layout.height; check(); }}>
@@ -91,33 +93,31 @@ export function Scroll({ horizontal, style, bg = C.menu, scrollRef, onLayout, on
           onLayout={e => { m.current.box = horizontal ? e.nativeEvent.layout.width : e.nativeEvent.layout.height; check(); onLayout?.(e); }}
           onContentSizeChange={(w, h) => { m.current.size = horizontal ? w : h; check(); onContentSizeChange?.(w, h); }}
           onScroll={e => { m.current.at = horizontal ? e.nativeEvent.contentOffset.x : e.nativeEvent.contentOffset.y; check(); onScroll?.(e); }}>{children}</ScrollView>
-        {more && <View pointerEvents="none" style={[styles.fade, horizontal ? { top: 0, bottom: 0, right: 0, width: 28, flexDirection: 'row' } : { left: 0, right: 0, bottom: 0, height: 18 }]}>
+        {more && <View pointerEvents="none" style={[styles.fade, horizontal ? { top: 0, bottom: 0, right: 0, width: 28, flexDirection: 'row' } : { left: 0, right: 0, bottom: 0, height: fade }]}>
           {[0.15, 0.35, 0.55, 0.75, 0.92].map(o => <View key={o} style={{ flex: 1, backgroundColor: bg, opacity: o }} />)}
         </View>}
-        {over && !more && !horizontal && <View pointerEvents="none" style={[styles.fade, { left: 0, right: 0, top: 0, height: 18 }]}>
+        {over && top && !horizontal && <View pointerEvents="none" style={[styles.fade, { left: 0, right: 0, top: 0, height: fade }]}>
           {[0.92, 0.75, 0.55, 0.35, 0.15].map(o => <View key={o} style={{ flex: 1, backgroundColor: bg, opacity: o }} />)}
         </View>}
       </View>
-      {over && <View style={horizontal ? styles.moreSide : styles.moreFoot}>
-        <Pressable onPress={page} hitSlop={12} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.more}>
-          <Txt style={styles.moreText}>{horizontal ? (more ? '›' : '‹') : more ? 'More ▾' : 'Top ▴'}</Txt>
-        </Pressable>
-      </View>}
+      {over && <Pressable onPress={page} hitSlop={horizontal ? { right: 12 } : { bottom: 12 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={horizontal ? styles.moreSide : styles.moreFoot}>
+        <View style={styles.more}><Txt style={styles.moreText}>{horizontal ? (more ? '›' : '‹') : more ? 'More ▾' : 'Top ▴'}</Txt></View>
+      </Pressable>}
     </View>
   );
 }
 // The panel's width: at most 268 pt and 36% of the body in landscape (wide: 360 pt and 46%), the body's width in portrait.
 export function usePanel(wide?: boolean) { const { land, side, width } = useFrame(); return land ? Math.min(wide ? 360 : 268, (wide ? 0.46 : 0.36) * (width - 2 * side)) : width - 2 * side; }
 
-// The panel: a head row, a picture (picture(w) at the panel's inner width; in portrait only on a window 640 pt tall),
+// The panel: a head row, a picture (picture(w) at the panel's inner width; in portrait only on a window 700 pt tall, unless always),
 // what else it holds (scrolls when tall), and the screen's one button at its foot.
 // foot = what must always show above the button (it never scrolls away).
-export function Panel({ head, picture, children, foot, cta }: { head: ReactNode; picture?: (w: number) => ReactNode; children?: ReactNode; foot?: ReactNode; cta: Action }) {
+export function Panel({ head, picture, always, children, foot, cta }: { head: ReactNode; picture?: (w: number) => ReactNode; always?: boolean; children?: ReactNode; foot?: ReactNode; cta: Action }) {
   const { land, height } = useFrame(), w = usePanel() - 24;
   return (
     <Slab paint={DARK} style={land ? { flex: 1, minHeight: 0 } : { flexShrink: 1, minHeight: 0 }} face={styles.panel}>
       <View style={styles.row}>{head}</View>
-      {picture && (land || height >= 700) && <View style={{ alignItems: 'center' }}>{picture(w)}</View>}
+      {picture && (land || always || height >= 700) && <View style={{ alignItems: 'center' }}>{picture(w)}</View>}
       <Scroll bg={DARK[0]} style={land ? { flex: 1 } : { flexShrink: 1 }}>{children}</Scroll>
       {foot}
       <Cta {...cta} />

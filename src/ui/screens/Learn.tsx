@@ -11,7 +11,7 @@ import { short } from './Home';
 // Every lesson is open from the start: a tap starts it. Each tile draws its table, the pocket, the ring and where to hit
 // the cue ball. Purple = passed, cream = the next one, dark = not yet. Landscape: two rows that run off the right edge.
 export function Learn({ go, done, learn }: Pick<Props, 'go'> & LearnProps) {
-  const { land, side, pad, width } = useFrame(), next = LESSONS.findIndex(l => !done.includes(l.id)), scroll = useRef<ScrollViewInstance>(null), opened = useRef(false); // opened: scrolled to the next lesson once, not on every layout
+  const { land, side, pad, width } = useFrame(), next = LESSONS.findIndex(l => !done.includes(l.id)), scroll = useRef<ScrollViewInstance>(null), dragged = useRef(false); // scroll to the next lesson on each layout until the player drags
   // Landscape: every column across the screen when a tile can be 84 pt wide, else 150 pt tiles that scroll. Portrait: three across.
   const across = Math.ceil(LESSONS.length / 2), fit = (width - 2 * side - (across - 1) * 8) / across, W = fit >= 84 ? fit : 150;
   const [rowH, setRowH] = useState(150), tw = land ? W : (width - 2 * side - 16) / 3;
@@ -37,13 +37,13 @@ export function Learn({ go, done, learn }: Pick<Props, 'go'> & LearnProps) {
   return (
     <Shell title="Learn" back={() => go('home')} extra={land && extra}>
       {land ? (
-        <Scroll scrollRef={scroll} horizontal style={{ flex: 1, marginTop: 12, marginBottom: Math.max(pad.bottom, 16) }}
+        <Scroll key="h" scrollRef={scroll} horizontal onScrollBeginDrag={() => { dragged.current = true; }} style={{ flex: 1, marginTop: 12, marginBottom: Math.max(pad.bottom, 16) }}
           contentContainerStyle={{ paddingHorizontal: side, gap: 8 }}
-          onLayout={e => { setRowH(Math.min(160, (e.nativeEvent.layout.height - 13) / 2)); if (opened.current) return; opened.current = true; scroll.current?.scrollTo({ x: Math.max(0, (Math.floor(Math.max(0, next) / 2) - 1) * (W + 8)), animated: false }); }}>
+          onLayout={e => { setRowH(Math.min(160, (e.nativeEvent.layout.height - 13) / 2)); if (dragged.current) return; scroll.current?.scrollTo({ x: Math.max(0, (Math.floor(Math.max(0, next) / 2) - 1) * (W + 8)), animated: false }); }}>
           {cols.map((c, k) => <View key={k} style={{ gap: 13 }}>{c.map(tile)}</View>)}
         </Scroll>
       ) : (
-        <Scroll style={{ flex: 1, marginBottom: Math.max(pad.bottom, 16) }} contentContainerStyle={{ paddingHorizontal: side, paddingTop: 12, gap: 12 }}>
+        <Scroll key="v" style={{ flex: 1, marginBottom: Math.max(pad.bottom, 16) }} contentContainerStyle={{ paddingHorizontal: side, paddingTop: 12, gap: 12 }}>
           <View style={styles.strip}>{extra}</View>
           <View style={styles.grid}>{LESSONS.map((_, i) => tile(i))}</View>
         </Scroll>
