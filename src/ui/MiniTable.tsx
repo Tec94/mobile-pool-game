@@ -6,11 +6,14 @@ import { nose } from '../rules/rules';
 import { HOLES, P, rack } from '../physics/engine';
 import { BALLS, C, CLOTHS } from '../theme';
 
-export interface Table { cue?: [number, number]; balls?: [number, number, number][]; ring?: number; rings?: boolean; lit?: number[]; zone?: [number, number, number] }
+export interface Table { cue?: [number, number]; balls?: [number, number, number][]; packed?: boolean; ring?: number; rings?: boolean; lit?: number[]; zone?: [number, number, number] }
 
 // ring = the called pocket (index into HOLES, as Goal.pocket); rings = every pocket asks for a call; lit = cushion ids 0..5 as nose(k).
-export function MiniTable({ width: w, cue, balls = [], ring, rings, lit = [], zone, cloth = 0 }: Table & { width: number; cloth?: number }) {
-  const f = Math.max(4, w * 0.06), iw = w - 2 * f, s = iw / P.L, r = Math.max(2.5, Math.min(w * 0.022, P.R * s)), pr = r * 1.3;
+// packed = the balls touch (a rack): drawn bigger than true size, they would overlap into a blob, so they spread out
+// from their middle to keep a hairline between them.
+export function MiniTable({ width: w, cue, balls = [], packed, ring, rings, lit = [], zone, cloth = 0 }: Table & { width: number; cloth?: number }) {
+  const f = Math.max(4, w * 0.06), iw = w - 2 * f, s = iw / P.L, r = Math.max(2.5, Math.min(w * 0.022, packed ? Math.max(P.R * s, w * 0.016) : P.R * s)), pr = r * 1.3;
+  if (packed && balls.length) balls = spread(balls, (r + 0.6) / (P.R * s));
   const disc = (x: number, y: number, d: number) => ({ position: 'absolute' as const, left: f + x * s - d / 2, top: f + y * s - d / 2, width: d, height: d, borderRadius: d / 2 });
   return (
     <View style={{ width: w, height: w / 2 + f, backgroundColor: C.frame, borderRadius: 6 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -37,10 +40,17 @@ export function MiniTable({ width: w, cue, balls = [], ring, rings, lit = [], zo
   );
 }
 
+// The balls moved out from their middle by k (k <= 1: as they are).
+function spread(balls: [number, number, number][], k: number): [number, number, number][] {
+  if (k <= 1) return balls;
+  const mx = balls.reduce((a, b) => a + b[1], 0) / balls.length, my = balls.reduce((a, b) => a + b[2], 0) / balls.length;
+  return balls.map(([n, x, y]) => [n, mx + (x - mx) * k, my + (y - my) * k]);
+}
+
 // A lesson's or a scenario's table: its pocket, its target ring, and the lit cushions of a bank table.
 export const tableOf = (l: Lesson): Table => ({ cue: l.cue, balls: l.balls, ring: l.goal.pocket, zone: l.goal.zone, lit: litCushions(l) ?? undefined });
 // The break: the real rack and the cue ball on the head spot.
-export const rackOf = (game: 8 | 9): Table => ({ cue: [P.L / 4, P.W / 2], balls: rack(game) });
+export const rackOf = (game: 8 | 9): Table => ({ cue: [P.L / 4, P.W / 2], balls: rack(game), packed: true });
 
 // Where a lesson hits the cue ball: a white disc with a red dot at the tip (x right, y up, -1..1 to 36% of the size).
 export function SpinDot({ tip, size }: { tip: { x: number; y: number }; size: number }) {
