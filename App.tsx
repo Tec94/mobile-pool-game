@@ -525,8 +525,9 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     t.rec = L ? newLessonRec() : newRec(sh); strike(t.B[0], sh, struck()); moving.current = true; wake.current();
     tip.set(LEVEL); setSheet(false); setTools(false); shot.set({ power: 0, fine: false, locked: true });
   };
-  // The AI's shot: its cue ball in hand, its line-up, its call, then the strike as fire() makes it. The AI plans on the
-  // engine CUE and strikes with the House Cue (STICK), its speed and tip held to that cue.
+  // The AI's shot: its cue ball in hand, its line-up, its call, then the strike as fire() makes it. The AI strikes with
+  // the House Cue (STICK), its speed and tip held to that cue; the Masters plans inside those limits (aim.ts lim), the
+  // other tiers on the engine CUE.
   // stage: 0 slides the cue ball in hand, 1 places it and lines up, 2 strikes.
   const play = (m: Move, stage = 0) => {
     const t = table.current;

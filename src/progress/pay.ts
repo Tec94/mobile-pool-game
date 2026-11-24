@@ -57,6 +57,7 @@ export const safetyPay = (s: Safety): Pay =>
 export interface Match { tier: number; won: boolean; fouls: number; ownPotted?: number; early?: boolean; tour?: number; lucky?: boolean } // tour = a tournament match: its round's multiplier x the frames it takes to win (bracket.ts)
 const MASTERS_WIN = 60; // a Masters win's factor where Legend's is 6
 export function matchPay(m: Match): Pay {
+  if (!(m.tier > 0 && m.tier <= MASTERS)) throw new Error(`AI tier ${m.tier} is not over 0 and at most 7`); // a rating (Rival, tour) may be a tenth, as low as 0.5
   const k = m.won ? (m.fouls ? 1 : 1.2) : m.early ? 0 : Math.min(7, m.ownPotted ?? 0) / 7;
   const [xp, coins] = m.won ? [60, 40] : [20, 10], f = m.tier < MASTERS ? m.tier : m.won && !m.lucky ? MASTERS_WIN : 6, t = m.tour ?? 1;
   return { xp: Math.round(xp * f * k * t), coins: Math.round(coins * f * k * t) }; // this order, or a cup's pay moves by 1
@@ -121,7 +122,7 @@ export function matchFeats(l: Ledger, m: { vs: Vs; won: boolean; cue?: CueId; dr
 // The break's pots still pay as shots. A rack the AI hands over (three fouls, an early 8) is not won on the break.
 // why = what a Masters win paid and why: x10 when it ran out every rack, else as Legend's (setup says up to x10). Not note, which cancels the feats.
 export interface Settled { match: Pay; shots: Pay; chalk: Pay | null; total: Pay; note?: string; why?: string; got?: string[] } // got = the cues the match's feats gave
-export const BREAK_ONLY = 'Won on the break: no match pay.', NOT_RUN = 'A rack was not run out: pays as a Legend win.', RAN_OUT = 'Run-out win against the Chinese Masters: pays ×10.';
+export const BREAK_ONLY = 'Won on the break: no match pay.', NOT_RUN = 'A rack was handed to you, or the 9 fell early: pays as a Legend win.', RAN_OUT = 'You finished every rack on your own shot: pays ×10.';
 export function settle(l: Ledger, m: { tier: number; won: boolean; early: boolean; tour?: number; racks?: number }, chalk?: (won: boolean, match: Pay) => Pay): Settled {
   const dry = m.won && !!m.racks && (l.brk ?? 0) >= m.racks;
   const match = dry ? { xp: 0, coins: 0 } : matchPay({ ...m, fouls: l.fouls, ownPotted: l.own, lucky: l.lucky }), x = chalk && !dry ? chalk(m.won, match) : null, c = x && (x.xp || x.coins) ? x : null;

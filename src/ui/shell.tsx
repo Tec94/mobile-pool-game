@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { profile } from '../progress';
 import { levelOf } from '../progress/profile';
 import { C, CREAM, DARK, FONT, inkOn, type Paint } from '../theme';
-import { BallArt, Chip, feel, Hatch, Slab, Txt, TYPE } from './slab';
+import { BallArt, Chip, feel, Hatch, num, Slab, Txt, TYPE } from './slab';
 
 // Fresh Chalk charges for the strip. The daily state lives in App, so Menus provides it here for every screen.
 export const ChalkCount = createContext(0);
@@ -54,7 +54,7 @@ export function Strip({ title, back, settings, extra }: { title?: string; back?:
         <View style={{ flex: 1 }} />
         <Chip name={`Fresh Chalk, ${chalk} ${chalk === 1 ? 'charge' : 'charges'}`} style={styles.lip}><View style={styles.cube} /><Txt style={styles.chipNum}>{chalk}</Txt></Chip>
         <Chip name={`${p.coins} coins`} style={styles.lip}><View style={styles.coin} />
-          <Txt style={styles.chipNum}>{p.coins >= 1e6 ? `${(p.coins / 1e6).toFixed(2)}M` : p.coins.toLocaleString('en-US')}</Txt></Chip>
+          <Txt style={styles.chipNum}>{p.coins >= 1e6 ? `${(p.coins / 1e6).toFixed(2)}M` : num(p.coins)}</Txt></Chip>
         {settings && <Chip onPress={settings} name="Settings" style={styles.lip}><Sliders /></Chip>}
       </View>
       {!land && !back && <View style={styles.row}>{xp}</View>}

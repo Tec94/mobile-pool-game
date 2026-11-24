@@ -2,7 +2,8 @@
 // from the app (hold Demo in the tools panel) or Node (scripts/ai-bench.mjs). It runs on the calling thread, so on the
 // phone it blocks the JS thread for the whole run. pick = the geometric search (decide), aim = the aim correction and
 // the rollouts on the engine (refine). One uncounted table runs first, so the first tier does not pay for the warm-up.
-import { type Ball, type Ev, HOLES, P, simulate, step, strike } from '../physics/engine.ts';
+import { type Ball, type Ev, HOLES, P, type Shot, simulate, step, strike } from '../physics/engine.ts';
+import { stick } from '../progress/cues.ts';
 import { cushionAt, ENDS } from '../rules/rules.ts';
 import { holeOf, kindOf, onLit } from './turn.ts';
 import { aiShot } from './aim.ts';
@@ -10,6 +11,10 @@ import { type Cand, NINE, randomLayout, rng, SOLIDS, STRIPES, type Tier, TIERS }
 
 const pct = (a: number[], p: number) => a.slice().sort((x, y) => x - y)[Math.min(a.length - 1, Math.floor(a.length * p))];
 const ms = (a: number[]) => [0.5, 1].map((p) => pct(a, p).toFixed(1)).join('/');
+// The AI's strike as the app makes it (App.tsx play()): the House Cue's speed and tip limits. The benches strike the
+// tier with tricks (the Masters) this way, so they measure what the phone plays; the other tiers' numbers stay as recorded.
+const STICK = stick('house', true), hold = (x: number) => Math.max(-STICK.tipLimit, Math.min(STICK.tipLimit, x));
+export const asPlayed = (s: Shot, brk = false): Shot => ({ ...s, speed: Math.min(s.speed, brk ? STICK.breakSpeed : STICK.maxSpeed), a: hold(s.a), b: hold(s.b) });
 const mk = (b: { x: number; y: number }): Ball => ({ x: b.x / 1000, y: b.y / 1000, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 function time(tier: Tier, n: number) {
   const rnd = rng(1), pick: number[] = [], aim: number[] = [];
@@ -37,7 +42,7 @@ export function visit(tier: Tier, seed: number, nine = false) {
     const r = aiShot(B, ids, nine ? NINE : SOLIDS, nine ? NINE : STRIPES, tier, rnd);
     think.push(r.ms[0] + r.ms[1]);
     if (r.pick.type === 'safety' || r.pick.type === 'foul') break;
-    const sim = simulate(B, r.shot, undefined, 30000), down = sim.potted.map((i) => ids[i]);
+    const sim = simulate(B, tier.tricks ? asPlayed(r.shot) : r.shot, undefined, 30000), down = sim.potted.map((i) => ids[i]);
     const lowest = Math.min(...left), on = nine ? [lowest] : own.length ? own : [8];
     if (sim.scratch || sim.off.length || sim.first < 0 || !on.includes(ids[sim.first])) break;
     const good = nine ? down.length > 0 : down.some((id) => on.includes(id));
@@ -66,7 +71,7 @@ export function makeRates(tier: Tier, n: number, types: readonly (typeof TYPES)[
     const o = out[type]; o.tries++; o.est += pick.p;
     const S = B.map((b) => ({ ...b })), ev: Ev[] = [], hole = holeOf(pick), j = ids.indexOf(pick.ball);
     let first = -1, pocket = -1, scratch = false, banked = false;
-    strike(S[0], r.shot);
+    strike(S[0], tier.tricks ? asPlayed(r.shot) : r.shot);
     for (let s = 0; s < 30000 && step(S, ev); s++) {
       for (const e of ev) {
         if (e.t === 'bb' && e.a === 0 && first < 0) first = e.b!;

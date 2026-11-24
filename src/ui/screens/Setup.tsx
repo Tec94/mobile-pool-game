@@ -1,7 +1,7 @@
 // Quick match and pass and play set up: one option per row on the left, the table they make and Play on the right.
 // The opponent is the Rival, who adapts between matches, or a fixed AI tier; each mode keeps its own setup.
 import { type ReactNode, useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { MASTERS, TIERS } from '../../ai/shot-ai';
 import { profile, rivalReset } from '../../progress';
 import { matchPay } from '../../progress/pay';
@@ -16,7 +16,7 @@ import { BallArt, Key, Keys, num, Slab, Txt } from '../slab';
 const GAMES: [string, 8 | 9][] = [['8-ball', 8], ['9-ball', 9]];
 const LABEL = 76, NARROW = 430; // under NARROW pt wide a row's label goes above its keys
 const RACE_KEYS = RACES.map((r): [string, typeof r] => [String(r), r]);
-const TOP = MASTERS - 1, WIN = matchPay({ tier: MASTERS, won: true, fouls: 0 }); // the Chinese Masters' index in TIERS; what a run-out win pays at most (no fouls)
+const TOP = MASTERS - 1, WIN = matchPay({ tier: MASTERS, won: true, fouls: 0 }); // the Chinese Masters' index in TIERS; what a clean win (every rack finished on the player's own shot) pays at most (no fouls)
 
 // A row: its label, centred on the key face, then its keys. Under 430 pt wide the label goes above, and note at its right.
 // The keys' box has a set width and stretches its child: on a phone, Yoga sizes a wrapping row that shrinks to its
@@ -26,7 +26,7 @@ export function Line({ label, inline, note, children }: { label: string; inline?
   const { width, side, land } = useFrame(), narrow = width < NARROW && !inline, panel = usePanel();
   return (
     <View style={[styles.line, narrow && { flexDirection: 'column', alignItems: 'stretch', gap: 4 }]}>
-      {narrow && note ? <View style={styles.line}><Txt style={[styles.label, { flex: 1 }]}>{label}</Txt>{note}</View>
+      {narrow && note ? <View style={styles.line}><Txt numberOfLines={1} style={[styles.label, { width: 'auto', marginRight: 8 }]}>{label}</Txt>{note}</View>
         : <Txt style={[styles.label, !narrow && { marginBottom: 3 }]}>{label}</Txt>}
       <View style={!narrow && { width: width - 2 * side - LABEL - (land ? panel + 16 : 0) }}>{children}</View>
     </View>
@@ -43,11 +43,11 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
   const opp = quick ? (rival ? `Rival ${rating}` : TIERS[set.tier].name) : names[1].trim() || 'Player 2', me = quick ? 'You' : names[0].trim() || 'Player 1';
   const start = () => { if (quick) return go('ai'); change({ names: names.map((n, i) => n.trim() || `Player ${i + 1}`) as [string, string] }); go('match'); };
   const { charges, armed } = daily.chalk, { land, height, width, pad } = useFrame(), tight = height < (land ? 380 : 700), il = tight && !land; // an SE-sized phone: labels beside the keys, so the table fits
-  const narrow = width < NARROW;
+  const narrow = width < NARROW, text = 74 * Math.min(1.3, useWindowDimensions().fontScale); // the sum's text (head, pay line, the strip's title past its 32 pt row) grows with the system text size, capped at 1.3
   // What a Masters win pays, where nothing scrolls: beside the Opponent label on a phone, else at the panel's foot, the table
-  // giving up the height in landscape (strip, gutters, panel padding, head on two lines, the line and gaps: 179 pt, and the button).
+  // giving up the height in landscape (strip, gutters, panel padding, head on two lines, the line and gaps: 179 pt at text size 1, and the button).
   // Only a win that ran out every rack it took pays that; else it pays as a Legend win (the results card says why).
-  const pays = quick && set.tier === TOP && <Txt numberOfLines={narrow ? 1 : 2} style={[styles.note, !narrow && { textAlign: 'center' }]}>Run-out win pays up to{narrow ? ' ' : '\n'}<Txt style={{ color: C.gold }}>{`${num(WIN.xp)} XP · ${num(WIN.coins)} coins`}</Txt></Txt>;
+  const pays = quick && set.tier === TOP && <Txt numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.note, { textAlign: narrow ? 'right' : 'center' }, narrow && { flex: 1 }]}>Clean win pays up to{narrow ? ' ' : '\n'}<Txt style={{ color: C.gold }}>{`${num(WIN.xp)} XP · ${num(WIN.coins)} coins`}</Txt></Txt>;
   return (
     <Shell title={quick ? 'Quick match' : 'Pass and play'} back={() => go('home')}>
       <Split panel={
@@ -55,7 +55,7 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
           <BallArt n={1} size={26} label={quick ? undefined : me.slice(0, 2)} /><Txt numberOfLines={1} style={[styles.name, quick && { flexShrink: 0 }]}>{me}</Txt>
           <View style={{ flex: 1 }} />
           <Txt numberOfLines={2} style={[styles.name, { textAlign: 'right' }]}>{opp}</Txt><BallArt n={8} size={26} label={opp[0]} />
-        </>} picture={w => <MiniTable width={!land ? Math.min(w, height >= 700 ? 280 : 150) : pays ? Math.min(w, (height - pad.top - Math.max(pad.bottom, 16) - 179 - (height >= 430 ? 64 : 58)) / 0.56) : w} {...rackOf(game)} rings={game === 8 && set.callAll} lit={game === 8 && set.bank ? [0, 1] : undefined} cloth={set.cloth} />}
+        </>} picture={w => <MiniTable width={!land ? Math.min(w, height >= 700 ? 280 : 150) : pays ? Math.min(w, (height - pad.top - Math.max(pad.bottom, 16) - 105 - text - (height >= 430 ? 64 : 58)) / 0.56) : w} {...rackOf(game)} rings={game === 8 && set.callAll} lit={game === 8 && set.bank ? [0, 1] : undefined} cloth={set.cloth} />}
           cta={{ label: 'Play', name: quick ? 'Play quick match' : 'Play pass and play', onPress: start }} foot={!narrow && pays} />}>
         <View style={{ gap: tight ? 6 : land ? 10 : 14 }}>
           <View style={[styles.group, tight && { gap: 6 }]}>
