@@ -158,7 +158,7 @@ export function think(B: Ball[], ids: number[], s: State, level: number, seed: n
   }
   const lit = s.lit, ok = lit.length ? (c: Cand) => onLit(lit, c) : undefined; // bank shots: no other pot counts
   const T2 = T.think === undefined ? T : { ...T, think: T.think - (now() - t0) }; // the deadline counts the cue ball's placement too
-  const { shot, pick } = aiShot(B, ids, s.game === 9 ? g[0] : ahead(g[0]), g[1], T2, rnd, safeties, ok);
+  const { shot, pick } = aiShot(B, ids, s.game === 9 ? g[0] : ahead(g[0]), g[1], T2, rnd, safeties, ok, lit);
   return { shot, at: s.hand ? [B[0].x, B[0].y] : null, call: callFor(s, pick, B, ids), safety: pick.type === 'safety', kind: kindOf(pick) };
 }
 

@@ -140,7 +140,7 @@ export const setCall = (s: State, pocket: number): State => ({ ...s, call: pocke
 
 // A pot is banked when the ball touched a lit cushion that does not end at its pocket (else it ran down the rail), or the
 // cue ball kicked off a lit cushion before its first hit.
-const banked = (s: State, r: Rec, p: { id: number; pocket: number }) =>
+export const banked = (s: Pick<State, 'lit'>, r: Rec, p: { id: number; pocket: number }) =>
   r.cush.some(([id, k]) => s.lit.includes(k) && (id ? id === p.id && !ENDS[k].includes(p.pocket) : true));
 
 // Rule on a finished shot. push = the shooter declared a push out (9-ball, 5.4).

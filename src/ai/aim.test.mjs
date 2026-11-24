@@ -2,6 +2,8 @@
 import assert from 'node:assert';
 import { CUE, P, simulate, step, strike } from '../physics/engine.ts';
 import { aiShot, correctAim } from './aim.ts';
+import { judge, newGame, newRec, record } from '../rules/rules.ts';
+import { holeOf, onLit } from './turn.ts';
 import { enumerate, NINE, potProb, SOLIDS, STRIPES, TIERS as CLOCKED, randomLayout, rng } from './shot-ai.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const TIERS = CLOCKED.map(t => ({ ...t, think: Infinity })); // no clock (Tier.think): the same search whatever the machine's load
@@ -164,4 +166,16 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   const E = [mk(0.227, 0.589), mk(1.142, 0.589), mk(1.347, 0.649), mk(1.862, 0.597)];
   assert.equal(aiShot(E, [0, 1, 9, 2], NINE, NINE, TIERS[5], rng(1)).pick.ball, 1, 'Legend runs the 1 and the 2 over the long combo');
   ok('9-ball: the engine rollouts keep the planner\'s 9-or-route choice');
+}
+{ // Bank shots: the engine search counts a pot only banked off a lit cushion into the planned pocket, as rules.ts judges
+  // it. These tables refined to a pot that ran in with no bank (the Masters) or into another pocket (Pro, Legend).
+  for (const [t, i] of [[6, 7], [6, 8], [6, 120], [4, 135], [5, 89]]) {
+    const { cue, balls } = randomLayout(rng(i), 1 + (i % 5)), { B, ids } = table({ cue, balls }), lit = [i % 6, (i + 1) % 6];
+    const { pick, aim } = aiShot(B.map(b => ({ ...b })), ids, SOLIDS, STRIPES, TIERS[t], rng(i), 0, c => onLit(lit, c), lit);
+    if (pick.type === 'safety' || pick.type === 'foul') continue;
+    const S = B.map(b => ({ ...b })), r = newRec(), ev = []; strike(S[0], aim); while ((ev.length = 0, step(S, ev))) record(r, ev, S, ids);
+    const s = judge({ ...newGame(8, 0, true, 2), phase: 'play', hand: null, solids: 0, balls: ids.slice(1), lit, call: holeOf(pick) }, r);
+    assert(!r.pots.some(p => p.id === pick.ball) || (s.turn === 0 && !s.foul), `${TIERS[t].name}, table ${i}: a pot that counts or none (${s.note})`);
+  }
+  ok('bank shots: the engine search keeps to a bank off a lit cushion');
 }
