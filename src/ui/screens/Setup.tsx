@@ -9,10 +9,9 @@ import { MOODS, shown } from '../../progress/rival';
 import { NAME_MAX, RACES, RIVAL, type Settings } from '../../settings/settings';
 import { C, CREAM, DARK, FONT, SEAL } from '../../theme';
 import type { DailyProps, Props } from '../Menus';
-import { n } from '../MatchHud';
 import { MiniTable, rackOf } from '../MiniTable';
 import { Panel, Shell, Split, useFrame, usePanel } from '../shell';
-import { BallArt, Key, Keys, Slab, Txt } from '../slab';
+import { BallArt, Key, Keys, num, Slab, Txt } from '../slab';
 
 const GAMES: [string, 8 | 9][] = [['8-ball', 8], ['9-ball', 9]];
 const LABEL = 76;
@@ -44,7 +43,7 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
   const start = () => { if (quick) return go('ai'); change({ names: names.map((n, i) => n.trim() || `Player ${i + 1}`) as [string, string] }); go('match'); };
   const { charges, armed } = daily.chalk, narrow = useFrame().width < 430;
   // What a Masters win pays, where it adds no height: beside the Opponent label on a phone, else in the panel's free space.
-  const pays = quick && set.tier === TOP && <Txt numberOfLines={narrow ? 1 : 2} style={[styles.note, !narrow && { textAlign: 'center' }]}>Win pays up to{narrow ? ' ' : '\n'}<Txt style={{ color: C.gold }}>{`${n(WIN.xp)} XP · ${n(WIN.coins)} coins`}</Txt></Txt>;
+  const pays = quick && set.tier === TOP && <Txt numberOfLines={narrow ? 1 : 2} style={[styles.note, !narrow && { textAlign: 'center' }]}>Win pays up to{narrow ? ' ' : '\n'}<Txt style={{ color: C.gold }}>{`${num(WIN.xp)} XP · ${num(WIN.coins)} coins`}</Txt></Txt>;
   return (
     <Shell title={quick ? 'Quick match' : 'Pass and play'} back={() => go('home')}>
       <Split panel={

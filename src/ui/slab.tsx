@@ -14,6 +14,9 @@ export const feel = (f: () => Promise<void>) => { if (Platform.OS !== 'web') f()
 // Text with the cap every label in the game has on the system text size.
 export const Txt = (p: TextProps) => <Text maxFontSizeMultiplier={1.3} {...p} />;
 
+// A count with thousands commas: 4,320 XP.
+export const num = (x: number) => x.toLocaleString('en-US');
+
 type A11y = Pick<React.ComponentProps<typeof Pressable>, 'accessible' | 'accessibilityLabel' | 'accessibilityRole' | 'accessibilityState' | 'accessibilityHint' | 'accessibilityValue' | 'aria-checked' | 'hitSlop'>;
 export interface SlabProps extends A11y {
   paint: Paint; lip?: number; radius?: number;
