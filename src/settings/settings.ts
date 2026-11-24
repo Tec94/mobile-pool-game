@@ -17,12 +17,13 @@ export interface Settings {
   zones: boolean;            // the cue angle ring: true = each zone in its own colour, blended; false = one colour
   bank: 0 | 1 | 2;           // 8-ball bank shots in a match: 0 off, 1 the 8-ball, 2 every ball
   tour: TourOpts;            // the last tournament setup (src/tournament/bracket.ts Opts)
+  v: 2;                      // the save's version. Before 2 there were six tiers and the Rival was tier 6
 }
 export interface TourOpts { cup: number; size: 4 | 8; best: 1 | 3 | 5; game: 8 | 9; callAll: boolean; bank: 0 | 1 | 2 }
 const TOUR: TourOpts = { cup: 0, size: 8, best: 3, game: 8, callAll: true, bank: 0 };
-export const DEFAULTS: Settings = { callAll: true, cloth: 0, menus: 0, orient: 0, names: ['Player 1', 'Player 2'], game: 8, race: 1, tier: 0, aiGame: 8, aiRace: 1, mood: 'even', zones: true, bank: 0, tour: TOUR };
-export const RACES = [1, 3, 5] as const, NAME_MAX = 14, TIER_COUNT = 6; // TIER_COUNT = TIERS.length, kept here so settings need no AI code
-export const RIVAL = TIER_COUNT; // the quick match opponent that adapts, after the six tiers
+export const DEFAULTS: Settings = { callAll: true, cloth: 0, menus: 0, orient: 0, names: ['Player 1', 'Player 2'], game: 8, race: 1, tier: 0, aiGame: 8, aiRace: 1, mood: 'even', zones: true, bank: 0, tour: TOUR, v: 2 };
+export const RACES = [1, 3, 5] as const, NAME_MAX = 14, TIER_COUNT = 7; // TIER_COUNT = TIERS.length, kept here so settings need no AI code
+export const RIVAL = TIER_COUNT; // the quick match opponent that adapts, after the tiers
 
 // Settings from the saved text. A value that is missing, of the wrong type or out of range takes its default, so a
 // save from an older or newer version of the app, or a damaged one, still loads.
@@ -39,7 +40,7 @@ export function readSettings(text: string | null): Settings {
     names: [name(o.names?.[0], 0), name(o.names?.[1], 1)],
     game: o.game === 9 ? 9 : 8,
     race: RACES.includes(o.race) ? o.race : DEFAULTS.race,
-    tier: Number.isInteger(o.tier) && o.tier >= 0 && o.tier <= RIVAL ? o.tier : DEFAULTS.tier,
+    tier: o.v !== 2 && o.tier === 6 ? RIVAL : Number.isInteger(o.tier) && o.tier >= 0 && o.tier <= RIVAL ? o.tier : DEFAULTS.tier,
     aiGame: o.aiGame === 9 ? 9 : 8,
     aiRace: RACES.includes(o.aiRace) ? o.aiRace : DEFAULTS.aiRace,
     mood: ['relaxed', 'even', 'tough'].includes(o.mood) ? o.mood : DEFAULTS.mood,
@@ -47,5 +48,6 @@ export function readSettings(text: string | null): Settings {
     bank: [0, 1, 2].includes(o.bank) ? o.bank : DEFAULTS.bank,
     tour: { cup: [0, 1, 2, 3].includes(o.tour?.cup) ? o.tour.cup : 0, size: o.tour?.size === 4 ? 4 : 8, best: [1, 3, 5].includes(o.tour?.best) ? o.tour.best : 3,
       game: o.tour?.game === 9 ? 9 : 8, callAll: typeof o.tour?.callAll === 'boolean' ? o.tour.callAll : true, bank: [0, 1, 2].includes(o.tour?.bank) ? o.tour.bank : 0 },
+    v: 2,
   };
 }
