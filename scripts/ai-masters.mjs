@@ -8,10 +8,12 @@
 // a foul), the racks the opponent won before the Masters had a shot (the ceiling of its win %), and the share of its pots by kind (turn.ts kindOf; double = two or more own balls on one shot, borrowed = a
 // carom or billiard whose shot touched an opponent's ball; hanging = a kick whose cue ball sets off away from the ball it
 // hits; frozen = a bank of a ball frozen on a cushion: the reels' types, counted on top of their kind). LOG=1 prints every Masters shot.
+// Both seats strike as the app strikes an AI (bench.ts asPlayed: the House Cue's limits).
 import { breakSpot, P, rack, step, strike } from '../src/physics/engine.ts';
 import { choose, handCue, judge, moveCue, newGame, newRec, ranOut, record, setCall, spotBall } from '../src/rules/rules.ts';
 import { choiceFor, nextSafeties, safetiesArg, think } from '../src/ai/turn.ts';
 import { MASTERS, TIERS } from '../src/ai/shot-ai.ts';
+import { asPlayed } from '../src/ai/bench.ts';
 
 const [racks = 200, game = 8, rating = 6] = process.argv.slice(2).map(Number), n = Math.ceil(racks / 2);
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
@@ -30,7 +32,7 @@ function duel(me, seed) {
     if (seat === me && !brk) t.ms.push(performance.now() - t0);
     if (!brk) safe[seat] = nextSafeties(safe[seat], m.safety);
     if (m.at) moveCue(B, m.at[0], m.at[1], s.hand); if (m.call >= 0) s = setCall(s, m.call);
-    const r = newRec(), ev = [], B0 = B.map(x => ({ ...x })); let touched = false; strike(B[0], m.shot);
+    const r = newRec(), ev = [], B0 = B.map(x => ({ ...x })); let touched = false; strike(B[0], asPlayed(m.shot, brk));
     for (let k = 0; k < 60000 && (ev.length = 0, step(B, ev)); k++) { record(r, ev, B, ids); for (const e of ev) if (e.t === 'bb') touched ||= [e.a, e.b].some(i => mine(s, 1 - seat, ids[i])); }
     const before = s; s = judge(s, r);
     if (seat !== me && !brk && !s.foul) t.oppPots += r.pots.filter(p => p.id).length;
