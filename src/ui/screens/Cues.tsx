@@ -37,11 +37,10 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
   const id = CUE_IDS[up], c: CueInfo = CUES[id], owned = p.owned.includes(id), use = p.cue === id;
   // What gets a cue not yet owned: the first of it names the locked button.
   const f = c.feat as FeatId | undefined, need = owned ? [] : [
-    c.price !== undefined && p.coins < c.price && `${(c.price - p.coins).toLocaleString('en-US')} coins short`,
     f && `${featName(f)} ${featCount(p, f)}/${FEATS[f].count}`, c.level && `Reach level ${c.level}`, c.get && (id === 'surveyor' ? `${done.length}/${PENCIL_AT} lessons` : c.get),
   ].filter((x): x is string => !!x).slice(0, 2), fits = !!need[0] && need[0].length <= 20; // a longer need would not fit the button
   const cta = owned ? { label: use ? 'In use' : 'Use', name: use ? `${c.name}, in use` : `Use ${c.name}`, off: use, slim: use, onPress: () => put(select(p, id)) }
-    : c.price !== undefined ? { label: `Buy ${c.price.toLocaleString('en-US')}`, name: `Buy ${c.name} for ${c.price} coins`, off: p.coins < c.price, quiet: true,
+    : c.price !== undefined ? { label: p.coins < c.price ? `${c.price.toLocaleString('en-US')} · ${(c.price - p.coins).toLocaleString('en-US')} short` : `Buy ${c.price.toLocaleString('en-US')}`, name: `Buy ${c.name} for ${c.price} coins`, off: p.coins < c.price, slim: p.coins < c.price, quiet: true,
       onPress: () => { const next = buy(p, id); if (next !== p) feel(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)); put(next); } }
     : { label: fits ? need[0] : 'Locked', slim: true, name: `${c.name}, locked${need[0] ? `: ${need[0]}` : ''}`, off: true, onPress: () => {} };
   const rest = c.price === undefined && fits ? need.slice(1) : need; // what the button does not already say
