@@ -9,3 +9,21 @@
 /*.png
   ! Cache-Control
   Cache-Control: public, max-age=86400
+
+# The free match (scripts/demo-web.mjs): CanvasKit is WebAssembly, and React Native for the web writes its styles inline.
+/play/*
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'
+
+/play/_expo/*
+  ! Cache-Control
+  Cache-Control: public, max-age=31536000, immutable
+
+/play/assets/*
+  ! Cache-Control
+  Cache-Control: public, max-age=31536000, immutable
+
+# canvaskit.wasm has no hash in its name: always ask, so a new Skia never meets an old wasm (an unchanged one is a 304).
+/play/*.wasm
+  ! Cache-Control
+  Cache-Control: public, max-age=0, must-revalidate

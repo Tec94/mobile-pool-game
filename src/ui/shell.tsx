@@ -2,8 +2,8 @@
 // the body: a Split (choices left, the Panel with the one cream button right) or a grid of Tiles. Landscape when the
 // window is wider than tall; in portrait a Split's panel goes under its choices.
 import * as Haptics from 'expo-haptics';
-import { createContext, type ReactNode, useContext, useRef } from 'react';
-import { Platform, ScrollView, type ScrollViewInstance, type StyleProp, StyleSheet, useWindowDimensions, View, type ViewStyle } from 'react-native';
+import { createContext, type ReactNode, type RefObject, useContext, useRef, useState } from 'react';
+import { Platform, Pressable, ScrollView, type ScrollViewInstance, type ScrollViewProps, type StyleProp, StyleSheet, useWindowDimensions, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { profile } from '../progress';
 import { levelOf } from '../progress/profile';
@@ -64,40 +64,76 @@ export function Strip({ title, back, settings, extra }: { title?: string; back?:
 
 // The body of a screen with a panel: choices on the left (scrolling), the panel on the right. Portrait: the panel under them.
 // at = the offset to open scrolled to (Infinity = the end).
-export function Split({ children, panel, at }: { children: ReactNode; panel: ReactNode; at?: number }) {
-  const { land, side, pad } = useFrame(), w = usePanel(), scroll = useRef<ScrollViewInstance>(null), opened = useRef(false);
+export function Split({ children, panel, at, wide }: { children: ReactNode; panel: ReactNode; at?: number; wide?: boolean }) {
+  const { land, side, pad } = useFrame(), w = usePanel(wide), scroll = useRef<ScrollViewInstance>(null), dragged = useRef(false), seen = useRef(land);
+  if (seen.current !== land) { seen.current = land; dragged.current = false; } // a turn of the phone lays the screen out anew
+  // again on each size or layout change (the More strip shrinks the box after the first try), until the player touches the screen
+  const open = () => { if (!at || dragged.current) return; if (at === Infinity) scroll.current?.scrollToEnd({ animated: false }); else scroll.current?.scrollTo({ y: at, animated: false }); };
   return (
-    <View style={{ flex: 1, flexDirection: land ? 'row' : 'column', gap: 16, paddingHorizontal: side, paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16) }}>
-      <ScrollView ref={scroll} style={{ flex: 1 }} keyboardShouldPersistTaps="handled" alwaysBounceVertical={false}
-        onContentSizeChange={() => { if (at && !opened.current) { opened.current = true; if (at === Infinity) scroll.current?.scrollToEnd({ animated: false }); else scroll.current?.scrollTo({ y: at, animated: false }); } }}>{children}</ScrollView>
-      <View style={land && { width: w }}>{panel}</View>
+    <View onTouchStart={() => { dragged.current = true; }} style={{ flex: 1, flexDirection: land ? 'row' : 'column', gap: 16, paddingHorizontal: side, paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16) }}>
+      <Scroll scrollRef={scroll} style={{ flex: 1 }} keyboardShouldPersistTaps="handled"
+        onContentSizeChange={open} onLayout={open} onScrollBeginDrag={() => { dragged.current = true; }}>{children}</Scroll>
+      <View style={[styles.box, land ? { width: w } : { flexShrink: 1, maxHeight: '60%' }]}>{panel}</View>
     </View>
   );
 }
-// The panel's width: at most 268 pt and 36% of the body in landscape, the body's width in portrait.
-export function usePanel() { const { land, side, width } = useFrame(); return land ? Math.min(268, 0.36 * (width - 2 * side)) : width - 2 * side; }
 
-// The panel: a head row, a picture (picture(w) at the panel's inner width; in portrait only on a window 700 pt tall),
+// A ScrollView that says when it holds more: while content lies past its far edge, that edge fades into bg and a
+// small "More" slab sits in its own strip beyond it, so it never covers content (a press pages on). Scrolled to the
+// end, the slab reads "Top"; scrolled at all, the near edge fades too. The strip stays while the content overflows, so the view never jumps. Menus fit their screen; this is for what cannot.
+export function Scroll({ horizontal, style, bg = C.menu, scrollRef, onLayout, onContentSizeChange, onScroll, children, ...rest }: ScrollViewProps & { bg?: string; scrollRef?: RefObject<ScrollViewInstance | null> }) {
+  const own = useRef<ScrollViewInstance>(null), ref = scrollRef ?? own, m = useRef({ outer: 0, box: 0, size: 0, at: 0 }), [more, setMore] = useState(false), [over, setOver] = useState(false), [top, setTop] = useState(false), [fade, setFade] = useState(18);
+  // over = the content is longer than the whole view, measured outside the strip, so the strip showing cannot change it
+  const check = () => { const { outer, box, size, at } = m.current; setOver(outer > 0 && size > outer + 1); setMore(box > 0 && size - box - at > 6); setTop(at > 6); setFade(Math.min(18, box / 3)); }; // a short box keeps two thirds clear
+  const page = () => { const { box, at } = m.current, to = more ? at + box * 0.8 : 0; ref.current?.scrollTo(horizontal ? { x: to } : { y: to }); };
+  return (
+    <View style={[styles.box, style, horizontal && { flexDirection: 'row' }]} onLayout={e => { m.current.outer = horizontal ? e.nativeEvent.layout.width : e.nativeEvent.layout.height; check(); }}>
+      <View style={styles.fill}>
+        <ScrollView ref={ref} horizontal={horizontal} style={styles.fill} alwaysBounceVertical={false} scrollEventThrottle={32}
+          showsHorizontalScrollIndicator={false} {...rest}
+          onLayout={e => { m.current.box = horizontal ? e.nativeEvent.layout.width : e.nativeEvent.layout.height; check(); onLayout?.(e); }}
+          onContentSizeChange={(w, h) => { m.current.size = horizontal ? w : h; check(); onContentSizeChange?.(w, h); }}
+          onScroll={e => { m.current.at = horizontal ? e.nativeEvent.contentOffset.x : e.nativeEvent.contentOffset.y; check(); onScroll?.(e); }}>{children}</ScrollView>
+        {more && <View pointerEvents="none" style={[styles.fade, horizontal ? { top: 0, bottom: 0, right: 0, width: 28, flexDirection: 'row' } : { left: 0, right: 0, bottom: 0, height: fade }]}>
+          {[0.15, 0.35, 0.55, 0.75, 0.92].map(o => <View key={o} style={{ flex: 1, backgroundColor: bg, opacity: o }} />)}
+        </View>}
+        {over && top && !horizontal && <View pointerEvents="none" style={[styles.fade, { left: 0, right: 0, top: 0, height: fade }]}>
+          {[0.92, 0.75, 0.55, 0.35, 0.15].map(o => <View key={o} style={{ flex: 1, backgroundColor: bg, opacity: o }} />)}
+        </View>}
+      </View>
+      {over && <Pressable onPress={page} hitSlop={horizontal ? { right: 12 } : { bottom: 12 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={horizontal ? styles.moreSide : styles.moreFoot}>
+        <View style={styles.more}><Txt style={styles.moreText}>{horizontal ? (more ? '›' : '‹') : more ? 'More ▾' : 'Top ▴'}</Txt></View>
+      </Pressable>}
+    </View>
+  );
+}
+// The panel's width: at most 268 pt and 36% of the body in landscape (wide: 360 pt and 46%), the body's width in portrait.
+export function usePanel(wide?: boolean) { const { land, side, width } = useFrame(); return land ? Math.min(wide ? 360 : 268, (wide ? 0.46 : 0.36) * (width - 2 * side)) : width - 2 * side; }
+
+// The panel: a head row, a picture (picture(w) at the panel's inner width; in portrait only on a window 700 pt tall, unless always),
 // what else it holds (scrolls when tall), and the screen's one button at its foot.
-export function Panel({ head, picture, children, cta }: { head: ReactNode; picture?: (w: number) => ReactNode; children?: ReactNode; cta: Action }) {
+// foot = what must always show above the button (it never scrolls away).
+export function Panel({ head, picture, always, children, foot, cta }: { head: ReactNode; picture?: (w: number) => ReactNode; always?: boolean; children?: ReactNode; foot?: ReactNode; cta: Action }) {
   const { land, height } = useFrame(), w = usePanel() - 24;
   return (
-    <Slab paint={DARK} style={land && { flex: 1 }} face={styles.panel}>
+    <Slab paint={DARK} style={land ? { flex: 1, minHeight: 0 } : { flexShrink: 1, minHeight: 0 }} face={styles.panel}>
       <View style={styles.row}>{head}</View>
-      {picture && (land || height >= 700) && <View style={{ alignItems: 'center' }}>{picture(w)}</View>}
-      <ScrollView style={land ? { flex: 1 } : { flexGrow: 0 }} alwaysBounceVertical={false}>{children}</ScrollView>
+      {picture && (land || always || height >= 700) && <View style={{ alignItems: 'center' }}>{picture(w)}</View>}
+      <Scroll bg={DARK[0]} style={land ? { flex: 1 } : { flexShrink: 1 }}>{children}</Scroll>
+      {foot}
       <Cta {...cta} />
     </Slab>
   );
 }
 
 // The one cream button of a screen. off = it cannot be pressed now: a dark face, chalk at 60%.
-export function Cta({ label, name, onPress, off, quiet }: Action) {
-  const tall = useFrame().height >= 390;
+export function Cta({ label, name, onPress, off, quiet, slim, sub }: Action) {
+  const tall = useFrame().height >= 430;
   return (
     <Slab paint={off ? DARK : CREAM} onPress={() => { if (!quiet) feel(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)); onPress(); }} disabled={off} accessibilityLabel={name ?? label}
-      style={{ height: tall ? 64 : 58, opacity: 1 }} face={styles.cta}>
-      <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.ctaText, off && { color: C.chalk, opacity: 0.6 }]}>{label}</Txt>
+      style={{ height: slim ? 34 : tall ? 64 : 58, opacity: 1 }} face={styles.cta}>
+      <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.ctaText, slim && styles.slimText, off && { color: C.chalk, opacity: 0.6 }]}>{label}</Txt>
+      {!!sub && <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[styles.sub, off && { color: C.chalk, opacity: 0.6 }]}>{sub}</Txt>}
     </Slab>
   );
 }
@@ -106,7 +142,7 @@ export function Cta({ label, name, onPress, off, quiet }: Action) {
 export function Tile({ paint, name, title, onPress, style, face, children }: { paint: Paint; name: string; title?: string; onPress?: () => void; style?: StyleProp<ViewStyle>; face?: StyleProp<ViewStyle>; children?: ReactNode }) {
   return (
     <Slab paint={paint} onPress={onPress} accessibilityRole="button" accessibilityLabel={name} style={style} face={[styles.tile, face]}>
-      {title && <Txt numberOfLines={2} style={[styles.tileTitle, { color: inkOn(paint) }]}>{title}</Txt>}
+      {title && <Txt numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.75} style={[styles.tileTitle, { color: inkOn(paint) }]}>{title}</Txt>}
       {children}
     </Slab>
   );
@@ -119,7 +155,7 @@ const Sliders = () => (
   </View>
 );
 
-export interface Action { label: string; name?: string; onPress: () => void; off?: boolean; quiet?: boolean } // off = cannot be pressed now; quiet = the press gives its own haptic
+export interface Action { label: string; name?: string; onPress: () => void; off?: boolean; quiet?: boolean; slim?: boolean; sub?: string } // off = cannot be pressed now; quiet = the press gives its own haptic; slim = a state, not a call to act; sub = a small line under the label
 // A row of keys, chips or fields side by side, wrapping when the screen is narrow.
 export const Row = ({ children, gap = 16 }: { children: ReactNode; gap?: number }) => <View style={[styles.row, styles.wrap, { columnGap: gap, rowGap: 8 }]}>{children}</View>;
 
@@ -137,7 +173,16 @@ const styles = StyleSheet.create({
   knob: { position: 'absolute', top: -2, width: 4, height: 6, borderRadius: 1, backgroundColor: C.chalk },
   cta: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   ctaText: { fontFamily: FONT.display, fontSize: 28, lineHeight: 32, color: C.ink },
-  panel: { padding: 12, gap: 8 },
+  slimText: { fontSize: 15, lineHeight: 18 },
+  sub: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 14, color: C.ink, opacity: 0.75, marginTop: -2 },
+  panel: { padding: 12, gap: 8, flexShrink: 1, minHeight: 0 }, // shrinks to the slab (portrait: at most 60% of the body), so its middle scrolls rather than pushing the button off
   tile: { paddingVertical: 10, paddingHorizontal: 12 },
+  box: { minHeight: 0, minWidth: 0 }, // a web flex item would not shrink below its content otherwise (native Yoga already does)
+  fill: { flexGrow: 1, flexShrink: 1, minHeight: 0, minWidth: 0 }, // fills a sized box; in an unsized one it takes its content's size
+  fade: { position: 'absolute' },
+  moreFoot: { height: 24, alignItems: 'center', justifyContent: 'flex-end' },
+  moreSide: { width: 26, alignItems: 'flex-end', justifyContent: 'center' },
+  more: { height: 21, paddingHorizontal: 8, borderRadius: 3, backgroundColor: C.chalk, borderBottomWidth: 3, borderBottomColor: CREAM[1], justifyContent: 'center' }, // a small chalk slab with its lip
+  moreText: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 13, color: C.ink },
   tileTitle: { fontFamily: FONT.display, fontSize: 19, lineHeight: 21 },
 });

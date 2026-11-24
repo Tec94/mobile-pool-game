@@ -3,7 +3,20 @@
 // The status is also in public/index.html (the chip by the name, the footer) and in public/og.png: change those too. test/roadmap.test.mjs holds the chip to NOW.
 import { CUE, HOLES, P } from '../../src/physics/engine.ts';
 
-export const STEPS = ['Real physics', '8-ball and 9-ball', 'An AI that banks', 'Scenarios and lessons', 'Tournaments', 'App Store review', 'Out on iPhone', 'Leaderboards', 'Online play'];
+export const STEPS = ['Real physics', '8-ball and 9-ball', 'An AI that banks', 'Scenarios and lessons', 'Tournaments', 'App Store review', 'Out on iPhone', 'Online play', 'Leaderboards'];
+// What the steps after the one in hand hold, a line each, shown with their rows. No dates: none are set.
+export const PLANS = {
+  6: ['The waitlist gets an email at launch.', 'Every cue is won by playing. None are sold.'],
+  7: ['Invite a friend.', 'Or get matched with a stranger.', 'Ranked games and online tournaments.', 'In 8-ball and 9-ball.'],
+  8: ['Daily Table scores, scenario stars, tournament wins and win streaks.', 'Friends and global boards.', 'Out together with online play.'],
+};
+// The rest of the plan, in one block with no ball: a heading and its lines each.
+export const ALSO = [
+  ['Sign-in', ['Optional: Apple, Google or email.']],
+  ['Tip jar', ['Through Apple, if you want to back the game.', 'Tips unlock nothing. The game stays one price.']],
+  ['iPad and Android', ['The same game on more screens.']],
+  ['More cues and modes', ['New cues to win, new ways to play.']],
+];
 export const NOW = 5; // index into STEPS: 5 = the 6 ball
 export const SINCE = 'Sent 20 Nov'; // the tag of the step in hand
 export const FILM = 2; // how many of the done steps are potted before the visitor's eyes; the ones before are down already

@@ -47,5 +47,9 @@ ball-frames/
 site/.wrangler/
 site/public/app.js
 
+# the web demo (npm run demo): its build copy and what it builds
+.demo-build/
+site/public/play/
+
 # App Clip icons, made from assets/icon.png at prebuild
 targets/*/Assets.xcassets/

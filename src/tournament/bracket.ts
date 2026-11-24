@@ -10,7 +10,7 @@ export type { Opts };
 
 export interface Cup { name: string; lo: number; hi: number; level: number; prize: number }
 // lo..hi = the field's ratings on the tier scale (1 Rookie .. 6 Legend); level = the player level that opens it without
-// winning a silver or gold in the cup below; prize = XP a round won as champion of a best-of-1 (prize()).
+// winning the cup below (gold); prize = XP a round won as champion of a best-of-1 (prize()).
 export const CUPS: Cup[] = [
   { name: 'Club', lo: 1.0, hi: 2.4, level: 0, prize: 60 },
   { name: 'City', lo: 2.3, hi: 3.8, level: 10, prize: 210 },
@@ -136,10 +136,13 @@ export function prize(opts: Opts, won: number): Pay {
   const xp = Math.round(CUPS[opts.cup].prize * n * FRAMES[opts.best] * share);
   return { xp, coins: Math.round(xp / 2) };
 }
-// Trophies: per cup the best medal won, 0 none, 1 bronze (champion of 4), 2 silver (of 8, best of 1), 3 gold (of 8,
-// best of 3 or 5). A cup opens at its level, or with any medal of 2 or more in the cup below.
-export const medalOf = (o: Opts) => (o.size === 4 ? 1 : o.best === 1 ? 2 : 3);
-export const cupOpen = (cup: number, trophies: number[], level: number) => !cup || level >= CUPS[cup].level || (trophies[cup - 1] ?? 0) >= 2;
+// Trophies: per cup the best medal won, by how far the player got: 0 none, 1 bronze (out in a semifinal of 8), 2 silver
+// (out in the final), 3 gold (champion), any format. A cup opens at its level, or with a gold (the title) in the cup below.
+export function medalOf(run: Run) {
+  const won = wins(run);
+  return run.state === 'playing' || !won ? 0 : Math.max(0, 3 - (rounds(run.opts.size) - won));
+}
+export const cupOpen = (cup: number, trophies: number[], level: number) => !cup || level >= CUPS[cup].level || (trophies[cup - 1] ?? 0) >= 3;
 
 // A saved run, or null when it is missing, damaged or from a newer app (never a crash).
 export function readRun(text: string | null): Run | null {

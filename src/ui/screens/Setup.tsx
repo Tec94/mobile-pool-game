@@ -21,8 +21,9 @@ const TOP = MASTERS - 1, WIN = matchPay({ tier: MASTERS, won: true, fouls: 0 });
 // A row: its label, centred on the key face, then its keys. Under 430 pt wide the label goes above, and note at its right.
 // The keys' box has a set width and stretches its child: on a phone, Yoga sizes a wrapping row that shrinks to its
 // keys a fraction too narrow, so the last key wraps, and gives the row one line's height, so rows overlap.
-export function Line({ label, note, children }: { label: string; note?: ReactNode; children: ReactNode }) {
-  const { width, side, land } = useFrame(), narrow = width < 430, panel = usePanel();
+// inline = keep the label beside the keys on a narrow window too (a short phone, where the rows must give up height).
+export function Line({ label, inline, note, children }: { label: string; inline?: boolean; note?: ReactNode; children: ReactNode }) {
+  const { width, side, land } = useFrame(), narrow = width < 430 && !inline, panel = usePanel();
   return (
     <View style={[styles.line, narrow && { flexDirection: 'column', alignItems: 'stretch', gap: 4 }]}>
       {narrow && note ? <View style={styles.line}><Txt style={[styles.label, { flex: 1 }]}>{label}</Txt>{note}</View>
@@ -41,25 +42,26 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
   const game = quick ? set.aiGame : set.game, rival = set.tier === RIVAL, rating = shown(profile().rival[set.aiGame].rating);
   const opp = quick ? (rival ? `Rival ${rating}` : TIERS[set.tier].name) : names[1].trim() || 'Player 2', me = quick ? 'You' : names[0].trim() || 'Player 1';
   const start = () => { if (quick) return go('ai'); change({ names: names.map((n, i) => n.trim() || `Player ${i + 1}`) as [string, string] }); go('match'); };
-  const { charges, armed } = daily.chalk, narrow = useFrame().width < 430;
+  const { charges, armed } = daily.chalk, { land, height, width } = useFrame(), tight = height < (land ? 380 : 700), il = tight && !land; // an SE-sized phone: labels beside the keys, so the table fits
+  const narrow = width < 430;
   // What a Masters win pays, where it adds no height: beside the Opponent label on a phone, else in the panel's free space.
   // Only a win that ran out every rack it took pays that; else it pays as a Legend win (the results card says why).
   const pays = quick && set.tier === TOP && <Txt numberOfLines={narrow ? 1 : 2} style={[styles.note, !narrow && { textAlign: 'center' }]}>Run-out win pays up to{narrow ? ' ' : '\n'}<Txt style={{ color: C.gold }}>{`${num(WIN.xp)} XP · ${num(WIN.coins)} coins`}</Txt></Txt>;
   return (
     <Shell title={quick ? 'Quick match' : 'Pass and play'} back={() => go('home')}>
       <Split panel={
-        <Panel head={<>
+        <Panel always head={<>
           <BallArt n={1} size={26} label={quick ? undefined : me.slice(0, 2)} /><Txt numberOfLines={1} style={[styles.name, quick && { flexShrink: 0 }]}>{me}</Txt>
           <View style={{ flex: 1 }} />
           <Txt numberOfLines={2} style={[styles.name, { textAlign: 'right' }]}>{opp}</Txt><BallArt n={8} size={26} label={opp[0]} />
-        </>} picture={w => <MiniTable width={w} {...rackOf(game)} rings={game === 8 && set.callAll} lit={game === 8 && set.bank ? [0, 1] : undefined} cloth={set.cloth} />}
+        </>} picture={w => <MiniTable width={land ? w : Math.min(w, height >= 700 ? 280 : 150)} {...rackOf(game)} rings={game === 8 && set.callAll} lit={game === 8 && set.bank ? [0, 1] : undefined} cloth={set.cloth} />}
           cta={{ label: 'Play', name: quick ? 'Play quick match' : 'Play pass and play', onPress: start }}>{!narrow && pays}</Panel>}>
-        <View style={{ gap: 17 }}>
-          <View style={styles.group}>
-            <Line label="Game"><Keys label="Game" value={game} pick={g => change(quick ? { aiGame: g } : { game: g })} options={GAMES} /></Line>
-            <Line label="Race to"><Keys label="Race to" value={quick ? set.aiRace : set.race} pick={r => change(quick ? { aiRace: r } : { race: r })} options={RACE_KEYS} /></Line>
+        <View style={{ gap: tight ? 6 : land ? 10 : 14 }}>
+          <View style={[styles.group, tight && { gap: 6 }]}>
+            <Line label="Game" inline={il}><Keys label="Game" value={game} pick={g => change(quick ? { aiGame: g } : { game: g })} options={GAMES} /></Line>
+            <Line label="Race to" inline={il}><Keys label="Race to" value={quick ? set.aiRace : set.race} pick={r => change(quick ? { aiRace: r } : { race: r })} options={RACE_KEYS} /></Line>
           </View>
-          {quick ? <View style={styles.group}>
+          {quick ? <View style={[styles.group, tight && { gap: 6 }]}>
             <Line label="Opponent" note={narrow && pays}>
               <View style={styles.opps} accessibilityRole="radiogroup" accessibilityLabel="Opponent">
                 {[RIVAL, ...TIERS.map((_, i) => i)].map(t => {
@@ -77,25 +79,25 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
                 })}
               </View>
             </Line>
-            {rival && <Line label="Mood"><View style={styles.line}>
+            {rival && <Line label="Mood" inline={il}><View style={styles.line}>
               <View style={{ flex: 1 }}><Keys label="Rival mood" value={set.mood} pick={mood => change({ mood })} options={MOODS.map(m => [m[0].toUpperCase() + m.slice(1), m])} /></View>
               <Slab paint={DARK} lip={3} radius={3} onPress={reset} hitSlop={{ top: 5, bottom: 5, left: 4, right: 4 }} accessibilityLabel={sure ? `Tap again to reset the ${set.aiGame}-ball Rival` : 'Reset Rival rating'} style={{ marginLeft: 8 }} face={styles.reset}>
                 <Txt style={styles.resetText}>{sure ? 'Sure?' : 'Reset'}</Txt>
               </Slab>
             </View></Line>}
-          </View> : <View style={styles.group}>
+          </View> : <View style={[styles.group, tight && { gap: 6 }]}>
             {names.map((n, i) => (
-              <Line key={i} label={`Player ${i + 1}`}>
+              <Line key={i} label={`Player ${i + 1}`} inline={il}>
                 <TextInput value={n} onChangeText={t => setNames(i ? [names[0], t] : [t, names[1]])} maxLength={NAME_MAX} autoCorrect={false} autoCapitalize="words" autoComplete="off" returnKeyType="done" maxFontSizeMultiplier={1.3}
                   selectTextOnFocus accessibilityLabel={`Player ${i + 1} name`} placeholder={`Player ${i + 1}`} placeholderTextColor={C.chalk + '80'} style={styles.input} />
               </Line>
             ))}
           </View>}
-          {game === 8 && <View style={styles.group}>
-            <Line label="Call"><Keys label="Call" value={set.callAll} pick={callAll => change({ callAll })} options={[['Every shot', true], ['Only the 8-ball', false]]} /></Line>
-            <Line label="Bank shots"><Keys<Settings['bank']> label="Bank shots" value={set.bank} pick={bank => change({ bank })} options={[['Off', 0], ['8-ball only', 1], ['Every ball', 2]]} /></Line>
+          {game === 8 && <View style={[styles.group, tight && { gap: 6 }]}>
+            <Line label="Call" inline={il}><Keys label="Call" value={set.callAll} pick={callAll => change({ callAll })} options={[['Every shot', true], ['Only the 8-ball', false]]} /></Line>
+            <Line label="Banks" inline={il}><Keys<Settings['bank']> label="Bank shots" value={set.bank} pick={bank => change({ bank })} options={[['Off', 0], ['8-ball only', 1], ['Every ball', 2]]} /></Line>
           </View>}
-          {quick && charges > 0 && <Line label="Chalk">
+          {quick && charges > 0 && <Line label="Chalk" inline={il}>
             <View style={styles.keys} accessibilityRole="radiogroup" accessibilityLabel="Fresh Chalk">
               <Key label="Off" name="Chalk off" on={!armed} onPress={() => arm(false)} />
               <Key label="Win pays ×2" name="Chalk on: win pays double" on={armed} onPress={() => arm(true)} icon={<View style={styles.cube} />} />

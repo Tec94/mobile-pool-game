@@ -77,7 +77,10 @@ export function drawAim(api: typeof Skia, canvas: SkCanvas, v: View, path: numbe
   const r = P.R * v.s, p = api.Paint(); p.setAntiAlias(true); p.setColor(api.Color(x.gold ? C.gold : C.chalk)); p.setStyle(1); p.setStrokeCap(1); p.setStrokeJoin(1); // gold = the Seer's eye says this shot pots; stroke, round, round
   p.setAlphaf(0.92); p.setStrokeWidth(0.19 * r);
   let run: number[][] = [];
-  const end = () => { if (run.length > 1) canvas.drawPath(api.Path.Polygon(run.map(([x, y]) => toScreen(v, x, y)), false), p); run = []; };
+  const end = () => { // a point under 1 px from the last one kept is left out (a slow pull's path has a point every mm), the last one never
+    if (run.length > 1) { const pts = run.map(([x, y]) => toScreen(v, x, y)), kept = [pts[0]]; for (let i = 1; i < pts.length; i++) { const q = kept[kept.length - 1]; if (i === pts.length - 1 || Math.hypot(pts[i].x - q.x, pts[i].y - q.y) >= 1) kept.push(pts[i]); } canvas.drawPath(api.Path.Polygon(kept, false), p); }
+    run = [];
+  };
   for (const q of path) if ((q[2] || 0) > 0.05 * P.R) end(); else run.push(q);
   end();
   if (!bad) { run = ob; end(); }
