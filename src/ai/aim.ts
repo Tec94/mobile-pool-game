@@ -292,15 +292,17 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
       if (trusted()) break;
     }
   }
-  // show: a checked trick shot, kiss shot (combo, carom, billiard) or double pot worth at least 1 / (1 + show) of the
-  // best, whose chance is at most SHOW_GAP under it and whose rollout scored as well (pot, centre, leave), is played in its
-  // place. Without that last check (140 tables, bench why.mjs) it cleared 85 in place of 99 at 37% trick pots; with it
-  // 94 at 25%: the chance tops out at SURE, so value ties hide a worse leave or line.
-  const flair = (x: Run) => (fancy(x.c) || x.c.type === 'combo' || x.c.type === 'carom' || x.c.type === 'billiard' || !!x.r?.extra) && x.v > 0;
-  if (tier.show && !flair(won)) for (const x of runs.filter((x) => flair(x) && x.r!.score >= (won.r?.score ?? 0)).sort((a, b) => b.v - a.v)) {
-    if (x.v * (1 + tier.show) < won.v) break;
+  // show: a fancier pot (fancy: a cushion past the first, 2 for a jump, 1 for a kiss shot, combo, carom or billiard, and
+  // 1 for each second ball potted) whose value times 1 + show x fancy is at least the best's, whose checked chance is at
+  // most SHOW_GAP under it and whose rollout scored as well (pot, centre, leave), is played in its place. Without that
+  // last check (140 tables, bench why.mjs) it cleared 85 in place of 99 at 37% trick pots; with it 94 at 25%: the chance
+  // tops out at SURE, so value ties hide a worse leave or line.
+  const fl = (x: Run) => (x.v > 0 ? Math.max(0, (x.c.rails ?? 1) - 1) + (x.c.elev ? 2 : 0) + +(x.c.type === 'combo' || x.c.type === 'carom' || x.c.type === 'billiard') + x.r!.extra : 0);
+  const shown = (x: Run) => x.v * (1 + tier.show! * fl(x));
+  if (tier.show) for (const x of runs.filter((x) => fl(x) > fl(won) && x.r!.score >= (won.r?.score ?? 0)).sort((a, b) => shown(b) - shown(a))) {
+    if (shown(x) < shown(won)) break;
     check(x);
-    if (x.v * (1 + tier.show) >= won.v && x.p >= won.p - SHOW_GAP) { won = x; break; }
+    if (shown(x) >= shown(won) && x.p >= won.p - SHOW_GAP) { won = x; break; }
   }
   // A tier with tricks has measured its pots: when none pots on the engine, or the best only in under SAFE_P of verify()'s
   // rollouts, it plays a safety or an escape after all, unless it must shoot (safetiesInRow). Past the deadline it plays
