@@ -380,11 +380,12 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   built.append(fold); built.hidden = !NOW;
   const chips = [...fold.querySelectorAll('.tray > .ball')];
   const rows = STEPS.map((name, i) => {
-    const b = document.createElement('button'), li = list.appendChild(document.createElement('li'));
-    b.type = 'button'; b.className = i < NOW ? 'done' : i === NOW ? 'now' : 'later'; b.tabIndex = i === here ? 0 : -1;
+    const ahead = i > NOW, b = document.createElement(ahead ? 'div' : 'button'), li = list.appendChild(document.createElement('li')); // a plan ahead is a heading, not a key: its ball waits on a table off the screen
+    b.className = i < NOW ? 'done' : i === NOW ? 'now' : 'later';
+    if (!ahead) { b.type = 'button'; b.tabIndex = i === here ? 0 : -1; }
     if (i === NOW) b.setAttribute('aria-current', 'step');
-    b.innerHTML = `<i class="ball b${i + 1}"><i>${i + 1}</i></i><b>${name}</b><span>${when(i)}</span>`;
-    b.onclick = () => { if (state === 'wait') { show(); start(); } choose(i); say.textContent = `The ${i + 1} is ${down(i) ? 'down' : i < NOW ? 'about to drop' : 'on the table'}.`; }; // a tap on a row also starts a film that is still waiting // for a screen reader: the page shows it as a ring on the table
+    b.innerHTML = `<i class="ball b${i + 1}" aria-hidden="true"><i>${i + 1}</i></i>${ahead ? `<h3>${name}</h3>` : `<b>${name}</b>`}<span>${when(i)}</span>`;
+    if (!ahead) b.onclick = () => { start(); choose(i); say.textContent = `The ${i + 1} is ${down(i) ? 'down' : i < NOW ? 'about to drop' : 'on the table'}.`; }; // a tap on a row also starts a film that is still waiting // for a screen reader: the page shows it as a ring on the table
     li.append(b); li.hidden = i < NOW; if (i > NOW) li.className = `slab ahead c${i + 1}`; // the plans ahead: a block each, in its ball's colour
     if (PLANS[i]) { const u = li.appendChild(document.createElement('ul')); u.className = 'plan'; for (const t of PLANS[i]) u.appendChild(document.createElement('li')).textContent = t; }
     return b;
@@ -399,13 +400,13 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   const down = i => !v.B[i + 1].on;
   function choose(i = sel) { // row i is lit; its ball is ringed on the table, or the pocket it went down
     sel = i;
-    rows.forEach((b, j) => { b.setAttribute('aria-pressed', j === i); b.tabIndex = j === i ? 0 : -1; b.classList.toggle('in', down(j)); }); // one stop for the Tab key: the arrows move in the list
-    chips.forEach((c, j) => c.classList.toggle('in', down(j))); // a ball potted in the film drops into the folded row too
+    rows.forEach((b, j) => { if (j > NOW) return; b.setAttribute('aria-pressed', j === i); b.tabIndex = j === i ? 0 : -1; b.classList.toggle('in', down(j)); }); // one stop for the Tab key: the arrows move in the list
+    chips.forEach((c, j) => c.classList.toggle('in', down(j) || state === 'wait')); // while the film waits the tray is full: its balls drop in when it runs // a ball potted in the film drops into the folded row too
     v.mark = down(i) || i === NOW ? null : i + 1; v.ring = down(i) ? PLAN[i][0] : null;
     if (sc) sc.dirty = true;
   }
   list.addEventListener('keydown', e => { // the arrows move among the fold and the rows that show
-    const keys = [fold, ...rows.filter(b => !b.parentElement.hidden)], i = keys.indexOf(document.activeElement);
+    const keys = [fold, ...rows.filter((b, j) => j <= NOW && !b.parentElement.hidden)], i = keys.indexOf(document.activeElement);
     const j = i < 0 || e.altKey || e.ctrlKey || e.metaKey ? null : { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: keys.length - 1 }[e.key], r = keys[j];
     if (j != null && r) { e.preventDefault(); r.focus(); if (r !== fold) choose(rows.indexOf(r)); }
   }); // no line for the screen reader here: the focus reads the row
@@ -433,10 +434,10 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   table.felt.onclick = () => { if (!again.hidden) replay(); }; // a tap on the table plays it again too, where it is
   // The film starts when the table and the row of the step in hand are in view together, so every ball lands in a row
   // the visitor can see; on a screen too short for both, when the whole table is in view.
-  const start = () => { if (state === 'wait') state = 'aim'; }, first = rows[here];
+  const start = () => { if (state === 'wait') { state = 'aim'; choose(); } }, first = rows[here];
   const seen = () => { if (state !== 'wait') return; const c = table.felt.getBoundingClientRect(), r = first.getBoundingClientRect(); if (inView(c.top, c.bottom, r.bottom, r.height, innerHeight)) start(); };
   addEventListener('scroll', seen, { passive: true }); addEventListener('resize', seen); seen();
-  list.addEventListener('focusin', e => { if (state === 'wait' && e.target !== fold) { show(); start(); } }); // a keyboard user Tabs to the rows: show them the film
+  list.addEventListener('focusin', e => { if (state === 'wait' && e.target !== fold && e.target.matches(':focus-visible')) { show(); start(); } }); // a keyboard user Tabs to the rows: show them the film
   new IntersectionObserver(([e]) => { if (!e.isIntersecting && /aim|run|rest/.test(state)) set(replays(k, !v.B[k + 1]?.on)); }).observe(table.felt); // scrolled away mid-film
   sc = scene(table, (ms, me) => {
     t += ms;

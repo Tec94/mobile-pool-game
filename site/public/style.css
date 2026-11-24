@@ -140,7 +140,7 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 /* the table and the nine rows fit one screen */
 .stand { width: min(1320px, 100vw - 2 * var(--gut), max(520px, (100svh - 450px) * 1.8)); margin-inline: auto; position: relative; container-type: inline-size; }
 .steps { list-style: none; padding: 0; margin-top: 18px; display: grid; grid-template-columns: minmax(0, 1fr); }
-.steps button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 46px; padding: 2px 12px 2px 8px; border: 0; border-radius: 5px; background: none; color: var(--chalk); text-align: left; }
+.steps button, .steps .later { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 46px; padding: 2px 12px 2px 8px; border: 0; border-radius: 5px; background: none; color: var(--chalk); text-align: left; }
 .steps button[aria-pressed=true] { background: var(--dark); box-shadow: 0 4px 0 var(--dark-lip); }
 .steps .ball { width: 36px; flex: none; }
 .steps .in .ball { animation: drop .34s cubic-bezier(.2, 1.7, .4, 1); }
@@ -149,7 +149,7 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 .steps button.now { background: var(--dark); box-shadow: 0 4px 0 var(--dark-lip); } /* the step in hand keeps its slab; when lit it gets a gold edge */
 .steps button.now[aria-pressed=true] { outline: 2px solid var(--gold); outline-offset: -2px; }
 .steps li:has(> .now) { margin-bottom: 8px; }
-.steps b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: clamp(15px, 4.9cqw, 26px); letter-spacing: -.02em; line-height: 1.15; white-space: nowrap; }
+.steps b, .steps h3 { font-family: var(--display); font-weight: 800; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: clamp(15px, 4.9cqw, 26px); letter-spacing: -.02em; line-height: 1.15; white-space: nowrap; }
 .steps span { font: 700 clamp(13px, 1.9cqw, 15px)/1 var(--ui); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; color: var(--chalk); margin-left: 4px; }
 .steps .now b, .steps .now span { color: var(--gold); }
 .steps .fold { margin-bottom: 10px; padding-left: 10px; background: var(--face); box-shadow: 0 4px 0 var(--lip); }
@@ -162,16 +162,14 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 .tray .ball.in { animation: drop .34s cubic-bezier(.2, 1.7, .4, 1); }
 .steps .plan { list-style: none; padding: 6px 12px 12px 56px; display: grid; gap: 4px; font: 500 clamp(15px, 2.2cqw, 22px)/1.35 var(--ui); max-width: 64ch; text-wrap: pretty; }
 .steps .ahead { margin-top: 12px; --t: var(--ink); color: var(--t); }
-.steps .ahead button, .steps .ahead button[aria-pressed=true] { background: none; box-shadow: none; color: var(--t); padding-top: 8px; }
-.steps .ahead:has(button[aria-pressed=true]) { outline: 3px solid var(--t); outline-offset: -3px; }
+.steps .ahead .later { color: var(--t); padding-top: 8px; }
 .steps .ahead .ball { box-shadow: 0 0 0 2px #16191A40; }
-.steps .ahead button span { color: var(--t); }
-.steps .ahead button:focus-visible { outline-offset: -6px; }
+.steps .ahead .later span { color: var(--t); }
 .steps .also h3 { padding: 14px 12px 0; font: 800 clamp(19px, 4.9cqw, 26px)/1 var(--display); letter-spacing: -.02em; }
 .steps .also h4 { padding: 12px 12px 0; font: 700 13px/1 var(--ui); letter-spacing: .06em; text-transform: uppercase; opacity: .8; }
-.steps .ahead b { font-size: clamp(19px, 4.9cqw, 26px); letter-spacing: -.02em; }
+.steps .ahead h3 { font-size: clamp(19px, 4.9cqw, 26px); letter-spacing: -.02em; }
 .steps .also .plan { padding: 6px 12px 0; } .steps .also .plan:last-child { padding-bottom: 14px; }
-.steps .c7 { --face: var(--dark); --lip: var(--dark-lip); --t: var(--chalk); }
+.steps .c7 { --face: #A8323F; --lip: #6E1C26; --t: var(--chalk); }
 .c8 { --face: var(--cream); --lip: var(--cream-lip); } .c9 { --face: var(--gold); --lip: var(--gold-lip); }
 .steps .also { --face: var(--dark); --lip: var(--dark-lip); --t: var(--chalk); } /* the smaller plans: quieter than the steps */
 .road .keys { position: static; translate: none; justify-content: flex-end; margin: 12px 0 0; min-height: 47px; }
