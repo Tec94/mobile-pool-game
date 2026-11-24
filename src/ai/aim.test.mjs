@@ -2,6 +2,8 @@
 import assert from 'node:assert';
 import { CUE, P, simulate, step, strike } from '../physics/engine.ts';
 import { aiShot, correctAim } from './aim.ts';
+import { judge, newGame, newRec, record } from '../rules/rules.ts';
+import { holeOf, onLit } from './turn.ts';
 import { enumerate, NINE, potProb, SOLIDS, STRIPES, TIERS as CLOCKED, randomLayout, rng } from './shot-ai.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const TIERS = CLOCKED.map(t => ({ ...t, think: Infinity })); // no clock (Tier.think): the same search whatever the machine's load
@@ -157,6 +159,15 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   assert(S[1].on, 'the 8 stays on the table');
   console.log('ok bank shots: the fallback tap keeps the 8 up');
 }
+{ // Bank shots, the 9 its only ball and hanging in a jaw, so every hit drops it: the tap drops it with no foul (the
+  // turn passes), not a soft foul that hands ball in hand over.
+  const B = [mk(1.03, 0.509), mk(0.048, 0.034)], ids = [0, 9], { shot, pick } = aiShot(B, ids, STRIPES, SOLIDS, TIERS[0], rng(1), 0, () => false);
+  assert.equal(pick.type, 'foul');
+  const S = B.map(b => ({ ...b })), r = newRec(), ev = []; strike(S[0], shot); while ((ev.length = 0, step(S, ev))) record(r, ev, S, ids);
+  const s = judge({ ...newGame(8, 0, false, 2), phase: 'play', hand: null, solids: 1, balls: [8, 9], lit: [0, 1] }, r);
+  assert(!s.foul, `no foul (${s.note})`);
+  ok('bank shots: with nothing to bank the tap is a legal hit');
+}
 { // 9-ball on the engine: the rollouts weigh a 9 that dropped against the best route (nineValue), as plan() does
   const rails = [[1.9, 0.03], [1.4, 1.09], [2.2, 0.56], [0.9, 0.03], [1.5, 0.2], [1.8, 0.9], [2.2, 0.8]];
   const B = [mk(0.6, 0.6), mk(0.33, 0.33), ...rails.map(([x, y]) => mk(x, y)), mk(0.11, 0.11)], ids = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -164,4 +175,16 @@ const potted = ({ sim, ids, pick }) => sim.potted.includes(ids.indexOf(pick.ball
   const E = [mk(0.227, 0.589), mk(1.142, 0.589), mk(1.347, 0.649), mk(1.862, 0.597)];
   assert.equal(aiShot(E, [0, 1, 9, 2], NINE, NINE, TIERS[5], rng(1)).pick.ball, 1, 'Legend runs the 1 and the 2 over the long combo');
   ok('9-ball: the engine rollouts keep the planner\'s 9-or-route choice');
+}
+{ // Bank shots: the engine search counts a pot only banked off a lit cushion into the planned pocket, as rules.ts judges
+  // it. These tables refined to a pot that ran in with no bank (the Masters) or into another pocket (Pro, Legend).
+  for (const [t, i] of [[6, 7], [6, 8], [6, 120], [4, 135], [5, 89]]) {
+    const { cue, balls } = randomLayout(rng(i), 1 + (i % 5)), { B, ids } = table({ cue, balls }), lit = [i % 6, (i + 1) % 6];
+    const { pick, aim } = aiShot(B.map(b => ({ ...b })), ids, SOLIDS, STRIPES, TIERS[t], rng(i), 0, c => onLit(lit, c), lit);
+    if (pick.type === 'safety' || pick.type === 'foul') continue;
+    const S = B.map(b => ({ ...b })), r = newRec(), ev = []; strike(S[0], aim); while ((ev.length = 0, step(S, ev))) record(r, ev, S, ids);
+    const s = judge({ ...newGame(8, 0, true, 2), phase: 'play', hand: null, solids: 0, balls: ids.slice(1), lit, call: holeOf(pick) }, r);
+    assert(!r.pots.some(p => p.id === pick.ball) || (s.turn === 0 && !s.foul), `${TIERS[t].name}, table ${i}: a pot that counts or none (${s.note})`);
+  }
+  ok('bank shots: the engine search keeps to a bank off a lit cushion');
 }

@@ -206,3 +206,17 @@ for (const [game, tiers, seed] of [[8, [2, 2], 10], [8, [1, 3], 20], [9, [2, 2],
   assert(pots > 3, `some tables have such a pot (${pots})`);
   ok('bank shots: the AI banks off a lit cushion or plays safe');
 }
+{ // Bank shots, on the 8 with ball in hand: every tier places the cue ball for a bank off a lit cushion, not for a straight
+  // pot that cannot count (from there Rookie tapped the 8 as a foul and Pro played safe, rack after rack). The Masters'
+  // shot, struck with its own noise, is judged banked by the rules.
+  const mid = (x, y) => [mk(P.L * 0.25, P.W * 0.5), mk(P.L * x, P.W * y), mk(P.L * 0.85, P.W * 0.8), mk(P.L * 0.15, P.W * 0.2)], ids = [0, 8, 9, 10];
+  for (const level of [1, 5, 7]) for (const [x, y] of level === 7 ? [[0.5, 0.3]] : [[0.3, 0.5], [0.5, 0.3], [0.7, 0.6], [0.6, 0.2]]) for (let k = 0; k < 6; k++) {
+    const B = mid(x, y), s = play8({ turn: 0, bank: 1, hand: 'any', balls: [8, 9, 10], lit: [k, (k + 1) % 6] }), m = think(B, ids, s, level, 5, 0);
+    assert(/^(bank|kick)/.test(m.kind), `rating ${level}, the 8 at ${x}, ${y}, lit ${s.lit}: a bank or kick, not a ${m.kind}`);
+    if (level !== 7) continue;
+    B[0].x = m.at[0]; B[0].y = m.at[1]; strike(B[0], m.shot);
+    const r = newRec(), ev = []; while ((ev.length = 0, step(B, ev))) record(r, ev, B, ids);
+    eq(judge(setCall(s, m.call), r).winner, 0, `Masters, lit ${s.lit}: the 8 banked in the called pocket (${judge(setCall(s, m.call), r).note})`);
+  }
+  ok('bank shots, the 8 in hand: placed for a bank off a lit cushion');
+}
