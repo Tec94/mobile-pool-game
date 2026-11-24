@@ -146,14 +146,15 @@ const FAIL = 1; // a pot's rollout score lost for each verify() rollout that doe
 // scratch), or -1 when the budget (clk) ran out first.
 function verify(B: Ball[], ids: number[], group: number[], tier: Tier, s: Shot, sd: number, k: number, first: number, to: Pt | null, g: Pt, cr: number, or: number, clk: Clock) {
   const w = ids.indexOf(winBall(group)), f = 2 * tier.speedErr / 100;
+  const ts = [{ ...s, ang: s.ang + 2 * sd }, { ...s, ang: s.ang - 2 * sd }, { ...s, speed: Math.min(CUE.maxSpeed, s.speed * (1 + f)) }, { ...s, speed: s.speed * (1 - f) }, { ...s, a: 2 * tier.tipErr }, { ...s, a: -2 * tier.tipErr }, ...(s.elev ? [{ ...s, elev: s.elev + 2 * sd }, { ...s, elev: s.elev - 2 * sd }] : [])];
   let n = 0;
-  for (const t of [{ ...s, ang: s.ang + 2 * sd }, { ...s, ang: s.ang - 2 * sd }, { ...s, speed: Math.min(CUE.maxSpeed, s.speed * (1 + f)) }, { ...s, speed: s.speed * (1 - f) }, { ...s, a: 2 * tier.tipErr }, { ...s, a: -2 * tier.tipErr }]) {
+  for (const t of ts) {
     if (over(clk)) return -1;
     clk.n++;
     const r = rollout(B, t, k, first, to, g, cr, or, true);
     n += +(to ? r.pot && r.legal && (nine(group) || w <= 0 || w === k || r.S[w].on) : r.legal && r.rail && !r.scratch);
   }
-  return n;
+  return n * 6 / ts.length; // of six: a jump's eight (its tilt 2 sd either way too) scaled to six
 }
 // The shot in hand on the engine, a few full-table simulations per call of the search it returns (more(n) runs n more and
 // returns the best so far): steer the aim until the right ball is hit first and ball k drops in the middle of the pocket
@@ -355,6 +356,6 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   const aim = won.shot, played = won.c;
   const t2 = now(), g = () => gauss(rnd);
   const tip = (x: number) => Math.max(-CUE.tipLimit, Math.min(CUE.tipLimit, x + g() * tier.tipErr)); // tipErr is in ball radii, as a and b are
-  const shot: Shot = { ang: aim.ang + g() * aimSd(tier, played.type), speed: Math.min(CUE.maxSpeed, Math.max(0.5, aim.speed * (1 + g() * tier.speedErr / 100))), a: tip(0), b: tip(aim.b), ...(aim.elev ? { elev: aim.elev } : {}) };
+  const shot: Shot = { ang: aim.ang + g() * aimSd(tier, played.type), speed: Math.min(CUE.maxSpeed, Math.max(0.5, aim.speed * (1 + g() * tier.speedErr / 100))), a: tip(0), b: tip(aim.b), ...(aim.elev ? { elev: Math.min(CUE.maxElev, aim.elev + g() * aimSd(tier, played.type)) } : {}) }; // a jump's tilt held as steadily as its line
   return { shot, aim, pick: played, ms: [t1 - t0, t2 - t1], rollouts: clk.n };
 }
