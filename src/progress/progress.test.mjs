@@ -1,7 +1,7 @@
 // Run: npm test   (the progression model: levels, pay, cues, feats, gates and the saved profile)
 import assert from 'node:assert';
 import { CUE, HOLES, P } from '../physics/engine.ts';
-import { afterSoft, auraLine, brakeAt, brakeLine, gold, newBrake, hindsight, newOmen, newPast, omenLine, pastLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, overdrive, ramOwes, ratchet, softCan, softHands, softLine, STEPS, whatever } from './tricks.ts';
+import { afterSoft, auraLine, brakeAt, brakeLine, flukeLine, gold, maxLine, newBrake, hindsight, newOmen, newPast, omenLine, pastLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, overdrive, ramOwes, ratchet, softCan, softHands, softLine, STEPS, trickFor, whatever } from './tricks.ts';
 import { ahead, judge, newGame, newRec } from '../rules/rules.ts';
 import { CUE_IDS, CUES, specLine, specs, stick } from './cues.ts';
 import { hustler, matchFeats, matchPay, newLedger, noteShot, rackOver, safetyPay, settle, shotPay } from './pay.ts';
@@ -325,6 +325,51 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq([ramOwes(false, 1.1, false), ramOwes(true, 0.8, false), ramOwes(true, 1.1, false), ramOwes(true, 1, true), ramOwes(false, 1, false)], [true, false, true, true, false], 'a strike past 100% owes a blind shot; the next strike that is no break pays it off, or owes again');
   eq([readProfile(JSON.stringify({ ...NEW, ram: true })).ram, readProfile(JSON.stringify({ ...NEW, ram: 1 })).ram], [true, undefined], 'the owed shot is saved');
   ok('tricks on the controls');
+}
+{ // trickFor: the cue trick of one rack, against the wiring App.tsx had before it (old = those lines, kept here as the oracle)
+  const g8 = { ...newGame(8), phase: 'play', hand: null, solids: 0, balls: [1, 2, 8, 9, 10] }, g9 = { ...newGame(9), phase: 'play', hand: null, balls: [1, 2, 9] };
+  const recs = [{ ...newRec(), first: 1, railAfter: false }, { ...newRec(), first: 1, railAfter: true, pots: [{ id: 1, pocket: 3 }] }, { ...newRec(), first: 9, railAfter: true }, { ...newRec(), first: -1 }, { ...newRec(), first: 8, railAfter: true, pots: [{ id: 8, pocket: 5 }] }];
+  const old = (own) => { // App.tsx at dev a420720: refs, then the ruling branch, powerOf, dark and the HUD ternary
+    const vs = !!own, o = { soft: newSoft(), softened: false, pulled: 0, sunk: [0, 0], flukes: { left: 2 }, omen: newOmen(), past: { ...newPast(), was: null }, brake: newBrake(), again: true, blind: own === 'ram' };
+    const free = vs && own === 'nonchalant', ram = vs && own === 'ram', marble = vs && own === 'marble';
+    return { o,
+      rule: (s, rec, pushOut) => {
+        let next = free && s.turn === 0 ? whatever(s, rec, pushOut) : judge(vs && s.turn === 1 && o.softened ? afterSoft(s) : s, rec, pushOut);
+        if (vs && s.turn === 1) o.softened = false;
+        if (marble) noteSunk(o.sunk, s, rec, next);
+        if (vs && s.turn === 0 && own === 'whisper') { const had = o.soft.left; next = softHands(o.soft, o.pulled, s, rec, next, pushOut); o.softened = o.soft.left < had; }
+        return next;
+      },
+      power: (pull, s, elev) => (ram && s.turn === 0 ? overdrive(pull, s.phase !== 'break' && elev < 4) : o.brake.armed && s.turn === 0 ? Math.min(0.7, pull) : pull),
+      dark(pull, s, elev) { return s.turn === 0 && (free || o.past.blind || (ram && ((o.blind && s.phase !== 'break') || this.power(pull, s, elev) > 1))); },
+      line: (rules, ledger, hard) => (ledger.aura ? auraLine(ledger.aura) : ram && o.blind && rules.phase !== 'break' ? { text: 'No guide', label: 'Overdrive: this shot has no guide' } : vs && own === 'whisper' ? softLine(o.soft) : marble ? mogLine(mogLead(rules, o.sunk)) : vs && own === 'maxxed' ? maxLine(o.again) : free && hard ? flukeLine(o.flukes) : vs && own === 'seer' ? omenLine(o.omen) : vs && own === 'hindsight' ? pastLine(o.past) : vs && own === 'airbrake' ? brakeLine(o.brake) : null),
+    };
+  };
+  for (const own of [undefined, 'house', 'whisper', 'nonchalant', 'marble', 'ram', 'maxxed', 'seer', 'hindsight', 'airbrake', 'ratchet']) {
+    const t = trickFor(own, 'aim', own === 'ram'), a = old(own);
+    let seed = 7; const pickOf = a => a[(seed = (seed * 48271) % 2147483647) % a.length]; // a seeded walk of turns, shots, push-outs and pulls
+    for (let n = 0; n < 400; n++) {
+      const s = { ...pickOf([g8, g9, g9, { ...g8, phase: 'break' }]), turn: pickOf([0, 0, 1]), fouls: [1, 1] }, r = pickOf(recs), push = pickOf([false, false, false, true]), pull = pickOf([0.1, 0.15, 0.6, 1]);
+      t.k.pulled = a.o.pulled = pull;
+      eq(t.rule(s, r, push), a.rule(s, r, push), `${own}: the ruling`);
+      eq([t.k.soft, t.k.softened, t.k.sunk], [a.o.soft, a.o.softened, a.o.sunk], `${own}: the state the ruling leaves`);
+      for (const elev of [0, 5]) eq([t.power(pull, s, elev), t.dark(pull, s, elev)], [a.power(pull, s, elev), a.dark(pull, s, elev)], `${own}: power and guide`);
+      for (const aura of [undefined, { run: 2, owed: false }]) for (const hard of [false, true]) eq(t.line(s, { ...newLedger(), aura }, hard), a.line(s, { ...newLedger(), aura }, hard), `${own}: the HUD line`);
+    }
+  }
+  const m = trickFor('maxxed', 'aim', false); m.strike(0.5, g8, 'aim', 0.5); eq([m.k.again, m.k.visit], [true, 1], 'Maxxed: the same pick keeps the second pick');
+  m.strike(0.5, g8, 'spin', 0.5); eq([m.k.again, m.k.from, m.line(g8, newLedger(), false).text], [false, 'spin', '○'], 'a changed pick after the break spends it');
+  m.turn('power'); eq([m.k.visit, m.k.from], [0, 'power'], 'a new turn');
+  const b = trickFor('maxxed', 'aim', false); b.strike(0.5, { ...g8, phase: 'break' }, 'spin', 0.5); eq(b.k.again, true, 'the pick before the break is free');
+  const r = trickFor('ram', 'aim', false); r.strike(1, { ...g8, phase: 'break' }, 'aim', 1.2); eq(r.k.owed, false, 'Ram: a break owes nothing');
+  r.strike(1, g8, 'aim', 1.2); eq([r.k.owed, r.dark(0.1, g8, 0), r.line(g8, newLedger(), false).text], [true, true, 'No guide'], 'past 100% owes a shot with no guide');
+  const k = trickFor('ratchet', 'aim', false); k.strike(0.33, g8, 'aim', 0.33); k.strike(1, g8, 'aim', 1); eq(k.rail(p => p, () => 0).marks(), [0.33, 1], 'Ratchet: the rail notches the pulls');
+  k.rack('aim'); eq(k.rail(p => p, () => 0).marks(), [], 'a new rack clears them');
+  const w = trickFor('seer', 'aim', false); w.k.omen.plain = true; w.k.omen.left = 0; w.k.sunk[0] = 3; w.rack('spin');
+  eq([w.k.omen.plain, w.k.omen.left, w.k.sunk, w.k.from], [true, 3, [0, 0], 'spin'], 'a new rack: fresh uses, the Seer\'s price carried over');
+  const ab = trickFor('airbrake', 'aim', false), rail = ab.rail(p => ab.power(p, g8, 0), () => 0); ab.k.brake.armed = true; eq([rail.shown(1), rail.marks()], [0.7, [0.7]], 'Airbrake: armed, 70% at most, marked on the rail');
+  eq([trickFor('whisper', 'aim', false).rail(p => p, () => 1).marks(), trickFor('house', 'aim', false).rail(p => p, () => 0), trickFor(undefined, 'aim', false).line(g8, newLedger(), true)], [[], {}, null], 'no marks on the opponent\'s turn; a plain cue has no rail props and no line');
+  ok('trickFor matches the old wiring');
 }
 { // the Aura's run lives in the profile between matches
   let p = { ...NEW, owned: ['house', 'aura'], cue: 'aura' };

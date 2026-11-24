@@ -1,6 +1,6 @@
 // Run: npm test   (checks the frame pacing: frames are made ahead at the display's rate and shown one per refresh)
 import assert from 'node:assert';
-import { AHEAD, newPace, nextFrame, refresh, spent } from './pace.ts';
+import { AHEAD, frameOf, newPace, nextFrame, refresh, spent } from './pace.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 
 // The app's two loops: the JS thread makes frames when it runs (at the times in `js`), the display refreshes every `hz`.
@@ -55,3 +55,13 @@ const every = (step, until, jitter = () => 0) => Array.from({ length: Math.floor
   ok('the frame rate halves when frames cost too much to make');
 }
 console.log('pacing checks passed');
+
+{ // a display at any common rate gets one frame per refresh: no refresh repeats a frame and none is skipped
+  for (const hz of [60, 75, 90, 100, 120, 144, 165, 240]) {
+    const dt = 1000 / hz, r = play(frameOf(dt), dt, every(dt, 2000), 2000);
+    assert.equal(Math.round(1000 / frameOf(dt)), hz);
+    assert.equal(r.gaps.filter(g => Math.abs(g - dt) > 0.01).length, 0, `${hz} Hz: uneven gaps`);
+    assert.equal(r.skipped, 0, `${hz} Hz: skipped`);
+  }
+  ok('frames are made at the display rate, not only 60 or 120');
+}

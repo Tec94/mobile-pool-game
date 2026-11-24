@@ -36,3 +36,11 @@ export function refresh<T>(q: Slot<T>[], left: number, dt: number) {
   const dry = left <= 1; // no frame was ready: the next one shows as soon as it comes
   return { show, left, rest: used ? q.slice(used) : q, skipped: Math.max(0, used - 1), dry };
 }
+
+// The display's frame time from the measured time between refreshes (dt, ms), snapped to the rates screens have, so
+// play is made one frame per refresh: 120 frames a second on a 144 Hz monitor repeat every 6th refresh, on 100 Hz skip.
+const RATES = [240, 165, 144, 120, 100, 90, 75, 60];
+export function frameOf(dt: number) {
+  'worklet';
+  return 1000 / RATES.reduce((a, r) => (Math.abs(1000 / r - dt) < Math.abs(1000 / a - dt) ? r : a));
+}

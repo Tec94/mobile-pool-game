@@ -1,6 +1,19 @@
 'worklet'; // every function here also runs on the AI's worklet runtime (src/ai/think.ts): define a function before its callers
 // Pool physics engine. This file is the source. The lab page (physics/pool-physics-lab.html in the project files, the
 // <script id="engine"> block) is a copy with the types stripped: change this file first, then copy it there. Pure TS: no React, no DOM.
+// Exact maths. Math.sin/cos/tan/atan2/asin/acos/exp/pow/hypot and ** may round differently on each JS engine (and on
+// each version of one), and one different last bit changes where a ball stops. Only + - * / and Math.sqrt round the same
+// everywhere, so the engine and the rules use these and nothing else: src/physics/exact.test.mjs fails on a banned call.
+// Good to about 1e-15, which is all a shot needs; what matters is that every device gets the same bits.
+// shortcut: angles are reduced with a two-part pi/2, exact enough below about 1e5 rad; a shot angle is a few turns at most.
+const ksin=(x:number)=>{const z=x*x;return x+x*z*(-1.66666666666666324348e-01+z*(8.33333333332248946124e-03+z*(-1.98412698298579493134e-04+z*(2.75573137070700676789e-06+z*(-2.50507602534068634195e-08+z*1.58969099521155010221e-10)))));};
+const kcos=(x:number)=>{const z=x*x;return 1-z/2+z*z*(4.16666666666666019037e-02+z*(-1.38888888888741095749e-03+z*(2.48015872894767294178e-05+z*(-2.75573143513906633035e-07+z*(2.08757232129817482790e-09+z*-1.13596475577881948265e-11)))));};
+const quad=(x:number,q:number)=>{const k=Math.round(x/1.5707963267948966),r=x-k*1.57079632673412561417-k*6.07710050650619224932e-11,m=((k+q)%4+4)%4;return m===0?ksin(r):m===1?kcos(r):m===2?-ksin(r):-kcos(r);};
+export const sin=(x:number)=>quad(x,0),cos=(x:number)=>quad(x,1),tan=(x:number)=>sin(x)/cos(x);
+const katan=(x:number)=>{let t=x/(1+Math.sqrt(1+x*x));t=t/(1+Math.sqrt(1+t*t));const z=t*t;let s=0;for(let n=25;n>=1;n-=2)s=1/n-z*s;return 4*t*s;}; // 0 <= x <= 1: halve the angle twice, then the series
+export const atan2=(y:number,x:number)=>{const ax=Math.abs(x),ay=Math.abs(y);if(!ax&&!ay)return 0;const a=ay<=ax?katan(ay/ax):Math.PI/2-katan(ax/ay),b=x<0?Math.PI-a:a;return y<0||1/y<0?-b:b;};
+export const acos=(x:number)=>atan2(Math.sqrt((1-x)*(1+x)),x),asin=(x:number)=>atan2(x,Math.sqrt((1-x)*(1+x)));
+export const exp=(x:number)=>{const k=Math.round(x/0.6931471805599453),r=x-k*6.93147180369123816490e-01-k*1.90821492927058770002e-10;let s=1,p=1;for(let n=13;n>=1;n--)s=1+r*s/n;for(let i=k;i>0;i--)p*=2;for(let i=k;i<0;i++)p/=2;return s*p;};
 export type Game=8|9;
 export interface Ball{x:number;y:number;vx:number;vy:number;wx:number;wy:number;wz:number;on:boolean;z?:number;vz?:number;dead?:boolean;glide?:number}
 // The flags of a cue's trick ride on the cue ball: the strike sets them, and the first hit ends them.
@@ -41,7 +54,7 @@ export const P={R:0.028575,L:2.2352,W:1.1176,g:9.81,
 // cloth only above 8 m/s, so on a firm break it hops on its way to the rack, as on a real table.
 export const CUE: Cue={maxSpeed:4.5,breakSpeed:12,squirt:0.087,tipLimit:0.5,maxElev:1.4,minElev:0.052,massRatio:0.316};
 // sqrt is exactly rounded on every JS engine and Math.hypot is not (and is slow), so the engine uses this.
-const hyp=(x:number,y:number,z=0)=>Math.sqrt(x*x+y*y+z*z);
+export const hyp=(x:number,y:number,z=0)=>Math.sqrt(x*x+y*y+z*z);
 
 // Cushion noses as line segments (with pocket jaws), built for one quadrant and mirrored.
 // The table is an 8 ft one (88 x 44 in between the cushion noses, P.L x P.W); setTable(2.54,1.27) gives the 9 ft tournament
@@ -55,7 +68,7 @@ const hyp=(x:number,y:number,z=0)=>Math.sqrt(x*x+y*y+z*z);
 export const SEGS:number[][]=[],HOLES:number[][]=[];
 export const POCKET={cc:0.082,sc:0.065,deep:0.05,ca:38*Math.PI/180,sa:14*Math.PI/180,r:0.06,cornerOut:0.03,sideOut:0.065};
 export function setTable(L=P.L,W=P.W){
- const {cc,sc,deep,ca,sa,r,cornerOut,sideOut}=POCKET,cj=deep/Math.tan(ca),sj=deep*Math.tan(sa);
+ const {cc,sc,deep,ca,sa,r,cornerOut,sideOut}=POCKET,cj=deep/tan(ca),sj=deep*tan(sa);
  P.L=L;P.W=W;SEGS.length=HOLES.length=0;
  for(const [fx,fy] of [[0,0],[1,0],[0,1],[1,1]]){
   const X=(x:number)=>fx?L-x:x,Y=(y:number)=>fy?W-y:y;
@@ -84,7 +97,7 @@ export function rack(game:Game,g=2*P.R+3e-4,play=(g-2*P.R)/3,seed?:number){
   const out:[number,number,number][]=[];let s=seed===undefined?2:seed|0;
   const next=()=>(s=Math.imul(s,1664525)+1013904223|0)/2147483648; // -1 to 1, in whole-number arithmetic so every device agrees
   const off=()=>next()*play;
-  RACKS[game].forEach((r,i)=>r.forEach((id,k)=>out.push([id,0.75*P.L+(i-(game===9?2:0))*g*Math.cos(Math.PI/6)+off(),P.W/2+(k-(r.length-1)/2)*g+off()])));
+  RACKS[game].forEach((r,i)=>r.forEach((id,k)=>out.push([id,0.75*P.L+(i-(game===9?2:0))*g*(Math.sqrt(3)/2)+off(),P.W/2+(k-(r.length-1)/2)*g+off()])));
   if(seed!==undefined){const d=(next()+1)/2*SLIDE;for(const b of out)b[1]+=d;}
   return out;
 }
@@ -109,11 +122,11 @@ function bounce(b:Ball,e:number,mu:number){
 //  - side offset a spins the ball about an axis tilted forward by elev, i.e. partly about its line of travel (masse).
 // Spin = 2.5*speed/R * (a*(r x d) + b*(u x d)) for cue axis d, tip-right r, tip-up u. Maths: https://claude.ai/artifact/TVh3RwdDyQP2htw8iHVYFd
 export function strike(b:Ball,s:Shot,cue:Cue=CUE){
-  const el=Math.max(s.elev||0,cue.minElev||0),ce=Math.cos(el),se=Math.sin(el);
+  const el=Math.max(s.elev||0,cue.minElev||0),ce=cos(el),se=sin(el);
   // shot.speed is the ball speed of a centre hit. Off centre, part of the stroke goes into spin, so the ball leaves
   // slower: v = v0 (1+m)/(1+m+2.5 off^2), the standard tip-ball impact result (32% slower at the miscue limit).
   const mr=cue.massRatio??0.316,v=s.speed*(1+mr)/(1+mr+2.5*(s.a*s.a+s.b*s.b));
-  const ang=s.ang+s.a*cue.squirt,dx=Math.cos(ang),dy=Math.sin(ang),k=2.5*v/P.R;
+  const ang=s.ang+s.a*cue.squirt,dx=cos(ang),dy=sin(ang),k=2.5*v/P.R;
   const cu=el>=RAISED?cue.curl??1:1; // the spin about the line of travel, which curves the ball
   b.vx=v*dx*ce;b.vy=v*dy*ce;b.wx=-k*s.b*dy+cu*k*s.a*se*dx;b.wy=k*s.b*dx+cu*k*s.a*se*dy;b.wz=k*s.a*ce;
   b.z=0;b.vz=0;
@@ -122,10 +135,10 @@ export function strike(b:Ball,s:Shot,cue:Cue=CUE){
   // Past 45 degrees the ball is increasingly trapped between tip and slate, so the rebound fades: lift*g/(1+g^4)^(1/4)
   // with g = 16cos^8(elev), a smooth version of min(1,g). 30 degrees gives a long low hop, about 42 the highest, and
   // from 60 up the ball stays on the cloth at any power (masse).
-  if(se>0){b.vz=-v*se;const g=16*ce**8,lf=cue.lift?1+(cue.lift-1)*Math.min(1,Math.max(0,(1-s.speed/cue.maxSpeed)/0.6)):1;bounce(b,lf*P.lift*g/Math.sqrt(Math.sqrt(1+g**4)),P.mus*P.grip);}
+  if(se>0){b.vz=-v*se;const c2=ce*ce,c4=c2*c2,g=16*c4*c4,g2=g*g,lf=cue.lift?1+(cue.lift-1)*Math.min(1,Math.max(0,(1-s.speed/cue.maxSpeed)/0.6)):1;bounce(b,lf*P.lift*g/Math.sqrt(Math.sqrt(1+g2*g2)),P.mus*P.grip);}
 }
 
-const cutOf=(a:Ball,nx:number,ny:number)=>Math.acos(Math.max(-1,Math.min(1,(a.vx*nx+a.vy*ny)/(hyp(a.vx,a.vy)||1))));
+const cutOf=(a:Ball,nx:number,ny:number)=>acos(Math.max(-1,Math.min(1,(a.vx*nx+a.vy*ny)/(hyp(a.vx,a.vy)||1))));
 
 // Friction at a ball-ball contact with normal (nx,ny) from a to b and normal impulse jn: gives cut throw,
 // spin throw and spin transfer. Returns the impulse without applying it.
@@ -135,7 +148,7 @@ function rub(a:Ball,b:Ball,nx:number,ny:number,jn:number):Vec3|null{
   const rn=rx*nx+ry*ny;rx-=rn*nx;ry-=rn*ny;
   const vt=hyp(rx,ry,rz);if(vt<=1e-9)return null;
   // Friction falls with surface speed (Alciatore's fit); capped at the no-slip impulse.
-  const mu=0.009951+0.108*Math.exp(-1.088*vt),jt=Math.min(mu*jn,vt/7);
+  const mu=0.009951+0.108*exp(-1.088*vt),jt=Math.min(mu*jn,vt/7);
   return [rx/vt*jt,ry/vt*jt,rz/vt*jt];
 }
 // Apply a contact: friction impulse f, and the normal impulse jn unless the cluster solver already applied it.
@@ -149,7 +162,7 @@ function land(a:Ball,b:Ball,ev:Ev[]|undefined,i:number,j:number,nx:number,ny:num
   if(a.dead){a.dead=false;if(cut<=STRAIGHT)a.vx=a.vy=a.wx=a.wy=a.wz=0;} // the Plumb: the speed and all the spin go. Only the cue ball carries the flag, and it is the first ball of its pair
   // cut and thr describe a moving ball a hitting a resting ball b (the cue ball's first hit); thr is b's departure
   // from the line of centres.
-  if(ev)ev.push({t:'bb',a:i,b:j,x:a.x,y:a.y,cut,thr:Math.atan2(nx*b.vy-ny*b.vx,nx*b.vx+ny*b.vy)});
+  if(ev)ev.push({t:'bb',a:i,b:j,x:a.x,y:a.y,cut,thr:atan2(nx*b.vy-ny*b.vx,nx*b.vx+ny*b.vy)});
 }
 // Ball-ball impact for a lone pair.
 function collide(a:Ball,b:Ball,ev:Ev[]|undefined,i:number,j:number,nx:number,ny:number){
@@ -294,7 +307,7 @@ export function step(B:Ball[],ev?:Ev[]):boolean{
       b.x-=b.vx*tb;b.y-=b.vy*tb;
       const ux=b.vx,uy=b.vy;
       cushion(b,-nx,-ny);if(b.glide)b.glide=0;
-      if(ev)ev.push({t:'rail',a:i,x:b.x,y:b.y,turn:Math.abs(Math.atan2(ux*b.vy-uy*b.vx,ux*b.vx+uy*b.vy))});
+      if(ev)ev.push({t:'rail',a:i,x:b.x,y:b.y,turn:Math.abs(atan2(ux*b.vy-uy*b.vx,ux*b.vx+uy*b.vy))});
       b.x+=b.vx*tb;b.y+=b.vy*tb;win=tb;
     }
     if(pot){b.on=false;b.vx=b.vy=b.wx=b.wy=b.wz=b.z=b.vz=0;if(ev)ev.push({t:'pocket',a:i,x:b.x,y:b.y});}
