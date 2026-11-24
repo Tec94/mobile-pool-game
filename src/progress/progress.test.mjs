@@ -259,6 +259,10 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(settle(l, { tier: 2, won: false, early: false, racks: 2 }).match, matchPay({ tier: 2, won: false, fouls: 0, ownPotted: 0 }), 'a loss pays as before');
   eq(settle(newLedger(), { tier: 1, won: true, early: false, racks: 1 }).note, undefined, 'a rack the AI handed over pays');
   eq(settle({ ...newLedger() }, { tier: 1, won: true, early: false }).note, undefined, 'no rack count: pays as before');
+  const ms = settle(newLedger(), { tier: 7, won: true, early: false, racks: 1 }, (won, p) => p);
+  eq([ms.match, ms.chalk, ms.total], [matchPay({ tier: 7, won: true, fouls: 0 }), ms.match, { xp: 8640, coins: 5760 }], 'Fresh Chalk doubles a win against the Masters too');
+  const mb = newLedger(); noteShot(mb, { pay: { xp: 13, coins: 5 }, run: 1, own: 0 }, false, true);
+  eq(settle(mb, { tier: 7, won: true, early: false, racks: 1 }, (won, p) => p).total, { xp: 13, coins: 5 }, 'and the Masters beaten on the break alone pay the shots only');
   ok('a win on the break alone pays no match pay');
 }
 
@@ -300,6 +304,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(matchFeats({ ...newLedger(), feats: { kick: 2 } }, { vs: { tier: 6 }, won: true, cue: 'twig' }), { kick: 2, legend: 1, giant: 1 }, 'a win against Legend with the Twig');
   eq(matchFeats(newLedger(), { vs: { tier: 4 }, won: true, cue: 'house' }), {}, 'Shark with another cue: neither');
   eq(matchFeats(newLedger(), { vs: { boss: 6 }, won: true, dry: true }), {}, 'a win on the break alone counts for none');
+  eq([matchFeats(newLedger(), { vs: { tier: 7 }, won: true, cue: 'twig', pure: true }), matchFeats(newLedger(), { vs: { tier: 7 }, won: false, pure: true })], [{ legend: 1, giant: 1, purist: 1 }, {}], 'a win against the Masters counts as one against Legend');
   eq([{ tier: 3 }, { tier: 2 }].map(vs => matchFeats(newLedger(), { vs, won: true, pure: true })).concat(matchFeats(newLedger(), { vs: { tier: 3 }, won: false, pure: true }), matchFeats(newLedger(), { vs: { tier: 3 }, won: true })), [{ purist: 1 }, {}, {}, {}], 'Purist: a win against Hustler or harder with the guide off all match');
   eq([matchFeats({ ...newLedger(), down: true }, { vs: { tier: 3 }, won: true }), matchFeats({ ...newLedger(), down: true }, { vs: { tier: 3 }, won: false })], [{ lives: 1 }, {}], 'a 9-ball race won from 2 racks down');
   let p = { ...NEW, open: true };
