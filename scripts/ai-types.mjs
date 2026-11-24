@@ -2,7 +2,8 @@
 // Run: npm run bench:types [tables] [tier index...]   (default 120 tables, all tiers)
 // For each table and type, the AI may only try pots of that type (lit = Bank shots mode: a bank or kick off a random lit
 // pair); made = that ball in the pocket it picked, legal first hit, no scratch (lit: and banked off a lit cushion).
-// try% = share of tables where the tier took a pot of that type, est = the picker's own chance for the pots it took.
+// try% = share of tables where the tier took a pot of that type, est = the picker's own chance for the pots it took (for
+// bank2 .. jump only the geometric seed: the Masters plays them by its engine check).
 // DUMP=/tmp/x writes each shot (type, tol, made) to /tmp/x<tier>.json, to refit TIERS rail and hard.
 import { makeRates, TYPES } from '../src/ai/bench.ts';
 import { TIERS } from '../src/ai/shot-ai.ts';
