@@ -7,14 +7,14 @@ export const STEPS = ['Real physics', '8-ball and 9-ball', 'An AI that banks', '
 // What the steps after the one in hand hold, a line each, shown with their rows. No dates: none are set.
 export const PLANS = {
   6: ['The waitlist hears first, by email.', 'Every cue is won by playing. None are sold.'],
-  7: ['Invite a friend, or get matched with a stranger.', 'Ranked games, and tournaments against real players.', '8-ball and 9-ball on the same physics.'],
+  7: ['Invite a friend, or get matched with a stranger.', 'Ranked games, and tournaments against real players.', '8-ball and 9-ball.'],
   8: ['Daily Table scores, scenario stars, tournament wins and win streaks.', 'Your friends and the world.', 'Out together with online play.'],
 };
 // The rest of the plan, in one block with no ball: a heading and its lines each.
 export const ALSO = [
-  ['Sign-in', ['Apple, Google or email, only for online play and the boards.', 'Offline play stays as it is, no account needed.']],
-  ['Tip jar', ['Through Apple, if you want to back the game.', 'Tips unlock nothing: you still pay once.']],
-  ['After that', ['iPad and Android. More cues. More modes.']],
+  ['Sign-in', ['Apple, Google or email. Only needed to play online or post to the leaderboards.', 'Offline play stays as it is.']],
+  ['Tip jar', ['Through Apple, if you want to back the game.', 'Tips unlock nothing. The game stays one price.']],
+  ['Also coming', ['iPad and Android.', 'More cues and more modes.']],
 ];
 export const NOW = 5; // index into STEPS: 5 = the 6 ball
 export const SINCE = 'Sent 20 Nov'; // the tag of the step in hand

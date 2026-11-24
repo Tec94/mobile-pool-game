@@ -384,13 +384,13 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     b.type = 'button'; b.className = i < NOW ? 'done' : i === NOW ? 'now' : 'later'; b.tabIndex = i === here ? 0 : -1;
     if (i === NOW) b.setAttribute('aria-current', 'step');
     b.innerHTML = `<i class="ball b${i + 1}"><i>${i + 1}</i></i><b>${name}</b><span>${when(i)}</span>`;
-    b.onclick = () => { show(); start(); choose(i); say.textContent = `The ${i + 1} is ${down(i) ? 'down' : i < NOW ? 'about to drop' : 'on the table'}.`; }; // a tap on a row also starts a film that is still waiting // for a screen reader: the page shows it as a ring on the table
-    li.append(b); li.hidden = i < NOW; if (i > NOW) li.className = `slab ahead c${i + 1}`; if (i > NOW) li.onclick = e => { if (!b.contains(e.target)) b.click(); }; // the whole block answers a tap // the plans ahead: a block each, in its ball's colour
+    b.onclick = () => { if (state === 'wait') { show(); start(); } choose(i); say.textContent = `The ${i + 1} is ${down(i) ? 'down' : i < NOW ? 'about to drop' : 'on the table'}.`; }; // a tap on a row also starts a film that is still waiting // for a screen reader: the page shows it as a ring on the table
+    li.append(b); li.hidden = i < NOW; if (i > NOW) li.className = `slab ahead c${i + 1}`; // the plans ahead: a block each, in its ball's colour
     if (PLANS[i]) { const u = li.appendChild(document.createElement('ul')); u.className = 'plan'; for (const t of PLANS[i]) u.appendChild(document.createElement('li')).textContent = t; }
     return b;
   });
-  { const p = list.appendChild(document.createElement('li')); p.className = 'slab ahead also'; p.innerHTML = '<b>Also planned</b>';
-    for (const [h, lines] of ALSO) { const u = p.appendChild(document.createElement('ul')); u.className = 'plan'; u.appendChild(document.createElement('li')).append(Object.assign(document.createElement('strong'), { textContent: h })); for (const t of lines) u.appendChild(document.createElement('li')).textContent = t; } }
+  { const p = list.appendChild(document.createElement('li')); p.className = 'slab ahead also'; p.innerHTML = '<h3>Also planned</h3>';
+    for (const [h, lines] of ALSO) { p.appendChild(document.createElement('h4')).textContent = h; const u = p.appendChild(document.createElement('ul')); u.className = 'plan'; for (const t of lines) u.appendChild(document.createElement('li')).textContent = t; } }
   fold.onclick = () => {
     const open = fold.getAttribute('aria-expanded') !== 'true';
     fold.setAttribute('aria-expanded', open); say.textContent = ''; rows.forEach((b, i) => { if (i < NOW) b.parentElement.hidden = !open; });
@@ -436,7 +436,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   const start = () => { if (state === 'wait') state = 'aim'; }, first = rows[here];
   const seen = () => { if (state !== 'wait') return; const c = table.felt.getBoundingClientRect(), r = first.getBoundingClientRect(); if (inView(c.top, c.bottom, r.bottom, r.height, innerHeight)) start(); };
   addEventListener('scroll', seen, { passive: true }); addEventListener('resize', seen); seen();
-  list.addEventListener('focusin', () => { if (state === 'wait') { show(); start(); } }); // a keyboard user Tabs to the rows: show them the film
+  list.addEventListener('focusin', e => { if (state === 'wait' && e.target !== fold) { show(); start(); } }); // a keyboard user Tabs to the rows: show them the film
   new IntersectionObserver(([e]) => { if (!e.isIntersecting && /aim|run|rest/.test(state)) set(replays(k, !v.B[k + 1]?.on)); }).observe(table.felt); // scrolled away mid-film
   sc = scene(table, (ms, me) => {
     t += ms;
