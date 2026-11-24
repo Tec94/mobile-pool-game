@@ -8,7 +8,6 @@ import { Scroll, Shell, Tile, useFrame } from '../shell';
 import { Txt } from '../slab';
 import { short } from './Home';
 
-
 // Every lesson is open from the start: a tap starts it. Each tile draws its table, the pocket, the ring and where to hit
 // the cue ball. Purple = passed, cream = the next one, dark = not yet. Landscape: two rows that run off the right edge.
 export function Learn({ go, done, learn }: Pick<Props, 'go'> & LearnProps) {
@@ -34,7 +33,7 @@ export function Learn({ go, done, learn }: Pick<Props, 'go'> & LearnProps) {
     <View style={styles.pips}>{LESSONS.map(l => <View key={l.id} style={[styles.pip, done.includes(l.id) && { backgroundColor: MODE.learn[0] }]} />)}</View>
     <Txt style={styles.count}>{`${done.length} / ${LESSONS.length}`}</Txt>
   </>;
-  const cols = Array.from({ length: Math.ceil(LESSONS.length / 2) }, (_, c) => [2 * c, 2 * c + 1].filter(i => i < LESSONS.length));
+  const cols = Array.from({ length: across }, (_, c) => [2 * c, 2 * c + 1].filter(i => i < LESSONS.length));
   return (
     <Shell title="Learn" back={() => go('home')} extra={land && extra}>
       {land ? (
