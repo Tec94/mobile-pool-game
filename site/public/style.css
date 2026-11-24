@@ -166,7 +166,7 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 .steps .ahead .ball { box-shadow: 0 0 0 2px #EEF2EA; }
 .steps .ahead .later span { color: var(--t); }
 .steps .also h3 { padding: 14px 12px 0; font: 800 clamp(19px, 4.9cqw, 26px)/1 var(--display); letter-spacing: -.02em; }
-.steps .also h4 { padding: 12px 12px 0; font: 700 13px/1 var(--ui); letter-spacing: .06em; text-transform: uppercase; opacity: .8; }
+.steps .also h4 { padding: 12px 12px 0; font: 700 13px/1 var(--ui); letter-spacing: .06em; text-transform: uppercase; }
 .steps .ahead h3 { font-size: clamp(19px, 4.9cqw, 26px); letter-spacing: -.02em; }
 .steps .also .plan { padding: 6px 12px 0; } .steps .also .plan:last-child { padding-bottom: 14px; }
 .steps .c7 { --face: #A8323F; --lip: #6E1C26; --t: var(--chalk); }

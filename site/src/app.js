@@ -408,7 +408,8 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   list.addEventListener('keydown', e => { // the arrows move among the fold and the rows that show
     const keys = [fold, ...rows.filter((b, j) => j <= NOW && !b.parentElement.hidden)], i = keys.indexOf(document.activeElement);
     const j = i < 0 || e.altKey || e.ctrlKey || e.metaKey ? null : { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: keys.length - 1 }[e.key], r = keys[j];
-    if (j != null && r) { e.preventDefault(); r.focus(); if (r !== fold) choose(rows.indexOf(r)); }
+    if (j == null) return; e.preventDefault(); // a key past either end does nothing, not scroll the page
+    if (r) { r.focus(); if (r !== fold) choose(rows.indexOf(r)); }
   }); // no line for the screen reader here: the focus reads the row
   // A scratch cannot happen (test/roadmap.test.mjs runs every shot). If it did, the cue ball goes back where it began.
   const mend = () => { if (!v.B[0].on) Object.assign(v.B[0], ball(...SPOTS[0])); };

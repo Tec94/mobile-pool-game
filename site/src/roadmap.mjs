@@ -6,7 +6,7 @@ import { CUE, HOLES, P } from '../../src/physics/engine.ts';
 export const STEPS = ['Real physics', '8-ball and 9-ball', 'An AI that banks', 'Scenarios and lessons', 'Tournaments', 'App Store review', 'Out on iPhone', 'Online play', 'Leaderboards'];
 // What the steps after the one in hand hold, a line each, shown with their rows. No dates: none are set.
 export const PLANS = {
-  6: ['The waitlist hears first, by email.', 'Every cue is won by playing. None are sold.'],
+  6: ['The waitlist gets an email at launch.', 'Every cue is won by playing. None are sold.'],
   7: ['Invite a friend.', 'Or get matched with a stranger.', 'Ranked games and online tournaments.', 'In 8-ball and 9-ball.'],
   8: ['Daily Table scores, scenario stars, tournament wins and win streaks.', 'Friends and global boards.', 'Out together with online play.'],
 };
