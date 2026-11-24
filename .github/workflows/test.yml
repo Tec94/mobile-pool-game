@@ -10,7 +10,7 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npm run typecheck
-      - run: npm test
+      - run: npm run test:all  # npm test plus the calibration tier (*.calib.mjs)
       - run: npm run frames -- "$RUNNER_TEMP/frames"  # the drawing code has no other check: this draws every picture once
       - run: npm run demo  # the web demo on runout.win/play still bundles
   # The site is deployed from a Windows PC, and the demo build there takes paths of its own (a junction, taskkill, a shell).
