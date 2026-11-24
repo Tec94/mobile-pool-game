@@ -64,9 +64,10 @@ function speedFor(paths: Pt[][], power: number, v: Pt, u: Pt, b: number, slow: n
 // cr, or = the cushions the cue ball meets before its first hit and ball k after it (a kick, a bank): err is measured on
 // the leg after them only, so the secant is not steered by an earlier leg that passes near the target; on the whole
 // path when the ball never meets that many.
-// strict: ball k counts as potted only in pk's pocket (a tier with tricks: a 3-cushion line can find another pocket).
+// strict: ball k counts as potted only in pk's pocket (a tier with tricks: a 3-cushion line can find another pocket), and
+// any ball off the table is a foul (rules.ts), counted as a scratch. pots = the balls that dropped in a pocket.
 function rollout(B: Ball[], shot: Shot, k: number, first: number, pk: Pt | null, G: Pt, cr = 0, or = 0, strict = false) {
-  const S = B.map((b) => ({ ...b })), ev: Ev[] = [], c = S[0], o = S[k];
+  const S = B.map((b) => ({ ...b })), ev: Ev[] = [], c = S[0], o = S[k], pots: number[] = [];
   let hit = -1, rail = false, pot = false, scratch = false, near = Infinity, err = 0, drop = 0, legs = 0, near2 = Infinity, err2 = 0, got = false;
   const watch = (q: Ball, p: Pt) => { // closest approach of a moving ball q to p, signed by which side it passes on
     const v = Math.sqrt(q.vx * q.vx + q.vy * q.vy), dx = p.x - q.x, dy = p.y - q.y, d = dx * dx + dy * dy;
@@ -82,7 +83,8 @@ function rollout(B: Ball[], shot: Shot, k: number, first: number, pk: Pt | null,
       if (e.t === 'bb' && e.a === 0 && hit < 0) { hit = e.b!; near = Infinity; if (hit === first) { near2 = Infinity; got = false; legs = 0; } }
       else if (hit >= 0 && e.t === 'rail') rail = true;
       if (e.t === 'rail' && e.a === (hit < 0 ? 0 : k)) legs++;
-      if (e.t === 'pocket' || e.t === 'off') { if (e.a === 0) scratch = true; else if (e.a === k) { pot = e.t === 'pocket' && (!strict || !pk || (e.x! - pk.x) ** 2 + (e.y! - pk.y) ** 2 < 0.04); drop = v; } }
+      if (e.t === 'pocket' || e.t === 'off') { if (e.a === 0 || (strict && e.t === 'off')) scratch = true; else if (e.a === k) { pot = e.t === 'pocket' && (!strict || !pk || (e.x! - pk.x) ** 2 + (e.y! - pk.y) ** 2 < 0.04); drop = v; } }
+      if (e.t === 'pocket') pots.push(e.a);
     }
     if (hit < 0) watch(c, G); else if (hit === first && pk && o.on) watch(o, pk);
     // A pot runs until nothing moves, so nextP scores the table as it is left (a ball knocked in, the 8 above all).
@@ -91,7 +93,7 @@ function rollout(B: Ball[], shot: Shot, k: number, first: number, pk: Pt | null,
     if (!mv || (hit >= 0 && !(pk && pot) && !(c.on && (c.vx || c.vy)) && !(o.on && (o.vx || o.vy)))) break;
   }
   // a ball potted fast enough would have reached the cushion behind the pocket had it missed
-  return { pot: pot && !scratch, legal: hit === first, rail: rail || drop > 0.25, scratch, err: pk || hit !== first ? (got ? err2 : err) : 0, S };
+  return { pot: pot && !scratch, legal: hit === first, rail: rail || drop > 0.25, scratch, err: pk || hit !== first ? (got ? err2 : err) : 0, S, pots };
 }
 // Chance the tier pots its best next shot from where a rollout left the table (S, metres): the leave, measured on the
 // engine instead of planned. 1 when the 8 (the 9) dropped legally, -1 when the 8 dropped early. 9-ball: on the lowest ball left,
@@ -153,8 +155,7 @@ function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number
     sims--;
     const r = rollout(B, s, k, first, to, g, cr, or, !!tier.tricks), c = r.S[0], np = pk && r.pot && r.legal ? nextP(B, r.S, ids, group, tier) : { p: 0, nine: false }, p = np.p;
     if (p < 0) r.pot = false; // the 8 went down early: the rack is lost
-    let extra = 0;
-    if (tier.tricks && r.pot && r.legal) for (let i = 1; i < B.length; i++) extra += +(i !== k && B[i].on && !r.S[i].on && group.includes(ids[i]) && ids[i] !== winBall(group));
+    const extra = tier.tricks && r.pot && r.legal ? r.pots.filter((i) => i !== k && group.includes(ids[i]) && ids[i] !== winBall(group)).length : 0;
     const off = Math.abs(r.err) * 5 + (pk ? 1 - Math.max(0, p) : Math.hypot(c.x * 1000 - leave.x, c.y * 1000 - leave.y) / 4000);
     const out = { ...r, shot: s, next: p, nextNine: np.nine, extra, sure: 1, score: 8 * +(r.pot && r.legal) + 4 * +!r.scratch + 2 * +r.legal + +r.rail - Math.min(0.99, off) + 0.5 * extra };
     if (sd && to && out.score > (best?.score ?? -Infinity)) {
