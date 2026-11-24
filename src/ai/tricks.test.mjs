@@ -92,3 +92,14 @@ for (const [type, rails] of [['bank', 2], ['bank', 3], ['kick', 2], ['kick', 3]]
   assert(fast < full / 2, `aim ms on 5 tables with a 1 ms deadline ${fast.toFixed(0)}, without ${full.toFixed(0)}`);
   ok('the think deadline stops the engine search');
 }
+{ // Past the deadline the Masters plays the pot it planned, as Legend would: no safety for want of a check.
+  let pots = 0;
+  for (const seed of [5, 6, 7, 8, 9]) {
+    const L = randomLayout(rng(seed), 7), { B, ids } = table(L), planned = decide(L.cue, L.balls, SOLIDS, STRIPES, M, rng(1)).pick;
+    if (planned.type === 'safety') continue;
+    const r = aiShot(B, ids, SOLIDS, STRIPES, { ...M, think: 0 }, rng(1)); pots++;
+    assert.deepStrictEqual([r.pick.type, r.pick.ball, r.pick.pocket, r.pick.aim], [planned.type, planned.ball, planned.pocket, planned.aim], `table ${seed}`);
+  }
+  assert(pots >= 3, `${pots} tables with a planned pot`);
+  ok(`past the deadline the Masters plays its planned pot (${pots} tables)`);
+}
