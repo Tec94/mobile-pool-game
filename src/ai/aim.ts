@@ -2,7 +2,7 @@
 // The AI's shot on the real engine: correct the picker's ghost-ball aim for throw, squirt and swerve, refine aim, speed
 // and tip with noise-free rollouts within the tier's budget, and turn a pick into an engine Shot with the tier's strike noise. Port of the ai-progression prototype (engine-aim.js) plus the glue.
 import { type Ball, CUE, type Ev, P, type Shot, step, strike } from '../physics/engine.ts';
-import { type Cand, decide, dist, enumerate, escape, fancy, legalFor, nine, type Obj, type Pick, type Planned, plays, POCKETS, potFor, type Pt, nineValue, rackOdds, safety, type Safety, type Tier, tierProb, winBall } from './shot-ai.ts';
+import { type Cand, decide, dist, enumerate, escape, fancy, legalFor, nine, type Obj, oppBest, type Pick, type Planned, plays, POCKETS, potFor, type Pt, nineValue, rackOdds, safety, type Safety, type Tier, tierProb, winBall } from './shot-ai.ts';
 
 // Direction the object ball actually leaves in, for a given strike. Stops at first contact.
 function departure(cue: Ball, obj: Ball, shot: Shot) {
@@ -110,6 +110,12 @@ function nextP(B: Ball[], S: Ball[], ids: number[], group: number[], tier: Tier)
   for (const c of mine.length ? mine : all.filter((c) => c.type !== 'carom' && c.type !== 'billiard')) { const q = tierProb(tier, c); if (q > p) { p = q; k = c.ball === 9; } }
   return { p, nine: k };
 }
+// The opponent's best pot from where a rollout left the table (S, metres), as plan() prices a reply: a safety's real leave.
+function reply(S: Ball[], ids: number[], opp: number[]) {
+  const balls: Obj[] = [];
+  S.forEach((b, i) => i && b.on && balls.push({ id: ids[i], x: b.x * 1000, y: b.y * 1000 }));
+  return oppBest({ x: S[0].x * 1000, y: S[0].y * 1000 }, balls, opp);
+}
 type Roll = ReturnType<typeof rollout> & { shot: Shot; score: number; next: number; nextNine: boolean; extra: number; sure: number };
 const SPEEDS = [1, 1.3, 0.8, 1.7, 0.65, 2.2, 0.5]; // a safety's speeds, tried in this order, times the starting speed
 const DRAW = -(CUE.tipLimit - 0.05);
@@ -150,7 +156,9 @@ function verify(B: Ball[], ids: number[], group: number[], tier: Tier, s: Shot, 
 // (extra; never the 8 or the 9) and checks each new best pot once its aim has converged (check = verify(), the rollouts of
 // the six that pot): sure = that share, -1 unchecked. Checking each new best steers the search to a robust line (only the
 // pick checked: 118 of 200 tables cleared in place of 134); checking before the aim converged checked each secant step.
-function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number, first: number, pk: Pt | null, G: Pt, leave: Pt & { spin: number }, shot: Shot, end: number, cr = 0, or = 0, check?: (s: Shot) => number) {
+// opp = the opponent's group: a tier with tricks scores a safety's leave by the opponent's best pot from where the
+// rollout really left the table (reply), not by the distance to the planned spot.
+function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number, first: number, pk: Pt | null, G: Pt, leave: Pt & { spin: number }, shot: Shot, end: number, cr = 0, or = 0, check?: (s: Shot) => number, opp?: number[]) {
   const g = { x: G.x / 1000, y: G.y / 1000 }, to = pk && { x: pk.x / 1000, y: pk.y / 1000 };
   let best: Roll | null = null, sims = 0, r0: Roll | null = null, i = 0, gi = 0;
   const slope = [0, 0]; // d err / d aim, before the right first hit and after it
@@ -160,7 +168,7 @@ function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number
     const r = rollout(B, s, k, first, to, g, cr, or, !!tier.tricks), c = r.S[0], np = pk && r.pot && r.legal ? nextP(B, r.S, ids, group, tier) : { p: 0, nine: false }, p = np.p;
     if (p < 0) r.pot = false; // the 8 went down early: the rack is lost
     const extra = tier.tricks && r.pot && r.legal ? r.pots.filter((j) => j !== k && group.includes(ids[j]) && ids[j] !== winBall(group)).length : 0;
-    const off = Math.abs(r.err) * 5 + (pk ? 1 - Math.max(0, p) : Math.hypot(c.x * 1000 - leave.x, c.y * 1000 - leave.y) / 4000);
+    const off = Math.abs(r.err) * 5 + (pk ? 1 - Math.max(0, p) : opp ? reply(r.S, ids, opp) : Math.hypot(c.x * 1000 - leave.x, c.y * 1000 - leave.y) / 4000);
     const out = { ...r, shot: s, next: p, nextNine: np.nine, extra, sure: -1, score: 8 * +(r.pot && r.legal) + 4 * +!r.scratch + 2 * +r.legal + +r.rail - Math.min(0.99, off) + 0.5 * extra };
     if (check && out.score > (best?.score ?? -Infinity) && done(out)) { const n = check(s); if (n >= 0) { out.sure = n / 6; out.score -= FAIL * (6 - n); } }
     if (!best || out.score > best.score) best = out;
@@ -227,7 +235,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
     const cr = tier.tricks && (c.type === 'kick' || c.type === 'safety') ? c.rails ?? +(c.type === 'kick') : 0, or = tier.tricks && c.type === 'bank' ? c.rails ?? 1 : 0;
     const k = ids.indexOf(c.ball), pk = c.type === 'safety' ? null : POCKETS[c.pocket], sd = aimSd(tier, c.type);
     const check = tier.tricks ? (s: Shot) => verify(B, ids, group, tier, s, sd, k, first, pk && { x: pk.x / 1000, y: pk.y / 1000 }, { x: c.G.x / 1000, y: c.G.y / 1000 }, cr, or, end) : undefined;
-    return { c, more: sims < 2 && !free ? null : refine(B, ids, group, tier, k, first, pk, c.G, lv, start, end, cr, or, check), check, v: -Infinity, p: 0, shot: start, r: null as Roll | null };
+    return { c, more: sims < 2 && !free ? null : refine(B, ids, group, tier, k, first, pk, c.G, lv, start, end, cr, or, check, tier.tricks && !pk ? oppGroup : undefined), check, v: -Infinity, p: 0, shot: start, r: null as Roll | null };
   };
   const runs = cands.map((c) => mkRun(c));
   type Run = (typeof runs)[number];

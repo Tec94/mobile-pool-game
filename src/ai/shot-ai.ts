@@ -419,7 +419,7 @@ export function shotOdds(tier: Tier, s: Planned, n: number) {
 }
 const need = (balls: Obj[], group: number[]) => (nine(group) ? balls.length : balls.filter((b) => group.includes(b.id)).length + 1);
 const replyCost = (tier: Tier, balls: Obj[], oppGroup: number[]) => REPLY + (tier.rack ? RACK * Math.pow(R_REF, need(balls, oppGroup) - 1) : 0);
-const oppBest = (cue: Pt, balls: Obj[], oppGroup: number[]) => Math.max(0, ...enumerate(cue, balls, legalFor(balls, oppGroup), potFor(balls, oppGroup), false).map((s) => potProb(s, SIGMA_REF)));
+export const oppBest = (cue: Pt, balls: Obj[], oppGroup: number[]) => Math.max(0, ...enumerate(cue, balls, legalFor(balls, oppGroup), potFor(balls, oppGroup), false).map((s) => potProb(s, SIGMA_REF)));
 // A trick shot: a bank or kick off 2 cushions or more, or a jump.
 export const fancy = (s: { type: string; rails?: number; elev?: number }) => (s.rails ?? 1) > 1 || !!s.elev;
 // The tier plays this shot: its type is in the repertoire, and a carom's helper ball is close enough.
