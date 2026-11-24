@@ -121,7 +121,7 @@ export function matchFeats(l: Ledger, m: { vs: Vs; won: boolean; cue?: CueId; dr
 // The break's pots still pay as shots. A rack the AI hands over (three fouls, an early 8) is not won on the break.
 // why = what a Masters win paid and why: x10 when it ran out every rack, else as Legend's (setup says up to x10). Not note, which cancels the feats.
 export interface Settled { match: Pay; shots: Pay; chalk: Pay | null; total: Pay; note?: string; why?: string; got?: string[] } // got = the cues the match's feats gave
-export const BREAK_ONLY = 'Won on the break: no match pay.', NOT_RUN = 'A rack was not run out: pays as a Legend win.', RAN_OUT = 'Run-out win against the Chinese Masters: pays ×10.';
+export const BREAK_ONLY = 'Won on the break: no match pay.', NOT_RUN = 'A rack was handed to you, or the 9 fell early: pays as a Legend win.', RAN_OUT = 'You finished every rack on your own shot: pays ×10.';
 export function settle(l: Ledger, m: { tier: number; won: boolean; early: boolean; tour?: number; racks?: number }, chalk?: (won: boolean, match: Pay) => Pay): Settled {
   const dry = m.won && !!m.racks && (l.brk ?? 0) >= m.racks;
   const match = dry ? { xp: 0, coins: 0 } : matchPay({ ...m, fouls: l.fouls, ownPotted: l.own, lucky: l.lucky }), x = chalk && !dry ? chalk(m.won, match) : null, c = x && (x.xp || x.coins) ? x : null;
