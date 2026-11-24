@@ -11,7 +11,7 @@
 import { breakSpot, P, rack, step, strike } from '../src/physics/engine.ts';
 import { choose, handCue, judge, moveCue, newGame, newRec, ranOut, record, setCall, spotBall } from '../src/rules/rules.ts';
 import { choiceFor, nextSafeties, safetiesArg, think } from '../src/ai/turn.ts';
-import { MASTERS } from '../src/ai/shot-ai.ts';
+import { MASTERS, TIERS } from '../src/ai/shot-ai.ts';
 
 const [racks = 200, game = 8, rating = 6] = process.argv.slice(2).map(Number), n = Math.ceil(racks / 2);
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
@@ -72,5 +72,5 @@ console.log(`racks it had a visit in ${tot.ran}, won ${pct(tot.wonRan, tot.ran)}
 console.log(`fumbles: missed trick ${tot.trick}, missed plain pot ${tot.plain}, safety or escape ${tot.safety}, foul ${tot.foul}`);
 console.log(`pot shots ${pots}, by kind %: ` + Object.entries(tot.kinds).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${pct(v, pots)}`).join(', '));
 console.log(`ridiculous (2+ cushions, jump, carom, billiard, combo, double) ${pct(Object.entries(tot.kinds).filter(([k]) => TRICK.test(k) || ['carom', 'billiard', 'combo', 'double'].includes(k)).reduce((a, [, v]) => a + v, 0), pots)}% of pot shots`);
-console.log(`think ms p50 ${q[Math.floor(q.length / 2)]?.toFixed(0)}, max ${q[q.length - 1]?.toFixed(0)}`);
+console.log(`think ms p50 ${q[Math.floor(q.length / 2)]?.toFixed(0)}, p90 ${q[Math.floor(q.length * 0.9)]?.toFixed(0)}, max ${q[q.length - 1]?.toFixed(0)}; at the hard stop (TIERS think) ${q.filter((x) => x >= TIERS[MASTERS - 1].think).length} of ${q.length} shots`);
 if (rating !== 6) console.log(`rating ${rating}: racks won ${tot.oppWon} (${pct(tot.oppWon, tot.done)}%), x10 wins (its own shot ran the rack out) ${tot.x10}, of them on 2 balls potted or fewer ${tot.x10few}`);
