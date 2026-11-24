@@ -1,6 +1,7 @@
 // The tricks that act on the controls of a match against the AI (the cue redesign's roster). The tricks of the stick
 // are in cues.ts stick(), and the tricks that change pay are in pay.ts.
-import type { Aura } from './pay.ts';
+import type { Aura, Ledger } from './pay.ts';
+import type { CueId, Stat } from './cues.ts';
 import type { Ball } from '../physics/engine.ts';
 import { judge, type Rec, type State } from '../rules/rules.ts';
 
@@ -102,3 +103,48 @@ export const softLine = (w: Soft) => ({ text: '●'.repeat(w.left) + '○'.repea
 export const mogLine = (lead: number) => (lead > 0 ? { text: 'Mogging +3', label: 'Mogging: 8 in every stat' } : lead < 0 ? { text: 'Mogged −3', dim: true, label: 'Mogged: 2 in every stat' } : null);
 // The Maxxed: the second pick of the rack, as 1 pip.
 export const maxLine = (left: boolean) => ({ text: left ? '●' : '○', dim: !left, label: left ? 'Statmaxxing: 1 more pick this rack, at the start of a turn' : 'Statmaxxing: no more picks this rack' });
+
+// The player's cue trick in a match against the AI, as it acts on one rack: the state of the tricks above, and what
+// they change about a shot. own = the player's cue; undefined = not a match against the AI, so every answer is the
+// plain one. The state is k, one object for the life of the match: the rail's marks read it at each draw. Game acts
+// on the table for the Seer, the Hindsight and the Airbrake, and reads their state here.
+export type Was = { B: Ball[]; m: number[][]; rules: State; ledger: Ledger; snooker: boolean; kept: boolean };
+export function trickFor(own: CueId | undefined, pick: Stat, owed: boolean) {
+  const k = {
+    soft: newSoft(), softened: false, pulled: 0, notches: [] as number[], flukes: newFlukes(), omen: newOmen(),
+    past: { ...newPast(), was: null as Was | null }, brake: newBrake(), sunk: [0, 0], again: true, visit: 0, from: pick, owed,
+  };
+  // softened = the player's last shot used Soft hands; pulled = the pull of the last strike; notches = the Ratchet's;
+  // again = the Maxxed may pick again this rack; visit = the shots of this visit; from = the pick the turn began with;
+  // owed = the Ram owes a shot with no guide.
+  const power = (pull: number, s: State, elev: number) => (own === 'ram' && s.turn === 0 ? overdrive(pull, s.phase !== 'break' && elev < 4) : k.brake.armed && s.turn === 0 ? Math.min(BRAKE_MAX, pull) : pull);
+  return {
+    k, power,
+    // No guide: the Nonchalant; the shot in place of one the Hindsight took back; the Ram's owed shot, and while its pull is past 100%.
+    dark: (pull: number, s: State, elev: number) => s.turn === 0 && (own === 'nonchalant' || k.past.blind || (own === 'ram' && ((k.owed && s.phase !== 'break') || power(pull, s, elev) > 1))),
+    // A new rack. The Seer's price owed goes over to it.
+    rack(pick: Stat) { Object.assign(k, { notches: [], soft: newSoft(), flukes: newFlukes(), omen: newOmen(k.omen.plain), past: { ...newPast(), was: null }, brake: newBrake(), sunk: [0, 0], again: true, visit: 0, from: pick }); },
+    // The turn passes to the player.
+    turn(pick: Stat) { k.soft.turn++; k.visit = 0; k.from = pick; },
+    // The player's strike: shown = the power the pull stood for (power()). The Maxxed's pick is spent when it changed this turn.
+    strike(pull: number, s: State, pick: Stat, shown: number) {
+      k.pulled = pull;
+      if (own === 'maxxed' && s.phase !== 'break' && pick !== k.from) k.again = false;
+      k.from = pick; k.visit++;
+      if (own === 'ratchet') k.notches = notch(k.notches, pull);
+      if (own === 'ram') k.owed = ramOwes(k.owed, shown, s.phase === 'break');
+    },
+    // The ruling on a shot played from s (rules.ts judge), as the tricks change it.
+    rule(s: State, r: Rec, push: boolean) {
+      let next = own === 'nonchalant' && s.turn === 0 ? whatever(s, r, push) : judge(own && s.turn === 1 && k.softened ? afterSoft(s) : s, r, push);
+      if (own && s.turn === 1) k.softened = false;
+      if (own === 'marble') noteSunk(k.sunk, s, r, next);
+      if (own === 'whisper' && s.turn === 0) { const had = k.soft.left; next = softHands(k.soft, k.pulled, s, r, next, push); k.softened = k.soft.left < had; }
+      return next;
+    },
+    // The state of the trick after the player's name on the HUD. hard = the opponent is Hustler or harder.
+    line: (s: State, ledger: Ledger, hard: boolean) => (ledger.aura ? auraLine(ledger.aura) : own === 'ram' && k.owed && s.phase !== 'break' ? RAM_LINE : own === 'whisper' ? softLine(k.soft) : own === 'marble' ? mogLine(mogLead(s, k.sunk)) : own === 'maxxed' ? maxLine(k.again) : own === 'nonchalant' && hard ? flukeLine(k.flukes) : own === 'seer' ? omenLine(k.omen) : own === 'hindsight' ? pastLine(k.past) : own === 'airbrake' ? brakeLine(k.brake) : null),
+    // The power rail's props (ui/ShotControls.tsx PowerRail): shown = power() for the table now; turn = whose turn it is now.
+    rail: (shown: (pull: number) => number, turn: () => number) => (own === 'ratchet' ? { snap: ratchet, marks: () => k.notches } : own === 'ram' ? { shown, marks: () => (turn() === 0 ? [1 / OVER] : []) } : own === 'whisper' ? { marks: () => (turn() === 0 ? [SOFT] : []) } : own === 'airbrake' ? { shown, marks: () => (k.brake.armed ? [BRAKE_MAX] : []) } : {}),
+  };
+}
