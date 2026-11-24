@@ -267,9 +267,11 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
     }
   }
   // show: a checked trick shot, kiss shot (combo, carom, billiard) or double pot worth at least 1 / (1 + show) of the
-  // best, whose chance is at most SHOW_GAP under it, is played in its place
+  // best, whose chance is at most SHOW_GAP under it and whose rollout scored as well (pot, centre, leave), is played in its
+  // place. Without that last check (140 tables, bench why.mjs) it cleared 85 in place of 99 at 37% trick pots; with it
+  // 94 at 25%: the chance tops out at SURE, so value ties hide a worse leave or line.
   const flair = (x: (typeof runs)[number]) => (fancy(x.c) || x.c.type === 'combo' || x.c.type === 'carom' || x.c.type === 'billiard' || !!x.r?.extra) && x.v > 0;
-  if (tier.show && !flair(won)) won = runs.filter((x) => flair(x) && x.v * (1 + tier.show!) >= won.v && x.p >= won.p - SHOW_GAP).reduce((a, x) => (x.v > a.v ? x : a), won);
+  if (tier.show && !flair(won)) won = runs.filter((x) => flair(x) && x.v * (1 + tier.show!) >= won.v && x.p >= won.p - SHOW_GAP && x.r!.score >= (won.r?.score ?? 0)).reduce<(typeof runs)[number] | null>((a, x) => (!a || x.v > a.v ? x : a), null) ?? won;
   // A tier with tricks has measured its pots: when none pots on the engine, or the best only in under SAFE_P of verify()'s
   // rollouts, it plays a safety or an escape after all (decide() with no pot allowed), unless it must shoot (safetiesInRow).
   if (tier.tricks && won.c.type !== 'safety' && (won.v <= 0 || won.p < SAFE_P) && safetiesInRow < 2) {
