@@ -530,11 +530,11 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   const play = (m: Move, stage = 0) => {
     const t = table.current;
     if (moving.current || t.rec || t.rules.phase === 'over' || !bot()) return;
+    if (!stage && m.call >= 0) { aiCall.current = m.call; called.current = performance.now(); paint(false); wake.current(); } // the call shows from the AI's first move; its ring settles as the player's does
     if (!stage && m.at) { carry(m.at, () => play(m, 1)); return; }
     const top = t.rules.phase === 'break' ? STICK.breakSpeed : STICK.maxSpeed, hold = (x: number) => Math.max(-STICK.tipLimit, Math.min(STICK.tipLimit, x));
     if (stage < 2) {
       if (m.at) moveCue(t.B, m.at[0], m.at[1], t.rules.hand);
-      if (m.call >= 0) { aiCall.current = m.call; called.current = performance.now(); paint(false); wake.current(); } // the call shows before the shot; its ring settles as the player's does
       lineUp(m.shot, top, hold, () => play(m, 2)); return;
     }
     if (m.call >= 0) t.rules = setCall(t.rules, m.call); // into the rules at the strike: a new ruling now would start the AI's turn again
@@ -568,7 +568,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     tween(Math.min(900, 350 + 400 * Math.hypot(x - x0, y - y0)), e => {
       c.x = x0 + (x - x0) * e; c.y = y0 + (y - y0) * e;
       paint(false); // the tick's pulse redraws the marks only, not the balls
-    }, 250, done, () => { c.x = x0; c.y = y0; paint(false); });
+    }, 250, done, () => { c.x = x0; c.y = y0; aiCall.current = -1; paint(false); });
   };
   // The AI lines up on the controls as a player would: the stick turns to its aim while the tip dot moves to its spin,
   // then the rail pulls to its power. lining = draw the stick though the controls are shut.
