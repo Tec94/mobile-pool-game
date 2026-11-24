@@ -245,12 +245,13 @@ export function tricksTail(won: Run, srch: Search, cands: (Planned | Safety)[], 
     }
   }
   // show: a fancier pot (fancy: a cushion past the first, 2 for a jump, 1 for a kiss shot, combo, carom or billiard, and
-  // 1 for each second ball potted) whose value times 1 + show x fancy is at least the best's, whose checked chance is at
-  // most SHOW_GAP under it and whose rollout scored as well (pot, centre, leave), is played in its place. The last check
-  // because the chance tops out at SURE, so value ties hide a worse leave or line.
+  // 1 for each second ball potted; never over a safety, as the rescue above) whose value times 1 + show x fancy is at
+  // least the best's, whose checked chance is at most SHOW_GAP under it and whose rollout scored as well (pot, centre,
+  // leave), is played in its place. The last check because the chance tops out at SURE, so value ties hide a worse leave
+  // or line.
   const fl = (x: Run) => (x.v > 0 ? Math.max(0, (x.c.rails ?? 1) - 1) + (x.c.elev ? 2 : 0) + +(x.c.type === 'combo' || x.c.type === 'carom' || x.c.type === 'billiard') + x.r!.extra : 0);
   const shown = (x: Run) => x.v * (1 + tier.show! * fl(x));
-  for (const x of runs.filter((x) => fl(x) > fl(won) && x.r!.score >= (won.r?.score ?? 0)).sort((a, b) => shown(b) - shown(a))) {
+  for (const x of runs.filter((x) => won.c.type !== 'safety' && fl(x) > fl(won) && x.r!.score >= (won.r?.score ?? 0)).sort((a, b) => shown(b) - shown(a))) {
     if (shown(x) < shown(won)) break;
     checkRun(x);
     if (shown(x) >= shown(won) && x.p >= won.p - SHOW_GAP) { won = x; break; }
