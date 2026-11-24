@@ -23,11 +23,11 @@ import { BAR, drawAim, drawTable, onTable, toScreen, toTable } from './src/rende
 import { LEVEL, shotTip } from './src/render/tip';
 import { type Lesson, LESSON_PAY, LESSONS, lessonTable, type LessonRec, litCushions, newLessonRec, noteLesson, PENCIL_AT, SOLO_RUN, soloTable, type Stage, verdict } from './src/learn/lessons';
 import { loadDone, saveDone } from './src/learn/save';
-import { canCall, choose, handCue, hooked, judge, legalFirst, moveCue, newGame, newRec, Rec, record, setCall, spotBall, State } from './src/rules/rules';
+import { canCall, choose, handCue, hooked, legalFirst, moveCue, newGame, newRec, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { thinkAsync } from './src/ai/think';
 import { candsFor, choiceFor, type Move, nextSafeties, potPay, type Safeties, safetiesArg, softMove, think } from './src/ai/turn';
 import { rng, TIERS } from './src/ai/shot-ai';
-import { hustler, type Ledger, matchFeats, newLedger, noteShot, type Pay, rackOver, settle, type Settled, type Vs } from './src/progress/pay';
+import { hustler, matchFeats, newLedger, noteShot, type Pay, rackOver, settle, type Settled, type Vs } from './src/progress/pay';
 import type { StyleId } from './src/ai/styles';
 import { medalOf, newRun, type Opts, type Run } from './src/tournament/bracket';
 import { loadRun, saveRun } from './src/tournament/save';
@@ -45,7 +45,7 @@ import { loadStars, saveStars } from './src/scenarios/save';
 import { levelNote } from './src/progress/profile';
 import { type CueId, CUES, guideScale, LOW_TIP, plain, sketch, type Stat, stick } from './src/progress/cues';
 import { maxStats, nextPick } from './src/progress/mastery';
-import { BRAKE_MAX, brakeAt, brakeLine, flukeLine, gold, hindsight, KEEP, newBrake, HOLD_MS, newPast, pastLine, newFlukes, newOmen, omenLine, STILL as HELD, whatever, afterSoft, auraLine, maxLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, OVER, overdrive, RAM_LINE, ramOwes, ratchet, SOFT, softHands, softLine } from './src/progress/tricks';
+import { brakeAt, gold, hindsight, KEEP, HOLD_MS, STILL as HELD, mog, mogLead, trickFor } from './src/progress/tricks';
 import { loadSettings, saveSettings } from './src/settings/save';
 import { RIVAL, type Settings } from './src/settings/settings';
 import { BALLS, C, CLOTHS, CREAM, DARK, FONT } from './src/theme';
@@ -232,8 +232,6 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   // The opponent, for pay and feats (pay.ts Vs): an AI tier, or the rating of a Rival or a tournament seat. The Twig's Humble reads the cue.
   const foe = (): Vs => (rival || tour ? { boss: level.current, tour: tour?.stakes, cue: own } : { tier: ai + 1, cue: own });
   // The Whisper's Soft hands (tricks.ts): its uses this rack, the pull of the last strike, and whether the player's last shot used it.
-  const soft = useRef(newSoft()), pulled = useRef(0), softened = useRef(false);
-  const notches = useRef<number[]>([]); // the Ratchet's last 3 pulls of the rack, as notches on the rail
   const snooker = useRef(false); // the player came to the table with no straight line to a ball they may hit (Escape Artist)
   const opened = () => { if (vs && !tour && hustler(foe())) matchOpen(); }; // at a strike: the first one of a match marks it as in play (progress.ts matchOpen)
   const safe = useRef<Safeties>(snap0?.safe ?? { row: 0, rack: 0 }), seed = useRef(snap0?.seed ?? Math.floor(Math.random() * 2 ** 31)), [thinking, setThinking] = useState(false);
@@ -313,7 +311,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   const paint = (again = true) => { const { B, look } = table.current; look.last.set(B.flatMap(b => [b.x, b.y])); pace.current = null; if (again) { dirty(); guides.drop(); line.current = null; } scheduleOnUI(still, draw.current(), mark.current(), ...ringOf()); }; // a guide for the table as it was is not drawn
   useEffect(() => { touch.current = null; paint(); }, where); // a drag measured in the old layout ends when the window turns
   useEffect(() => { const off = [shot.sub(dirty), tip.sub(dirty)]; return () => off.forEach(f => f()); }, []);
-  useEffect(() => hind ? shot.sub(() => { if (past.current.was?.kept && shot.get().power > 0.05) { past.current.was = null; redraw(); } }) : undefined, []); // a pot can be taken back until the next pull
+  useEffect(() => hind ? shot.sub(() => { if (tr.k.past.was?.kept && shot.get().power > 0.05) { tr.k.past.was = null; redraw(); } }) : undefined, []); // a pot can be taken back until the next pull
   useEffect(() => { if (!seer) return; const off = [shot.sub(() => watch()), tip.sub(() => watch())]; return () => { off.forEach(f => f()); clearTimeout(hold.current.timer); }; }, []);
   useEffect(() => { held.current = paused; scheduleOnUI(setRing, ...ringOf()); wake.current(); }, [paused]); // the marks and the ring stop under the pause card, and move again after it
   // A lesson plays with the engine's own cue, the one its reference shots are tuned on (src/learn/lessons.test.mjs).
@@ -329,18 +327,18 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   // The Maxxed's Statmaxxing: one stat is 10. The pick is free before the break shot of a rack. Once a rack the player may
   // pick again at the start of a turn (visit = the shots of this visit to the table); the pick is spent at the strike,
   // when it is another stat than the turn began with (from), so the button can step through the three.
-  const maxxed = vs && own === 'maxxed', [pick, setPick] = useState<Stat>(() => profile().maxxed ?? 'aim'), again = useRef(true), visit = useRef(0), from = useRef(pick);
-  const canPick = () => { const t = table.current; return maxxed && !bot() && !moving.current && !t.rec && !t.rules.choice && (t.rules.phase === 'break' || (t.rules.phase === 'play' && again.current && !visit.current)); };
+  const maxxed = vs && own === 'maxxed', [pick, setPick] = useState<Stat>(() => profile().maxxed ?? 'aim'), tr = useRef(trickFor(vs ? own : undefined, pick, vs && own === 'ram' && !!profile().ram)).current; // the cue's trick in this rack (tricks.ts)
+  const canPick = () => { const t = table.current; return maxxed && !bot() && !moving.current && !t.rec && !t.rules.choice && (t.rules.phase === 'break' || (t.rules.phase === 'play' && tr.k.again && !tr.k.visit)); };
   const repick = () => { if (!canPick()) return; const to = nextPick(pick); setPick(to); maxPick(to); setStats(maxStats(to)); };
-  const marble = vs && own === 'marble', sunk = useRef([0, 0]); // the Marble's Mog: the balls each player potted this rack
+  const marble = vs && own === 'marble'; // the Marble's Mog
   // The Ram's Overdrive (tricks.ts): the player's pull stands for up to 120% power, and a strike past 100% owes a shot with no guide.
   // The Seer's Omen (tricks.ts). hold = the pull that is held still: the shot it stands for (aim, tip and raise as one
   // key, and the pull), the timer of its 0.6 s, and a count that a move raises, so an answer for an old shot is dropped.
-  const seer = vs && own === 'seer', omen = useRef(newOmen()), hold = useRef<{ key: string; pull: number; timer?: ReturnType<typeof setTimeout>; job: number }>({ key: '', pull: 0, job: 0 });
+  const seer = vs && own === 'seer', hold = useRef<{ key: string; pull: number; timer?: ReturnType<typeof setTimeout>; job: number }>({ key: '', pull: 0, job: 0 });
   const canSee = () => { const t = table.current; return seer && !shut() && t.rules.phase === 'play' && !t.push && !(canCall(t.rules) && t.rules.call < 0); }; // not on the break or a push-out, and where a call is needed, not before it
-  const shutEye = () => { const o = omen.current; clearTimeout(hold.current.timer); hold.current.job++; if (o.armed || o.open) { o.armed = o.open = false; redraw(); dirty(); } };
+  const shutEye = () => { const o = tr.k.omen; clearTimeout(hold.current.timer); hold.current.job++; if (o.armed || o.open) { o.armed = o.open = false; redraw(); dirty(); } };
   const see = () => { // the pull held still: play the shot ahead, off the JS thread; the eye is open when it answers
-    const o = omen.current, h = hold.current, t = table.current, job = h.job, pull = shot.get().power;
+    const o = tr.k.omen, h = hold.current, t = table.current, job = h.job, pull = shot.get().power;
     if (!o.armed || o.open || !canSee()) return;
     farAhead(t.B, t.ids, t.rules, shotOf(pull), struck()).then(res => {
       if (job !== h.job || !o.armed || table.current !== t || t.rec) return; // the shot changed while the answer came
@@ -348,7 +346,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     }, () => {});
   };
   const watch = () => { // every change of the aim, the pull or the tip: a move starts the 0.6 s again, and closes an open eye
-    const o = omen.current, h = hold.current; if (!o.armed) return;
+    const o = tr.k.omen, h = hold.current; if (!o.armed) return;
     const { aim, power } = shot.get(), t = tip.get(), key = `${aim} ${t.x} ${t.y} ${t.elev}`;
     if (key === h.key && Math.abs(power - h.pull) < HELD) return;
     clearTimeout(h.timer); h.job++; h.key = key; h.pull = power;
@@ -357,34 +355,34 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   // The Hindsight's Take back (tricks.ts). was = the table, the rules and the pay as they were at the player's last
   // strike (kept = that shot was a pot: it can be taken back until the next pull); stay = the ruling on a shot that
   // ended the turn, fouled or lost the rack, held while the card asks.
-  const hind = vs && own === 'hindsight', past = useRef<{ left: number; blind: boolean; was: { B: Ball[]; m: number[][]; rules: State; ledger: Ledger; snooker: boolean; kept: boolean } | null }>({ ...newPast(), was: null }), stay = useRef<State | null>(null);
+  const hind = vs && own === 'hindsight', stay = useRef<State | null>(null);
   const takeBack = () => {
-    const w = past.current.was, t = table.current; if (!w || moving.current || t.rec) return;
-    past.current = { left: 0, blind: true, was: null }; stay.current = null;
+    const w = tr.k.past.was, t = table.current; if (!w || moving.current || t.rec) return;
+    tr.k.past = { left: 0, blind: true, was: null }; stay.current = null;
     t.B.splice(0, t.B.length, ...w.B); t.look.m = w.m; t.look.fx = [];
     Object.assign(t, { rules: { ...w.rules, call: -1, hand: false }, rec: null, push: false }); // the call is cleared, and ball in hand is not given again
     won.current = w.ledger; snooker.current = w.snooker; // the shot's pay and feat counts go back too
     tip.set(LEVEL); paint(); redraw(); snap();
     shot.set({ aim: Math.atan2(P.W / 2 - t.B[0].y, P.L / 2 - t.B[0].x), power: 0, fine: false, locked: shut() }); // lined up from nothing: the cue points at the centre spot, not at a ball
   };
-  const letStand = () => { const n = stay.current; if (!n) return; stay.current = null; past.current.was = null; apply.current(n); };
+  const letStand = () => { const n = stay.current; if (!n) return; stay.current = null; tr.k.past.was = null; apply.current(n); };
   // The Airbrake's Brake (tricks.ts): a tap on the table while the armed shot plays puts back the table of the frame
   // on screen, with the cue ball stopped dead, and play goes on from there.
   // shortcut: the frame on screen when the JS thread gets the tap, a frame or two after the finger landed; upgrade with the show times of the last frames from the UI thread.
-  const air = vs && own === 'airbrake', brake = useRef(newBrake());
-  const canBrake = () => air && !shut() && table.current.rules.phase === 'play' && (brake.current.armed || brake.current.left > 0);
+  const air = vs && own === 'airbrake';
+  const canBrake = () => air && !shut() && table.current.rules.phase === 'play' && (tr.k.brake.armed || tr.k.brake.left > 0);
   const brakeNow = () => {
-    const k = brake.current, t = table.current, f = t.rec ? brakeAt(k.frames, queue.value.length) : null; if (!k.live || !f) return;
+    const k = tr.k.brake, t = table.current, f = t.rec ? brakeAt(k.frames, queue.value.length) : null; if (!k.live || !f) return;
     t.B.splice(0, t.B.length, ...f.B); t.look.m = f.m; t.look.fx = f.fx as typeof t.look.fx; t.rec = f.rec; k.live = false; k.frames = [];
     const c = t.B[0]; c.vx = c.vy = c.vz = c.wx = c.wy = c.wz = 0; // dead: no speed and no spin
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); moving.current = true; pace.current = null; // the frames made ahead are dropped: the next one starts the queue again
     scheduleOnUI(still, draw.current(), mark.current(), ...ringOf()); redraw(); wake.current();
   };
   // The Nonchalant's Whatever (tricks.ts): the player calls no pocket and has no guide; flukes = the paid flukes left this rack.
-  const free = vs && own === 'nonchalant', flukes = useRef(newFlukes()), mustCall = (s: State) => canCall(s) && !(free && s.turn === 0);
-  const ram = vs && own === 'ram', blind = useRef(ram && !!profile().ram);
-  const powerOf = (pull: number) => (ram && table.current.rules.turn === 0 ? overdrive(pull, table.current.rules.phase !== 'break' && tip.get().elev < 4) : brake.current.armed && table.current.rules.turn === 0 ? Math.min(BRAKE_MAX, pull) : pull);
-  const dark = (pull: number) => table.current.rules.turn === 0 && (free || past.current.blind || (ram && ((blind.current && table.current.rules.phase !== 'break') || powerOf(pull) > 1))); // no guide: the Nonchalant; the shot in place of one the Hindsight took back; the Ram's owed shot, and while its pull is past 100%
+  const free = vs && own === 'nonchalant', mustCall = (s: State) => canCall(s) && !(free && s.turn === 0);
+  const ram = vs && own === 'ram';
+  const powerOf = (pull: number) => tr.power(pull, table.current.rules, tip.get().elev);
+  const dark = (pull: number) => tr.dark(pull, table.current.rules, tip.get().elev); // no guide: the Nonchalant; the shot in place of one the Hindsight took back; the Ram's owed shot, and while its pull is past 100%
   const shotOf = (power: number): Shot => { const c = lining.current ? STICK : inPlay.current.cue; return { ang: shot.get().aim, speed: Math.max(0.05, powerOf(power) * (table.current.rules.phase === 'break' ? c.breakSpeed : c.maxSpeed)), ...shotTip(tip.get(), c) }; }; // the AI lines up with the House Cue
   // No shot can be made: balls move, the rules have not ruled on the last shot, a player has a decision to make, or the
   // rack is over. In a lesson: the shot plays itself, or the verdict card is up.
@@ -413,10 +411,10 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
       // The loser's own balls left (8-ball; 7 on an open table) say how close the match was.
       if (rival) { const lose = 1 - s.winner, left = s.solids < 0 ? 7 : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === lose)).length, [a, b] = rivalDone(game, s.winner === 0, left, set.mood); moved.current = `Rival ${shown(a)} to ${shown(b)}`; }
     } }
-    if (s.phase === 'break') { table.current = newTable(s); moving.current = false; safe.current = { row: 0, rack: 0 }; won.current.run = 0; notches.current = []; soft.current = newSoft(); flukes.current = newFlukes(); clearTimeout(hold.current.timer); omen.current = newOmen(omen.current.plain); past.current = { ...newPast(), was: null }; brake.current = newBrake(); sunk.current = [0, 0]; again.current = true; visit.current = 0; from.current = pick; }
+    if (s.phase === 'break') { table.current = newTable(s); moving.current = false; safe.current = { row: 0, rack: 0 }; won.current.run = 0; clearTimeout(hold.current.timer); tr.rack(pick); }
     else { for (const id of s.spot) spotBall(t.B, t.ids.indexOf(id)); if (s.hand) handCue(t.B, s.hand); Object.assign(t, { rules: s, rec: null, push: false }); }
-    if (came) { soft.current.turn++; visit.current = 0; from.current = pick; }
-    if (marble) setStats(mog(mogLead(s, sunk.current))); // it changes the moment a shot is ruled on
+    if (came) tr.turn(pick);
+    if (marble) setStats(mog(mogLead(s, tr.k.sunk))); // it changes the moment a shot is ruled on
     snooker.current = vs && came && s.phase === 'play' && !s.hand && hooked(table.current.B, table.current.ids, s); // judged at the start of a turn, not after a pot of your own, and not with ball in hand
     paint(); redraw();
     if (!(s.phase === 'over' && s.winner >= 0 && score.current[s.winner as 0 | 1] === race)) snap(); // the match end was saved by tour.done
@@ -449,7 +447,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
           if (g && !((S || vs) && les.current.guideOff && !lining.current) && !dark(power)) { peeked.current = true; if (coiled) drawAim(Skia, c, map.current, shorten(g.path, 0.2)); else {
               // The Optic's Range, for the speed the guide shows: a mark where the cue ball's roll would end before the first ball, and a ring of the first ball's reach. A ring wider than 2.5 m is a number by the ball.
               const ranged = optic && !lining.current, far = ranged && g.first > 0 && 2 * g.roll > 2.5;
-              drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob, bad, g.stub, { fill: g.dead, gold: omen.current.open && omen.current.gold, ...(ranged && { mark: pointAt(g.path, rollOut(shotOf(previewPower(power)).speed)), ring: g.first > 0 && !far ? [B[g.first].x, B[g.first].y, g.roll] : null, note: far ? `${g.roll.toFixed(1)} m` : '', font: RAIL_FONT }) });
+              drawAim(Skia, c, map.current, g.path, g.ghost, g.lands, g.lost, g.ob, bad, g.stub, { fill: g.dead, gold: tr.k.omen.open && tr.k.omen.gold, ...(ranged && { mark: pointAt(g.path, rollOut(shotOf(previewPower(power)).speed)), ring: g.first > 0 && !far ? [B[g.first].x, B[g.first].y, g.roll] : null, note: far ? `${g.roll.toFixed(1)} m` : '', font: RAIL_FONT }) });
             } }
           if (!grab.current || grab.current === 'call') drawCue(Skia, c, map.current, B[0].x, B[0].y, aim, power, (S || vs) && !lining.current ? own : undefined); // no stick while a finger carries the cue ball in hand; the player's own cue where it counts, the plain stick for the AI and for matched games
         }
@@ -465,7 +463,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
         for (let n = 0, ms; n < 4 && busy() && (ms = nextFrame(p, t)); n++) { // at most 4 frames a turn, so a late JS thread still answers touches
           const t0 = performance.now();
           moving.current = advance(B, look, ms, moving.current, rec ? ev => (L ? noteLesson(rec as LessonRec, ev, B, ids) : record(rec, ev, B, ids)) : undefined);
-          if (brake.current.live && rec) { const fr = brake.current.frames; fr.push({ B: B.map(b => ({ ...b })), m: look.m.map(m => [...m]), fx: look.fx.map(f => ({ ...f })), rec: JSON.parse(JSON.stringify(rec)) }); if (fr.length > KEEP) fr.shift(); } // the Airbrake: a copy of the table for this frame
+          if (tr.k.brake.live && rec) { const fr = tr.k.brake.frames; fr.push({ B: B.map(b => ({ ...b })), m: look.m.map(m => [...m]), fx: look.fx.map(f => ({ ...f })), rec: JSON.parse(JSON.stringify(rec)) }); if (fr.length > KEEP) fr.shift(); } // the Airbrake: a copy of the table for this frame
           scheduleOnUI(push, draw.current(), busy() ? p.frame : STILL, first && !n, first && !n ? mark.current() : null);
           const cost = performance.now() - t0; spent(p, cost); made.current[0]++; made.current[1] += cost;
         }
@@ -473,20 +471,17 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
       } else if (rec) { // the shot is over: when its last frame is on screen, the rules say what it was
         if (!queue.value.length && L) { table.current.rec = null; ended.current(rec as LessonRec); }
         else if (!queue.value.length) {
-          let next = free && s.turn === 0 ? whatever(s, rec, pushOut) : judge(vs && s.turn === 1 && softened.current ? afterSoft(s) : s, rec, pushOut);
-          if (vs && s.turn === 1) softened.current = false;
-          if (marble) noteSunk(sunk.current, s, rec, next);
-          if (vs && s.turn === 0 && own === 'whisper') { const had = soft.current.left; next = softHands(soft.current, pulled.current, s, rec, next, pushOut); softened.current = soft.current.left < had; }
+          let next = tr.rule(s, rec, pushOut);
           if (vs && s.turn === 0) {
-            const p = potPay(s.phase === 'break' ? [] : candsFor(pre.current, ids, s), rec, s, next, won.current.run, foe(), inPlay.current.cue.tipLimit, pushOut ? undefined : won.current.aura, free ? flukes.current : undefined, omen.current.plain); // a push-out neither adds to the Aura's run nor ends it
-            if (snooker.current && !pushOut && !next.foul && rec.first >= 0 && !omen.current.plain) p.feats.push('escape'); // out of a snooker with a legal hit
-            omen.current.plain = false; // the Seer's price is paid on one shot
+            const p = potPay(s.phase === 'break' ? [] : candsFor(pre.current, ids, s), rec, s, next, won.current.run, foe(), inPlay.current.cue.tipLimit, pushOut ? undefined : won.current.aura, free ? tr.k.flukes : undefined, tr.k.omen.plain); // a push-out neither adds to the Aura's run nor ends it
+            if (snooker.current && !pushOut && !next.foul && rec.first >= 0 && !tr.k.omen.plain) p.feats.push('escape'); // out of a snooker with a legal hit
+            tr.k.omen.plain = false; // the Seer's price is paid on one shot
             noteShot(won.current, p, next.foul && next.phase !== 'over', s.phase === 'break' && next.phase === 'over' && next.winner === 0, hustler(foe()), next.phase === 'over' && next.winner === 1);
           } // a foul that ends the rack does not cost the clean-match bonus; a rack won on the break shot is counted (pay.ts settle)
           if (next.phase === 'over' || next.foul) Haptics.notificationAsync(next.winner < 0 ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
-          brake.current.live = false; brake.current.frames = []; // the braked shot is over, tapped or not
-          const ask = hind && s.turn === 0 && past.current.was ? hindsight(next, 0) : 'no';
-          if (ask === 'keep') past.current.was!.kept = true; else if (ask === 'no') past.current.was = null;
+          tr.k.brake.live = false; tr.k.brake.frames = []; // the braked shot is over, tapped or not
+          const ask = hind && s.turn === 0 && tr.k.past.was ? hindsight(next, 0) : 'no';
+          if (ask === 'keep') tr.k.past.was!.kept = true; else if (ask === 'no') tr.k.past.was = null;
           if (ask === 'ask') { stay.current = next; table.current.rec = null; redraw(); } // the game stops and asks before the ruling goes on the table
           else apply.current(next);
         }
@@ -518,20 +513,15 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   const fire = (power: number) => {
     const t = table.current;
     if (shut() || (mustCall(t.rules) && t.rules.call < 0)) { shot.set({ power: 0 }); return; } // a pocket must be called first: the HUD asks for it
-    if (omen.current.open) power = omen.current.pull; // the Seer's frozen shot: the power the eye saw
+    if (tr.k.omen.open) power = tr.k.omen.pull; // the Seer's frozen shot: the power the eye saw
     shutEye();
     Haptics.impactAsync(powerOf(power) > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
     if (vs) pre.current = t.B.map(b => ({ ...b })); // the pay candidates are searched at the ruling, from this copy: 15 ms on the strike frame without JIT
     const sh = shotOf(power); snap(sh); opened();
-    if (brake.current.armed) { brake.current = { left: 0, armed: false, live: true, frames: [] }; redraw(); } // used up at the strike, tapped or not
-    pulled.current = power;
-    if (hind) { const p = past.current; p.was = p.left && t.rules.phase !== 'break' ? { B: t.B.map(b => ({ ...b })), m: t.look.m.map(m => [...m]), rules: t.rules, ledger: JSON.parse(JSON.stringify(won.current)), snooker: snooker.current, kept: false } : null; p.blind = false; }
+    if (tr.k.brake.armed) { tr.k.brake = { left: 0, armed: false, live: true, frames: [] }; redraw(); } // used up at the strike, tapped or not
+    if (hind) { const p = tr.k.past; p.was = p.left && t.rules.phase !== 'break' ? { B: t.B.map(b => ({ ...b })), m: t.look.m.map(m => [...m]), rules: t.rules, ledger: JSON.parse(JSON.stringify(won.current)), snooker: snooker.current, kept: false } : null; p.blind = false; }
     if (!les.current.guideOff) pure.current = false;
-    if (maxxed && t.rules.phase !== 'break' && pick !== from.current) again.current = false;
-    from.current = pick;
-    visit.current++;
-    if (vs && own === 'ratchet') notches.current = notch(notches.current, power);
-    if (ram) { blind.current = ramOwes(blind.current, powerOf(power), t.rules.phase === 'break'); ramOwed(blind.current); }
+    tr.strike(power, t.rules, pick, powerOf(power)); if (ram) ramOwed(tr.k.owed);
     t.rec = L ? newLessonRec() : newRec(sh); strike(t.B[0], sh, struck()); moving.current = true; wake.current();
     tip.set(LEVEL); setSheet(false); setTools(false); shot.set({ power: 0, fine: false, locked: true });
   };
@@ -621,7 +611,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   const pan = useRef(PanResponder.create({
     onStartShouldSetPanResponder: e => { // a touch that misses a control must not turn the aim
       const on = onTable(map.current, e.nativeEvent.pageX, e.nativeEvent.pageY);
-      if (on && brake.current.live) { brakeNow(); return false; } // the Airbrake's tap: it stops the cue ball and aims nothing
+      if (on && tr.k.brake.live) { brakeNow(); return false; } // the Airbrake's tap: it stops the cue ball and aims nothing
       return !shut() && on;
     },
     onPanResponderGrant: (_, g) => { // a touch by the cue ball in hand drags it, a touch on a pocket calls it, any other aims
@@ -695,7 +685,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   const over = rules.phase === 'over';
   const win = rules.winner === -1 ? 0 : rules.winner, done = over && score.current[win] >= race; // the match is over
   const paid = done ? end.current : null;
-  const trick = won.current.aura ? auraLine(won.current.aura) : ram && blind.current && rules.phase !== 'break' ? RAM_LINE : vs && own === 'whisper' ? softLine(soft.current) : marble ? mogLine(mogLead(rules, sunk.current)) : maxxed ? maxLine(again.current) : free && hustler(foe()) ? flukeLine(flukes.current) : seer ? omenLine(omen.current) : hind ? pastLine(past.current) : air ? brakeLine(brake.current) : null; // the state of the cue's trick, after the player's name on the HUD
+  const trick = tr.line(rules, won.current, hustler(foe())); // the state of the cue's trick, after the player's name on the HUD
   const rerack = (breaker = over ? 1 - rules.breaker : rules.breaker) => {
     if (done) { score.current = [0, 0]; if (rival) { level.current = profile().rival[game].rating; moved.current = ''; } won.current = newLedger(); end.current = null; pure.current = true; }
     apply.current(newGame(game, breaker as 0 | 1, callAll, bankRule, Math.floor(Math.random() * 2 ** 31)));
@@ -762,14 +752,14 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
         </View>
       )}
       {/* The shot controls sit inside the safe area where shotLayout puts them. */}
-      <PowerRail store={shot} box={lay.rail} onStrike={fire} wait={!bot() && mustCall(rules) && rules.call < 0} {...(vs && own === 'ratchet' && { snap: ratchet, marks: () => notches.current })} {...(ram && { shown: powerOf, marks: () => (table.current.rules.turn === 0 ? [1 / OVER] : []) })} {...(vs && own === 'whisper' && { marks: () => (table.current.rules.turn === 0 ? [SOFT] : []) })} {...(air && { shown: powerOf, marks: () => (brake.current.armed ? [BRAKE_MAX] : []) })} {...(optic && { note: (pull: number) => `${rollOut(shotOf(pull).speed).toFixed(1)} m` })} />
+      <PowerRail store={shot} box={lay.rail} onStrike={fire} wait={!bot() && mustCall(rules) && rules.call < 0} {...tr.rail(powerOf, () => table.current.rules.turn)} {...(optic && { note: (pull: number) => `${rollOut(shotOf(pull).speed).toFixed(1)} m` })} />
       <AimDial store={shot} box={lay.dial} />
       {!(L && stage === 'watch') && <View style={[styles.at, lay.spin]}><TipButton store={tip} land={view.land} onPress={() => { setSheet(!sheet); setTools(false); }} /></View>}
       {maxxed && <View style={[styles.at, lay.tools]}><Btn label={`${pick[0].toUpperCase()}${pick.slice(1)}\n${plain('maxxed') ? '10' : 'maxxing'}`} name={`Statmaxxing: ${pick} is 10. Pick another stat`} off={!canPick()} onPress={repick} /></View>}
-      {seer && <View style={[styles.at, lay.tools]}><Btn label={omen.current.open ? (omen.current.gold ? 'Eye\ngold' : 'Eye\nopen') : omen.current.armed ? 'Eye\narmed' : 'Eye'} name={omen.current.open ? (omen.current.gold ? 'Omen: the eye is open. This shot pots' : 'Omen: the eye is open. No pot on this shot') : omen.current.armed ? 'Omen: armed. Hold the pull still' : 'Omen: arm the eye'} on={omen.current.armed || omen.current.open} off={!omen.current.armed && !omen.current.open && (!omen.current.left || !canSee())}
-        onPress={() => { const o = omen.current; if (o.armed || o.open) shutEye(); else if (o.left && canSee()) { o.armed = true; hold.current.key = ''; redraw(); } }} /></View>}
-      {hind && <View style={[styles.at, lay.tools]}><Btn label={'Take\nback'} name="Take back: take your last shot back" off={!past.current.was?.kept || shut()} onPress={takeBack} /></View>}
-      {air && <View style={[styles.at, lay.tools]}><Btn label={brake.current.armed ? 'Brake\narmed' : 'Brake'} name={brake.current.armed ? 'Brake: armed. Tap to take it off' : 'Brake: arm it for this shot'} on={brake.current.armed} off={!canBrake()} onPress={() => { if (!canBrake()) return; brake.current.armed = !brake.current.armed; redraw(); dirty(); }} /></View>}
+      {seer && <View style={[styles.at, lay.tools]}><Btn label={tr.k.omen.open ? (tr.k.omen.gold ? 'Eye\ngold' : 'Eye\nopen') : tr.k.omen.armed ? 'Eye\narmed' : 'Eye'} name={tr.k.omen.open ? (tr.k.omen.gold ? 'Omen: the eye is open. This shot pots' : 'Omen: the eye is open. No pot on this shot') : tr.k.omen.armed ? 'Omen: armed. Hold the pull still' : 'Omen: arm the eye'} on={tr.k.omen.armed || tr.k.omen.open} off={!tr.k.omen.armed && !tr.k.omen.open && (!tr.k.omen.left || !canSee())}
+        onPress={() => { const o = tr.k.omen; if (o.armed || o.open) shutEye(); else if (o.left && canSee()) { o.armed = true; hold.current.key = ''; redraw(); } }} /></View>}
+      {hind && <View style={[styles.at, lay.tools]}><Btn label={'Take\nback'} name="Take back: take your last shot back" off={!tr.k.past.was?.kept || shut()} onPress={takeBack} /></View>}
+      {air && <View style={[styles.at, lay.tools]}><Btn label={tr.k.brake.armed ? 'Brake\narmed' : 'Brake'} name={tr.k.brake.armed ? 'Brake: armed. Tap to take it off' : 'Brake: arm it for this shot'} on={tr.k.brake.armed} off={!canBrake()} onPress={() => { if (!canBrake()) return; tr.k.brake.armed = !tr.k.brake.armed; redraw(); dirty(); }} /></View>}
       {!L && !vs && <View style={[styles.at, lay.tools]}><Btn label="•••" name="Table tools" onPress={() => { setTools(!tools); setSheet(false); }} /></View>}
       {/* shortcut: the test buttons (Rack, Demo), behind one button. Not in quick match: a new rack would dodge a loss and a demo pot would pay. */}
       {tools && (
