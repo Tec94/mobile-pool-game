@@ -104,7 +104,7 @@ const ROW = 34, GAP = 2, LINE = 2;
 function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { run: Run; again: () => void }) {
   const { land, side, width, height } = useFrame(), panelW = usePanel(), R = rounds(run.opts.size), next = nextMatch(run);
   // A tap on a computer player shows how it plays on the card; the card starts on the next opponent.
-  const foe = next < 0 ? -1 : sides(run, next).find(i => i !== null && !run.field[i].human) ?? -1, [pick, setPick] = useState<number | null>(null), peek = pick ?? foe;
+  const nextFoe = next < 0 ? -1 : sides(run, next).find(i => i !== null && !run.field[i].human) ?? -1, [pick, setPick] = useState<number | null>(null), peek = pick ?? nextFoe;
   // short rows so eight players fit a landscape phone; in portrait taller ones fill the room above the card, title bar and safe area (about 520 pt)
   const row = land ? (height < 430 ? 28 : ROW) : Math.min(56, Math.max(ROW, ((height - 520) / (run.opts.size / 2) - 10) / 2));
   const BLOCK = 2 * row + GAP, UNIT = BLOCK + 8;
@@ -123,7 +123,7 @@ function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { ru
         const e = run.field[i], you = !!e.human, foe = m === next && !you, lost = !!res && res.w !== s, gold = run.state === 'champion' && m === run.res.length - 1 && you;
         const paint = you ? CREAM[0] : foe ? MODE.tour[0] : '#EEF2EA14', ink = you ? C.ink : C.chalk;
         return (
-          <Pressable key={s} disabled={you || next < 0} onPress={() => { feel(() => Haptics.selectionAsync()); setPick(i); AccessibilityInfo.announceForAccessibility(`${e.name}${e.style ? `, ${NICK[e.style]}: ${TELL[e.style]}` : ''}`); }}
+          <Pressable key={s} onPress={you || next < 0 ? undefined : () => { feel(() => Haptics.selectionAsync()); setPick(i); AccessibilityInfo.announceForAccessibility(`${e.name}${e.style ? `, ${NICK[e.style]}: ${TELL[e.style]}` : ''}`); }}
             accessibilityRole={you || next < 0 ? 'text' : 'button'} accessibilityState={{ selected: peek === i }}
             accessibilityLabel={`${e.name}${e.style ? `, ${NICK[e.style]}` : ''}${you ? '' : `, rating ${e.rating.toFixed(1)}`}${res ? `, ${walk ? (res.w === s ? 'won by forfeit' : 'forfeited') : res.score[s]}` : ''}${foe ? ', your next opponent' : ''}`}
             accessibilityHint={you ? undefined : 'Shows how they play'}
@@ -190,14 +190,14 @@ function Card({ run, next, peek, abandon, play, again }: { run: Run; next: numbe
           <Txt style={[styles.head, tag !== 'Next opponent' && { color: C.gold, opacity: 1 }]}>{tag}</Txt>
           <View style={styles.row}><Txt numberOfLines={1} style={styles.foe}>{e.name}</Txt>{e.style && <Glyph id={e.style} size={20} color={C.chalk} />}</View>
           <Txt style={styles.nick}>{e.style ? NICK[e.style] : 'All-rounder'}</Txt>
-          <Txt numberOfLines={3} style={styles.tell}>{e.style ? TELL[e.style] : 'No favourite shot: plays the percentages'}</Txt>
-          <View style={[styles.row, { gap: 8 }]}><Bars rating={e.rating} color={C.chalk} w={12} /><Txt numberOfLines={1} style={styles.tell}>{`Rating ${e.rating.toFixed(1)}`}</Txt></View>
+          {e.style && <Txt numberOfLines={3} style={styles.tell}>{TELL[e.style]}</Txt>}
+          <View style={[styles.row, { gap: 8 }]}><Bars rating={e.rating} color={C.chalk} w={12} /><Txt numberOfLines={1} style={styles.tell}>{e.rating.toFixed(1)}</Txt></View>
         </View>
       </View>
       <View style={[styles.row, { gap: 8 }]}>
         <Slab paint={sure ? [C.warn, '#A33A30'] : DARK} lip={4} radius={4} onPress={() => { if (sure) abandon(); setSure(!sure); }} accessibilityLabel={sure ? 'Tap again to abandon: a loss' : 'Abandon the tournament'}
           style={{ height: 58 }} face={styles.abandon}><Txt style={[styles.abandonText, sure && { color: C.ink }]}>{sure ? 'Tap again:\na loss' : 'Abandon'}</Txt></Slab>
-        <View style={{ flex: 1 }}><Cta label={sc ? `Resume ${sc[0]}–${sc[1]}` : `Play ${run.field[foe].name}`} name={`${sc ? `Resume at ${sc[0]} to ${sc[1]}` : 'Play'} the ${roundName(run, next).toLowerCase()} against ${run.field[foe].name}`} onPress={play} /></View>
+        <View style={{ flex: 1 }}><Cta label={sc ? `Resume ${sc[0]}–${sc[1]}` : 'Play'} sub={`vs ${run.field[foe].name}`} name={`${sc ? `Resume at ${sc[0]} to ${sc[1]}` : 'Play'} the ${roundName(run, next).toLowerCase()} against ${run.field[foe].name}`} onPress={play} /></View>
       </View>
     </Slab>
   );
