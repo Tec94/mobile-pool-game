@@ -24,7 +24,7 @@ test('the run-out: every shot hits its own ball first and pots only it, in under
   }
 });
 test('the tags: done before NOW, then the step in hand, the next, the rest', () => { assert.deepEqual([NOW - 1, NOW + 1, NOW + 2].map(when), ['Done', 'Next', 'Later']); assert.ok(FILM <= NOW); });
-test('the step in hand and every step after it say what they hold; the done ones do not', () => { STEPS.forEach((_, i) => assert.equal(Boolean(PLANS[i]?.length), i >= NOW, `step ${i + 1}`)); });
+test('every step after the one in hand says what it holds; the rest do not', () => { STEPS.forEach((_, i) => assert.equal(Boolean(PLANS[i]?.length), i > NOW, `step ${i + 1}`)); });
 test('the chip by the name says the step in hand', () => { assert.ok(readFileSync(new URL('../public/index.html', import.meta.url), 'utf8').includes(`>In ${STEPS[NOW]}<`), 'NOW moved: change the chip, the footer and og.png'); });
 test('the film starts when the table and the row in hand are in view, or the whole table on a short screen', () => {
   assert.ok(inView(100, 300, 700, 46, 844), 'both in view');

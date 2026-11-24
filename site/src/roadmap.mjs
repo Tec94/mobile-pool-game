@@ -3,14 +3,14 @@
 // The status is also in public/index.html (the chip by the name, the footer) and in public/og.png: change those too. test/roadmap.test.mjs holds the chip to NOW.
 import { CUE, HOLES, P } from '../../src/physics/engine.ts';
 
-export const STEPS = ['Real physics', '8-ball and 9-ball', 'An AI that banks', 'Scenarios and lessons', 'Tournaments', 'App Store review', 'Sign-in and a tip jar', 'Leaderboards', 'Online play'];
-// What the step in hand and the steps after it hold, one line each, shown under their rows. No dates: none are set.
+export const STEPS = ['Real physics', '8-ball and 9-ball', 'An AI that banks', 'Scenarios and lessons', 'Tournaments', 'App Store review', 'Out on iPhone', 'Leaderboards', 'Online play'];
+// What the steps after the one in hand hold, a line each, shown with their rows. No dates: none are set.
 export const PLANS = {
-  5: ['Out on iPhone when Apple says yes.', 'The waitlist hears first, by email.'],
-  6: ['Sign in with Apple, Google or email, only if you want online play or a name on the boards.', 'Everything else stays offline, no account needed.', 'A tip jar through Apple: pay what you like, it unlocks nothing.'],
-  7: ['Daily Table scores, scenario stars and tournament wins.', 'Against your friends and the world.'],
-  8: ['8-ball and 9-ball against real players, on the same physics.', 'Play a friend, or anyone who is on.', 'Tournament brackets with players, not only the AI.'],
+  6: ['The waitlist hears first, by email.', 'Pay once. No ads.'],
+  7: ['Daily Table scores, scenario stars and tournament wins.', 'Sign in with Apple, Google or email to post yours. No account needed to play.'],
+  8: ['8-ball and 9-ball against real players, on the same physics.', 'The same optional sign-in. Offline play stays as it is.'],
 };
+export const ALSO = 'Also planned: a tip jar through Apple. Tips are optional and unlock nothing. You still pay once.';
 export const NOW = 5; // index into STEPS: 5 = the 6 ball
 export const SINCE = 'Sent 20 Nov'; // the tag of the step in hand
 export const FILM = 2; // how many of the done steps are potted before the visitor's eyes; the ones before are down already

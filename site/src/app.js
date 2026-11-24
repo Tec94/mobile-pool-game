@@ -10,7 +10,7 @@ import { aimGuide } from '../../src/shot/aim.ts';
 import { BALLS, C, CLOTHS } from '../../src/theme.ts';
 import { ALL, G, LENGTH } from '../../src/render/cues/art.ts';
 import { ball, POCKET, PRESETS, shotOf } from './presets.mjs';
-import { BALLS as SPOTS, FILM, inView, NOW, PLAN, PLANS, replays, shotFor, STEPS, when } from './roadmap.mjs';
+import { BALLS as SPOTS, FILM, inView, NOW, ALSO, PLAN, PLANS, replays, shotFor, STEPS, when } from './roadmap.mjs';
 
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $ = id => document.getElementById(id);
@@ -375,8 +375,8 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   let k = 0, state = 'wait', t = 0, swing, pace = 1, acc = 0, sc, sel = here;
   // The done steps fold into one row, their balls side by side; it opens to show each. The step in hand and the ones after show their plans.
   const fold = document.createElement('button'), built = list.appendChild(document.createElement('li'));
-  fold.type = 'button'; fold.className = 'fold'; fold.setAttribute('aria-expanded', 'false'); fold.setAttribute('aria-controls', 'steps');
-  fold.innerHTML = `<span class="tray">${STEPS.slice(0, NOW).map((_, i) => `<i class="ball b${i + 1}"><i>${i + 1}</i></i>`).join('')}</span><b>Built</b><span>${NOW} done</span>`;
+  fold.type = 'button'; fold.className = 'fold slab'; fold.setAttribute('aria-expanded', 'false'); fold.setAttribute('aria-label', `Built: ${NOW} steps done`);
+  fold.innerHTML = `<span class="tray" aria-hidden="true">${STEPS.slice(0, NOW).map((_, i) => `<i class="ball b${i + 1}"><i>${i + 1}</i></i>`).join('')}</span><b>Built</b><span>${NOW} done</span>`;
   built.append(fold); built.hidden = !NOW;
   const chips = [...fold.querySelectorAll('.tray > .ball')];
   const rows = STEPS.map((name, i) => {
@@ -384,11 +384,12 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     b.type = 'button'; b.className = i < NOW ? 'done' : i === NOW ? 'now' : 'later'; b.tabIndex = i === here ? 0 : -1;
     if (i === NOW) b.setAttribute('aria-current', 'step');
     b.innerHTML = `<i class="ball b${i + 1}"><i>${i + 1}</i></i><b>${name}</b><span>${when(i)}</span>`;
-    b.onclick = () => { if (state === 'wait') { show(); start(); } choose(i); say.textContent = `The ${i + 1} is ${down(i) ? 'down' : i < NOW ? 'about to drop' : 'on the table'}.`; }; // a tap on a row also starts a film that is still waiting // for a screen reader: the page shows it as a ring on the table
-    li.append(b); li.hidden = i < NOW;
+    b.onclick = () => { show(); start(); choose(i); say.textContent = `The ${i + 1} is ${down(i) ? 'down' : i < NOW ? 'about to drop' : 'on the table'}.`; }; // a tap on a row also starts a film that is still waiting // for a screen reader: the page shows it as a ring on the table
+    li.append(b); li.hidden = i < NOW; if (i > NOW) li.className = `slab ahead c${i + 1}`; // the plans ahead: a block each, in its ball's colour
     if (PLANS[i]) { const u = li.appendChild(document.createElement('ul')); u.className = 'plan'; for (const t of PLANS[i]) u.appendChild(document.createElement('li')).textContent = t; }
     return b;
   });
+  if (ALSO) { const p = list.appendChild(document.createElement('li')); p.className = 'also'; p.textContent = ALSO; }
   fold.onclick = () => {
     const open = fold.getAttribute('aria-expanded') !== 'true';
     fold.setAttribute('aria-expanded', open); rows.forEach((b, i) => { if (i < NOW) b.parentElement.hidden = !open; });
@@ -402,10 +403,10 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     v.mark = down(i) || i === NOW ? null : i + 1; v.ring = down(i) ? PLAN[i][0] : null;
     if (sc) sc.dirty = true;
   }
-  list.addEventListener('keydown', e => { // the arrows move among the rows that show
-    const open = rows.filter(b => !b.parentElement.hidden), i = open.indexOf(document.activeElement);
-    const j = i < 0 || e.altKey || e.ctrlKey || e.metaKey ? null : { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: open.length - 1 }[e.key], r = open[j];
-    if (j != null && r) { e.preventDefault(); r.focus(); choose(rows.indexOf(r)); }
+  list.addEventListener('keydown', e => { // the arrows move among the fold and the rows that show
+    const keys = [fold, ...rows.filter(b => !b.parentElement.hidden)], i = keys.indexOf(document.activeElement);
+    const j = i < 0 || e.altKey || e.ctrlKey || e.metaKey ? null : { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: keys.length - 1 }[e.key], r = keys[j];
+    if (j != null && r) { e.preventDefault(); r.focus(); if (r !== fold) choose(rows.indexOf(r)); }
   }); // no line for the screen reader here: the focus reads the row
   // A scratch cannot happen (test/roadmap.test.mjs runs every shot). If it did, the cue ball goes back where it began.
   const mend = () => { if (!v.B[0].on) Object.assign(v.B[0], ball(...SPOTS[0])); };
