@@ -420,9 +420,8 @@ export function shotOdds(tier: Tier, s: Planned, n: number) {
 const need = (balls: Obj[], group: number[]) => (nine(group) ? balls.length : balls.filter((b) => group.includes(b.id)).length + 1);
 const replyCost = (tier: Tier, balls: Obj[], oppGroup: number[]) => REPLY + (tier.rack ? RACK * Math.pow(R_REF, need(balls, oppGroup) - 1) : 0);
 const oppBest = (cue: Pt, balls: Obj[], oppGroup: number[]) => Math.max(0, ...enumerate(cue, balls, legalFor(balls, oppGroup), potFor(balls, oppGroup), false).map((s) => potProb(s, SIGMA_REF)));
-// A trick shot: a bank or kick off 2 cushions or more, or a jump. TRICKS = how many of them plan() keeps beside its best pots.
+// A trick shot: a bank or kick off 2 cushions or more, or a jump.
 export const fancy = (s: { type: string; rails?: number; elev?: number }) => (s.rails ?? 1) > 1 || !!s.elev;
-const TRICKS = 2;
 // The tier plays this shot: its type is in the repertoire, and a carom's helper ball is close enough.
 export function plays(tier: Tier, s: Cand, balls: Obj[]) {
   const at = (id?: number) => balls.find((b) => b.id === id)!;
@@ -443,8 +442,9 @@ export function plan(cue: Pt, balls: Obj[], group: number[], tier: Tier, depth: 
   }).sort((a, b) => b.score - a.score);
   const shots = all.slice(0, width), alt = all.find((s) => s.ball !== 9);
   if (nine(group) && alt && !shots.includes(alt)) shots.push(alt); // the 9 scores WIN times its chance: keep a route to price it against
-  // a tier with tricks keeps its best TRICKS trick shots too: their chance here is a seed, so aim.ts gives them engine time
-  if (kisses && tier.tricks) shots.push(...all.filter((s) => fancy(s) && !shots.includes(s)).slice(0, TRICKS));
+  // a tier with tricks keeps the best trick shot of each family too (bank and kick off 2, 3 and 4 cushions, jump): their
+  // chance here is a seed, so aim.ts gives them engine time. The best two overall were nearly always 2-cushion ones.
+  if (kisses && tier.tricks) for (const s of all) if (fancy(s) && !shots.some((t) => t.type === s.type && t.rails === s.rails)) shots.push(s);
   for (const s of shots) {
     s.value = s.score;
     if (depth && s.type !== 'combo' && s.type !== 'carom' && s.type !== 'billiard') { // these move a second ball, so the table after them is unknown here
