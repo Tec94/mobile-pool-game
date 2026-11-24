@@ -61,7 +61,7 @@ for (let i = 0; i < n; i++) for (const me of [0, 1]) {
 const pct = (x, d) => (d ? (100 * x / d).toFixed(1) : '-'), ci = (x, d) => `${pct(x, d)} ±${(196 * Math.sqrt((x / d) * (1 - x / d) / d)).toFixed(1)}`;
 const pots = Object.entries(tot.kinds).filter(([k]) => !['double', 'borrowed', 'hanging', 'frozen'].includes(k)).reduce((a, [, v]) => a + v, 0), q = tot.ms.sort((a, b) => a - b);
 console.log(`${game}-ball, Chinese Masters against Legend, ${n} seeds each played with the Masters in both seats (${2 * n} racks)`);
-console.log(`rack win % ${ci(tot.won, tot.done)} (${tot.won} of ${tot.done} finished)`);
+console.log(`rack win % ${ci(tot.won, tot.done)} (won ${tot.won} of the ${tot.done} racks played to the end; ${2 * n - tot.done} unfinished: a foul on the break or the 200-shot cap)`);
 console.log(`racks Legend won before the Masters had a shot after the break: ${tot.cold}, so at most ${pct(2 * n - tot.cold, 2 * n)}% can be won`);
 console.log(`racks it had a visit in ${tot.ran}, won ${pct(tot.won, tot.ran)}% of them; racks with a fumble (table handed over, its balls up) ${tot.fumbled} = ${pct(tot.fumbled, tot.ran)}%`);
 console.log(`fumbles: missed trick ${tot.trick}, missed plain pot ${tot.plain}, safety or escape ${tot.safety}, foul ${tot.foul}`);
