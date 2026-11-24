@@ -239,7 +239,9 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
     // a sure next shot could not beat the best; a 9 is weighed on its own terms below, so it is always rolled out
     // a tier with tricks always scores its trick shots (their seed chance says little), but past the deadline only the
     // first (its first rollout runs whatever the clock says, so there is a shot)
-    for (const x of runs) if ((x === runs[0] || !tier.tricks || now() < end) && (x.c.type === 'safety' || (nine(group) && x.c.ball === 9) || (tier.tricks && fancy(x.c)) || 2 * x.c.p > Math.max(...runs.map((y) => y.v)))) { score(x, first); sims -= first; }
+    // and once the pick verified on all six with a near-sure next shot it skips its plain alternatives: on a phone (the
+    // deadline at 230 ms on Node) that kept 90 and 88 of 140 tables clearing in place of 85 and 80
+    for (const x of runs) if (!(tier.tricks && x !== runs[0] && !fancy(x.c) && runs[0].r?.sure === 1 && runs[0].r.next >= 0.95) && (x === runs[0] || !tier.tricks || now() < end) && (x.c.type === 'safety' || (nine(group) && x.c.ball === 9) || (tier.tricks && fancy(x.c)) || 2 * x.c.p > Math.max(...runs.map((y) => y.v)))) { score(x, first); sims -= first; }
     const top = runs.reduce((a, x) => (x.v > a.v ? x : a));
     if (sims > 0 && cands.length > 1) score(top, sims);
     // 9-ball: a 9 that went down early against the best route that potted, as plan() weighs them (nineValue), from the
