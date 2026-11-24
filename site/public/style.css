@@ -75,13 +75,16 @@ label i { font-style: normal; font-weight: 500; opacity: .6; }
 /* The free match (/play): level with the brand on a wide screen, under the form on a tall one. */
 .hero .play { position: absolute; z-index: 4; right: 8vw; top: calc(50% - 21vw - 11px); display: flex; align-items: center; justify-content: center; min-height: 58px; padding: 0 24px; text-decoration: none; }
 .hero .play b { font-size: 24px; letter-spacing: -.02em; }
+@media (max-aspect-ratio: 1/1), (max-width: 760px) { /* no room by the brand: a smaller slab on the top rail, clear of the headline and the rack */
+  .hero .play { top: 12px; right: 16px; min-height: 42px; padding: 0 14px; }
+  .hero .play b { font-size: 18px; }
+}
 @media (max-aspect-ratio: 1/1) { /* a tall screen shows a slice of the table, with the rack in it */
   .hero { --tw: calc(100svh * 1.8); height: 100svh; }
   .hero .rig canvas { left: calc(50% - var(--tw) * .685); }
   .hero .brand { left: 16px; top: 70px; }
-  .hero h1 { left: 14px; top: auto; bottom: 312px; font-size: 22vw; }
-  .hero .card { left: 16px; right: 16px; top: auto; bottom: 104px; width: auto; rotate: 0deg; }
-  .hero .play { left: 16px; right: 16px; top: auto; bottom: 28px; }
+  .hero h1 { left: 14px; top: auto; bottom: 236px; font-size: 22vw; }
+  .hero .card { left: 16px; right: 16px; top: auto; bottom: 28px; width: auto; rotate: 0deg; }
 }
 
 
