@@ -226,7 +226,9 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   // really gets: its chance times one plus the next shot's. Each gets a few rollouts, then the best of them the rest of
   // the budget. A safety maps like a pot: its ball, its leave, its line. A ranked pot with no leave (a combo) gets the
   // default one it is played with, so pick.leave is there for every pot, as decide() says.
-  // A tier with tricks also refines the trick shots plan() kept (TRICKS), so they get engine time.
+  // A tier with tricks also refines the trick shots plan() kept, after its plain pots are refined and checked, as Legend's
+  // order: the clock cuts the tricks, not the pick (one visit at a 230 ms deadline under JIT: 69 of 100 tables cleared in
+  // place of 57, Legend 44).
   const lead: (Planned | Safety)[] = pick.type === 'safety' ? [pick] : [pick, ...ranked.filter((c) => c !== pick)].slice(0, tier.tries ?? 1);
   const cands = tier.tricks && pick.type !== 'safety' ? [...lead, ...ranked.filter((c) => fancy(c) && !lead.includes(c))] : lead;
   let sims = Math.floor(tier.budget - 0.3 * cands.length); // an aim correction costs about 0.3 of a full simulation
@@ -240,7 +242,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
     const check = tier.tricks ? (s: Shot) => verify(B, ids, group, tier, s, sd, k, first, pk && { x: pk.x / 1000, y: pk.y / 1000 }, { x: c.G.x / 1000, y: c.G.y / 1000 }, cr, or, end) : undefined;
     return { c, more: sims < 2 && !free ? null : refine(B, ids, group, tier, k, first, pk, c.G, lv, start, end, cr, or, check, tier.tricks && !pk ? oppGroup : undefined), check, v: -Infinity, p: 0, shot: start, r: null as Roll | null };
   };
-  const runs = cands.map((c) => mkRun(c));
+  const runs = lead.map((c) => mkRun(c)); // the trick shots' start below: their aim corrections would cost the pick's time
   type Run = (typeof runs)[number];
   // A tier with tricks: a pot's chance is the share verify() potted (SURE for all six). Its strike noise is so small that the
   // geometric seed says little: it was right about plain pots and wrong about cushion shots, and the engine is right about both.
@@ -269,9 +271,10 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
     const worth = (x: Run) => x.c.type === 'safety' || (nine(group) && x.c.ball === 9) || (tier.tricks && fancy(x.c)) || 2 * x.c.p > Math.max(...runs.map((y) => y.v));
     // a tier with tricks: past the deadline only the pick (its first rollout runs whatever the clock says, so there is a
     // shot), and once the pick is sure no plain alternative and only its first trick shot, for show: the rest would cost
-    // rollouts on most shots for a shot it rarely plays
-    const show = runs.find((x) => fancy(x.c)), skip = (x: Run) => !!tier.tricks && x !== pick && (late() || (sure() && x !== show));
-    for (const x of runs) if (!skip(x) && worth(x)) { score(x, first); sims -= first; if (x === pick) check(x); }
+    // rollouts on most shots for a shot it rarely plays. Its trick shots go after the plain pots are checked (settle).
+    const show = cands.find(fancy), skip = (c: Planned | Safety) => !!tier.tricks && c !== pick.c && (late() || (sure() && c !== show));
+    for (const x of runs) if (!skip(x.c) && worth(x)) { score(x, first); sims -= first; if (x === pick) check(x); }
+    if (tier.tricks) { settle(); for (const c of cands) if (!lead.includes(c) && !skip(c)) { const x = mkRun(c, true); runs.push(x); score(x, first); sims -= first; } }
     const top = best();
     if (sims > 0 && cands.length > 1) score(top, sims);
     settle();
@@ -293,7 +296,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   // geometric ranking put too low.
   const trusted = () => won.c.type !== 'safety' && won.v > 0 && won.p >= SAFE_P;
   if (tier.tricks && !trusted() && !late()) {
-    const tried = runs.map((x) => x.c), more = enumerate(cue, balls, legalFor(balls, group), potFor(balls, group), true, tier.tricks)
+    const tried = [...cands, ...runs.map((x) => x.c)], more = enumerate(cue, balls, legalFor(balls, group), potFor(balls, group), true, tier.tricks)
       .filter((c) => (!ok || ok(c)) && plays(tier, c, balls) && !tried.some((t) => t.type === c.type && t.ball === c.ball && t.pocket === c.pocket && Math.abs(t.aim - c.aim) < 1e-6))
       .map((c): Planned => ({ ...c, p: tierProb(tier, c), score: 0, value: 0 })).sort((a, b) => b.p - a.p).slice(0, RESCUE);
     for (const c of more) {
@@ -318,8 +321,8 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   }
   // A tier with tricks has measured its pots: when none pots on the engine, or the best only in under SAFE_P of verify()'s
   // rollouts, it plays a safety or an escape after all, unless it must shoot (safetiesInRow). Past the deadline it plays
-  // its best pot, as Legend would.
-  if (tier.tricks && !trusted() && won.c.type !== 'safety' && safetiesInRow < 2 && !late()) {
+  // its best pot, as Legend would, if one potted on the engine (one visit at 77 ms: 44 of 100 tables cleared, 39 without).
+  if (tier.tricks && !trusted() && won.c.type !== 'safety' && safetiesInRow < 2 && (!late() || won.v <= 0)) {
     const s = safety(cue, balls, group, oppGroup, tier, rnd, false) ?? escape(cue, balls, group);
     if (s) { won = mkRun(s, true); score(won, RESCUE_SIMS); }
   }
