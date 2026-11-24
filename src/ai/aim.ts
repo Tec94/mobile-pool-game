@@ -208,7 +208,7 @@ function aimSd(tier: Tier, type: string) {
   return Math.sqrt(Math.max(0, rad * rad - (tier.tipErr * CUE.squirt) ** 2));
 }
 const big = (c: Planned | Safety) => (c.rails ?? 1) >= 3 || !!c.elev; // a reel shot: 3 or 4 cushions, or a jump
-const SHOW_MIN = 0.8, SHOW_POS = 0.3; // a reel shot plays only checked on 5 of 6 (0.97 x 5/6); the next shot's chance it may give up
+const SHOW_MIN = 0.8; // a reel shot plays only checked on 5 of 6 (0.97 x 5/6)
 const SURE = 0.97, SHOW_GAP = 0.05, SAFE_P = 0.5, RESCUE = 12, RESCUE_SIMS = 20; // a trick shot's chance when verify() pots all six; the most make chance show gives up
 // The AI's turn on the engine table. B and ids as rules.ts has them (ball i is number ids[i], ball 0 the cue ball), in
 // metres. Returns the Shot for strike(), the pick (picker units, mm) and the ms spent picking and correcting the aim.
@@ -321,11 +321,12 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
     checkRun(x);
     if (shown(x) >= shown(won) && x.p >= won.p - SHOW_GAP) { won = x; break; }
   }
-  // the reel shots (3 or 4 cushions, a jump) trade up to SHOW_GAP of checked chance and SHOW_POS of the next shot's: the
-  // rule above never gives up chance, so they played only when already best (3+ cushion pots 2.7% of 8-ball pots, now 5.9;
-  // 9-ball 3.6, now 7.9; rack wins against Legend alike; one visit, 200 tables a game: 142 of 145 tries potted)
-  const reel = tier.show ? runs.filter((x) => big(x.c) && x.v > 0 && !big(won.c)).sort((a, b) => b.v - a.v)[0] : undefined;
-  if (reel) { checkRun(reel); if (reel.p >= Math.max(SHOW_MIN, won.p - SHOW_GAP) && reel.r!.next >= (won.r?.next ?? 0) - SHOW_POS) won = reel; }
+  // the reel shots (3 or 4 cushions, a jump) trade up to SHOW_GAP of checked chance, none of the next shot's, once the best
+  // is checked: the rule above never gives up chance, so they played only when already best (3+ cushion pots 2.7% of
+  // 8-ball pots, now 5.5; 9-ball 3.6, now 6.7; rack wins against Legend alike). Giving up 0.15 or 0.3 of the next shot's
+  // chance as well cost 11 of 200 one-visit clears at a 230 ms deadline (JIT) for no more reel shots.
+  const reel = tier.show && !late() && (won.r?.sure ?? -1) >= 0 ? runs.filter((x) => big(x.c) && x.v > 0 && !big(won.c)).sort((a, b) => b.v - a.v)[0] : undefined;
+  if (reel) { checkRun(reel); if (reel.r!.sure >= 0 && reel.p >= Math.max(SHOW_MIN, won.p - SHOW_GAP) && reel.r!.next >= (won.r?.next ?? 0)) won = reel; }
   // A tier with tricks has measured its pots: when none pots on the engine, or the best only in under SAFE_P of verify()'s
   // rollouts, it plays a safety or an escape after all, unless it must shoot (safetiesInRow). Past the deadline it plays
   // its best pot, as Legend would, if one potted on the engine (one visit at 77 ms: 44 of 100 tables cleared, 39 without).
