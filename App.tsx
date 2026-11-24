@@ -5,7 +5,7 @@
 // (spin, jump, masse). A lesson (src/learn) plays on the same screen with its own table, goal and steps, and so does a
 // scenario (src/scenarios): a lesson table played solo with tries, stars and the player's own cue.
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { Alert, AppState, BackHandler, PanResponder, PixelRatio, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { AppState, BackHandler, PanResponder, PixelRatio, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Canvas, Circle, Picture, Skia, type SkPicture } from '@shopify/react-native-skia';
 import { cancelAnimation, Easing, useAnimatedReaction, useDerivedValue, useFrameCallback, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { scheduleOnUI } from 'react-native-worklets';
@@ -14,11 +14,10 @@ import * as Haptics from 'expo-haptics';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { initialWindowMetrics, SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ball, breakSpot, CUE, HOLES, P, rack, Shot, strike } from './src/physics/engine';
-import { benchAI } from './src/ai/bench';
 import { advance, drawBalls, makeKit, newLook } from './src/render/balls';
 import { drawMarks, SETTLE } from './src/render/marks';
 import { drawBank } from './src/render/bank';
-import { newPace, nextFrame, type Pace, refresh, type Slot, spent } from './src/render/pace';
+import { frameOf, newPace, nextFrame, type Pace, refresh, type Slot, spent } from './src/render/pace';
 import { drawCue, shotLayout } from './src/render/cue';
 import { BAR, drawAim, drawTable, onTable, toScreen, toTable } from './src/render/table';
 import { LEVEL, shotTip } from './src/render/tip';
@@ -27,7 +26,7 @@ import { loadDone, saveDone } from './src/learn/save';
 import { canCall, choose, handCue, hooked, judge, legalFirst, moveCue, newGame, newRec, Rec, record, setCall, spotBall, State } from './src/rules/rules';
 import { thinkAsync } from './src/ai/think';
 import { candsFor, choiceFor, type Move, nextSafeties, potPay, type Safeties, safetiesArg, softMove, think } from './src/ai/turn';
-import { type Cand, rng, TIERS } from './src/ai/shot-ai';
+import { rng, TIERS } from './src/ai/shot-ai';
 import { hustler, type Ledger, matchFeats, newLedger, noteShot, type Pay, rackOver, settle, type Settled, type Vs } from './src/progress/pay';
 import type { StyleId } from './src/ai/styles';
 import { medalOf, newRun, type Opts, type Run } from './src/tournament/bracket';
@@ -229,7 +228,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   // Quick match: the pay so far (src/progress/pay.ts), the pots on the table at the strike (for pRef), and the pay lines
   // of the finished match.
   // shortcut: a quick match left from the pause card pays nothing, not even its shots (a tournament forfeit pays them); no safety pay (needs the AI's reply).
-  const won = useRef(snap0 ? { ...snap0.ledger, shots: { ...snap0.ledger.shots } } : newLedger()), cands = useRef<Cand[]>([]), end = useRef<Settled | null>(null), prize = useRef<Pay | null>(null);
+  const won = useRef(snap0 ? { ...snap0.ledger, shots: { ...snap0.ledger.shots } } : newLedger()), pre = useRef<Ball[]>([]), end = useRef<Settled | null>(null), prize = useRef<Pay | null>(null);
   // The opponent, for pay and feats (pay.ts Vs): an AI tier, or the rating of a Rival or a tournament seat. The Twig's Humble reads the cue.
   const foe = (): Vs => (rival || tour ? { boss: level.current, tour: tour?.stakes, cue: own } : { tier: ai + 1, cue: own });
   // The Whisper's Soft hands (tricks.ts): its uses this rack, the pull of the last strike, and whether the player's last shot used it.
@@ -281,7 +280,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   };
   // Frames of play wait in queue and the UI thread shows one on each display refresh (see src/render/pace.ts).
   const queue = useSharedValue<Slot<SkPicture>[]>([]), left = useSharedValue(STILL);
-  const seen = useSharedValue([0, 0, 0, 0, 0]); // counts for the readout (refreshes, frames shown, refreshes with no frame ready, frames skipped), then the share of the last refreshes that came less than 12 ms apart: above a half is a 120 Hz display
+  const seen = useSharedValue([0, 0, 0, 0, 1000 / 60]); // counts for the readout (refreshes, frames shown, refreshes with no frame ready, frames skipped), then the time between refreshes in ms: it falls fast and rises slowly, so a missed refresh barely moves it
   // The ring that grows out of the cue ball in hand, on the UI thread: [x, y, ball radius] in px, and on (0 or 1). The JS loop sleeps meanwhile.
   const ring = useSharedValue([0, 0, 0]), ringOn = useSharedValue(0), phase = useSharedValue(0);
   useAnimatedReaction(() => ringOn.value, (on, was) => {
@@ -297,7 +296,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     const dt = f.timeSincePreviousFrame ?? 0, r = refresh(queue.value, left.value, dt), s = seen.value;
     left.value = r.left;
     if (r.show) { queue.value = r.rest; picture.value = r.show; }
-    seen.value = [s[0] + 1, s[1] + (r.show ? 1 : 0), s[2] + (r.dry ? 1 : 0), s[3] + r.skipped, dt ? 0.9 * s[4] + (dt < 12 ? 0.1 : 0) : s[4]];
+    seen.value = [s[0] + 1, s[1] + (r.show ? 1 : 0), s[2] + (r.dry ? 1 : 0), s[3] + r.skipped, dt > 2 && dt < 50 ? s[4] + (dt < s[4] ? 0.2 : 0.02) * (dt - s[4]) : s[4]];
   }, []), false);
   const live = useRef(beat); live.current = beat;
   // mk = the marks for the shot in play, with its first frame (they do not change while balls move)
@@ -461,7 +460,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
       if (busy()) {
         let p = pace.current;
         const first = !p;
-        if (!p) p = pace.current = newPace(seen.value[4] > 0.5 ? 1000 / 120 : 1000 / 60);
+        if (!p) p = pace.current = newPace(frameOf(seen.value[4]));
         if (!on) { on = true; clearTimeout(timer); live.current.setActive(true); }
         for (let n = 0, ms; n < 4 && busy() && (ms = nextFrame(p, t)); n++) { // at most 4 frames a turn, so a late JS thread still answers touches
           const t0 = performance.now();
@@ -479,7 +478,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
           if (marble) noteSunk(sunk.current, s, rec, next);
           if (vs && s.turn === 0 && own === 'whisper') { const had = soft.current.left; next = softHands(soft.current, pulled.current, s, rec, next, pushOut); softened.current = soft.current.left < had; }
           if (vs && s.turn === 0) {
-            const p = potPay(cands.current, rec, s, next, won.current.run, foe(), inPlay.current.cue.tipLimit, pushOut ? undefined : won.current.aura, free ? flukes.current : undefined, omen.current.plain); // a push-out neither adds to the Aura's run nor ends it
+            const p = potPay(s.phase === 'break' ? [] : candsFor(pre.current, ids, s), rec, s, next, won.current.run, foe(), inPlay.current.cue.tipLimit, pushOut ? undefined : won.current.aura, free ? flukes.current : undefined, omen.current.plain); // a push-out neither adds to the Aura's run nor ends it
             if (snooker.current && !pushOut && !next.foul && rec.first >= 0 && !omen.current.plain) p.feats.push('escape'); // out of a snooker with a legal hit
             omen.current.plain = false; // the Seer's price is paid on one shot
             noteShot(won.current, p, next.foul && next.phase !== 'over', s.phase === 'break' && next.phase === 'over' && next.winner === 0, hustler(foe()), next.phase === 'over' && next.winner === 1);
@@ -508,7 +507,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     let was = seen.value, n = 0, cost = 0;
     const id = setInterval(() => { // twice a second
       const s = seen.value, [m, c] = made.current, k = m - n;
-      setRates(`display ${s[4] > 0.5 ? 120 : 60} Hz  shown ${2 * (s[1] - was[1])}/s  none ready ${2 * (s[2] - was[2])}/s  skipped ${2 * (s[3] - was[3])}/s\nmade ${2 * k}/s  ${k ? ((c - cost) / k).toFixed(1) : '-'} ms each${pace.current ? `  for ${Math.round(1000 / pace.current.frame)} Hz` : ''}\nguide ${took.current[0].toFixed(1)} ms ${took.current[1] ? 'off thread' : 'on JS'}  longest JS gap ${gap.current.toFixed(0)} ms`); gap.current = 0;
+      setRates(`display ${Math.round(1000 / frameOf(s[4]))} Hz  shown ${2 * (s[1] - was[1])}/s  none ready ${2 * (s[2] - was[2])}/s  skipped ${2 * (s[3] - was[3])}/s\nmade ${2 * k}/s  ${k ? ((c - cost) / k).toFixed(1) : '-'} ms each${pace.current ? `  for ${Math.round(1000 / pace.current.frame)} Hz` : ''}\nguide ${took.current[0].toFixed(1)} ms ${took.current[1] ? 'off thread' : 'on JS'}  longest JS gap ${gap.current.toFixed(0)} ms`); gap.current = 0;
       was = s; n = m; cost = c;
     }, 500);
     return () => clearInterval(id);
@@ -522,7 +521,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     if (omen.current.open) power = omen.current.pull; // the Seer's frozen shot: the power the eye saw
     shutEye();
     Haptics.impactAsync(powerOf(power) > 0.7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Light);
-    if (vs) cands.current = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules); // shortcut: a full candidate search on the strike frame, cheap next to a guide
+    if (vs) pre.current = t.B.map(b => ({ ...b })); // the pay candidates are searched at the ruling, from this copy: 15 ms on the strike frame without JIT
     const sh = shotOf(power); snap(sh); opened();
     if (brake.current.armed) { brake.current = { left: 0, armed: false, live: true, frames: [] }; redraw(); } // used up at the strike, tapped or not
     pulled.current = power;
@@ -558,7 +557,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   useEffect(() => {
     const t = table.current, sh = snap0?.shot;
     if (!sh) return;
-    if (t.rules.turn === 0) cands.current = t.rules.phase === 'break' ? [] : candsFor(t.B, t.ids, t.rules);
+    if (t.rules.turn === 0) pre.current = t.B.map(b => ({ ...b }));
     t.rec = newRec(sh); strike(t.B[0], sh, t.rules.turn === 0 ? struck() : STICK); moving.current = true; shot.set({ power: 0, locked: true }); paint(); redraw();
   }, []);
   // The AI's moves on the table play out over time: tween runs f(eased 0..1) each frame for ms, rests, then done().
@@ -698,7 +697,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   const paid = done ? end.current : null;
   const trick = won.current.aura ? auraLine(won.current.aura) : ram && blind.current && rules.phase !== 'break' ? RAM_LINE : vs && own === 'whisper' ? softLine(soft.current) : marble ? mogLine(mogLead(rules, sunk.current)) : maxxed ? maxLine(again.current) : free && hustler(foe()) ? flukeLine(flukes.current) : seer ? omenLine(omen.current) : hind ? pastLine(past.current) : air ? brakeLine(brake.current) : null; // the state of the cue's trick, after the player's name on the HUD
   const rerack = (breaker = over ? 1 - rules.breaker : rules.breaker) => {
-    if (done) { score.current = [0, 0]; if (rival) { level.current = profile().rival[game].rating; moved.current = ''; } won.current = newLedger(); cands.current = []; end.current = null; pure.current = true; }
+    if (done) { score.current = [0, 0]; if (rival) { level.current = profile().rival[game].rating; moved.current = ''; } won.current = newLedger(); end.current = null; pure.current = true; }
     apply.current(newGame(game, breaker as 0 | 1, callAll, bankRule, Math.floor(Math.random() * 2 ** 31)));
   };
 
@@ -776,7 +775,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
       {tools && (
         <View onStartShouldSetResponder={() => true} style={[styles.tools, view.land ? { left: lay.tools.left + lay.tools.width + 12, bottom: height - lay.tools.top - lay.tools.height } : { left: lay.tools.left, bottom: height - lay.spin.top + 8 }]}>
           <Btn label="Rack" onPress={() => rerack()} onLongPress={__DEV__ ? () => setHud(!hud) : undefined} />
-          <Btn label={'Demo\n' + DEMOS[demo][0]} onLongPress={() => Alert.alert('AI think time', benchAI())} onPress={() => { // hold: time the AI (blocks the JS thread a few seconds); tap: a fresh rack, and the demo shot is its break
+          <Btn label={'Demo\n' + DEMOS[demo][0]} onPress={() => { // a fresh rack, and the demo shot is its break (AI think time: npm run bench:ai)
             rerack(); const t = table.current; t.B[0].y = P.W / 2; // the demo shots go straight down the middle
             t.rec = newRec(); strike(t.B[0], { ang: 0, speed: 1, a: 0, b: 0, ...DEMOS[demo][1] });
             paint(); moving.current = true; shot.set({ power: 0, locked: true }); setDemo((demo + 1) % DEMOS.length);
