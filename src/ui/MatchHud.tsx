@@ -152,7 +152,7 @@ export function Results({ rules, title, kind = 'Pass and play', gold, score, nam
   );
 }
 
-const n = (x: number) => x.toLocaleString('en-US'); // 4,320 XP, as the setup screen and the cue shop write it
+export const n = (x: number) => x.toLocaleString('en-US'); // 4,320 XP: the setup screen writes the Masters' win with it too
 
 // A pay line of the results: the XP in a gold chip, "× 2" in a blue chip when Fresh Chalk doubled it, and what it paid.
 // A line that paid nothing is not shown.
