@@ -5,3 +5,4 @@ import { Paths } from 'expo-file-system';
 
 export const CLIP = (() => { try { return !!Paths.bundle?.uri?.includes('RunoutClip.app'); } catch { return false; } })();
 export const fullGame = () => Linking.openURL('https://apps.apple.com/app/id6833853680').catch(() => {});
+export const CLIP_TIER = 1; // the Clip's opponent: Regular (index into src/ai TIERS)
