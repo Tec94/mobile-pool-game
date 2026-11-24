@@ -342,11 +342,14 @@ function leaves(G: Pt, v: Pt, u: Pt, balls: Obj[], ignore: number[], powers = PO
 // with ball in hand are 10.1% (2000 racks; 16.4 at EDGE, 4.4 before the 9 went early).
 // Shark's budget of 12 (not 17) and Pro's wLeave of 0.6 (not 0.9: fewer safeties) keep Shark, Pro and Legend apart.
 // The Chinese Masters (2026-11-24, at f92592b): its noise alone adds nothing over Legend (6.22 balls, 52% clears at 60
-// tables): the strength is in tricks, verify, the rescue search and budget 45 (33: 74 of 140 clears in place of 94). One
-// visit, 200 tables: 8-ball 7.06 balls, 67% clears (Legend 6.01, 47), 9-ball 5.96, 72% (4.48, 51). Against Legend, 200
-// racks each way: 8-ball 61.0%, 9-ball 70.0% (at most 78%: Legend wins 22% before it has a shot); trick pots 25 and 31%.
-// Forced make % (tables with a try) at 120 tables: bank2 92 (53), bank3 85 (11), bank4 90 (8), kick2 78 (84), kick3 80
-// (38), kick4 80 (8), jump 100 (33). think 3500: on a phone with no JIT (Node interpreter only) it binds on most shots.
+// tables): the strength is in tricks, verify, the rescue search and budget 45 (33: 74 of 140 clears in place of 94).
+// At e0413cb, one visit, 200 tables: 8-ball 7.11 balls, 70% clears (Legend 6.01, 47), 9-ball 5.77, 70% (4.48, 51).
+// Against Legend, 200 racks each way: 8-ball 69.5%, 9-ball 68.5% (at most 85 / 78.5%: Legend wins before it has a shot);
+// ridiculous pots 23 and 22%. Forced make % (tables with a try) at 120 tables: bank2 92 (53), bank3 82 (9), bank4 90 (8),
+// kick2 79 (81), kick3 80 (38), kick4 78 (8), jump 100 (34). think p50 162 ms (Legend 26); with no JIT (Node interpreter
+// only, a phone) 2400 ms (Legend 440), so think 3500 binds on its slowest shots: one visit clears 39 of 60 tables there,
+// 41 with JIT. Massé, kick-banks and jump-kicks are not built: each is one more finder and its engine checks on every
+// shot, which the phone's budget cannot spare.
 export const TIERS: Tier[] = [
   { name: 'Rookie',  sigma: 0.52, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1, caromGap: 0, rail: [0.91, 1.43], hard: 1.5, run: 0.45 },
   { name: 'Regular', sigma: 0.42, types: ['direct', 'bank'],                  flair: 0.03, temp: 0.08, depth: 0, wPos: 0,   posErr: 0.16, speedErr: 12, tipErr: 0.08, ctrl: 1, wLeave: 0, safetyAngles: [], budget: 2, caromGap: 0, rail: [0.76, 1.29], hard: 1.2, run: 0.5 },
