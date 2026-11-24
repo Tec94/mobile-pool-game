@@ -2,7 +2,7 @@
 // The AI's shot on the real engine: correct the picker's ghost-ball aim for throw, squirt and swerve, refine aim, speed
 // and tip with noise-free rollouts within the tier's budget, and turn a pick into an engine Shot with the tier's strike noise. Port of the ai-progression prototype (engine-aim.js) plus the glue.
 import { type Ball, CUE, type Ev, P, type Shot, step, strike } from '../physics/engine.ts';
-import { type Cand, decide, dist, enumerate, legalFor, nine, type Obj, type Pick, type Planned, plays, POCKETS, potFor, type Pt, nineValue, rackOdds, type Tier, tierProb, winBall } from './shot-ai.ts';
+import { type Cand, decide, dist, enumerate, fancy, legalFor, nine, type Obj, type Pick, type Planned, plays, POCKETS, potFor, type Pt, nineValue, rackOdds, type Safety, type Tier, tierProb, winBall } from './shot-ai.ts';
 
 // Direction the object ball actually leaves in, for a given strike. Stops at first contact.
 function departure(cue: Ball, obj: Ball, shot: Shot) {
@@ -61,12 +61,16 @@ function speedFor(paths: Pt[][], power: number, v: Pt, u: Pt, b: number, slow: n
 // One noise-free shot on a copy of the table. k = the ball to pot (or the safety's ball), first = the ball to hit first,
 // pk = the pocket's aim point in metres (null for a safety), G = the ghost-ball spot. err (m) is signed and moves smoothly
 // with the aim: before the right first hit, how far the cue ball passes G; after it, how far ball k passes pk.
-function rollout(B: Ball[], shot: Shot, k: number, first: number, pk: Pt | null, G: Pt) {
+// cr, or = the cushions the cue ball meets before its first hit and ball k after it (a kick, a bank): err is measured on
+// the leg after them only, so the secant is not steered by an earlier leg that passes near the target; on the whole
+// path when the ball never meets that many.
+function rollout(B: Ball[], shot: Shot, k: number, first: number, pk: Pt | null, G: Pt, cr = 0, or = 0) {
   const S = B.map((b) => ({ ...b })), ev: Ev[] = [], c = S[0], o = S[k];
-  let hit = -1, rail = false, pot = false, scratch = false, near = Infinity, err = 0, drop = 0;
+  let hit = -1, rail = false, pot = false, scratch = false, near = Infinity, err = 0, drop = 0, legs = 0, near2 = Infinity, err2 = 0, got = false;
   const watch = (q: Ball, p: Pt) => { // closest approach of a moving ball q to p, signed by which side it passes on
     const v = Math.sqrt(q.vx * q.vx + q.vy * q.vy), dx = p.x - q.x, dy = p.y - q.y, d = dx * dx + dy * dy;
     if (v && d < near) { near = d; err = (q.vx * dy - q.vy * dx) / v; }
+    if (v && d < near2 && legs >= (hit < 0 ? cr : or)) { near2 = d; err2 = (q.vx * dy - q.vy * dx) / v; got = true; }
   };
   strike(c, shot);
   for (let n = 0; n < 12000; n++) {
@@ -74,8 +78,9 @@ function rollout(B: Ball[], shot: Shot, k: number, first: number, pk: Pt | null,
     ev.length = 0;
     const mv = step(S, ev);
     for (const e of ev) {
-      if (e.t === 'bb' && e.a === 0 && hit < 0) { hit = e.b!; near = Infinity; }
+      if (e.t === 'bb' && e.a === 0 && hit < 0) { hit = e.b!; near = Infinity; if (hit === first) { near2 = Infinity; got = false; legs = 0; } }
       else if (hit >= 0 && e.t === 'rail') rail = true;
+      if (e.t === 'rail' && e.a === (hit < 0 ? 0 : k)) legs++;
       if (e.t === 'pocket' || e.t === 'off') { if (e.a === 0) scratch = true; else if (e.a === k) { pot = e.t === 'pocket'; drop = v; } }
     }
     if (hit < 0) watch(c, G); else if (hit === first && pk && o.on) watch(o, pk);
@@ -85,7 +90,7 @@ function rollout(B: Ball[], shot: Shot, k: number, first: number, pk: Pt | null,
     if (!mv || (hit >= 0 && !(pk && pot) && !(c.on && (c.vx || c.vy)) && !(o.on && (o.vx || o.vy)))) break;
   }
   // a ball potted fast enough would have reached the cushion behind the pocket had it missed
-  return { pot: pot && !scratch, legal: hit === first, rail: rail || drop > 0.25, scratch, err: pk || hit !== first ? err : 0, S };
+  return { pot: pot && !scratch, legal: hit === first, rail: rail || drop > 0.25, scratch, err: pk || hit !== first ? (got ? err2 : err) : 0, S };
 }
 // Chance the tier pots its best next shot from where a rollout left the table (S, metres): the leave, measured on the
 // engine instead of planned. 1 when the 8 (the 9) dropped legally, -1 when the 8 dropped early. 9-ball: on the lowest ball left,
@@ -102,37 +107,63 @@ function nextP(B: Ball[], S: Ball[], ids: number[], group: number[], tier: Tier)
   for (const c of mine.length ? mine : all.filter((c) => c.type !== 'carom' && c.type !== 'billiard')) { const q = tierProb(tier, c); if (q > p) { p = q; k = c.ball === 9; } }
   return { p, nine: k };
 }
-type Roll = ReturnType<typeof rollout> & { shot: Shot; score: number; next: number; nextNine: boolean };
+type Roll = ReturnType<typeof rollout> & { shot: Shot; score: number; next: number; nextNine: boolean; extra: number; sure: number };
 const SPEEDS = [1, 1.3, 0.8, 1.7, 0.65, 2.2, 0.5]; // a safety's speeds, tried in this order, times the starting speed
 const DRAW = -(CUE.tipLimit - 0.05);
 // A pot's speeds (times the starting speed) and tip heights, spread out first so a small budget still sees draw, follow
 // and long and short rolls; later points fill in between.
 const GRID: [number, number][] = [[1, DRAW], [1, TIP], [1.6, DRAW], [1.6, 0], [0.7, 0], [1.3, TIP], [2.2, DRAW], [0.7, TIP],
   [1.3, DRAW], [1.6, TIP], [0.5, 0], [2.2, 0], [1.3, 0], [0.85, DRAW], [0.85, 0], [1, 0], [2.6, DRAW], [0.6, DRAW]];
+// A jump's speeds (times JUMP_SPEED) and elevations, the measured best first (38 and 45 degrees at 3.5 to 4.5 m/s, a jump
+// over a ball 200 to 600 mm away). Its tip stays at centre: side would curve it (a masse).
+const JUMP_SPEED = 4, D = Math.PI / 180;
+const JUMPS: [number, number, number][] = [[1.125, 0, 45 * D], [0.875, 0, 38 * D], [1.125, 0, 38 * D], [1, 0, 45 * D], [0.875, 0, 45 * D], [1, 0, 30 * D], [1.125, 0, 30 * D]];
 // ms clock; a worklet runtime may have no performance, so Date.now there
 function now() { return typeof performance === 'undefined' ? Date.now() : performance.now(); } // a function declaration: the worklets plugin turns those into worklets, not a ternary of functions
-const THINK = 2500; // ms: past this from the start of aiShot, refine runs no more rollouts and keeps the best so far
+const THINK = 2500; // ms: past this from the start of aiShot, refine runs no more rollouts and keeps the best so far (Tier.think: the tier's own)
+const FAIL = 1; // a pot's rollout score lost for each verify() rollout that does not pot it
+// A tier with tricks checks each new best pot (aim.ts refine): the shot again with the aim 2 sd either way, the speed
+// 2 speedErr either way and the side tip 2 tipErr either way (on 100 Masters tables, half the cushion shots it missed
+// were lost to side tip alone: a cushion takes the spin). Returns how many of the six still pot ball k legally with no
+// scratch and no 8 down early.
+function verify(B: Ball[], ids: number[], group: number[], tier: Tier, s: Shot, sd: number, k: number, first: number, to: Pt, g: Pt, cr: number, or: number) {
+  const w = ids.indexOf(winBall(group)), f = 2 * tier.speedErr / 100;
+  let n = 0;
+  for (const t of [{ ...s, ang: s.ang + 2 * sd }, { ...s, ang: s.ang - 2 * sd }, { ...s, speed: Math.min(CUE.maxSpeed, s.speed * (1 + f)) }, { ...s, speed: s.speed * (1 - f) }, { ...s, a: 2 * tier.tipErr }, { ...s, a: -2 * tier.tipErr }]) {
+    const r = rollout(B, t, k, first, to, g, cr, or);
+    n += +(r.pot && r.legal && (nine(group) || w <= 0 || w === k || r.S[w].on));
+  }
+  return n;
+}
 // The shot in hand on the engine, a few full-table simulations per call of the search it returns (more(n) runs n more and
 // returns the best so far): steer the aim until the right ball is hit first and ball k drops in the middle of the pocket
 // (secant on err), then try other speeds and tip heights, and keep the rollout that best pots k without a scratch, hits
 // first legally, sends a ball to a rail and leaves the best next shot (nextP) where the cue ball really stops; a safety,
 // with its planned spin, stops nearest the planned spot. leave (with its planned spin) and G in mm. end = the deadline (now()).
-function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number, first: number, pk: Pt | null, G: Pt, leave: Pt & { spin: number }, shot: Shot, end: number) {
+// cr, or = the cushions of a kick and a bank (rollout). A tier with tricks also scores a second ball of its own potted
+// (extra; never the 8 or the 9) and checks each new best pot with verify() at aim error sd (rad): sure = its share that pot.
+function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number, first: number, pk: Pt | null, G: Pt, leave: Pt & { spin: number }, shot: Shot, end: number, cr = 0, or = 0, sd = 0) {
   const g = { x: G.x / 1000, y: G.y / 1000 }, to = pk && { x: pk.x / 1000, y: pk.y / 1000 };
   let best: Roll | null = null, sims = 0, r0: Roll | null = null, i = 0, gi = 0;
   const slope = [0, 0]; // d err / d aim, before the right first hit and after it
   const run = (s: Shot): Roll => {
     sims--;
-    const r = rollout(B, s, k, first, to, g), c = r.S[0], np = pk && r.pot && r.legal ? nextP(B, r.S, ids, group, tier) : { p: 0, nine: false }, p = np.p;
+    const r = rollout(B, s, k, first, to, g, cr, or), c = r.S[0], np = pk && r.pot && r.legal ? nextP(B, r.S, ids, group, tier) : { p: 0, nine: false }, p = np.p;
     if (p < 0) r.pot = false; // the 8 went down early: the rack is lost
+    let extra = 0;
+    if (tier.tricks && r.pot && r.legal) for (let i = 1; i < B.length; i++) extra += +(i !== k && B[i].on && !r.S[i].on && group.includes(ids[i]) && ids[i] !== winBall(group));
     const off = Math.abs(r.err) * 5 + (pk ? 1 - Math.max(0, p) : Math.hypot(c.x * 1000 - leave.x, c.y * 1000 - leave.y) / 4000);
-    const out = { ...r, shot: s, next: p, nextNine: np.nine, score: 8 * +(r.pot && r.legal) + 4 * +!r.scratch + 2 * +r.legal + +r.rail - Math.min(0.99, off) };
+    const out = { ...r, shot: s, next: p, nextNine: np.nine, extra, sure: 1, score: 8 * +(r.pot && r.legal) + 4 * +!r.scratch + 2 * +r.legal + +r.rail - Math.min(0.99, off) + 0.5 * extra };
+    if (sd && to && out.score > (best?.score ?? -Infinity)) {
+      if (!(r.pot && r.legal)) out.sure = 0;
+      else { const n = verify(B, ids, group, tier, s, sd, k, first, to, g, cr, or); sims -= 6; out.sure = n / 6; out.score -= FAIL * (6 - n); }
+    }
     if (!best || out.score > best.score) best = out;
     return out;
   };
   const done = (r: Roll) => r.legal && (!pk || (r.pot && Math.abs(r.err) < 0.004));
   const next = (r: Roll) => r.shot.ang - (slope[+r.legal] ? Math.max(-0.02, Math.min(0.02, r.err / slope[+r.legal])) : -0.001); // a secant step, or a nudge to measure the slope
-  const grid = pk ? GRID : SPEEDS.flatMap((m) => [shot.b, leave.spin * -DRAW].map((b): [number, number] => [m, b])).slice(1);
+  const grid: [number, number, number?][] = shot.elev ? JUMPS : pk ? GRID : SPEEDS.flatMap((m) => [shot.b, leave.spin * -DRAW].map((b): [number, number] => [m, b])).slice(1);
   return (n: number): Roll => {
     sims += n;
     if (!r0) r0 = run(shot);
@@ -146,15 +177,22 @@ function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number
     }
     // speed and tip, from the best aim so far, with one aim step at each if the ball missed
     for (; gi < grid.length && sims >= 1 && now() < end && best!.score <= 14.9875; gi++) { // stop: all four goals met, a near-certain next shot (or the leave)
-      const [m, b] = grid[gi];
-      if (m === 1 && b === shot.b) continue;
-      const r = run({ ...shot, ang: best!.shot.ang, speed: Math.min(CUE.maxSpeed, Math.max(0.5, shot.speed * m)), b });
+      const [m, b, e] = grid[gi];
+      if (m === 1 && b === shot.b && e === shot.elev) continue;
+      const r = run({ ...shot, ang: best!.shot.ang, speed: Math.min(CUE.maxSpeed, Math.max(0.5, shot.speed * m)), b, ...(e === undefined ? {} : { elev: e }) });
       if (!done(r) && slope[+r.legal] && sims >= 1) run({ ...r.shot, ang: next(r) });
     }
     return best!;
   };
 }
 
+// The aim error (rad) of a shot of this type: side tip error squirts the cue ball off line (strike() adds a * squirt), so
+// the aim itself scatters by the rest of sigma.
+function aimSd(tier: Tier, type: string) {
+  const rad = tier.sigma * (type === 'direct' || type === 'safety' ? 1 : tier.hard * (type === 'bank' || type === 'kick' ? tier.bankAim ?? 1 : 1)) * Math.PI / 180;
+  return Math.sqrt(Math.max(0, rad * rad - (tier.tipErr * CUE.squirt) ** 2));
+}
+const SURE = 0.97, SHOW_GAP = 0.05, SAFE_P = 0.5, RESCUE = 12, RESCUE_SIMS = 8; // a trick shot's chance when verify() pots all six; the most make chance show gives up
 // The AI's turn on the engine table. B and ids as rules.ts has them (ball i is number ids[i], ball 0 the cue ball), in
 // metres. Returns the Shot for strike(), the pick (picker units, mm) and the ms spent picking and correcting the aim.
 // ok = the pots it may try (decide); none = every pot.
@@ -173,21 +211,31 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   // really gets: its chance times one plus the next shot's. Each gets a few rollouts, then the best of them the rest of
   // the budget. A safety maps like a pot: its ball, its leave, its line. A ranked pot with no leave (a combo) gets the
   // default one it is played with, so pick.leave is there for every pot, as decide() says.
-  const cands = pick.type === 'safety' ? [pick] : [pick, ...ranked.filter((c) => c !== pick)].slice(0, tier.tries ?? 1);
+  // A tier with tricks also refines the trick shots plan() kept (TRICKS), so they get engine time.
+  const lead: (Planned | Safety)[] = pick.type === 'safety' ? [pick] : [pick, ...ranked.filter((c) => c !== pick)].slice(0, tier.tries ?? 1);
+  const cands = tier.tricks && pick.type !== 'safety' ? [...lead, ...ranked.filter((c) => fancy(c) && !lead.includes(c))] : lead;
   let sims = Math.floor(tier.budget - 0.3 * cands.length); // an aim correction costs about 0.3 of a full simulation
-  const runs = cands.map((c) => {
-    const lv = (c.leave ??= { spin: 0, power: 700, x: c.G.x, y: c.G.y, path: [c.G], travelled: 0, scratch: false }), b = c.type === 'billiard' ? ROLL : TIP * lv.spin, speed = speedFor(c.paths, lv.power, c.v, c.u, b, 1 - 1.5 * tier.speedErr / 100);
-    const first = ids.indexOf(c.type === 'safety' ? c.ball : c.first), start = { ang: correctAim(B[0], B[first], c, speed, 0, b) ?? c.aim, speed, a: 0, b };
-    return { c, more: sims < 2 ? null : refine(B, ids, group, tier, ids.indexOf(c.ball), first, c.type === 'safety' ? null : POCKETS[c.pocket], c.G, lv, start, t0 + THINK), v: -Infinity, shot: start, r: null as Roll | null };
-  });
+  const end = t0 + (tier.think ?? THINK);
+  const mkRun = (c: Planned | Safety, free = false) => { // free: refined whatever is left of the budget (the rescue below)
+    const lv = (c.leave ??= { spin: 0, power: 700, x: c.G.x, y: c.G.y, path: [c.G], travelled: 0, scratch: false }), b = c.type === 'billiard' ? ROLL : TIP * lv.spin, speed = c.elev ? JUMP_SPEED : speedFor(c.paths, lv.power, c.v, c.u, b, 1 - 1.5 * tier.speedErr / 100);
+    // a jump's aim is not corrected here: the probe has no ball to jump over
+    const first = ids.indexOf(c.type === 'safety' ? c.ball : c.first), start: Shot = c.elev ? { ang: c.aim, speed, a: 0, b: 0, elev: c.elev } : { ang: correctAim(B[0], B[first], c, speed, 0, b) ?? c.aim, speed, a: 0, b };
+    const cr = tier.tricks && (c.type === 'kick' || c.type === 'safety') ? c.rails ?? +(c.type === 'kick') : 0, or = tier.tricks && c.type === 'bank' ? c.rails ?? 1 : 0;
+    return { c, more: sims < 2 && !free ? null : refine(B, ids, group, tier, ids.indexOf(c.ball), first, c.type === 'safety' ? null : POCKETS[c.pocket], c.G, lv, start, end, cr, or, tier.tricks ? aimSd(tier, c.type) : 0), v: -Infinity, p: 0, shot: start, r: null as Roll | null };
+  };
+  const runs = cands.map((c) => mkRun(c));
+  // A tier with tricks: a pot's chance is the share verify() potted (SURE for all six). Its strike noise is so small that the
+  // geometric seed says little: it was right about plain pots and wrong about cushion shots, and the engine is right about both.
   const score = (x: (typeof runs)[number], n: number) => {
     const r = x.more!(n), c = x.c;
-    x.v = c.type !== 'safety' && r.pot && r.legal && !r.scratch ? c.p * (1 + r.next) : r.score / 16 - 1; x.shot = r.shot; x.r = r;
+    x.p = c.type === 'safety' ? 0 : tier.tricks ? SURE * r.sure : c.p;
+    x.v = c.type !== 'safety' && r.pot && r.legal && !r.scratch ? x.p * (1 + r.next + r.extra) : r.score / 16 - 1; x.shot = r.shot; x.r = r;
   };
   if (runs[0].more) {
     const first = cands.length > 1 ? Math.min(6, Math.floor(sims / (cands.length + 1))) : sims; // shortcut: the 6 a try is a guess, retune with bench:visit
     // a sure next shot could not beat the best; a 9 is weighed on its own terms below, so it is always rolled out
-    for (const x of runs) if (x.c.type === 'safety' || (nine(group) && x.c.ball === 9) || 2 * x.c.p > Math.max(...runs.map((y) => y.v))) { score(x, first); sims -= first; }
+    // a tier with tricks past the deadline scores only the first (its first rollout runs whatever the clock says, so there is a shot)
+    for (const x of runs) if ((x === runs[0] || !tier.tricks || now() < end) && (x.c.type === 'safety' || (nine(group) && x.c.ball === 9) || 2 * x.c.p > Math.max(...runs.map((y) => y.v)))) { score(x, first); sims -= first; }
     const top = runs.reduce((a, x) => (x.v > a.v ? x : a));
     if (sims > 0 && cands.length > 1) score(top, sims);
     // 9-ball: a 9 that went down early against the best route that potted, as plan() weighs them (nineValue), from the
@@ -199,11 +247,33 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
       for (const x of runs) if (x.c.ball === 9 && x.v > 0) x.v = nineValue(x.v, (x.c as Planned).p, ref.v, odds);
     }
   }
-  const won = runs.reduce((a, x) => (x.v > a.v ? x : a)), aim = won.shot, played = won.c;
+  let won = runs.reduce((a, x) => (x.v > a.v ? x : a));
+  // A tier with tricks and no pot it trusts (SAFE_P) searches on before it plays safe: the next RESCUE pots of any kind, by
+  // their seed chance, RESCUE_SIMS rollouts each, until the deadline. Most of the tables it played safe on had a pot the
+  // geometric ranking put too low.
+  if (tier.tricks && (won.c.type === 'safety' || won.v <= 0 || won.p < SAFE_P)) {
+    const tried = runs.map((x) => x.c), more = enumerate(cue, balls, legalFor(balls, group), potFor(balls, group), true, tier.tricks)
+      .filter((c) => (!ok || ok(c)) && plays(tier, c, balls) && !tried.some((t) => t.type === c.type && t.ball === c.ball && t.pocket === c.pocket && Math.abs(t.aim - c.aim) < 1e-6))
+      .map((c): Planned => ({ ...c, p: tierProb(tier, c), score: 0, value: 0 })).sort((a, b) => b.p - a.p).slice(0, RESCUE);
+    for (const c of more) {
+      if (now() >= end) break;
+      const x = mkRun(c, true);
+      if (x.more) { score(x, RESCUE_SIMS); runs.push(x); if (x.v > won.v || (won.c.type !== 'safety' && x.p > won.p && x.v > 0)) won = x; }
+      if (won.c.type !== 'safety' && won.p >= SAFE_P) break;
+    }
+  }
+  // show: a checked trick shot or double pot worth at least 1 / (1 + show) of the best, whose chance is at most SHOW_GAP under it, is played in its place
+  const flair = (x: (typeof runs)[number]) => (fancy(x.c) || !!x.r?.extra) && x.v > 0;
+  if (tier.show && !flair(won)) won = runs.filter((x) => flair(x) && x.v * (1 + tier.show!) >= won.v && x.p >= won.p - SHOW_GAP).reduce((a, x) => (x.v > a.v ? x : a), won);
+  // A tier with tricks has measured its pots: when none pots on the engine, or the best only in under SAFE_P of verify()'s
+  // rollouts, it plays a safety or an escape after all (decide() with no pot allowed), unless it must shoot (safetiesInRow).
+  if (tier.tricks && won.c.type !== 'safety' && (won.v <= 0 || won.p < SAFE_P) && safetiesInRow < 2) {
+    const alt = aiShot(B, ids, group, oppGroup, { ...tier, think: end - now() }, rnd, safetiesInRow, () => false); // the same deadline
+    if (alt.pick.type === 'safety') return { ...alt, ms: [t1 - t0, now() - t1] };
+  }
+  const aim = won.shot, played = won.c;
   const t2 = now(), g = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd()); // Box-Muller
   const tip = (x: number) => Math.max(-CUE.tipLimit, Math.min(CUE.tipLimit, x + g() * tier.tipErr)); // tipErr is in ball radii, as a and b are
-  // side tip error squirts the cue ball off line (strike() adds a * squirt), so the aim itself scatters by the rest of sigma
-  const rad = tier.sigma * (played.type === 'direct' || played.type === 'safety' ? 1 : tier.hard * (played.type === 'bank' || played.type === 'kick' ? tier.bankAim ?? 1 : 1)) * Math.PI / 180, aimSd = Math.sqrt(Math.max(0, rad * rad - (tier.tipErr * CUE.squirt) ** 2));
-  const shot = { ang: aim.ang + g() * aimSd, speed: Math.min(CUE.maxSpeed, Math.max(0.5, aim.speed * (1 + g() * tier.speedErr / 100))), a: tip(0), b: tip(aim.b) };
+  const shot: Shot = { ang: aim.ang + g() * aimSd(tier, played.type), speed: Math.min(CUE.maxSpeed, Math.max(0.5, aim.speed * (1 + g() * tier.speedErr / 100))), a: tip(0), b: tip(aim.b), ...(aim.elev ? { elev: aim.elev } : {}) };
   return { shot, aim, pick: played, ms: [t1 - t0, t2 - t1] };
 }
