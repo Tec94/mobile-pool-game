@@ -85,14 +85,17 @@ for (const [type, rails] of [['bank', 2], ['bank', 3], ['kick', 2], ['kick', 3]]
   for (let i = 0; i < 3; i++) { const r = aiShot(B, ids, SOLIDS, STRIPES, M, rng(i)), s = simulate(B, r.shot, undefined, 30000); assert(ids[s.first] === 1 && !s.scratch, `escape ${i} hits the 1 first`); }
   ok(`a hooked Masters escapes with a legal hit (${pick.rails ? `kick off ${pick.rails}` : 'jump'})`);
 }
-{ // Past the deadline (0 ms: no clock either) the Masters plays the pot it planned, as Legend would: no safety for want of a check.
+{ // Past the deadline (0 ms: no clock either) the Masters plays the pot it planned, as Legend would, when its one rollout
+  // pots it: no safety for want of a check. When it does not, a safety.
   let pots = 0;
-  for (const seed of [5, 6, 7, 8, 9]) {
+  for (const seed of [5, 6, 7, 8, 9, 10, 11]) {
     const L = randomLayout(rng(seed), 7), { B, ids } = table(L), planned = decide(L.cue, L.balls, SOLIDS, STRIPES, M, rng(1)).pick;
     if (planned.type === 'safety') continue;
-    const r = aiShot(B, ids, SOLIDS, STRIPES, { ...M, think: 0 }, rng(1)); pots++;
-    assert.deepStrictEqual([r.pick.type, r.pick.ball, r.pick.pocket, r.pick.aim], [planned.type, planned.ball, planned.pocket, planned.aim], `table ${seed}`);
+    const r = aiShot(B, ids, SOLIDS, STRIPES, { ...M, think: 0 }, rng(1));
+    if (r.pick.type === 'safety') continue;
+    pots++;
+    assert(r.pick.type === planned.type && r.pick.ball === planned.ball && r.pick.pocket === planned.pocket && Math.abs(r.pick.aim - planned.aim) < 1e-9, `table ${seed}`); // mm to m and back: the aim to 1e-16
   }
-  assert(pots >= 3, `${pots} tables with a planned pot`);
+  assert(pots >= 3, `${pots} tables with a planned pot played`);
   ok(`past the deadline the Masters plays its planned pot (${pots} tables)`);
 }
