@@ -39,14 +39,14 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
   const f = c.feat as FeatId | undefined, need = owned ? [] : [
     c.price !== undefined && p.coins < c.price && `${(c.price - p.coins).toLocaleString('en-US')} coins short`,
     f && `${featName(f)} ${featCount(p, f)}/${FEATS[f].count}`, c.level && `Reach level ${c.level}`, c.get && (id === 'surveyor' ? `${done.length}/${PENCIL_AT} lessons` : c.get),
-  ].filter((x): x is string => !!x).slice(0, 2);
+  ].filter((x): x is string => !!x).slice(0, 2), fits = !!need[0] && need[0].length <= 20; // a longer need would not fit the button
   const cta = owned ? { label: use ? 'In use' : 'Use', name: use ? `${c.name}, in use` : `Use ${c.name}`, off: use, onPress: () => put(select(p, id)) }
     : c.price !== undefined ? { label: `Buy ${c.price.toLocaleString('en-US')}`, name: `Buy ${c.name} for ${c.price} coins`, off: p.coins < c.price, quiet: true,
       onPress: () => { const next = buy(p, id); if (next !== p) feel(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)); put(next); } }
-    : { label: need[0] ?? 'Locked', name: `${c.name}, locked${need[0] ? `: ${need[0]}` : ''}`, off: true, onPress: () => {} };
-  const rest = c.price !== undefined ? need : need.slice(1); // what the button does not already say
+    : { label: fits ? need[0] : 'Locked', name: `${c.name}, locked${need[0] ? `: ${need[0]}` : ''}`, off: true, onPress: () => {} };
+  const rest = c.price === undefined && fits ? need.slice(1) : need; // what the button does not already say
   const family = FAMILIES.find(x => x[0] === c.family)![1], st = cueStats(p, id), m = masteryOf(p, id);
-  const barW = Math.max(60, Math.min(170, panel - 24 - 44 - 23 - 16 - (owned && tunable(id) ? 96 : 0)));
+  const barW = Math.max(60, Math.min(170, panel - 24 - 44 - 23 - 16 - (owned && tunable(id) ? 114 : 0)));
   return (
     <Shell title="Cues" back={() => go('home')} extra={<Txt style={styles.count}>{`${p.owned.length} / ${CUE_IDS.length}`}</Txt>}>
       <Split wide at={Math.floor(up / n) * (H + 13)} panel={
@@ -59,19 +59,19 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
             <Txt style={[styles.advText, adv && { color: C.ink }]}>Advanced</Txt>
           </Pressable>
         </>} cta={cta}
-          picture={land ? undefined : pw => <CueArt id={id} w={Math.round(pw)} h={PIC} whole />}>
-          <View style={{ gap: 7 }}>
-            {adv ? <Advanced id={id} p={p} quip={c.quip} note={c.note} /> : (
-              <Txt style={TYPE.small} accessibilityLabel={`${c.trick ? `Trick: ${c.trick}. ` : ''}${c.does} ${c.cost}`}>
-                {!!c.trick && <Txt style={styles.bold}>{`${c.trick}. `}</Txt>}{c.does}<Txt style={{ opacity: 0.7 }}>{` ${c.cost}`}</Txt>
-              </Txt>
-            )}
+          picture={land ? undefined : pw => <CueArt id={id} w={Math.round(pw)} h={PIC} whole />}
+          foot={<View style={{ gap: 7 }}>
             {rest.length > 0 && <Txt style={[TYPE.small, styles.bold, { color: C.gold }]}>{rest.join(' · ')}</Txt>}
             <View style={{ gap: 3 }}>
               {STATS.map(s => <StatRow key={s} id={id} s={s} p={p} put={put} value={st[s]} tuned={owned ? m[s] : 0} barW={barW} />)}
             </View>
             {owned && <Mastery id={id} p={p} />}
-          </View>
+          </View>}>
+          {adv ? <Advanced id={id} p={p} quip={c.quip} note={c.note} /> : (
+            <Txt style={TYPE.small} accessibilityLabel={`${c.trick ? `Trick: ${c.trick}. ` : ''}${c.does} ${c.cost}`}>
+              {!!c.trick && <Txt style={styles.bold}>{`${c.trick}. `}</Txt>}{c.does}<Txt style={{ opacity: 0.7 }}>{` ${c.cost}`}</Txt>
+            </Txt>
+          )}
         </Panel>}>
         <View style={styles.grid}>
           {CUE_IDS.map((k, i) => {
@@ -106,13 +106,14 @@ function StatRow({ id, s, p, put, value, tuned, barW }: { id: CueId; s: Stat; p:
         <Txt style={[TYPE.body, TYPE.num, styles.bold, { width: 23, textAlign: 'right' }]}>{value}</Txt>
       </View>
       {tunes && <View style={styles.keys}>
-        <Slab paint={DARK} lip={3} radius={3} onPress={() => put(tuneDown(p, id, s))} disabled={!tuned} accessibilityLabel={`${name} down on ${cue}`} hitSlop={{ top: 6, bottom: 6, left: 2, right: 2 }} face={styles.key} style={!tuned && { opacity: 0.35 }}>
+        <Slab paint={DARK} lip={3} radius={3} onPress={() => { feel(() => Haptics.selectionAsync()); put(tuneDown(p, id, s)); }} disabled={!tuned} accessibilityLabel={`${name} down on ${cue}`} hitSlop={{ top: 1, bottom: 1, left: 2, right: 2 }} face={styles.key} style={!tuned && { opacity: 0.35 }}>
           <Txt style={styles.keyText}>−</Txt>
         </Slab>
         {locked(id, s) ? <View style={[styles.key, styles.plus]} accessible accessibilityLabel={`${name} is locked on ${cue}`}><Glyph id="lock" color={C.chalk} /></View> // the price of the trick: no plus
           : <Slab paint={cost !== null && p.coins >= cost ? CREAM : DARK} lip={3} radius={3} onPress={() => { feel(() => Haptics.selectionAsync()); put(tuneUp(p, id, s)); }} disabled={cost === null || p.coins < cost}
-            accessibilityLabel={`${name} up on ${cue}${cost ? ` for ${cost} coins` : ''}`} hitSlop={{ top: 6, bottom: 6, left: 2, right: 2 }} face={[styles.key, styles.plus]} style={(cost === null || p.coins < cost) && { opacity: 0.35 }}>
-            <Txt style={[styles.keyText, cost !== null && p.coins >= cost && { color: C.ink }]}>{cost ? `+${cost.toLocaleString('en-US')}` : '+'}</Txt>
+            accessibilityLabel={`${name} up one on ${cue}${cost ? ` for ${cost} coins` : ', free'}`} hitSlop={{ top: 1, bottom: 1, left: 2, right: 2 }} face={[styles.key, styles.plus]} style={(cost === null || p.coins < cost) && { opacity: 0.35 }}>
+            <Txt style={[styles.keyText, cost !== null && p.coins >= cost && { color: C.ink }]}>+1</Txt>
+            {!!cost && <><View style={styles.coin} /><Txt style={[styles.keyText, styles.price, cost !== null && p.coins >= cost && { color: C.ink }]}>{cost.toLocaleString('en-US')}</Txt></>}
           </Slab>}
       </View>}
     </View>
@@ -122,11 +123,11 @@ function StatRow({ id, s, p, put, value, tuned, barW }: { id: CueId; s: Stat; p:
 // The real numbers the stats make on the table, the cue's fine print and its line.
 function Advanced({ id, p, quip, note }: { id: CueId; p: Profile; quip?: string; note?: string }) {
   const sp = specs(id, cueStats(p, id));
-  const facts: [string, string, string][] = [[sp.shot.toFixed(2), 'm/s', 'Top shot speed'], [sp.brk.toFixed(1), 'm/s', 'Break speed'], [sp.tipMm.toFixed(1), 'mm', 'Tip reach off centre'], [String(sp.guideCm), 'cm', 'Guide past contact']];
+  const facts: [string, string, string][] = [[sp.shot.toFixed(2), 'm/s', 'Top shot'], [sp.brk.toFixed(1), 'm/s', 'Break'], [sp.tipMm.toFixed(1), 'mm', 'Tip reach'], [String(sp.guideCm), 'cm', 'Guide']];
   return <>
     <View style={styles.facts}>
       {facts.map(([n, unit, what]) => (
-        <View key={what} style={{ width: '46%' }} accessible accessibilityLabel={`${what}: ${n} ${unit}`}>
+        <View key={what} style={{ flex: 1 }} accessible accessibilityLabel={`${what}: ${n} ${unit}`}>
           <Txt style={styles.big}>{n}<Txt style={[TYPE.small, styles.bold]}>{` ${unit}`}</Txt></Txt>
           <Txt style={[TYPE.small, { opacity: 0.8 }]}>{what}</Txt>
         </View>
@@ -141,7 +142,7 @@ function Advanced({ id, p, quip, note }: { id: CueId; p: Profile; quip?: string;
 function Mastery({ id, p }: { id: CueId; p: Profile }) {
   const m = masteryOf(p, id), { level, into, need } = masteryLevel(m.xp), pts = points(m), free = pts - used(m);
   const cost = STATS.map(s => upCost(p, id, s)).find(x => x !== null);
-  const next = !tunable(id) ? 'Takes no tuning' : !pts ? 'Mastery 2: first point' : !free ? (need ? 'All points placed' : 'Fully tuned') : cost === undefined ? 'No room' : `${free} point${free > 1 ? 's' : ''} to place`;
+  const next = !tunable(id) ? 'Takes no tuning' : !pts ? 'Mastery 2 opens upgrades' : !free ? (need ? 'Next upgrade at the next mastery' : 'Fully tuned') : cost === undefined ? 'No room' : `${free} upgrade${free > 1 ? 's' : ''} open`;
   return (
     <View style={styles.mastery} accessible accessibilityLabel={`Mastery ${level} of ${MASTERY_XP.length}, ${need ? `${into} of ${need} cue XP` : 'mastered'}. ${next}`}>
       <Txt style={[TYPE.small, styles.bold, TYPE.num]}>{`Mastery ${level}`}</Txt>
@@ -159,7 +160,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, rowGap: 13, paddingTop: 4, paddingLeft: 4 },
   chosen: { outlineColor: C.chalk, outlineWidth: 3, outlineOffset: 2, outlineStyle: 'solid' },
   head: { fontFamily: FONT.display, fontSize: 22, lineHeight: 26, color: C.chalk, flexShrink: 1 },
-  family: { opacity: 0.6, marginTop: 4 },
+  family: { opacity: 0.6, marginTop: 4, flexShrink: 1 },
   count: { fontFamily: FONT.semi, fontSize: 12, color: C.chalk, opacity: 0.8, fontVariant: ['tabular-nums'] },
   adv: { height: 24, paddingHorizontal: 8, borderRadius: 3, borderWidth: 1, borderColor: C.chalk + '66', justifyContent: 'center' },
   advOn: { backgroundColor: C.chalk, borderColor: C.chalk },
@@ -168,10 +169,12 @@ const styles = StyleSheet.create({
   statLine: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   statName: { width: 44, opacity: 0.8 },
   keys: { flexDirection: 'row', gap: 4, marginBottom: 3 },
-  facts: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 24, rowGap: 6 },
-  big: { fontFamily: FONT.display, fontSize: 19, lineHeight: 22, color: C.chalk, fontVariant: ['tabular-nums'] },
+  facts: { flexDirection: 'row', gap: 8, marginBottom: 6 },
+  big: { fontFamily: FONT.display, fontSize: 16, lineHeight: 19, color: C.chalk, fontVariant: ['tabular-nums'] },
   mastery: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  key: { minWidth: 28, height: 24, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' }, // Btn's minWidth is the HUD's
-  plus: { minWidth: 52 },
+  key: { minWidth: 30, height: 26, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' }, // Btn's minWidth is the HUD's
+  plus: { minWidth: 70, flexDirection: 'row', gap: 4 },
+  coin: { width: 9, height: 9, borderRadius: 5, backgroundColor: C.gold, marginLeft: 2 },
+  price: { fontSize: 11 },
   keyText: { fontFamily: FONT.bold, fontSize: 12.5, lineHeight: 16, color: C.chalk, ...TYPE.num },
 });
