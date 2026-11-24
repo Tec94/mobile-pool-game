@@ -4,7 +4,7 @@ import { HOLES, simulate, step, strike } from '../physics/engine.ts';
 import { aiShot, ROLLOUTS, tricksTail } from './aim.ts';
 import { holeOf, kindOf, onLit } from './turn.ts';
 import { judge, newGame, newRec, record } from '../rules/rules.ts';
-import { decide, enumerate, fancy, MASTERS, norm, plan, POCKETS, R, randomLayout, rng, SOLIDS, STRIPES, sub, TIERS, W, H } from './shot-ai.ts';
+import { decide, enumerate, fancy, MASTERS, NINE, norm, plan, POCKETS, R, randomLayout, rng, SOLIDS, STRIPES, sub, TIERS, W, H } from './shot-ai.ts';
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 const table = ({ cue, balls }) => ({ B: [cue, ...balls].map(b => mk(b.x / 1000, b.y / 1000)), ids: [0, ...balls.map(b => b.id)] });
@@ -132,13 +132,65 @@ for (const [type, rails] of [['bank', 2], ['bank', 3], ['kick', 2], ['kick', 3]]
   assert(!swap(0.97, 0.95, 0.8), 'the next shot');
   ok('the reel swap keeps to its gap, its minimum and the next shot');
 }
+{ // The show swap: a fancier pot (a 2-cushion bank) replaces the best when its value times 1 + show is at least the best's,
+  // its checked chance is within SHOW_GAP and its rollout scored as well; else the best stays.
+  const run = (c, p, score) => ({ c, v: p * 1.5, p, shot: {}, r: { sure: 1, next: 0.5, score, extra: 0 }, more: null });
+  const swap = (p, score = 15) => {
+    const won = run({ type: 'direct', ball: 1 }, 0.97, 15), x = run({ type: 'bank', rails: 2, ball: 2 }, p, score);
+    const srch = { runs: [won, x], mkRun: () => { throw new Error('no'); }, score: () => {}, checkRun: () => {}, late: () => false, stopped: () => false, clk: { n: 0, cap: Infinity, end: Infinity } };
+    return tricksTail(won, srch, [], { x: 0, y: 0 }, [], SOLIDS, STRIPES, M, rng(1), 2) === x;
+  };
+  assert(swap(0.93) && !swap(0.91), 'the gap');
+  assert(!swap(0.97, 14), 'the rollout score');
+  ok('the show swap keeps to its gap and the rollout score');
+}
+{ // The safety fallback, with the budget spent: a pot that did not drop gives way to a safety, which gets rollouts past the
+  // budget; a safety whose best rollout fouls gives way to the first other safety or escape that rolls out legal.
+  const cue = { x: 600, y: 600 }, balls = [{ id: 1, x: 1400, y: 500 }, { id: 2, x: 1800, y: 900 }, { id: 9, x: 1000, y: 300 }];
+  const tail = (legal) => { // legal(i): does the i-th run made roll out legal
+    const clk = { n: 90, cap: 90, end: Infinity }, made = [];
+    const mkRun = (c) => ({ c, v: -0.5, p: 0, shot: {}, r: { sure: -1, next: 0, score: 6, extra: 0, legal: legal(made.push(c) - 1), rail: true, scratch: false }, more: null });
+    const won = { c: { type: 'direct', ball: 1 }, v: -0.2, p: 0, shot: {}, r: { sure: -1, next: 0, score: 5, extra: 0 }, more: null };
+    const srch = { runs: [won], mkRun, score: () => { clk.n++; }, checkRun: () => {}, late: () => clk.n >= clk.cap, stopped: () => false, clk };
+    return { x: tricksTail(won, srch, [], cue, balls, SOLIDS, STRIPES, M, rng(1), 0), made };
+  };
+  const a = tail(() => true);
+  assert(a.made.length === 1 && a.x.c === a.made[0] && a.x.c.type === 'safety', 'the safety, refined past the spent budget');
+  const b = tail((i) => i >= 2);
+  assert(b.made.length === 3 && b.x.c === b.made[2] && b.made.every((c, i) => !i || c.ball !== b.made[0].ball || c.aim !== b.made[0].aim), 'the first legal other safety');
+  ok('the safety fallback refines past the spent budget and plays the first safety that rolls out legal');
+}
+{ // The rescue search: with only a safety, it rolls out more pots; one it trusts (SAFE_P) is played, one it does not
+  // leaves the refined safety as it was.
+  const cue = { x: 600, y: 600 }, balls = [{ id: 1, x: 1400, y: 500 }, { id: 2, x: 1800, y: 900 }, { id: 9, x: 1000, y: 300 }];
+  const rescue = (p) => {
+    const clk = { n: 0, cap: 90, end: Infinity }, r = (legal) => ({ sure: 1, next: 0, score: 10, extra: 0, legal, rail: true, scratch: false, pot: true });
+    const mkRun = (c) => ({ c, v: c.type === 'safety' ? -0.4 : p, p, shot: {}, r: r(true), more: null });
+    const won = { c: { type: 'safety', ball: 1, aim: 0 }, v: -0.4, p: 0, shot: {}, r: { ...r(true), sure: -1 }, more: null };
+    const srch = { runs: [won], mkRun, score: () => { clk.n++; }, checkRun: () => {}, late: () => clk.n >= clk.cap, stopped: () => false, clk };
+    return { won, x: tricksTail(won, srch, [], cue, balls, SOLIDS, STRIPES, M, rng(1), 0) };
+  };
+  const a = rescue(0.9), b = rescue(0.3);
+  assert(a.x.c.type !== 'safety' && a.x.p === 0.9, 'a trusted pot is played');
+  assert(b.x === b.won, 'an untrusted pot leaves the safety');
+  ok('the rescue search plays a pot it trusts and keeps the safety over one it does not');
+}
+{ // 9-ball: the Masters weighs a 9 that drops early against its best route (nineValue) on checked chances, so it plays
+  // the hanging 9, and the long combo on the 9 that Legend turns down for the 1 and the 2 (aim.test.mjs).
+  const rails = [[1.9, 0.03], [1.4, 1.09], [2.2, 0.56], [0.9, 0.03], [1.5, 0.2], [1.8, 0.9], [2.2, 0.8]];
+  const B = [mk(0.6, 0.6), mk(0.33, 0.33), ...rails.map(([x, y]) => mk(x, y)), mk(0.11, 0.11)];
+  assert.equal(aiShot(B, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], NINE, NINE, M, rng(1)).pick.ball, 9, 'the hanging 9');
+  const E = [mk(0.227, 0.589), mk(1.142, 0.589), mk(1.347, 0.649), mk(1.862, 0.597)];
+  assert.equal(aiShot(E, [0, 1, 9, 2], NINE, NINE, M, rng(1)).pick.ball, 9, 'the combo on the 9');
+  ok('9-ball: the Masters plays the 9 when its checked chance beats the route');
+}
 { // The search's budget is rollouts: the same table gives the same shot and count, never past ROLLOUTS (+1: a run's
-  // first rollout runs whatever the budget says, so there is a shot).
+  // first rollout runs whatever the budget says, so there is a shot; +20: a safety's two SPARE of 10).
   const counts = [];
   for (let i = 0; i < 6; i++) {
     const { B, ids } = table(randomLayout(rng(70 + i), 5)), a = aiShot(B, ids, SOLIDS, STRIPES, M, rng(i)), b = aiShot(B, ids, SOLIDS, STRIPES, M, rng(i));
-    assert(a.rollouts === b.rollouts && a.shot.ang === b.shot.ang && a.rollouts > 0 && a.rollouts <= ROLLOUTS + 1, `table ${i}: ${a.rollouts} / ${b.rollouts}`);
+    assert(a.rollouts === b.rollouts && a.shot.ang === b.shot.ang && a.rollouts > 0 && a.rollouts <= ROLLOUTS + 21, `table ${i}: ${a.rollouts} / ${b.rollouts}`);
     counts.push(a.rollouts);
   }
-  ok(`the Masters' search is ${ROLLOUTS} rollouts at most, the same on every run (${counts})`);
+  ok(`the Masters' search is ${ROLLOUTS} rollouts at most (a safety 20 more), the same on every run (${counts})`);
 }
