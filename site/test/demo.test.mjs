@@ -21,3 +21,9 @@ test('the demo file system has every name the game imports from expo-file-system
   for (const f of files) for (const [, list] of read(`src/${f}`).matchAll(/import \{([^}]*)\} from 'expo-file-system'/g))
     for (const n of list.split(',').map(s => s.trim().replace(/^type\s+/, '')).filter(Boolean)) assert.ok(have.includes(n), `src/${f} imports ${n}`);
 });
+test('the demo zooms a desktop window to a big phone and leaves a phone at 1', async () => {
+  const { zoomOf } = await import('../../demo/zoom.ts');
+  for (const [w, h] of [[852, 393], [932, 430], [390, 844], [375, 667]]) assert.equal(zoomOf(w, h), 1, `${w}x${h}`);
+  assert.ok(Math.abs(zoomOf(1651, 990) - 1651 / 932) < 1e-9); // wide: the width decides
+  assert.equal(zoomOf(1864, 1290), 2); // tall for its width: the height can't pass 430 pt
+});
