@@ -343,15 +343,16 @@ function leaves(G: Pt, v: Pt, u: Pt, balls: Obj[], ignore: number[], powers = PO
 // Shark's budget of 12 (not 17) and Pro's wLeave of 0.6 (not 0.9: fewer safeties) keep Shark, Pro and Legend apart.
 // The Chinese Masters (2026-11-24, at f92592b): its noise alone adds nothing over Legend (6.22 balls, 52% clears at 60
 // tables): the strength is in tricks, verify, the rescue search and budget 45 (33: 74 of 140 clears in place of 94).
-// At 7fe67d5 (half the noise it had, reel shots traded for 0.05 of checked chance), one visit, 200 tables: 8-ball 7.30
-// balls, 73% clears (Legend 6.01, 47), 9-ball 6.05, 82% (4.48, 51). Against Legend, 200 racks each way: 8-ball 75.0%,
-// 9-ball 73.0% (at most 87 / 78.5%: Legend wins before it has a shot); it hands the table over with balls up in 25% of
-// the racks it gets a visit in. Ridiculous pots 26.5 and 24.9%, 3+ cushions 5.5 and 6.7%. Forced make % (tables with a
-// try) at 120 tables: bank2 99 (60), bank3 82 (9), bank4 100 (9), kick2 89 (88), kick3 95 (47), kick4 93 (12), jump 95
-// (37). think p50 167 ms (Legend 32); interpreter only (a phone) p50 1610, p90 3517, max 3608 (Legend 304 / 837 / 1627).
-// A slower clock costs it: one visit, 100 tables, deadline 230 / 115 / 77 ms (JIT): 62 / 45 / 30-44 clears, Legend 44 /
-// 46 / 43: a rollout is 10-15 ms of physics, so 77 ms buys 1 to 5 after the plan. Massé, kick-banks and jump-kicks are
-// not built: each is one more finder and its engine checks on every shot, which the phone's budget cannot spare.
+// At f690253 (search budget ROLLOUTS in aim.ts, think 7000 ms only a hard stop), one visit, 200 tables (bench:visit):
+// 8-ball 7.32 balls, 74% clears (Legend 6.01, 47), 9-ball 6.08, 83% (4.48, 51). Against Legend, 200 racks each way
+// (bench:masters): 8-ball 71.0%, 9-ball 72.5% (at most 85.5 / 78.5%: Legend wins before it has a shot); it hands the
+// table over with balls up in 26-28% of the racks it gets a visit in. Ridiculous pots 23%, 3+ cushion or jump pots 0.64
+// a rack in 8-ball and 0.39 in 9-ball, kick4 and bank4 among them. Forced make % at 120 tables (bench:types, tables with
+// a try): bank2 96 (61), bank3 63 (13), bank4 91 (9), kick2 89 (88), kick3 92 (42), kick4 77 (11), jump 96 (38).
+// The same table gives the same shot on any device: one visit, 60 tables (bench:why), 48 and 49 clears on Node JIT and
+// on the interpreter alike (Legend 31 and 31). Think on full racks, interpreter only (a phone; 10 racks): 8-ball p50
+// 2980 ms, p90 5052, 1 of 57 shots at the hard stop; 9-ball 960 / 3281; JIT p50 161 / 98 ms. Massé, kick-banks and
+// jump-kicks are not built: each is one more finder and its engine checks on every shot, which the phone cannot spare.
 export const TIERS: Tier[] = [
   { name: 'Rookie',  sigma: 0.52, types: ['direct'],                          flair: 0,    temp: 0.25, depth: 0, wPos: 0,   posErr: 0.20, speedErr: 15, tipErr: 0.1, ctrl: 0, wLeave: 0, safetyAngles: [], budget: 1, caromGap: 0, rail: [0.91, 1.43], hard: 1.5, run: 0.45 },
   { name: 'Regular', sigma: 0.42, types: ['direct', 'bank'],                  flair: 0.03, temp: 0.08, depth: 0, wPos: 0,   posErr: 0.16, speedErr: 12, tipErr: 0.08, ctrl: 1, wLeave: 0, safetyAngles: [], budget: 2, caromGap: 0, rail: [0.76, 1.29], hard: 1.2, run: 0.5 },
