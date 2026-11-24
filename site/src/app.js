@@ -375,7 +375,7 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
   let k = 0, state = 'wait', t = 0, swing, pace = 1, acc = 0, sc, sel = here;
   // The done steps fold into one row, their balls side by side; it opens to show each. The step in hand and the ones after show their plans.
   const fold = document.createElement('button'), built = list.appendChild(document.createElement('li'));
-  fold.type = 'button'; fold.className = 'fold slab'; fold.setAttribute('aria-expanded', 'false'); fold.setAttribute('aria-label', `Built: ${NOW} steps done`);
+  fold.type = 'button'; fold.className = 'fold slab'; fold.setAttribute('aria-expanded', 'false'); fold.setAttribute('aria-label', `Built: ${STEPS.slice(0, NOW).join(', ')}. Show each`);
   fold.innerHTML = `<span class="tray" aria-hidden="true">${STEPS.slice(0, NOW).map((_, i) => `<i class="ball b${i + 1}"><i>${i + 1}</i></i>`).join('')}</span><b>Built</b><span>${NOW} done</span>`;
   built.append(fold); built.hidden = !NOW;
   const chips = [...fold.querySelectorAll('.tray > .ball')];
@@ -385,14 +385,14 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
     if (i === NOW) b.setAttribute('aria-current', 'step');
     b.innerHTML = `<i class="ball b${i + 1}"><i>${i + 1}</i></i><b>${name}</b><span>${when(i)}</span>`;
     b.onclick = () => { show(); start(); choose(i); say.textContent = `The ${i + 1} is ${down(i) ? 'down' : i < NOW ? 'about to drop' : 'on the table'}.`; }; // a tap on a row also starts a film that is still waiting // for a screen reader: the page shows it as a ring on the table
-    li.append(b); li.hidden = i < NOW; if (i > NOW) li.className = `slab ahead c${i + 1}`; // the plans ahead: a block each, in its ball's colour
+    li.append(b); li.hidden = i < NOW; if (i > NOW + 1) li.className = `slab ahead c${i + 1}`; // the plans ahead: a block each, in its ball's colour
     if (PLANS[i]) { const u = li.appendChild(document.createElement('ul')); u.className = 'plan'; for (const t of PLANS[i]) u.appendChild(document.createElement('li')).textContent = t; }
     return b;
   });
-  if (ALSO) { const p = list.appendChild(document.createElement('li')); p.className = 'also'; p.textContent = ALSO; }
+  { const p = list.appendChild(document.createElement('li')), u = document.createElement('ul'); p.className = 'slab ahead also'; u.className = 'plan'; p.innerHTML = '<b>Also planned</b>'; p.append(u); for (const t of ALSO) u.appendChild(document.createElement('li')).textContent = t; }
   fold.onclick = () => {
     const open = fold.getAttribute('aria-expanded') !== 'true';
-    fold.setAttribute('aria-expanded', open); rows.forEach((b, i) => { if (i < NOW) b.parentElement.hidden = !open; });
+    fold.setAttribute('aria-expanded', open); say.textContent = ''; rows.forEach((b, i) => { if (i < NOW) b.parentElement.hidden = !open; });
     if (!open && sel < NOW) choose(here); // the lit row folds away: light the step in hand
   };
   const down = i => !v.B[i + 1].on;

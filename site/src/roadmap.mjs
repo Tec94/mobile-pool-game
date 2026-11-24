@@ -7,10 +7,10 @@ export const STEPS = ['Real physics', '8-ball and 9-ball', 'An AI that banks', '
 // What the steps after the one in hand hold, a line each, shown with their rows. No dates: none are set.
 export const PLANS = {
   6: ['The waitlist hears first, by email.', 'Pay once. No ads.'],
-  7: ['Daily Table scores, scenario stars and tournament wins.', 'Sign in with Apple, Google or email to post yours. No account needed to play.'],
+  7: ['Daily Table scores, scenario stars and tournament wins.', 'Post yours with a sign-in. No account needed to play.'],
   8: ['8-ball and 9-ball against real players, on the same physics.', 'The same optional sign-in. Offline play stays as it is.'],
 };
-export const ALSO = 'Also planned: a tip jar through Apple. Tips are optional and unlock nothing. You still pay once.';
+export const ALSO = ['Sign in with Apple, Google or email, only for online play and the boards.', 'A tip jar through Apple. Tips unlock nothing: you still pay once.']; // the rest of the plan, in a block with no ball
 export const NOW = 5; // index into STEPS: 5 = the 6 ball
 export const SINCE = 'Sent 20 Nov'; // the tag of the step in hand
 export const FILM = 2; // how many of the done steps are potted before the visitor's eyes; the ones before are down already
