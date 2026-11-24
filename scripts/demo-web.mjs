@@ -31,6 +31,7 @@ rmSync(out, { recursive: true, force: true });
 const x = spawn('npx', ['expo', 'export', '--platform', 'web', '--output-dir', '../site/public/play', ...process.argv.slice(2)], { cwd: tmp, env: { ...process.env, CI: '1' }, shell: process.platform === 'win32', detached: process.platform !== 'win32' });
 const stop = () => { try { process.platform === 'win32' ? spawnSync('taskkill', ['/pid', String(x.pid), '/T', '/F']) : process.kill(-x.pid); } catch {} }; // the whole tree: npx, then expo
 let log = '';
+try {
 await new Promise((ok, fail) => {
   const late = setTimeout(() => { stop(); fail(new Error('expo export took over 10 minutes')); }, 600_000);
   const end = () => { clearTimeout(late); ok(); };
@@ -38,8 +39,10 @@ await new Promise((ok, fail) => {
   x.stdout.on('data', read); x.stderr.on('data', read);
   x.on('exit', code => (code === 0 || /Exported: /.test(log) ? end() : (clearTimeout(late), fail(new Error('expo export failed: ' + code)))));
 });
-stop();
+} finally {
+  stop();
+  try { clean(); } catch {} // the copy is only for the build, failed or not; a locked file on Windows can stay until the next one
+}
 if (!existsSync(join(out, 'index.html'))) throw new Error('no index.html in ' + out);
 rmSync(join(out, 'metadata.json'), { force: true }); // expo's build notes: nothing a visitor needs
-try { clean(); } catch {} // the copy is only for the build; a locked file on Windows can stay until the next one
 console.log('demo built in', out);

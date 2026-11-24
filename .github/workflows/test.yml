@@ -17,9 +17,11 @@ jobs:
   demo-windows:
     runs-on: windows-latest
     timeout-minutes: 30
+    defaults: { run: { working-directory: runout repo } }  # a space in the path, as a PC folder can have
     steps:
       - uses: actions/checkout@v4
+        with: { path: runout repo }
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
+        with: { node-version: 22, cache: npm, cache-dependency-path: runout repo/package-lock.json }
       - run: npm ci
       - run: npm run demo
