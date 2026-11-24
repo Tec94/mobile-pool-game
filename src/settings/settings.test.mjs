@@ -22,6 +22,7 @@ eq(readSettings(JSON.stringify({ tier: -1 })).tier, 0, 'no tier below Rookie'); 
 eq(readSettings(JSON.stringify({ tier: 6 })).tier, 7, 'a save from before the Masters: tier 6 was the Rival, and still is');
 eq(readSettings(JSON.stringify({ tier: 5 })).tier, 5, 'and Legend is Legend');
 eq(readSettings(JSON.stringify({ tier: 6, v: 2 })).tier, 6, 'a new save: tier 6 is the Masters'); eq(readSettings(JSON.stringify({ tier: 7, v: 2 })).tier, 7, 'and 7 the Rival');
+eq(readSettings(JSON.stringify({ tier: 6, v: 3 })).tier, 6, 'a newer save: tier 6 is still the Masters');
 ok('the quick match setup loads in range');
 eq(readSettings(JSON.stringify({ menus: '1' })).menus, 0, 'menus is the number 0 or 1'); eq(readSettings(JSON.stringify({ orient: 1 })).menus, 0, 'a save from before menus: landscape menus, its match setting kept');
 ok('menus load landscape unless saved as portrait');

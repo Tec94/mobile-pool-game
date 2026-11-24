@@ -40,7 +40,7 @@ export function readSettings(text: string | null): Settings {
     names: [name(o.names?.[0], 0), name(o.names?.[1], 1)],
     game: o.game === 9 ? 9 : 8,
     race: RACES.includes(o.race) ? o.race : DEFAULTS.race,
-    tier: o.v !== 2 && o.tier === 6 ? RIVAL : Number.isInteger(o.tier) && o.tier >= 0 && o.tier <= RIVAL ? o.tier : DEFAULTS.tier,
+    tier: !(o.v >= 2) && o.tier === 6 ? RIVAL : Number.isInteger(o.tier) && o.tier >= 0 && o.tier <= RIVAL ? o.tier : DEFAULTS.tier,
     aiGame: o.aiGame === 9 ? 9 : 8,
     aiRace: RACES.includes(o.aiRace) ? o.aiRace : DEFAULTS.aiRace,
     mood: ['relaxed', 'even', 'tough'].includes(o.mood) ? o.mood : DEFAULTS.mood,
