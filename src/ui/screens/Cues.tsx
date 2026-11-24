@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { PENCIL_AT } from '../../learn/lessons';
 import { keep, profile } from '../../progress';
-import { CUE_IDS, CUES, type CueId, type CueInfo, FAMILIES, specs } from '../../progress/cues';
+import { CUE_IDS, CUES, type CueId, type CueInfo, FAMILIES, specs, type Stat } from '../../progress/cues';
 import { cueStats, locked, MASTERY_XP, masteryLevel, masteryOf, points, STATS, tunable, tuneDown, tuneUp, upCost, used } from '../../progress/mastery';
 import { buy, FEATS, featCount, type FeatId, featName, type Profile, select } from '../../progress/profile';
 import { C, CREAM, DARK, FONT } from '../../theme';
@@ -17,11 +17,12 @@ const H = 150, ART = 100, PIC = 48; // a card: the picture above ART, the name a
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 // The cue rack: cream = owned, dark = not, each with its footer (in use, stats, or what gets it). The panel shows the
-// chosen cue as simple stat blocks against the top of 10, or with Advanced, the real numbers, mastery and tuning.
+// chosen cue: its trick, its stats as blocks against the top of 10 with the tuning keys on each owned stat, its mastery,
+// and the one button. Advanced swaps the trick text for the real numbers; upgrading never hides behind it.
 // shortcut: pass and play stays on House Cue stats, so the pick only counts once a mode with own cues lands.
 export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
   const [p, setP] = useState(profile), [up, setUp] = useState(() => CUE_IDS.indexOf(p.cue)), [adv, setAdv] = useState(false);
-  const { land, side, width } = useFrame(), panel = usePanel(), left = land ? width - 2 * side - panel - 16 : width - 2 * side;
+  const { land, side, width } = useFrame(), panel = usePanel(true), left = land ? width - 2 * side - panel - 16 : width - 2 * side;
   const n = Math.max(1, Math.floor((left - 4) / (86 + 8))), cw = Math.floor((left - 8 - 8 * (n - 1)) / n); // 4 pt each side for the chosen outline
   const put = (next: Profile) => { if (next !== p) { keep(next); setP(next); } };
   const foot = (id: CueId) => {
@@ -33,42 +34,43 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
     if (c.level) return `Level ${c.level}`;
     return id === 'surveyor' ? `${done.length}/${PENCIL_AT} lessons` : 'Locked';
   };
-  const id = CUE_IDS[up], c: CueInfo = CUES[id], owned = p.owned.includes(id), use = p.cue === id, w = panel - 24;
+  const id = CUE_IDS[up], c: CueInfo = CUES[id], owned = p.owned.includes(id), use = p.cue === id;
+  // What gets a cue not yet owned: the first of it names the locked button.
+  const f = c.feat as FeatId | undefined, need = owned ? [] : [
+    c.price !== undefined && p.coins < c.price && `${(c.price - p.coins).toLocaleString('en-US')} coins short`,
+    f && `${featName(f)} ${featCount(p, f)}/${FEATS[f].count}`, c.level && `Reach level ${c.level}`, c.get && (id === 'surveyor' ? `${done.length}/${PENCIL_AT} lessons` : c.get),
+  ].filter((x): x is string => !!x).slice(0, 2);
   const cta = owned ? { label: use ? 'In use' : 'Use', name: use ? `${c.name}, in use` : `Use ${c.name}`, off: use, onPress: () => put(select(p, id)) }
     : c.price !== undefined ? { label: `Buy ${c.price.toLocaleString('en-US')}`, name: `Buy ${c.name} for ${c.price} coins`, off: p.coins < c.price, quiet: true,
       onPress: () => { const next = buy(p, id); if (next !== p) feel(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)); put(next); } }
-    : { label: 'Locked', name: `${c.name}, locked`, off: true, onPress: () => {} };
-  // Its family, and what gets a cue not yet owned.
-  const f = c.feat as FeatId | undefined, need = owned ? [] : [
-    c.price !== undefined && `${c.price.toLocaleString('en-US')} coins`, c.price !== undefined && p.coins < c.price && `${(c.price - p.coins).toLocaleString('en-US')} coins short`,
-    f && `${featName(f)}: ${featCount(p, f)} of ${FEATS[f].count}`, c.level && `Reach level ${c.level}`, c.get && (id === 'surveyor' ? `${done.length} of ${PENCIL_AT} lessons passed` : c.get),
-  ].filter((x): x is string => !!x).slice(0, 2);
-  const line = [FAMILIES.find(x => x[0] === c.family)![1], ...need, c.quip].filter(Boolean).join(' · '), st = cueStats(p, id);
+    : { label: need[0] ?? 'Locked', name: `${c.name}, locked${need[0] ? `: ${need[0]}` : ''}`, off: true, onPress: () => {} };
+  const rest = c.price !== undefined ? need : need.slice(1); // what the button does not already say
+  const family = FAMILIES.find(x => x[0] === c.family)![1], st = cueStats(p, id), m = masteryOf(p, id);
+  const barW = Math.max(60, Math.min(170, panel - 24 - 44 - 23 - 16 - (owned && tunable(id) ? 96 : 0)));
   return (
     <Shell title="Cues" back={() => go('home')} extra={<Txt style={styles.count}>{`${p.owned.length} / ${CUE_IDS.length}`}</Txt>}>
-      <Split at={Math.floor(up / n) * (H + 13)} panel={
-        <Panel head={<Txt numberOfLines={1} style={styles.head}>{c.name}</Txt>} cta={cta}
-          picture={pw => <CueArt id={id} w={Math.round(pw)} h={PIC} whole />}>
-          <View style={{ gap: 8 }}>
-            <Txt style={[TYPE.small, { opacity: 0.8 }]}>{line}</Txt>
-            <View style={{ gap: 2 }} accessible accessibilityLabel={`${c.trick ? `Trick: ${c.trick}. ` : ''}${c.does} ${c.cost}`}>
-              {!!c.trick && <View style={styles.trick}>
-                <Txt style={[TYPE.body, styles.bold]}>{c.trick}</Txt>
-              </View>}
-              <Txt style={TYPE.small}>{c.does}</Txt>
-              <Txt style={[TYPE.small, { opacity: 0.8 }]}>{c.cost}</Txt>
-              {adv && !!c.note && <Txt style={[TYPE.small, { opacity: 0.6 }]}>{c.note}</Txt>}
+      <Split wide at={Math.floor(up / n) * (H + 13)} panel={
+        <Panel head={<>
+          <Txt numberOfLines={1} style={styles.head}>{c.name}</Txt>
+          <Txt numberOfLines={1} style={[TYPE.small, styles.family]}>{family}</Txt>
+          <View style={{ flex: 1 }} />
+          <Pressable onPress={() => setAdv(!adv)} accessibilityRole="switch" accessibilityState={{ checked: adv }} accessibilityLabel="Advanced stats" hitSlop={10}
+            style={[styles.adv, adv && styles.advOn]}>
+            <Txt style={[styles.advText, adv && { color: C.ink }]}>Advanced</Txt>
+          </Pressable>
+        </>} cta={cta}
+          picture={land ? undefined : pw => <CueArt id={id} w={Math.round(pw)} h={PIC} whole />}>
+          <View style={{ gap: 7 }}>
+            {adv ? <Advanced id={id} p={p} quip={c.quip} note={c.note} /> : (
+              <Txt style={TYPE.small} accessibilityLabel={`${c.trick ? `Trick: ${c.trick}. ` : ''}${c.does} ${c.cost}`}>
+                {!!c.trick && <Txt style={styles.bold}>{`${c.trick}. `}</Txt>}{c.does}<Txt style={{ opacity: 0.7 }}>{` ${c.cost}`}</Txt>
+              </Txt>
+            )}
+            {rest.length > 0 && <Txt style={[TYPE.small, styles.bold, { color: C.gold }]}>{rest.join(' · ')}</Txt>}
+            <View style={{ gap: 3 }}>
+              {STATS.map(s => <StatRow key={s} id={id} s={s} p={p} put={put} value={st[s]} tuned={owned ? m[s] : 0} barW={barW} />)}
             </View>
-            {adv ? <Advanced id={id} p={p} put={put} /> : STATS.map(s => (
-              <View key={s} style={styles.stat} accessible accessibilityLabel={`${s} ${st[s]} of 10`}>
-                <Txt style={[TYPE.body, styles.statName]}>{cap(s)}</Txt>
-                <Blocks value={st[s]} width={Math.min(200, w - 44 - 23 - 16)} />
-                <Txt style={[TYPE.body, TYPE.num, styles.bold, { width: 23 }]}>{st[s]}</Txt>
-              </View>
-            ))}
-            <Pressable onPress={() => setAdv(!adv)} accessibilityRole="button" accessibilityLabel={adv ? 'Simple stats' : 'Advanced stats'} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }} style={styles.link}>
-              <Txt style={styles.linkText}>{adv ? '‹ Simple' : 'Advanced ›'}</Txt>
-            </Pressable>
+            {owned && <Mastery id={id} p={p} />}
           </View>
         </Panel>}>
         <View style={styles.grid}>
@@ -92,50 +94,59 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
   );
 }
 
-// The real numbers the stats make on the table, then the cue's mastery and its tuning.
-function Advanced({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => void }) {
+// A stat: its name, its blocks (tuning points in chalk), its value, and on an owned cue that tunes, − and + keys.
+// A point moves back for free; + places a point, for free while paid ones are spare, else for the next step's coins.
+function StatRow({ id, s, p, put, value, tuned, barW }: { id: CueId; s: Stat; p: Profile; put: (p: Profile) => void; value: number; tuned: number; barW: number }) {
+  const name = cap(s), tunes = p.owned.includes(id) && tunable(id), cost = upCost(p, id, s), cue = CUES[id].name;
+  return (
+    <View style={styles.stat}>
+      <View style={styles.statLine} accessible accessibilityLabel={`${name} ${value} of 10${tuned ? `, ${tuned} tuned` : ''}`}>
+        <Txt style={[TYPE.body, styles.statName]}>{name}</Txt>
+        <Blocks value={value} tuned={tuned} width={barW} />
+        <Txt style={[TYPE.body, TYPE.num, styles.bold, { width: 23, textAlign: 'right' }]}>{value}</Txt>
+      </View>
+      {tunes && <View style={styles.keys}>
+        <Slab paint={DARK} lip={3} radius={3} onPress={() => put(tuneDown(p, id, s))} disabled={!tuned} accessibilityLabel={`${name} down on ${cue}`} hitSlop={{ top: 6, bottom: 6, left: 2, right: 2 }} face={styles.key} style={!tuned && { opacity: 0.35 }}>
+          <Txt style={styles.keyText}>−</Txt>
+        </Slab>
+        {locked(id, s) ? <View style={[styles.key, styles.plus]} accessible accessibilityLabel={`${name} is locked on ${cue}`}><Glyph id="lock" color={C.chalk} /></View> // the price of the trick: no plus
+          : <Slab paint={cost !== null && p.coins >= cost ? CREAM : DARK} lip={3} radius={3} onPress={() => { feel(() => Haptics.selectionAsync()); put(tuneUp(p, id, s)); }} disabled={cost === null || p.coins < cost}
+            accessibilityLabel={`${name} up on ${cue}${cost ? ` for ${cost} coins` : ''}`} hitSlop={{ top: 6, bottom: 6, left: 2, right: 2 }} face={[styles.key, styles.plus]} style={(cost === null || p.coins < cost) && { opacity: 0.35 }}>
+            <Txt style={[styles.keyText, cost !== null && p.coins >= cost && { color: C.ink }]}>{cost ? `+${cost.toLocaleString('en-US')}` : '+'}</Txt>
+          </Slab>}
+      </View>}
+    </View>
+  );
+}
+
+// The real numbers the stats make on the table, the cue's fine print and its line.
+function Advanced({ id, p, quip, note }: { id: CueId; p: Profile; quip?: string; note?: string }) {
   const sp = specs(id, cueStats(p, id));
   const facts: [string, string, string][] = [[sp.shot.toFixed(2), 'm/s', 'Top shot speed'], [sp.brk.toFixed(1), 'm/s', 'Break speed'], [sp.tipMm.toFixed(1), 'mm', 'Tip reach off centre'], [String(sp.guideCm), 'cm', 'Guide past contact']];
   return <>
     <View style={styles.facts}>
       {facts.map(([n, unit, what]) => (
-        <View key={what} style={{ width: '46%' }}>
+        <View key={what} style={{ width: '46%' }} accessible accessibilityLabel={`${what}: ${n} ${unit}`}>
           <Txt style={styles.big}>{n}<Txt style={[TYPE.small, styles.bold]}>{` ${unit}`}</Txt></Txt>
           <Txt style={[TYPE.small, { opacity: 0.8 }]}>{what}</Txt>
         </View>
       ))}
     </View>
-    {p.owned.includes(id) && <Mastery id={id} p={p} put={put} />}
+    {!!note && <Txt style={[TYPE.small, { opacity: 0.7 }]}>{note}</Txt>}
+    {!!quip && <Txt style={[TYPE.small, { opacity: 0.7, fontStyle: 'italic' }]}>{quip}</Txt>}
   </>;
 }
 
-// A cue's mastery: its level and cue XP, and once it has points, a - and + for each stat. The numbers above show the
-// tuned cue. Points move for free; a point past the paid ones costs the next step.
-function Mastery({ id, p, put }: { id: CueId; p: Profile; put: (p: Profile) => void }) {
+// A cue's mastery in one line: its level, its cue XP bar, and what tuning it has to give.
+function Mastery({ id, p }: { id: CueId; p: Profile }) {
   const m = masteryOf(p, id), { level, into, need } = masteryLevel(m.xp), pts = points(m), free = pts - used(m);
-  const head = `Mastery ${level} of ${MASTERY_XP.length}`, xp = need ? `${into} / ${need} cue XP` : 'Mastered';
-  const cost = STATS.map(s => upCost(p, id, s)).find(x => x !== null), tunes = tunable(id) && pts > 0, priced = tunes && !!cost;
-  const next = !tunable(id) ? 'Takes no tuning' : !pts ? 'Mastery 2 gives a tuning point' : !free ? 'Every point in use' : cost === undefined ? 'No stat has room for more' : `${free} point${free > 1 ? 's' : ''} to place`;
+  const cost = STATS.map(s => upCost(p, id, s)).find(x => x !== null);
+  const next = !tunable(id) ? 'Takes no tuning' : !pts ? 'Mastery 2: first point' : !free ? (need ? 'All points placed' : 'Fully tuned') : cost === undefined ? 'No room' : `${free} point${free > 1 ? 's' : ''} to place`;
   return (
-    <View style={{ gap: 10 }}>
-      <View style={styles.mastery}>
-        <Txt style={[TYPE.small, TYPE.num]}><Txt style={styles.bold}>{head}</Txt>{priced ? '\n' : '  '}{xp}</Txt>
-        <Hatch share={need ? into / need : 1} />
-        {!priced && <Txt style={[TYPE.small, { opacity: 0.8 }]}>{next}</Txt>}
-      </View>
-      {tunes && <View style={styles.tunes}>{STATS.map(s => {
-        const name = cap(s), cost = upCost(p, id, s);
-        return <View key={s} style={styles.tune}>
-          <Slab paint={DARK} lip={3} radius={3} onPress={() => put(tuneDown(p, id, s))} disabled={!m[s]} accessibilityLabel={`${name} down on ${CUES[id].name}`} hitSlop={5} face={styles.key}>
-            <Txt style={styles.keyText}>−</Txt>
-          </Slab>
-          <Txt style={[TYPE.body, TYPE.num, styles.bold, styles.tuned]}>{`${name} ${m[s] ? `+${m[s]}` : '0'}`}</Txt>
-          {locked(id, s) ? <View style={styles.key} accessible accessibilityLabel={`${name} is locked on ${CUES[id].name}`}><Glyph id="lock" color={C.chalk} /></View> // the price of the trick: no plus
-            : <Slab paint={DARK} lip={3} radius={3} onPress={() => put(tuneUp(p, id, s))} disabled={cost === null || p.coins < cost} accessibilityLabel={`${name} up on ${CUES[id].name}${cost ? ` for ${cost} coins` : ''}`} hitSlop={5} face={styles.key}>
-              <Txt style={styles.keyText}>{cost ? `+ ${cost.toLocaleString('en-US')}` : '+'}</Txt>
-            </Slab>}
-        </View>;
-      })}</View>}
+    <View style={styles.mastery} accessible accessibilityLabel={`Mastery ${level} of ${MASTERY_XP.length}, ${need ? `${into} of ${need} cue XP` : 'mastered'}. ${next}`}>
+      <Txt style={[TYPE.small, styles.bold, TYPE.num]}>{`Mastery ${level}`}</Txt>
+      <View style={{ flex: 1 }}><Hatch share={need ? into / need : 1} /></View>
+      <Txt style={[TYPE.small, TYPE.num, free > 0 && tunable(id) && { color: C.gold, fontFamily: FONT.bold }]}>{next}</Txt>
     </View>
   );
 }
@@ -148,18 +159,19 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, rowGap: 13, paddingTop: 4, paddingLeft: 4 },
   chosen: { outlineColor: C.chalk, outlineWidth: 3, outlineOffset: 2, outlineStyle: 'solid' },
   head: { fontFamily: FONT.display, fontSize: 22, lineHeight: 26, color: C.chalk, flexShrink: 1 },
+  family: { opacity: 0.6, marginTop: 4 },
   count: { fontFamily: FONT.semi, fontSize: 12, color: C.chalk, opacity: 0.8, fontVariant: ['tabular-nums'] },
-  link: { height: 28, justifyContent: 'center', alignSelf: 'flex-start' },
-  linkText: { fontFamily: FONT.bold, fontSize: 12, lineHeight: 16, color: C.chalk, textDecorationLine: 'underline', opacity: 0.9 },
-  stat: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  trick: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  adv: { height: 24, paddingHorizontal: 8, borderRadius: 3, borderWidth: 1, borderColor: C.chalk + '66', justifyContent: 'center' },
+  advOn: { backgroundColor: C.chalk, borderColor: C.chalk },
+  advText: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, color: C.chalk },
+  stat: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 27 },
+  statLine: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   statName: { width: 44, opacity: 0.8 },
+  keys: { flexDirection: 'row', gap: 4, marginBottom: 3 },
   facts: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 24, rowGap: 6 },
   big: { fontFamily: FONT.display, fontSize: 19, lineHeight: 22, color: C.chalk, fontVariant: ['tabular-nums'] },
-  mastery: { gap: 3 },
-  tunes: { gap: 8 },
-  tune: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  tuned: { minWidth: 56, textAlign: 'center' },
-  key: { minWidth: 34, height: 34, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center' }, // Btn's minWidth is the HUD's
-  keyText: { fontFamily: FONT.bold, fontSize: 13, lineHeight: 16, color: C.chalk, ...TYPE.num },
+  mastery: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  key: { minWidth: 28, height: 24, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center' }, // Btn's minWidth is the HUD's
+  plus: { minWidth: 52 },
+  keyText: { fontFamily: FONT.bold, fontSize: 12.5, lineHeight: 16, color: C.chalk, ...TYPE.num },
 });

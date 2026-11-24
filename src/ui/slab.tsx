@@ -88,10 +88,11 @@ export function BallArt({ n, size, label }: { n: number; size: number; label?: s
 }
 
 // value of 10 as blocks, gold filled: a cue stat against the absolute top.
-export function Blocks({ value, max = 10, width = 200 }: { value: number; max?: number; width?: number }) {
+// tuned = how many of the value's blocks are tuning points: drawn in chalk after the cue's own gold.
+export function Blocks({ value, max = 10, width = 200, tuned = 0 }: { value: number; max?: number; width?: number; tuned?: number }) {
   return (
     <View style={[styles.blocks, { width }]}>
-      {Array.from({ length: max }, (_, i) => <View key={i} style={[styles.block, i < value && { backgroundColor: C.gold }]} />)}
+      {Array.from({ length: max }, (_, i) => <View key={i} style={[styles.block, i < value && { backgroundColor: i >= value - tuned ? C.chalk : C.gold }]} />)}
     </View>
   );
 }
