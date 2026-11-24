@@ -265,6 +265,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
 { eq(shotPay({ pRef: 0.9, tier: 3, tour: 2 }), { xp: 20, coins: 8 }, 'a tournament final pays its shots x2');
   eq(safetyPay({ tier: 3, tour: 1.5 }).xp, Math.round(1.5 * safetyPay({ tier: 3 }).xp), 'and its safeties');
   eq(matchPay({ tier: 3, won: true, fouls: 1, tour: 3 }), { xp: 540, coins: 360 }, 'a match: x its round and frames');
+  eq(matchPay({ tier: 3, won: false, ownPotted: 1, fouls: 0, tour: 1.75 }), { xp: 15, coins: 8 }, 'tier before tour, as before the Masters: x(tour x tier) rounds the coins to 7');
   eq(settle(newLedger(), { tier: 3, won: true, early: false, tour: 3 }).match, matchPay({ tier: 3, won: true, fouls: 0, tour: 3 }), 'settle passes the tournament multiplier');
   ok('tournament stakes in the pay');
 }

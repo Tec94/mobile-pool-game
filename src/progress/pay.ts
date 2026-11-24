@@ -56,8 +56,8 @@ export interface Match { tier: number; won: boolean; fouls: number; ownPotted?: 
 export const MASTERS = 7, MASTERS_WIN = 60; // the tier, and its win's factor where Legend's is 6
 export function matchPay(m: Match): Pay {
   const k = m.won ? (m.fouls ? 1 : 1.2) : m.early ? 0 : Math.min(7, m.ownPotted ?? 0) / 7;
-  const [xp, coins] = m.won ? [60, 40] : [20, 10], t = (m.tour ?? 1) * (m.tier < MASTERS ? m.tier : m.won ? MASTERS_WIN : 6);
-  return { xp: Math.round(xp * k * t), coins: Math.round(coins * k * t) };
+  const [xp, coins] = m.won ? [60, 40] : [20, 10], f = m.tier < MASTERS ? m.tier : m.won ? MASTERS_WIN : 6, t = m.tour ?? 1;
+  return { xp: Math.round(xp * f * k * t), coins: Math.round(coins * f * k * t) }; // this order, or a cup's pay moves by 1
 }
 
 // A quick match's pay so far: what the human's shots earned, the run of pots this visit, and the fouls and own balls
