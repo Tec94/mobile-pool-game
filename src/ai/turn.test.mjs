@@ -196,6 +196,7 @@ for (const [game, tiers, seed] of [[8, [2, 2], 10], [8, [1, 3], 20], [9, [2, 2],
   // them is close, since it weighs a bank against a safety on it. Fewer tables for the slow top tiers, whose gaps are wide.
   const r = TIERS.map((t, i) => makeRates(t, [200, 200, 100, 40, 40, 40, 40][i], ['lit']).lit), made = r.map(x => x.made / x.tries), est = r.map(x => x.est / x.tries);
   assert(made.every((x, i) => !i || x > made[i - 1]), `make rate rises every tier (${made.map(x => x.toFixed(2))})`);
-  assert(est.every((x, i) => Math.abs(x - made[i]) < 0.2), `the planner's chance is near it (${est.map(x => x.toFixed(2))})`);
+  // the Chinese Masters plays by its engine check (aim.ts verify), not by this chance: left out
+  assert(est.every((x, i) => TIERS[i].tricks || Math.abs(x - made[i]) < 0.2), `the planner's chance is near it (${est.map(x => x.toFixed(2))})`);
   ok('bank shots: forced banks drop more often tier by tier');
 }
