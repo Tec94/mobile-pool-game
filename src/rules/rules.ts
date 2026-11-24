@@ -9,7 +9,8 @@
 // already down (4.4, last sentence); a call names a pocket only, so any legal ball in the called pocket counts (1.7
 // asks for ball and pocket), and no shot is obvious enough to need no call; no spotting of the nearest ball when every legal ball is above the head string (1.6).
 // Add them when a real game shows the need.
-import { type Ball, type Cue, type Ev, type Game, HOLES, P, POCKET, RAISED, type Shot, step, strike } from '../physics/engine.ts';
+import { asin, atan2, type Ball, cos, type Cue, type Ev, type Game, HOLES, hyp, P, POCKET, RAISED, type Shot, sin, step, strike } from '../physics/engine.ts';
+const sq = (x: number) => x * x; // not ** : see the exact maths in the engine
 
 export type Hand = false | 'any' | 'kitchen'; // cue ball in hand: anywhere, or above the head string (the kitchen)
 export type Player = 0 | 1;
@@ -67,7 +68,7 @@ export function cushionAt(x: number, y: number, near = P.R) {
   return -1;
 }
 
-const nearest = (x: number, y: number) => { let k = 0, best = Infinity; HOLES.forEach((h, i) => { const d = (h[0] - x) ** 2 + (h[1] - y) ** 2; if (d < best) { best = d; k = i; } }); return k; };
+const nearest = (x: number, y: number) => { let k = 0, best = Infinity; HOLES.forEach((h, i) => { const d = sq(h[0] - x) + sq(h[1] - y); if (d < best) { best = d; k = i; } }); return k; };
 // Add one engine step's events to the record. ids[i] = the number of ball i; ball 0 is the cue ball.
 export function record(r: Rec, ev: Ev[], B: Ball[], ids: number[]) {
   const head = P.L / 4, rail = (id: number) => { if (id && !r.rails.includes(id)) r.rails.push(id); if (r.first >= 0) r.railAfter = true; };
@@ -84,7 +85,7 @@ export function record(r: Rec, ev: Ev[], B: Ball[], ids: number[]) {
     else if (e.t === 'off') { r.off.push(id); rail(id); }
   }
   const c = B[0]; // after the events: on the step of the first hit the cue ball already goes another way
-  if (r.first < 0 && c.on && (c.vx || c.vy)) { const d = Math.atan2(c.vy, c.vx); r.from ??= d; r.bend = Math.abs(Math.atan2(Math.sin(d - r.from), Math.cos(d - r.from))); r.high = Math.max(r.high, c.z || 0); }
+  if (r.first < 0 && c.on && (c.vx || c.vy)) { const d = atan2(c.vy, c.vx); r.from ??= d; r.bend = Math.abs(atan2(sin(d - r.from), cos(d - r.from))); r.high = Math.max(r.high, c.z || 0); }
 }
 
 // What a pot was, by what happened on the table and not by what was aimed. kicks = the cushions the cue ball came off
@@ -119,9 +120,9 @@ export function hooked(B: Ball[], ids: number[], s: State) {
   const c = B[0], D = 2 * P.R, on = B.map((_, i) => i).filter(i => i && B[i].on);
   for (const t of on) {
     if (!legalFirst(s, ids[t])) continue;
-    const mid = Math.atan2(B[t].y - c.y, B[t].x - c.x), half = Math.asin(Math.min(1, D / Math.hypot(B[t].x - c.x, B[t].y - c.y)));
+    const mid = atan2(B[t].y - c.y, B[t].x - c.x), half = asin(Math.min(1, D / hyp(B[t].x - c.x, B[t].y - c.y)));
     for (let k = -20; k <= 20; k++) {
-      const a = mid + half * k / 20.5, ux = Math.cos(a), uy = Math.sin(a);
+      const a = mid + half * k / 20.5, ux = cos(a), uy = sin(a);
       // how far along the line the cue ball goes before it meets ball i
       const reach = (i: number) => { const x = B[i].x - c.x, y = B[i].y - c.y, along = x * ux + y * uy, side = x * uy - y * ux; return along > 0 && Math.abs(side) < D ? along - Math.sqrt(D * D - side * side) : Infinity; };
       const far = reach(t); if (on.every(i => i === t || reach(i) >= far)) return false;
@@ -222,7 +223,7 @@ export function choose(s: State, i: number): State {
 }
 
 // --- Where balls may go ---------------------------------------------------------------------------------------------
-const clear = (B: Ball[], i: number, x: number, y: number, gap = 0) => B.every((b, k) => k === i || !b.on || (b.x - x) ** 2 + (b.y - y) ** 2 >= (2 * P.R + gap) ** 2);
+const clear = (B: Ball[], i: number, x: number, y: number, gap = 0) => B.every((b, k) => k === i || !b.on || sq(b.x - x) + sq(b.y - y) >= sq(2 * P.R + gap));
 // May the cue ball lie here? On the playing surface, touching no ball, and above the head string when the rules say so.
 const EDGE = 0.96 * P.R; // a ball at rest on a cushion: its centre is 0.963 R from the nose line
 export const legalSpot = (B: Ball[], x: number, y: number, hand: Hand) =>
@@ -242,12 +243,12 @@ export function handCue(B: Ball[], hand: Hand) {
   const c = B[0], hx = P.L / 4 - 1e-3, hy = P.W / 2; if (c.on && legalSpot(B, c.x, c.y, hand)) return;
   let best = Infinity, bx = hx, by = hy;
   for (let x = hx; x >= P.R; x -= P.R / 2) for (let k = -Math.floor(hy / P.R * 2) + 2; hy + k * P.R / 2 <= P.W - P.R; k++) {
-    const y = hy + k * P.R / 2, d = (x - hx) ** 2 + (y - hy) ** 2; if (d < best && legalSpot(B, x, y, hand)) { best = d; bx = x; by = y; } }
+    const y = hy + k * P.R / 2, d = sq(x - hx) + sq(y - hy); if (d < best && legalSpot(B, x, y, hand)) { best = d; bx = x; by = y; } }
   Object.assign(c, { x: bx, y: by, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, z: 0, vz: 0, on: true });
 }
 // 1.5: spot ball i on the long string, as near the foot spot as it fits, towards the foot rail first; a hair off the cue ball.
 export function spotBall(B: Ball[], i: number) {
-  const y = P.W / 2, x0 = 0.75 * P.L, ok = (x: number) => clear(B, i, x, y) && (!B[0].on || (B[0].x - x) ** 2 + (B[0].y - y) ** 2 >= (2 * P.R + 1e-3) ** 2);
+  const y = P.W / 2, x0 = 0.75 * P.L, ok = (x: number) => clear(B, i, x, y) && (!B[0].on || sq(B[0].x - x) + sq(B[0].y - y) >= sq(2 * P.R + 1e-3));
   let x = x0; while (x <= P.L - P.R && !ok(x)) x += 5e-4;
   if (x > P.L - P.R) { x = x0; while (x > P.R && !ok(x)) x -= 5e-4; }
   Object.assign(B[i], { x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, z: 0, vz: 0, on: true });
