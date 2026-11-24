@@ -350,7 +350,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
     // rollouts on most shots for a shot it rarely plays. Its trick shots go after the plain pots are checked (settle).
     // Shown: the trick with the most cushions (a 4-cushion seed chance is a few %, so by chance one never ran), and the
     // first reel shot with a fair seed chance.
-    const show = cands.filter(fancy).sort((a, b) => (b.rails ?? 1) - (a.rails ?? 1))[0], show2 = cands.find((c) => big(c) && c.type !== 'safety' && c.p >= 0.3), skip = (c: Planned | Safety) => !!tier.tricks && c !== pick && (late() || (pickSure() && c !== show && c !== show2));
+    const mostRails = cands.filter(fancy).sort((a, b) => (b.rails ?? 1) - (a.rails ?? 1))[0], firstReel = cands.find((c) => big(c) && c.type !== 'safety' && c.p >= 0.3), skip = (c: Planned | Safety) => !!tier.tricks && c !== pick && (late() || (pickSure() && c !== mostRails && c !== firstReel));
     for (const x of runs) if (!skip(x.c) && worth(x)) { score(x, first); sims -= first; if (x === head) checkRun(x); }
     if (tier.tricks) { settle(); for (const c of cands) if (!lead.includes(c) && !skip(c)) { const x = mkRun(c, true); runs.push(x); score(x, first); sims -= first; } }
     const top = best();
