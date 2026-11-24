@@ -349,8 +349,8 @@ function leaves(G: Pt, v: Pt, u: Pt, balls: Obj[], ignore: number[], powers = PO
 // table over with balls up in 26-28% of the racks it gets a visit in. Ridiculous pots 23%, 3+ cushion or jump pots 0.64
 // a rack in 8-ball and 0.39 in 9-ball, kick4 and bank4 among them. Forced make % at 120 tables (bench:types, tables with
 // a try): bank2 96 (61), bank3 63 (13), bank4 91 (9), kick2 89 (88), kick3 92 (42), kick4 77 (11), jump 96 (38).
-// The same table gives the same shot on any device: one visit, 60 tables (bench:why), 48 and 49 clears on Node JIT and
-// on the interpreter alike (Legend 31 and 31). Think on full racks, interpreter only (a phone; 10 racks): 8-ball p50
+// The search counts rollouts, not ms, so every device gets the same rollout budget: one visit, 60 tables (bench:why), 48
+// and 49 clears on V8's JIT and on its interpreter alike (Legend 31 and 31). Think on full racks, interpreter only (a phone; 10 racks): 8-ball p50
 // 2980 ms, p90 5052, 1 of 57 shots at the hard stop; 9-ball 960 / 3281; JIT p50 161 / 98 ms. Massé, kick-banks and
 // jump-kicks are not built: each is one more finder and its engine checks on every shot, which the phone cannot spare.
 export const TIERS: Tier[] = [

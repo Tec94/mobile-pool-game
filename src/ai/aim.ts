@@ -219,7 +219,7 @@ export function aimSd(tier: Tier, type: string) {
 const big = (c: Planned | Safety) => (c.rails ?? 1) >= 3 || !!c.elev; // a reel shot: 3 or 4 cushions, or a jump
 const SHOW_MIN = 0.8; // a reel shot plays only checked on 5 of 6 (0.97 x 5/6)
 // A tier with tricks' search, in rollouts: against Legend (npm run bench:masters 200 9) it wins as often as with no cap;
-// with 60 it lost points. About 4 ms a rollout on Node JIT, 55 on the interpreter (the TIERS comment).
+// with 60 it lost points. bench:why prints aiShot's ms a rollout: 5.5 on Node JIT, 74 on the interpreter (planning too).
 export const ROLLOUTS = 90; // a safety may run 2 x SPARE past it (tricksTail)
 const SURE = 0.97, SHOW_GAP = 0.05, SAFE_P = 0.5, RESCUE = 12, RESCUE_SIMS = 20, SPARE = 10; // a trick shot's chance when verify() pots all six; the most make chance show gives up
 // The Chinese Masters' last word on a shot, after the search (aiShot): a rescue search when no pot is trusted, the
