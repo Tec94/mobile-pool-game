@@ -28,7 +28,7 @@ export function Scenarios({ go, stars, play }: Pick<Props, 'go'> & ScenarioProps
   const got = (p: number) => SCENARIOS.reduce((n, x) => n + (x.pack === p ? starCount(stars[x.id]) : 0), 0);
   const size = (p: number) => SCENARIOS.filter(x => x.pack === p).length, total = totalStars(stars);
   const cols = land ? 6 : 3, tw = (width - 2 * side - 8 * (cols - 1)) / cols, packOpen = level >= PACKS[pack][1];
-  const perRow = land ? PACKS.length : 3, tabW = (width - 2 * side - 5 * (perRow - 1)) / perRow;
+  const perRow = land ? PACKS.length : 3, tabW = Math.floor((width - 2 * side - 5 * (perRow - 1)) / perRow); // floored: fractions could add up past the row and wrap the last tab
   const tables = SCENARIOS.flatMap((x, i) => (x.pack === pack ? [i] : []));
   return (
     <Shell title="Scenarios" back={() => go('home')} extra={<Txt style={styles.total}>{`★ ${total} / ${3 * SCENARIOS.length}`}</Txt>}>
@@ -41,7 +41,7 @@ export function Scenarios({ go, stars, play }: Pick<Props, 'go'> & ScenarioProps
               <Slab key={name} paint={on ? MODE.scenarios : [C.keyOff, 'transparent']} lip={on ? 3 : 0} radius={3} onPress={() => pick(p)} hitSlop={{ top: 5, bottom: 5 }}
                 accessibilityRole="radio" accessibilityLabel={ok ? `${name}, ${got(p)} of ${3 * size(p)} stars` : `${name}, opens at level ${lv}`} accessibilityState={{ checked: on }} aria-checked={on}
                 style={[{ width: tabW, marginBottom: on ? 0 : 3 }, !ok && { opacity: 0.5 }]} face={styles.tab}>
-                <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={[styles.tabName, ink]}>{name}</Txt>
+                <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.tabName, ink]}>{name}</Txt>
                 <View style={styles.tabFoot}>{ok ? <Txt style={[styles.tabSmall, ink]}>{`★ ${got(p)}/${3 * size(p)}`}</Txt> : <><Lock color={C.chalk} /><Txt style={[styles.tabSmall, ink]}>{`Lv ${lv}`}</Txt></>}</View>
               </Slab>
             );

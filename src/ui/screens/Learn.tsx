@@ -13,8 +13,8 @@ import { short } from './Home';
 // the cue ball. Purple = passed, cream = the next one, dark = not yet. Landscape: two rows that run off the right edge.
 export function Learn({ go, done, learn }: Pick<Props, 'go'> & LearnProps) {
   const { land, side, pad, width } = useFrame(), next = LESSONS.findIndex(l => !done.includes(l.id)), scroll = useRef<ScrollViewInstance>(null);
-  // Landscape: all seven columns across the screen when a tile can be 84 pt wide, else 150 pt tiles that scroll. Portrait: three across.
-  const fit = (width - 2 * side - 6 * 8) / 7, W = fit >= 84 ? fit : 150;
+  // Landscape: every column across the screen when a tile can be 84 pt wide, else 150 pt tiles that scroll. Portrait: three across.
+  const across = Math.ceil(LESSONS.length / 2), fit = (width - 2 * side - (across - 1) * 8) / across, W = fit >= 84 ? fit : 150;
   const [rowH, setRowH] = useState(150), tw = land ? W : (width - 2 * side - 16) / 3;
   const tile = (i: number) => {
     const l = LESSONS[i], passed = done.includes(l.id), paint = passed ? MODE.learn : i === next ? CREAM : DARK, ink = { color: inkOn(paint) };
