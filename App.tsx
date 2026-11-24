@@ -276,7 +276,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     const rec = Skia.PictureRecorder(), { B, rules: s, rec: shot } = table.current;
     const me = !shot && !bot(); // on the AI's turn the human's marks stay off
     const c = rec.beginRecording(); drawBank(Skia, c, view, at.current ? litCushions(at.current) : s.lit); // a bank table's lit cushions, worked out once per table, or the bank shots of a match
-    drawMarks(Skia, c, view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call, ask: me && mustCall(s), ms: performance.now(), at: called.current, zone: at.current?.goal.zone });
+    drawMarks(Skia, c, view, { hand: me && !s.choice && s.hand, x: B[0].x, y: B[0].y, call: s.call >= 0 ? s.call : aiCall.current, ask: me && mustCall(s), ms: performance.now(), at: called.current, zone: at.current?.goal.zone });
     return rec.finishRecordingAsPicture();
   };
   // Frames of play wait in queue and the UI thread shows one on each display refresh (see src/render/pace.ts).
@@ -529,11 +529,15 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   // stage: 0 slides the cue ball in hand, 1 places it and lines up, 2 strikes.
   const play = (m: Move, stage = 0) => {
     const t = table.current;
-    if (moving.current || t.rec || t.rules.phase === 'over' || !bot()) return;
+    if (moving.current || t.rec || t.rules.phase === 'over' || !bot()) { aiCall.current = -1; return; } // no stale call ring if the turn went
+    if (!stage && m.call >= 0) { aiCall.current = m.call; called.current = performance.now(); paint(false); wake.current(); } // the call shows from the AI's first move; its ring settles as the player's does
     if (!stage && m.at) { carry(m.at, () => play(m, 1)); return; }
     const top = t.rules.phase === 'break' ? STICK.breakSpeed : STICK.maxSpeed, hold = (x: number) => Math.max(-STICK.tipLimit, Math.min(STICK.tipLimit, x));
-    if (stage < 2) { if (m.at) moveCue(t.B, m.at[0], m.at[1], t.rules.hand); lineUp(m.shot, top, hold, () => play(m, 2)); return; }
-    if (m.call >= 0) t.rules = setCall(t.rules, m.call); // at the strike: a new ruling now would start the AI's turn again
+    if (stage < 2) {
+      if (m.at) moveCue(t.B, m.at[0], m.at[1], t.rules.hand);
+      lineUp(m.shot, top, hold, () => play(m, 2)); return;
+    }
+    if (m.call >= 0) t.rules = setCall(t.rules, m.call); // into the rules at the strike: a new ruling now would start the AI's turn again
     safe.current = nextSafeties(safe.current, m.safety);
     const sh = { ...m.shot, speed: Math.min(m.shot.speed, top), a: hold(m.shot.a), b: hold(m.shot.b) }; snap(sh); opened();
     t.rec = newRec(sh); strike(t.B[0], sh, STICK); moving.current = true; paint(); redraw();
@@ -564,15 +568,15 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     tween(Math.min(900, 350 + 400 * Math.hypot(x - x0, y - y0)), e => {
       c.x = x0 + (x - x0) * e; c.y = y0 + (y - y0) * e;
       paint(false); // the tick's pulse redraws the marks only, not the balls
-    }, 250, done, () => { c.x = x0; c.y = y0; paint(false); });
+    }, 250, done, () => { c.x = x0; c.y = y0; aiCall.current = -1; paint(false); });
   };
   // The AI lines up on the controls as a player would: the stick turns to its aim while the tip dot moves to its spin,
   // then the rail pulls to its power. lining = draw the stick though the controls are shut.
-  const lining = useRef(false);
+  const lining = useRef(false), aiCall = useRef(-1); // aiCall = the AI's pocket, shown from its first move; the rules get it at the strike
   const lineUp = (m: Shot, top: number, hold: (x: number) => number, done: () => void) => {
     const a0 = shot.get().aim, turn = ((m.ang - a0) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI; // the short way round
     const x = hold(m.a) / STICK.tipLimit, y = hold(m.b) / STICK.tipLimit, elev = Math.round((m.elev ?? 0) * 180 / Math.PI), p = Math.min(1, m.speed / top);
-    const quick = map.current.calm ? 0 : 1, undo = () => { lining.current = false; tip.set(LEVEL); shot.set({ power: 0, shown: false }); };
+    const quick = map.current.calm ? 0 : 1, undo = () => { lining.current = false; aiCall.current = -1; paint(false); tip.set(LEVEL); shot.set({ power: 0, shown: false }); };
     lining.current = true; shot.set({ shown: true });
     tween(500 * quick, e => { shot.set({ aim: a0 + turn * e }); tip.set({ x: x * e, y: y * e, elev: Math.round(elev * e) }); }, 150, () =>
       tween((250 + 350 * p) * quick, e => shot.set({ power: p * e }), 250, () => { undo(); done(); }, undo), undo);
