@@ -158,7 +158,7 @@ function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number
     sims--;
     const r = rollout(B, s, k, first, to, g, cr, or, !!tier.tricks), c = r.S[0], np = pk && r.pot && r.legal ? nextP(B, r.S, ids, group, tier) : { p: 0, nine: false }, p = np.p;
     if (p < 0) r.pot = false; // the 8 went down early: the rack is lost
-    const extra = tier.tricks && r.pot && r.legal ? r.pots.filter((i) => i !== k && group.includes(ids[i]) && ids[i] !== winBall(group)).length : 0;
+    const extra = tier.tricks && r.pot && r.legal ? r.pots.filter((j) => j !== k && group.includes(ids[j]) && ids[j] !== winBall(group)).length : 0;
     const off = Math.abs(r.err) * 5 + (pk ? 1 - Math.max(0, p) : Math.hypot(c.x * 1000 - leave.x, c.y * 1000 - leave.y) / 4000);
     const out = { ...r, shot: s, next: p, nextNine: np.nine, extra, sure: -1, score: 8 * +(r.pot && r.legal) + 4 * +!r.scratch + 2 * +r.legal + +r.rail - Math.min(0.99, off) + 0.5 * extra };
     if (check && out.score > (best?.score ?? -Infinity) && done(out)) { const n = check(s); if (n >= 0) { out.sure = n / 6; out.score -= FAIL * (6 - n); } }
@@ -269,8 +269,9 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
     // Hustler (tries 1) has no second rollout to weigh: plan() alone decides for it.
     const ref = nine(group) ? runs.filter((x) => x.c.ball !== 9 && x.r?.pot && x.v > 0).reduce<Run | null>((a, x) => (!a || x.v > a.v ? x : a), null) : null;
     if (ref) {
-      const w9 = ids.indexOf(9), odds = rackOdds(tier, (ref.c as Planned).p, ref.r!.next, ref.r!.S[w9].on ? ref.r!.S.filter((b, i) => i && b.on).length : 0, ref.r!.nextNine); // the 9 knocked in: wins with p
-      for (const x of runs) if (x.c.ball === 9 && x.v > 0) x.v = nineValue(x.v, (x.c as Planned).p, ref.v, odds);
+      // p as the tier prices it: a tier with tricks by verify(), as its routes are valued
+      const w9 = ids.indexOf(9), odds = rackOdds(tier, ref.p, ref.r!.next, ref.r!.S[w9].on ? ref.r!.S.filter((b, i) => i && b.on).length : 0, ref.r!.nextNine); // the 9 knocked in: wins with p
+      for (const x of runs) if (x.c.ball === 9 && x.v > 0) x.v = nineValue(x.v, x.p, ref.v, odds);
     }
     settle();
   }
