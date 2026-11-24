@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { HOLES, simulate } from '../../src/physics/engine.ts';
 import { ball } from '../src/presets.mjs';
 import { readFileSync } from 'node:fs';
-import { BALLS, FILM, inView, NOW, PLAN, replays, shotFor, STEPS, when } from '../src/roadmap.mjs';
+import { BALLS, FILM, inView, NOW, PLAN, PLANS, replays, shotFor, STEPS, when } from '../src/roadmap.mjs';
 
 test('the roadmap has a step and a shot for each of the nine balls', () => { assert.equal(STEPS.length, 9); assert.equal(PLAN.length, 9); assert.equal(BALLS.length, 10); assert.ok(NOW >= 0 && NOW <= 9); });
 test('the run-out: every shot hits its own ball first and pots only it, in under 5 seconds', () => {
@@ -24,6 +24,7 @@ test('the run-out: every shot hits its own ball first and pots only it, in under
   }
 });
 test('the tags: done before NOW, then the step in hand, the next, the rest', () => { assert.deepEqual([NOW - 1, NOW + 1, NOW + 2].map(when), ['Done', 'Next', 'Later']); assert.ok(FILM <= NOW); });
+test('every step after the one in hand says what it holds; the rest do not', () => { STEPS.forEach((_, i) => assert.equal(Boolean(PLANS[i]?.length), i > NOW, `step ${i + 1}`)); });
 test('the chip by the name says the step in hand', () => { assert.ok(readFileSync(new URL('../public/index.html', import.meta.url), 'utf8').includes(`>In ${STEPS[NOW]}<`), 'NOW moved: change the chip, the footer and og.png'); });
 test('the film starts when the table and the row in hand are in view, or the whole table on a short screen', () => {
   assert.ok(inView(100, 300, 700, 46, 844), 'both in view');
