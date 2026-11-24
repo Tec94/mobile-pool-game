@@ -30,7 +30,7 @@ export function SettingsPage({ set, change, go }: Props) {
   const { land, side, pad } = useFrame();
   return (
     <Shell title="Settings" back={() => go('home')}>
-      <Scroll style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: side, paddingTop: 10, paddingBottom: pad.bottom + 16, gap: land ? 8 : 20 }}>
+      <Scroll style={{ flex: 1, marginBottom: pad.bottom + 16 }} contentContainerStyle={{ paddingHorizontal: side, paddingTop: 10, gap: land ? 8 : 20 }}>
         <Line label="Calling">
           <Keys label="Calling" value={set.callAll} pick={callAll => change({ callAll })} options={[['Every shot', true], ['Only the 8-ball', false]]} />
         </Line>

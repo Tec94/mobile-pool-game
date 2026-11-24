@@ -32,7 +32,7 @@ export function Scenarios({ go, stars, play }: Pick<Props, 'go'> & ScenarioProps
   const tables = SCENARIOS.flatMap((x, i) => (x.pack === pack ? [i] : []));
   return (
     <Shell title="Scenarios" back={() => go('home')} extra={<Txt style={styles.total}>{`★ ${total} / ${3 * SCENARIOS.length}`}</Txt>}>
-      <Scroll style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16), gap: 12 }}>
+      <Scroll style={{ flex: 1, marginBottom: Math.max(pad.bottom, 16) }} contentContainerStyle={{ paddingTop: 12, gap: 12 }}>
         {/* every pack in view: one row of nine in landscape, rows of three in portrait */}
         <View style={[styles.tabs, { paddingHorizontal: side }]} accessibilityRole="radiogroup" accessibilityLabel="Packs">
           {PACKS.map(([name, lv], p) => {

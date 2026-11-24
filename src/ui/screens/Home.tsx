@@ -35,7 +35,7 @@ export function Home({ set, go, done, stars, daily, today, run: tourRun }: HomeP
   const opp = set.tier === RIVAL ? `Rival ${shown(me.rival[set.aiGame].rating)}` : TIERS[set.tier].name;
   // Sizes: landscape from the body's measured box, portrait from the window.
   const heroW = land ? Math.min(300, Math.max(240, 0.37 * box.w)) : width - 2 * side, rest = box.w - heroW - 8, rowH = (box.h - 8) / 2;
-  const dailyW = land ? (rest - 16) / 3 : (width - 2 * side - 8) / 2, smallW = land ? (rest - 16) / 3 : (width - 2 * side - 8) / 2, tileH = land ? rowH - 5 : Math.max(106, Math.min(150, (box.h - 24 - 240) / 3)); // portrait: three tile rows under a hero of at least 240
+  const dailyW = land ? (rest - 16) / 3 : (width - 2 * side - 8) / 2, smallW = land ? (rest - 16) / 3 : (width - 2 * side - 8) / 2, tileH = land ? rowH - 5 : Math.max(106, Math.min(150, (box.h - 24 - 240) / 3)); // portrait: three tile rows under the hero
   const heroTable = Math.min(heroW - 24, 420, ((land ? box.h : box.h - 3 * (tileH + 8)) - 210) * 2 / 1.12);
   const scenW = Math.min(smallW - 24, (tileH - 88) / 0.56); // a table is 0.56 of its width tall
 
@@ -107,7 +107,7 @@ export function Home({ set, go, done, stars, daily, today, run: tourRun }: HomeP
     ),
     cues: (
       <Tile paint={MODE.cues} name={`Cues, ${CUES[me.cue].name} in use, ${me.owned.length} of ${CUE_IDS.length} cues`} title="Cues" onPress={() => go('cues')} style={{ flex: 1, minHeight: land ? 120 : 106, height: land ? undefined : tileH }}>
-        <View style={styles.cue}><CueArt id={me.cue} w={Math.round(smallW)} h={Math.min(80, tileH - 46)} /></View>{/* first, so the name is drawn over the art */}
+        <View style={styles.cue}><CueArt id={me.cue} w={Math.round(smallW)} h={Math.min(80, tileH - 58)} /></View>{/* first, so the name is drawn over the art */}
         <Txt numberOfLines={1} style={styles.line}>{CUES[me.cue].name}</Txt>
         <Txt style={[styles.line, styles.owned]}>{`${me.owned.length} / ${CUE_IDS.length}`}</Txt>
       </Tile>
@@ -133,7 +133,7 @@ export function Home({ set, go, done, stars, daily, today, run: tourRun }: HomeP
   // Everything on one screen; a window too short for even the smallest layout scrolls, and says so.
   return (
     <Shell settings={() => go('settings')}>
-      <Scroll style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: side, paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16) }}>{body}</Scroll>
+      <Scroll style={{ flex: 1, marginBottom: Math.max(pad.bottom, 16) }} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: side, paddingTop: 12 }}>{body}</Scroll>
     </Shell>
   );
 }
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   of: { fontFamily: FONT.bold, fontSize: 13, opacity: 0.8 },
   track: { height: 8, borderRadius: 2, backgroundColor: '#0003', overflow: 'hidden' },
   fill: { height: '100%', backgroundColor: C.chalk },
-  spin: { position: 'absolute', right: 12, top: 54 },
+  spin: { position: 'absolute', right: 12, top: 44 },
   pips: { flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
   pip: { width: 8, height: 12, borderRadius: 1.5, backgroundColor: '#0003' },
   vs: { flexDirection: 'row', alignItems: 'center', gap: 8 },
