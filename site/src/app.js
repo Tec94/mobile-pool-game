@@ -477,10 +477,13 @@ document.fonts.ready.then(() => { for (const sc of scenes) sc.dirty = true; }); 
       e.preventDefault();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.value.trim())) return bad(email.value.trim() ? 'That email does not look right.' : 'Type your email to join.');
       btn.disabled = true;
+      const box = f.querySelector('.cf-turnstile');
+      for (let i = 0; i < 30 && window.turnstile && !turnstile.getResponse(box); i++) await new Promise(r => setTimeout(r, 100)); // the invisible check may still be running
       try {
         const r = await fetch('/api/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(Object.fromEntries(new FormData(f))) });
         if (r.ok) done(true); else if (r.status === 400) bad('That email does not look right.'); else throw 0;
       } catch { note.textContent = 'That did not go through. Try again.'; }
+      try { turnstile.reset(box); } catch {} // a token works once
       btn.disabled = false;
     });
   }
