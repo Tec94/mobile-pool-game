@@ -49,7 +49,7 @@ for (const rating of [2.5, 7]) {
   while (s.phase !== 'over' && shots < 150 && !(s.phase === 'break' && shots)) { // a rack started over ends the check too
     if (s.choice) { s = Ru.choose(s, turn.choiceFor(s)); continue; }
     shots++;
-    const m = turn.think(B.map(b => ({ ...b })), ids, s, rating, shots, 0);
+    const m = turn.think(B.map(b => ({ ...b })), ids, s, rating, shots, 0, undefined, Infinity);
     if (m.at) Ru.moveCue(B, m.at[0], m.at[1], s.hand); if (m.call >= 0) s = Ru.setCall(s, m.call);
     const r = Ru.newRec(), ev = []; E.strike(B[0], m.shot);
     for (let k = 0; k < 60000 && (ev.length = 0, E.step(B, ev)); k++) Ru.record(r, ev, B, ids);

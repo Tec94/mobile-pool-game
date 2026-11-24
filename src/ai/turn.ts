@@ -118,9 +118,10 @@ export const onLit = (lit: number[], c: Cand) => {
 
 // The AI's whole turn, it being player s.turn. B is changed (the cue ball in hand goes to its spot): pass a copy.
 // level = the AI's rating on the tier scale (aiParams: TIERS index + 1, or the Rival's). safeties = safetiesInRow for aiShot (see nextSafeties).
-// style = a tournament opponent's style (src/ai/styles.ts); none = the plain tier.
-export function think(B: Ball[], ids: number[], s: State, level: number, seed: number, safeties: number, style?: StyleId): Move {
-  const rnd = rng(seed), T = styled(aiParams(level, rnd), style, s.game === 9 ? s.balls.length : s.solids < 0 ? 8 : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === s.turn)).length + 1);
+// style = a tournament opponent's style (src/ai/styles.ts); none = the plain tier. deadline = ms in place of the tier's
+// think (tests pass Infinity: no clock, so the same search on any machine).
+export function think(B: Ball[], ids: number[], s: State, level: number, seed: number, safeties: number, style?: StyleId, deadline?: number): Move {
+  const rnd = rng(seed), T = styled({ ...aiParams(level, rnd), ...(deadline === undefined ? {} : { think: deadline }) }, style, s.game === 9 ? s.balls.length : s.solids < 0 ? 8 : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === s.turn)).length + 1);
   if (s.phase === 'break') return { shot: T.tricks && s.game === 8 ? trickBreak(B, ids, T, rnd) : breakShot(B, ids, rnd), at: null, call: -1, safety: false };
   // open table: the group it would pick from where the cue ball lies now. By value: on the runtime its SOLIDS is a copy
   const g = groupsOf(s, s.turn) ?? (chooseGroup({ x: B[0].x * 1000, y: B[0].y * 1000 }, mm(B, ids), T)[0] === 1 ? [SOLIDS, STRIPES] : [STRIPES, SOLIDS]);

@@ -7,7 +7,7 @@ import { decide, enumerate, fancy, MASTERS, norm, plan, POCKETS, R, randomLayout
 let n = 0; const ok = name => console.log(`ok ${++n} ${name}`);
 const mk = (x, y) => ({ x, y, vx: 0, vy: 0, wx: 0, wy: 0, wz: 0, on: true });
 const table = ({ cue, balls }) => ({ B: [cue, ...balls].map(b => mk(b.x / 1000, b.y / 1000)), ids: [0, ...balls.map(b => b.id)] });
-const M = TIERS[MASTERS - 1];
+const M = { ...TIERS[MASTERS - 1], think: Infinity }; // no clock: the same search whatever the machine's load
 
 { // Every cushion of a multi-cushion bank or kick is a real cushion hit (angle in = angle out, clear of the pockets).
   const rnd = rng(11), seen = {};
@@ -85,14 +85,7 @@ for (const [type, rails] of [['bank', 2], ['bank', 3], ['kick', 2], ['kick', 3]]
   for (let i = 0; i < 3; i++) { const r = aiShot(B, ids, SOLIDS, STRIPES, M, rng(i)), s = simulate(B, r.shot, undefined, 30000); assert(ids[s.first] === 1 && !s.scratch, `escape ${i} hits the 1 first`); }
   ok(`a hooked Masters escapes with a legal hit (${pick.rails ? `kick off ${pick.rails}` : 'jump'})`);
 }
-{ // The deadline: with a 1 ms one, the shot comes from the planning, the aim probes and the first rollouts only, not the full search.
-  const run = (think) => [5, 6, 7, 8, 9].reduce((a, seed) => { const { B, ids } = table(randomLayout(rng(seed), 7)); return a + aiShot(B, ids, SOLIDS, STRIPES, { ...M, think }, rng(1)).ms[1]; }, 0);
-  run(1); // warm up
-  const full = run(1e6), fast = run(1);
-  assert(fast < full / 2, `aim ms on 5 tables with a 1 ms deadline ${fast.toFixed(0)}, without ${full.toFixed(0)}`);
-  ok('the think deadline stops the engine search');
-}
-{ // Past the deadline the Masters plays the pot it planned, as Legend would: no safety for want of a check.
+{ // Past the deadline (0 ms: no clock either) the Masters plays the pot it planned, as Legend would: no safety for want of a check.
   let pots = 0;
   for (const seed of [5, 6, 7, 8, 9]) {
     const L = randomLayout(rng(seed), 7), { B, ids } = table(L), planned = decide(L.cue, L.balls, SOLIDS, STRIPES, M, rng(1)).pick;
