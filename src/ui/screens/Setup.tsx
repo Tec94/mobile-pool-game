@@ -16,7 +16,7 @@ import { BallArt, Key, Keys, num, Slab, Txt } from '../slab';
 const GAMES: [string, 8 | 9][] = [['8-ball', 8], ['9-ball', 9]];
 const LABEL = 76;
 const RACE_KEYS = RACES.map((r): [string, typeof r] => [String(r), r]);
-const TOP = MASTERS - 1, WIN = matchPay({ tier: MASTERS, won: true, fouls: 0 }); // the Chinese Masters' index in TIERS; what a win pays at most (no fouls)
+const TOP = MASTERS - 1, WIN = matchPay({ tier: MASTERS, won: true, fouls: 0 }); // the Chinese Masters' index in TIERS; what a run-out win pays at most (no fouls)
 
 // A row: its label, centred on the key face, then its keys. Under 430 pt wide the label goes above, and note at its right.
 // The keys' box has a set width and stretches its child: on a phone, Yoga sizes a wrapping row that shrinks to its
@@ -43,7 +43,8 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
   const start = () => { if (quick) return go('ai'); change({ names: names.map((n, i) => n.trim() || `Player ${i + 1}`) as [string, string] }); go('match'); };
   const { charges, armed } = daily.chalk, narrow = useFrame().width < 430;
   // What a Masters win pays, where it adds no height: beside the Opponent label on a phone, else in the panel's free space.
-  const pays = quick && set.tier === TOP && <Txt numberOfLines={narrow ? 1 : 2} style={[styles.note, !narrow && { textAlign: 'center' }]}>Win pays up to{narrow ? ' ' : '\n'}<Txt style={{ color: C.gold }}>{`${num(WIN.xp)} XP · ${num(WIN.coins)} coins`}</Txt></Txt>;
+  // Only a win that ran out every rack it took pays that; else it pays as a Legend win (the results card says why).
+  const pays = quick && set.tier === TOP && <Txt numberOfLines={narrow ? 1 : 2} style={[styles.note, !narrow && { textAlign: 'center' }]}>Run-out win pays up to{narrow ? ' ' : '\n'}<Txt style={{ color: C.gold }}>{`${num(WIN.xp)} XP · ${num(WIN.coins)} coins`}</Txt></Txt>;
   return (
     <Shell title={quick ? 'Quick match' : 'Pass and play'} back={() => go('home')}>
       <Split panel={
