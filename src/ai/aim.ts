@@ -323,7 +323,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   }
   // the reel shots (3 or 4 cushions, a jump) trade up to SHOW_GAP of checked chance and SHOW_POS of the next shot's: the
   // rule above never gives up chance, so they played only when already best (3+ cushion pots 2.7% of 8-ball pots, now 5.9;
-  // 9-ball 3.6, now 7.9; rack wins against Legend alike; in one-visit play they pot 95 of 98 tries)
+  // 9-ball 3.6, now 7.9; rack wins against Legend alike; one visit, 200 tables a game: 142 of 145 tries potted)
   const reel = tier.show ? runs.filter((x) => big(x.c) && x.v > 0 && !big(won.c)).sort((a, b) => b.v - a.v)[0] : undefined;
   if (reel) { checkRun(reel); if (reel.p >= Math.max(SHOW_MIN, won.p - SHOW_GAP) && reel.r!.next >= (won.r?.next ?? 0) - SHOW_POS) won = reel; }
   // A tier with tricks has measured its pots: when none pots on the engine, or the best only in under SAFE_P of verify()'s
