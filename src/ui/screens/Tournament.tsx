@@ -55,9 +55,9 @@ function TourSetup({ set, change, go, start, run, damaged }: Props & TourProps &
           <Txt numberOfLines={1} style={styles.cup}>{cupName(o.cup)}</Txt><View style={{ flex: 1 }} />
           <View accessible accessibilityLabel={`About ${minutes(o)} minutes`} style={styles.clock}><Glyph id="clock" size={14} color={C.chalk} /><Txt style={styles.clockText}>{`${minutes(o)} min`}</Txt></View>
         </>} picture={w => <View style={[{ alignItems: 'center', gap: 6 }, short && { flexDirection: 'row', gap: 12 }]}>
-          <Trophy medal={medalOf(o)} size={Math.min(w, short ? 56 : 110)} />
-          <View style={{ alignItems: short ? 'flex-start' : 'center', gap: 6 }}>
-          <Txt style={styles.prizeNote}>{`The title wins ${['', 'bronze', 'silver', 'gold'][medalOf(o)]}`}</Txt>
+          <Trophy medal={3} size={Math.min(w, short ? 56 : 110)} />
+          <View style={{ alignItems: short ? 'flex-start' : 'center', gap: 6, flexShrink: 1 }}>
+          <Txt style={[styles.prizeNote, short && { textAlign: 'left' }]}>{`Title gold, final silver${o.size === 8 ? ', semifinal bronze' : ''}`}</Txt>
           <View style={styles.pay} accessible accessibilityLabel={`Medals won in the ${cupName(o.cup)}: ${['none', 'bronze', 'silver', 'gold'][me.trophies[o.cup]]}`}>
             <Txt style={styles.prizeNote}>Medals won</Txt>
             {[1, 2, 3].map(k => <Trophy key={k} medal={me.trophies[o.cup] >= k ? k : 0} size={20} />)}
@@ -74,10 +74,10 @@ function TourSetup({ set, change, go, start, run, damaged }: Props & TourProps &
                 const on = o.cup === i, ok = open(i), ink = on ? C.ink : C.chalk;
                 return (
                   <Slab key={c.name} paint={on ? CREAM : [ok ? C.keyOff : '#EEF2EA0D', 'transparent']} lip={on ? 3 : 0} radius={3} onPress={ok ? () => pick({ cup: i }) : undefined} disabled={!ok}
-                    accessibilityRole="radio" accessibilityLabel={ok ? cupName(i) : `${cupName(i)}, opens at level ${c.level}, or with a silver or gold in the ${cupName(i - 1)}`} accessibilityState={{ checked: on, disabled: !ok }} aria-checked={on}
+                    accessibilityRole="radio" accessibilityLabel={ok ? cupName(i) : `${cupName(i)}, opens at level ${c.level}, or with a gold in the ${cupName(i - 1)}`} accessibilityState={{ checked: on, disabled: !ok }} aria-checked={on}
                     hitSlop={{ top: 4, bottom: 4 }} style={{ flex: 1, marginBottom: on ? 0 : 3 }} face={styles.cupKey}>
                     <View style={styles.row}>{!ok && <Glyph id="lock" size={12} color={C.chalk + 'B3'} />}<Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.cupKeyName, { color: ink, opacity: ok ? 1 : 0.7 }]}>{c.name}</Txt></View>
-                    {ok ? <Bars rating={c.hi} color={ink} /> : <Txt style={styles.lockText}>{`Level ${c.level}\nor a silver`}</Txt>}
+                    {ok ? <Bars rating={c.hi} color={ink} /> : <Txt style={styles.lockText}>{`Level ${c.level}\nor a gold`}</Txt>}
                   </Slab>
                 );
               })}
@@ -146,7 +146,7 @@ function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { ru
     }
   }
   return (
-    <Shell title={cupName(run.opts.cup)} back={() => go('home')} extra={<Trophy medal={run.state === 'champion' ? medalOf(run.opts) : 0} size={24} />}>
+    <Shell title={cupName(run.opts.cup)} back={() => go('home')} extra={<Trophy medal={medalOf(run)} size={24} />}>
       <Split panel={<Card run={run} next={next} peek={peek} abandon={abandon} play={playTour} again={again} />}>
         <View style={{ height: 14, marginBottom: 10 }}>{names.map((t, r) => <Txt key={t} style={[styles.head, styles.abs, { left: x(r) }]}>{t}</Txt>)}</View>
         <View style={{ height: (run.opts.size / 2) * UNIT }}>{parts}</View>
@@ -164,8 +164,8 @@ function Card({ run, next, peek, abandon, play, again }: { run: Run; next: numbe
     return (
       <Slab paint={DARK} style={land && { flex: 1 }} face={face}>
         <View style={styles.center}>
-          <Trophy medal={champ ? medalOf(run.opts) : 0} size={land ? 110 : 80} />
-          <Txt accessibilityRole="header" style={styles.end}>{champ ? 'Champion' : `Out in the ${roundName(run, lostAt).toLowerCase()}`}</Txt>
+          <Trophy medal={medalOf(run)} size={land ? 110 : 80} />
+          <Txt accessibilityRole="header" accessibilityLabel={`${champ ? 'Champion' : `Out in the ${roundName(run, lostAt).toLowerCase()}`}${medalOf(run) ? `, ${['', 'bronze', 'silver', 'gold'][medalOf(run)]} medal` : ''}`} style={styles.end}>{champ ? 'Champion' : `Out in the ${roundName(run, lostAt).toLowerCase()}`}</Txt>
           <Txt style={styles.prizeNote}>Earned this run</Txt>
           <Pay {...run.earned} />
         </View>
@@ -214,7 +214,7 @@ export function MiniBracket({ run, w, h }: { run: Run; w: number; h: number }) {
   }
   const champ = run.state === 'champion', y = h / 2;
   parts.push(<View key="out" style={[styles.abs, ink(champ), { left: R * colW, top: y - 1.5, width: colW * 0.3, height: 3 }]} />);
-  return <View style={{ width: w, height: h }}>{parts}<View style={[styles.abs, { left: R * colW + colW * 0.3, top: y - 10 }]}><Trophy medal={champ ? medalOf(run.opts) : 0} size={20} /></View></View>;
+  return <View style={{ width: w, height: h }}>{parts}<View style={[styles.abs, { left: R * colW + colW * 0.3, top: y - 10 }]}><Trophy medal={medalOf(run)} size={20} /></View></View>;
 }
 
 const styles = StyleSheet.create({

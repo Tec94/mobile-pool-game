@@ -162,8 +162,8 @@ function Root() {
     putRun(newRun(o, Math.floor((old ? rng(old.seed + 1)() : Math.random()) * 2 ** 31)));
   };
   // The run's pay goes out after the run is saved, marked paid in the same profile save (payRun): a crash pays the rest
-  // at the next launch, and nothing twice. A champion's trophy goes in that save too.
-  const payOut = (r: Run, cue?: CueId) => payRun({ seed: r.seed, earned: r.earned, medal: r.state === 'champion' ? [r.opts.cup, medalOf(r.opts)] : null }, cue);
+  // at the next launch, and nothing twice. The run's medal goes in that save too.
+  const payOut = (r: Run, cue?: CueId) => payRun({ seed: r.seed, earned: r.earned, medal: medalOf(r) ? [r.opts.cup, medalOf(r)] : null }, cue);
   useEffect(() => { if (run) payOut(run); }, []); // at launch: anything a crash left unpaid, as XP with no cue mastery (the cue played is not known)
   const tourMatch = () => tm({ get: () => runRef.current, put: putRun, pay: payOut, keep: (x) => { runRef.current = x; saveRun(x); } });
   const match = useRef<TourMatch | undefined>(undefined); // fixed while the match screen is up: the run changes under it
