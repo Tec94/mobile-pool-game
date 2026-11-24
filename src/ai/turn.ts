@@ -4,7 +4,7 @@
 // the human's pots in a match against the AI.
 import { type Ball, CUE, HOLES, P, type Shot } from '../physics/engine.ts';
 import { canCall, cushionAt, ENDS, jumped, legalSpot, massed, onEight, potKind, type Hand, type Rec, type State } from '../rules/rules.ts';
-import { aiShot, now } from './aim.ts';
+import { aimSd, aiShot, gauss, now } from './aim.ts';
 import { styled, type StyleId } from './styles.ts';
 import { aiParams, chooseGroup, type Cand, EDGE, enumerate, makeProb, NINE, type Obj, type Pick, plan, rng, shotOdds, SIGMA_REF, SOLIDS, STRIPES, type Tier } from './shot-ai.ts';
 import { type Aura, hustler, type Pay, shotPay, type ShotType as PayType, type Vs } from '../progress/pay.ts';
@@ -88,10 +88,11 @@ export function breakShot(B: Ball[], ids: number[], rnd: () => number): Shot {
 // breakShot 32 of 100). In 9-ball off centre puts more balls down but scratches four times as often (0.75 R: 123 with 28
 // scratches, full on: 109 with 6), so it breaks as the others. An aim searched per rack does not pay: its 0.025 degrees
 // of noise decide the spread (the best of 6 aims on 4 trials potted 35 of 80 fresh trials, a fixed aim 36).
+// aimSd, not raw sigma: its side tip error squirts the cue ball too, as aiShot's does.
 export function trickBreak(B: Ball[], ids: number[], tier: Tier, rnd: () => number): Shot {
-  const c = B[0], o = B[ids.indexOf(1)], g = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd()); // Box-Muller
+  const c = B[0], o = B[ids.indexOf(1)], g = () => gauss(rnd);
   const ang = Math.atan2(o.y - c.y, o.x - c.x) + Math.asin(P.R / Math.hypot(o.x - c.x, o.y - c.y));
-  return { ang: ang + g() * tier.sigma * Math.PI / 180, speed: CUE.breakSpeed * Math.min(1, 1 + g() * tier.speedErr / 100), a: g() * tier.tipErr, b: g() * tier.tipErr };
+  return { ang: ang + g() * aimSd(tier, 'direct'), speed: CUE.breakSpeed * Math.min(1, 1 + g() * tier.speedErr / 100), a: g() * tier.tipErr, b: g() * tier.tipErr };
 }
 
 // The pocket to call: the pocket of the pick when it is a pot. On the 8 a call is a must, so a safety or a foul shot

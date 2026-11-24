@@ -209,9 +209,11 @@ function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number
   };
 }
 
+// A standard normal draw from rnd (Box-Muller): the strike noise of aiShot and trickBreak.
+export function gauss(rnd: () => number) { return Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd()); }
 // The aim error (rad) of a shot of this type: side tip error squirts the cue ball off line (strike() adds a * squirt), so
 // the aim itself scatters by the rest of sigma.
-function aimSd(tier: Tier, type: string) {
+export function aimSd(tier: Tier, type: string) {
   const rad = tier.sigma * (type === 'direct' || type === 'safety' ? 1 : tier.hard * (type === 'bank' || type === 'kick' ? tier.bankAim ?? 1 : 1)) * Math.PI / 180;
   return Math.sqrt(Math.max(0, rad * rad - (tier.tipErr * CUE.squirt) ** 2));
 }
@@ -351,7 +353,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   let won = best();
   if (tier.tricks) won = tricksTail(won, { runs, mkRun, score, checkRun, late, stopped }, cands, cue, balls, group, oppGroup, tier, rnd, safetiesInRow, ok);
   const aim = won.shot, played = won.c;
-  const t2 = now(), g = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd()); // Box-Muller
+  const t2 = now(), g = () => gauss(rnd);
   const tip = (x: number) => Math.max(-CUE.tipLimit, Math.min(CUE.tipLimit, x + g() * tier.tipErr)); // tipErr is in ball radii, as a and b are
   const shot: Shot = { ang: aim.ang + g() * aimSd(tier, played.type), speed: Math.min(CUE.maxSpeed, Math.max(0.5, aim.speed * (1 + g() * tier.speedErr / 100))), a: tip(0), b: tip(aim.b), ...(aim.elev ? { elev: aim.elev } : {}) };
   return { shot, aim, pick: played, ms: [t1 - t0, t2 - t1], rollouts: clk.n };
