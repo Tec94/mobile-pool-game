@@ -139,9 +139,8 @@ type Search = { runs: Run[]; mkRun: (c: Planned | Safety, free?: boolean) => Run
 function over(k: Clock) { return k.n >= k.cap || now() >= k.end; }
 const FAIL = 1; // a pot's rollout score lost for each verify() rollout that does not pot it
 // A tier with tricks checks its pots (refine, aiShot check): the shot again with the aim 2 sd either way, the speed
-// 2 speedErr either way and the side tip 2 tipErr either way (on 100 Masters tables, half the cushion shots it missed
-// were lost to side tip alone: a cushion takes the spin; without the tip pair on straight-in shots, 82 of 140 tables
-// cleared in place of 90 at a phone's deadline). Returns how many of the six still pot ball k legally with no scratch
+// 2 speedErr either way and the side tip 2 tipErr either way (a cushion takes side spin: half the cushion shots it
+// missed were lost to side tip alone). Returns how many of the six still pot ball k legally with no scratch
 // and no 8 down early (a safety or an escape, to null: still hit ball k first and send a ball to a cushion with no
 // scratch), or -1 when the budget (clk) ran out first.
 function verify(B: Ball[], ids: number[], group: number[], tier: Tier, s: Shot, sd: number, k: number, first: number, to: Pt | null, g: Pt, cr: number, or: number, clk: Clock) {
@@ -164,9 +163,8 @@ function verify(B: Ball[], ids: number[], group: number[], tier: Tier, s: Shot, 
 // cr, or = the cushions of a kick and a bank (rollout). A tier with tricks also scores a second ball of its own potted
 // (extra; never the 8 or the 9) and checks each new best pot once its aim has converged or it tries speeds and tips
 // (verifyAt = verify(), the rollouts of the six that pot): sure = that share, -1 unchecked. Checking each new best steers
-// the search to a robust line (only the pick checked: 118 of 200 tables cleared in place of 134); checking each secant
-// step was half the checks. Checking only converged pots missed the cushion shots, whose err rarely gets under 4 mm
-// with another speed: 132 and 134 of 200 8- and 9-ball tables cleared in place of 140 and 140.
+// the search to a robust line, where checking only the pick does not; checking only converged pots misses the cushion
+// shots, whose err rarely gets under 4 mm with another speed.
 // opp = the opponent's group: a tier with tricks scores a safety's leave by the opponent's best pot from where the
 // rollout really left the table (reply), not by the distance to the planned spot.
 function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number, first: number, pk: Pt | null, G: Pt, leave: Pt & { spin: number }, shot: Shot, clk: Clock, cr = 0, or = 0, verifyAt?: (s: Shot) => number, opp?: number[]) {
@@ -220,8 +218,8 @@ export function aimSd(tier: Tier, type: string) {
 }
 const big = (c: Planned | Safety) => (c.rails ?? 1) >= 3 || !!c.elev; // a reel shot: 3 or 4 cushions, or a jump
 const SHOW_MIN = 0.8; // a reel shot plays only checked on 5 of 6 (0.97 x 5/6)
-// A tier with tricks' search, in rollouts: against Legend (bench:masters, 200 9-ball racks) it wins as often as with no
-// cap (60: 4 points fewer). About 4 ms a rollout on Node JIT, 55 on the interpreter.
+// A tier with tricks' search, in rollouts: against Legend (npm run bench:masters 200 9) it wins as often as with no cap;
+// with 60 it lost points. About 4 ms a rollout on Node JIT, 55 on the interpreter (the TIERS comment).
 const ROLLOUTS = 90;
 const SURE = 0.97, SHOW_GAP = 0.05, SAFE_P = 0.5, RESCUE = 12, RESCUE_SIMS = 20; // a trick shot's chance when verify() pots all six; the most make chance show gives up
 // The Chinese Masters' last word on a shot, after the search (aiShot): a rescue search when no pot is trusted, the
@@ -246,9 +244,8 @@ function tricksTail(won: Run, srch: Search, cands: (Planned | Safety)[], cue: Ob
   }
   // show: a fancier pot (fancy: a cushion past the first, 2 for a jump, 1 for a kiss shot, combo, carom or billiard, and
   // 1 for each second ball potted) whose value times 1 + show x fancy is at least the best's, whose checked chance is at
-  // most SHOW_GAP under it and whose rollout scored as well (pot, centre, leave), is played in its place. Without that
-  // last check (140 tables, bench why.mjs) it cleared 85 in place of 99 at 37% trick pots; with it 94 at 25%: the chance
-  // tops out at SURE, so value ties hide a worse leave or line.
+  // most SHOW_GAP under it and whose rollout scored as well (pot, centre, leave), is played in its place. The last check
+  // because the chance tops out at SURE, so value ties hide a worse leave or line.
   const fl = (x: Run) => (x.v > 0 ? Math.max(0, (x.c.rails ?? 1) - 1) + (x.c.elev ? 2 : 0) + +(x.c.type === 'combo' || x.c.type === 'carom' || x.c.type === 'billiard') + x.r!.extra : 0);
   const shown = (x: Run) => x.v * (1 + tier.show! * fl(x));
   for (const x of runs.filter((x) => fl(x) > fl(won) && x.r!.score >= (won.r?.score ?? 0)).sort((a, b) => shown(b) - shown(a))) {
@@ -257,9 +254,8 @@ function tricksTail(won: Run, srch: Search, cands: (Planned | Safety)[], cue: Ob
     if (shown(x) >= shown(won) && x.p >= won.p - SHOW_GAP) { won = x; break; }
   }
   // the reel shots (3 or 4 cushions, a jump) trade up to SHOW_GAP of checked chance, none of the next shot's, once the best
-  // is checked: the rule above never gives up chance, so they played only when already best (3+ cushion pots 2.7% of
-  // 8-ball pots, now 5.5; 9-ball 3.6, now 6.7; rack wins against Legend alike). Giving up 0.15 or 0.3 of the next shot's
-  // chance as well cost one-visit clears for no more reel shots.
+  // is checked: the rule above never gives up chance, so they played only when already best. Giving up some of the next
+  // shot's chance as well cost one-visit clears for no more reel shots.
   const reel = !late() && (won.r?.sure ?? -1) >= 0 ? runs.filter((x) => big(x.c) && x.v > 0 && !big(won.c)).sort((a, b) => (b.c.rails ?? 1) - (a.c.rails ?? 1) || b.v - a.v)[0] : undefined; // most cushions first
   if (reel) { checkRun(reel); if (reel.r!.sure >= 0 && reel.p >= Math.max(SHOW_MIN, won.p - SHOW_GAP) && reel.r!.next >= (won.r?.next ?? 0)) won = reel; }
   // A tier with tricks has measured its pots: when none pots on the engine, or the best only in under SAFE_P of verify()'s

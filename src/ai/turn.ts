@@ -84,11 +84,10 @@ export function breakShot(B: Ball[], ids: number[], rnd: () => number): Shot {
 }
 
 // The Chinese Masters' 8-ball break (a tier with tricks): full break speed into the 1 a ball radius off its centre, with
-// the tier's own strike noise. With that noise on 200 seeded racks, a ball down and no scratch: 113 (full on: 56;
-// breakShot 32 of 100). In 9-ball off centre puts more balls down but scratches four times as often (0.75 R: 123 with 28
-// scratches, full on: 109 with 6), so it breaks as the others. An aim searched per rack does not pay: its 0.025 degrees
-// of noise decide the spread (the best of 6 aims on 4 trials potted 35 of 80 fresh trials, a fixed aim 36).
-// aimSd, not raw sigma: its side tip error squirts the cue ball too, as aiShot's does.
+// the tier's own strike noise: off centre puts a ball down with no scratch about twice as often as full on. In 9-ball
+// off centre scratches more often, which hands Legend ball in hand, so it breaks as the others. An aim searched per
+// rack does not pay: its tiny noise decides the spread. aimSd, not raw sigma: its side tip error squirts the cue ball
+// too, as aiShot's does.
 export function trickBreak(B: Ball[], ids: number[], tier: Tier, rnd: () => number): Shot {
   const c = B[0], o = B[ids.indexOf(1)], g = () => gauss(rnd);
   const ang = Math.atan2(o.y - c.y, o.x - c.x) + Math.asin(P.R / Math.hypot(o.x - c.x, o.y - c.y));
