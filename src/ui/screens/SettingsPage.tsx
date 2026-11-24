@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { C, CLOTHS, FONT } from '../../theme';
 import type { Settings } from '../../settings/settings';
 import type { Props } from '../Menus';
-import { Shell, useFrame } from '../shell';
+import { Scroll, Shell, useFrame } from '../shell';
 import { Keys, Txt, TYPE } from '../slab';
 
 // A setting: its name, an optional line on what it does, and its keys. Landscape: one row, every key group on one left
@@ -30,9 +30,9 @@ export function SettingsPage({ set, change, go }: Props) {
   const { land, side, pad } = useFrame();
   return (
     <Shell title="Settings" back={() => go('home')}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: side, paddingTop: 10, paddingBottom: pad.bottom + 16, gap: land ? 8 : 20 }}>
+      <Scroll style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: side, paddingTop: 10, paddingBottom: pad.bottom + 16, gap: land ? 8 : 20 }}>
         <Line label="Calling">
-          <Keys label="Calling" value={set.callAll} pick={callAll => change({ callAll })} options={[['Call every shot', true], ['Call only the 8-ball', false]]} />
+          <Keys label="Calling" value={set.callAll} pick={callAll => change({ callAll })} options={[['Every shot', true], ['Only the 8-ball', false]]} />
         </Line>
         <Line label="Bank shots">
           <Keys<Settings['bank']> label="Bank shots" value={set.bank} pick={bank => change({ bank })} options={[['Off', 0], ['8-ball only', 1], ['Every ball', 2]]} />
@@ -47,7 +47,7 @@ export function SettingsPage({ set, change, go }: Props) {
         <Line label="Cue angle zones" note="Colours on the cue angle ring. One colour: learn the angles yourself.">
           <Keys label="Cue angle zones" value={set.zones} pick={zones => change({ zones })} options={[['Colours', true], ['One colour', false]]} />
         </Line>
-      </ScrollView>
+      </Scroll>
     </Shell>
   );
 }
