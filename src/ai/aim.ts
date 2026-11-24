@@ -260,7 +260,7 @@ function tricksTail(won: Run, srch: Search, cands: (Planned | Safety)[], cue: Ob
   // is checked: the rule above never gives up chance, so they played only when already best (3+ cushion pots 2.7% of
   // 8-ball pots, now 5.5; 9-ball 3.6, now 6.7; rack wins against Legend alike). Giving up 0.15 or 0.3 of the next shot's
   // chance as well cost one-visit clears for no more reel shots.
-  const reel = !late() && (won.r?.sure ?? -1) >= 0 ? runs.filter((x) => big(x.c) && x.v > 0 && !big(won.c)).sort((a, b) => b.v - a.v)[0] : undefined;
+  const reel = !late() && (won.r?.sure ?? -1) >= 0 ? runs.filter((x) => big(x.c) && x.v > 0 && !big(won.c)).sort((a, b) => (b.c.rails ?? 1) - (a.c.rails ?? 1) || b.v - a.v)[0] : undefined; // most cushions first
   if (reel) { checkRun(reel); if (reel.r!.sure >= 0 && reel.p >= Math.max(SHOW_MIN, won.p - SHOW_GAP) && reel.r!.next >= (won.r?.next ?? 0)) won = reel; }
   // A tier with tricks has measured its pots: when none pots on the engine, or the best only in under SAFE_P of verify()'s
   // rollouts, it plays a safety or an escape after all, unless it must shoot (safetiesInRow). Out of rollouts it plays
@@ -333,7 +333,9 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
     // a tier with tricks: out of budget only the pick (its first rollout runs whatever the budget says, so there is a
     // shot), and once the pick is sure no plain alternative and only its first trick shot, for show: the rest would cost
     // rollouts on most shots for a shot it rarely plays. Its trick shots go after the plain pots are checked (settle).
-    const show = cands.find((c) => big(c) && c.type !== 'safety' && c.p >= 0.3) ?? cands.find(fancy), skip = (c: Planned | Safety) => !!tier.tricks && c !== pick && (late() || (pickSure() && c !== show));
+    // Shown: the trick with the most cushions (a 4-cushion seed chance is a few %, so by chance one never ran), and the
+    // first reel shot with a fair seed chance.
+    const show = cands.filter(fancy).sort((a, b) => (b.rails ?? 1) - (a.rails ?? 1))[0], show2 = cands.find((c) => big(c) && c.type !== 'safety' && c.p >= 0.3), skip = (c: Planned | Safety) => !!tier.tricks && c !== pick && (late() || (pickSure() && c !== show && c !== show2));
     for (const x of runs) if (!skip(x.c) && worth(x)) { score(x, first); sims -= first; if (x === head) checkRun(x); }
     if (tier.tricks) { settle(); for (const c of cands) if (!lead.includes(c) && !skip(c)) { const x = mkRun(c, true); runs.push(x); score(x, first); sims -= first; } }
     const top = best();
