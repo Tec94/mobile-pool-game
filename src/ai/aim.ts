@@ -129,14 +129,15 @@ const FAIL = 1; // a pot's rollout score lost for each verify() rollout that doe
 // 2 speedErr either way and the side tip 2 tipErr either way (on 100 Masters tables, half the cushion shots it missed
 // were lost to side tip alone: a cushion takes the spin; without the tip pair on straight-in shots, 82 of 140 tables
 // cleared in place of 90 at a phone's deadline). Returns how many of the six still pot ball k legally with no scratch
-// and no 8 down early, or -1 when the deadline (end) came first.
-function verify(B: Ball[], ids: number[], group: number[], tier: Tier, s: Shot, sd: number, k: number, first: number, to: Pt, g: Pt, cr: number, or: number, end: number) {
+// and no 8 down early (a safety or an escape, to null: still hit ball k first and send a ball to a cushion with no
+// scratch), or -1 when the deadline (end) came first.
+function verify(B: Ball[], ids: number[], group: number[], tier: Tier, s: Shot, sd: number, k: number, first: number, to: Pt | null, g: Pt, cr: number, or: number, end: number) {
   const w = ids.indexOf(winBall(group)), f = 2 * tier.speedErr / 100;
   let n = 0;
   for (const t of [{ ...s, ang: s.ang + 2 * sd }, { ...s, ang: s.ang - 2 * sd }, { ...s, speed: Math.min(CUE.maxSpeed, s.speed * (1 + f)) }, { ...s, speed: s.speed * (1 - f) }, { ...s, a: 2 * tier.tipErr }, { ...s, a: -2 * tier.tipErr }]) {
     if (now() >= end) return -1;
     const r = rollout(B, t, k, first, to, g, cr, or, true);
-    n += +(r.pot && r.legal && (nine(group) || w <= 0 || w === k || r.S[w].on));
+    n += +(to ? r.pot && r.legal && (nine(group) || w <= 0 || w === k || r.S[w].on) : r.legal && r.rail && !r.scratch);
   }
   return n;
 }
@@ -225,7 +226,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
     const first = ids.indexOf(c.type === 'safety' ? c.ball : c.first), start: Shot = c.elev ? { ang: c.aim, speed, a: 0, b: 0, elev: c.elev } : { ang: correctAim(B[0], B[first], c, speed, 0, b) ?? c.aim, speed, a: 0, b };
     const cr = tier.tricks && (c.type === 'kick' || c.type === 'safety') ? c.rails ?? +(c.type === 'kick') : 0, or = tier.tricks && c.type === 'bank' ? c.rails ?? 1 : 0;
     const k = ids.indexOf(c.ball), pk = c.type === 'safety' ? null : POCKETS[c.pocket], sd = aimSd(tier, c.type);
-    const check = tier.tricks && pk ? (s: Shot) => verify(B, ids, group, tier, s, sd, k, first, { x: pk.x / 1000, y: pk.y / 1000 }, { x: c.G.x / 1000, y: c.G.y / 1000 }, cr, or, end) : undefined;
+    const check = tier.tricks ? (s: Shot) => verify(B, ids, group, tier, s, sd, k, first, pk && { x: pk.x / 1000, y: pk.y / 1000 }, { x: c.G.x / 1000, y: c.G.y / 1000 }, cr, or, end) : undefined;
     return { c, more: sims < 2 && !free ? null : refine(B, ids, group, tier, k, first, pk, c.G, lv, start, end, cr, or, check), check, v: -Infinity, p: 0, shot: start, r: null as Roll | null };
   };
   const runs = cands.map((c) => mkRun(c));
