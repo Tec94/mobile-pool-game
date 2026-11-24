@@ -3,7 +3,7 @@
 // the run ended. The run is the App's: this screen only shows it and asks for a start, a match or an abandon.
 import * as Haptics from 'expo-haptics';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Pressable, StyleSheet, View } from 'react-native';
 import { profile } from '../../progress';
 import { levelOf } from '../../progress/profile';
 import type { Settings } from '../../settings/settings';
@@ -105,8 +105,8 @@ function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { ru
   const { land, side, width, height } = useFrame(), panelW = usePanel(), R = rounds(run.opts.size), next = nextMatch(run);
   // A tap on a computer player shows how it plays on the card; the card starts on the next opponent.
   const foe = next < 0 ? -1 : sides(run, next).find(i => i !== null && !run.field[i].human) ?? -1, [pick, setPick] = useState<number | null>(null), peek = pick ?? foe;
-  // short rows so eight players fit a landscape phone; in portrait taller ones fill the room above the card, title bar and safe area (about 480 pt)
-  const row = land ? (height < 430 ? 28 : ROW) : Math.min(56, Math.max(ROW, ((height - 480) / (run.opts.size / 2) - 10) / 2));
+  // short rows so eight players fit a landscape phone; in portrait taller ones fill the room above the card, title bar and safe area (about 520 pt)
+  const row = land ? (height < 430 ? 28 : ROW) : Math.min(56, Math.max(ROW, ((height - 520) / (run.opts.size / 2) - 10) / 2));
   const BLOCK = 2 * row + GAP, UNIT = BLOCK + 8;
   const areaW = land ? width - 2 * side - panelW - 16 : width - 2 * side, gapX = land ? 20 : 12, colW = (areaW - (R - 1) * gapX) / R;
   const x = (r: number) => r * (colW + gapX), mid = (r: number, k: number) => (k + 0.5) * (1 << r) * UNIT - 7;
@@ -123,15 +123,17 @@ function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { ru
         const e = run.field[i], you = !!e.human, foe = m === next && !you, lost = !!res && res.w !== s, gold = run.state === 'champion' && m === run.res.length - 1 && you;
         const paint = you ? CREAM[0] : foe ? MODE.tour[0] : '#EEF2EA14', ink = you ? C.ink : C.chalk;
         return (
-          <Pressable key={s} disabled={you} onPress={() => { feel(() => Haptics.selectionAsync()); setPick(i); }} accessibilityRole={you ? 'text' : 'button'} accessibilityState={{ selected: peek === i }}
+          <Pressable key={s} disabled={you || next < 0} onPress={() => { feel(() => Haptics.selectionAsync()); setPick(i); AccessibilityInfo.announceForAccessibility(`${e.name}${e.style ? `, ${NICK[e.style]}: ${TELL[e.style]}` : ''}`); }}
+            accessibilityRole={you || next < 0 ? 'text' : 'button'} accessibilityState={{ selected: peek === i }}
             accessibilityLabel={`${e.name}${e.style ? `, ${NICK[e.style]}` : ''}${you ? '' : `, rating ${e.rating.toFixed(1)}`}${res ? `, ${walk ? (res.w === s ? 'won by forfeit' : 'forfeited') : res.score[s]}` : ''}${foe ? ', your next opponent' : ''}`}
             accessibilityHint={you ? undefined : 'Shows how they play'}
-            style={({ pressed }) => [styles.slot, { height: row, backgroundColor: paint, opacity: lost ? (pressed ? 0.45 : 0.6) : pressed ? 0.8 : 1 }, peek === i && styles.peek]}>
+            style={({ pressed }) => [styles.slot, { height: row, backgroundColor: paint, opacity: lost ? (pressed ? 0.45 : 0.6) : pressed ? 0.8 : 1 }, next >= 0 && peek === i && styles.peek]}>
             <View style={{ flex: 1, gap: 2 }}>
               <View style={styles.row}><Txt numberOfLines={1} style={[styles.slotName, { color: ink }]}>{e.name}</Txt>{e.style && <Glyph id={e.style} size={11} color={ink} />}</View>
               {!you && <Bars rating={e.rating} color={ink} w={8} />}
             </View>
             {res && <View style={[styles.score, { backgroundColor: gold ? C.gold : you ? '#16191A1F' : '#0004' }]}><Txt style={[styles.scoreText, { color: gold || you ? C.ink : C.chalk }]}>{mark}</Txt></View>}
+            {!you && next >= 0 && <Txt style={[styles.chev, { color: ink }]}>›</Txt>}{/* a computer player opens on the card */}
           </Pressable>
         );
       })}
@@ -178,7 +180,7 @@ function Card({ run, next, peek, abandon, play, again }: { run: Run; next: numbe
   return (
     <Slab paint={DARK} style={land && { flex: 1 }} face={face}>
       <View style={styles.row}>
-        <Txt style={styles.head}>{roundName(run, next)}</Txt><View style={{ flex: 1 }} />
+        {usePanel() >= 270 && <Txt style={styles.head}>{roundName(run, next)}</Txt>}<View style={{ flex: 1 }} />{/* a narrow card: the bracket heads already name the round */}
         <Chip name={`This round pays times ${stakes(run, next)}`}>{`Pays ×${stakes(run, next)}`}</Chip>
         <Chip>{`Best of ${run.opts.best}`}</Chip>
       </View>
@@ -187,15 +189,15 @@ function Card({ run, next, peek, abandon, play, again }: { run: Run; next: numbe
         <View style={{ flex: 1, gap: 3 }}>
           <Txt style={[styles.head, tag !== 'Next opponent' && { color: C.gold, opacity: 1 }]}>{tag}</Txt>
           <View style={styles.row}><Txt numberOfLines={1} style={styles.foe}>{e.name}</Txt>{e.style && <Glyph id={e.style} size={20} color={C.chalk} />}</View>
-          {e.style && <Txt style={styles.nick}>{NICK[e.style]}</Txt>}
-          {e.style && <Txt numberOfLines={3} style={styles.tell}>{TELL[e.style]}</Txt>}
-          <View style={[styles.row, { gap: 8 }]}><Bars rating={e.rating} color={C.chalk} w={12} /><Txt style={styles.tell}>{`Rating ${e.rating.toFixed(1)}`}</Txt></View>
+          <Txt style={styles.nick}>{e.style ? NICK[e.style] : 'All-rounder'}</Txt>
+          <Txt numberOfLines={3} style={styles.tell}>{e.style ? TELL[e.style] : 'No favourite shot: plays the percentages'}</Txt>
+          <View style={[styles.row, { gap: 8 }]}><Bars rating={e.rating} color={C.chalk} w={12} /><Txt numberOfLines={1} style={styles.tell}>{`Rating ${e.rating.toFixed(1)}`}</Txt></View>
         </View>
       </View>
       <View style={[styles.row, { gap: 8 }]}>
         <Slab paint={sure ? [C.warn, '#A33A30'] : DARK} lip={4} radius={4} onPress={() => { if (sure) abandon(); setSure(!sure); }} accessibilityLabel={sure ? 'Tap again to abandon: a loss' : 'Abandon the tournament'}
           style={{ height: 58 }} face={styles.abandon}><Txt style={[styles.abandonText, sure && { color: C.ink }]}>{sure ? 'Tap again:\na loss' : 'Abandon'}</Txt></Slab>
-        <View style={{ flex: 1 }}><Cta label={sc ? `Resume ${sc[0]}–${sc[1]}` : 'Play'} name={`${sc ? `Resume at ${sc[0]} to ${sc[1]}` : 'Play'} the ${roundName(run, next).toLowerCase()} against ${run.field[foe].name}`} onPress={play} /></View>
+        <View style={{ flex: 1 }}><Cta label={sc ? `Resume ${sc[0]}–${sc[1]}` : `Play ${run.field[foe].name}`} name={`${sc ? `Resume at ${sc[0]} to ${sc[1]}` : 'Play'} the ${roundName(run, next).toLowerCase()} against ${run.field[foe].name}`} onPress={play} /></View>
       </View>
     </Slab>
   );
@@ -233,7 +235,8 @@ const styles = StyleSheet.create({
   lockText: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 13, color: C.chalk, opacity: 0.7, textAlign: 'center' },
   head: { fontFamily: FONT.bold, fontSize: 11, lineHeight: 14, letterSpacing: 0.6, textTransform: 'uppercase', color: C.chalk, opacity: 0.75 },
   prizeNote: { fontFamily: FONT.semi, fontSize: 11.5, lineHeight: 15, color: C.chalk, opacity: 0.75, textAlign: 'center' },
-  peek: { outlineColor: C.chalk, outlineWidth: 2, outlineOffset: 1, outlineStyle: 'solid' },
+  chev: { fontFamily: FONT.bold, fontSize: 15, lineHeight: 16, opacity: 0.55 },
+  peek: { outlineColor: C.chalk, outlineWidth: 2, outlineOffset: -2, outlineStyle: 'solid' }, // inside the slot: the first column sits on the scroll view's edge
   slot: { borderRadius: 3, paddingHorizontal: 7, flexDirection: 'row', alignItems: 'center', gap: 4 },
   unknown: { backgroundColor: '#EEF2EA0A', borderWidth: 1, borderStyle: 'dashed', borderColor: '#EEF2EA26' },
   slotName: { fontFamily: FONT.bold, fontSize: 13, lineHeight: 15, flexShrink: 1 },
