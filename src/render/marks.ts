@@ -7,8 +7,9 @@ import { toScreen, type View } from './table.ts';
 
 // hand = the cue ball at (x, y) may be dragged ('kitchen' = only above the head string); call = the called pocket,
 // -1 none; ask = a pocket must be called before the shot; ms = a clock for the pulse and the settle; at = when on that clock the
-// player called the pocket (none = long ago); zone = a lesson's ring [x, y, r] in metres, where the cue ball must stop.
-export interface Marks { hand: false | 'any' | 'kitchen'; x: number; y: number; call: number; ask: boolean; ms: number; at?: number; zone?: number[] | null }
+// player called the pocket (none = long ago); zone = a lesson's ring [x, y, r] in metres, where the cue ball must stop;
+// pulse = draw the ring that grows out of the cue ball in hand (false: the app draws it on the UI thread).
+export interface Marks { hand: false | 'any' | 'kitchen'; x: number; y: number; call: number; ask: boolean; ms: number; at?: number; zone?: number[] | null; pulse?: boolean }
 export const SETTLE = 240; // ms the called pocket takes to close its ring: the frame loop redraws the marks that long
 export function drawMarks(api: typeof Skia, canvas: SkCanvas, v: View, m: Marks) {
   const r = P.R * v.s, p = api.Paint(); p.setAntiAlias(true);
@@ -23,7 +24,7 @@ export function drawMarks(api: typeof Skia, canvas: SkCanvas, v: View, m: Marks)
   if (m.hand) { // a steady ring says "this ball moves"; a second ring grows out of it and fades, unless motion is reduced
     const c = toScreen(v, m.x, m.y), t = (m.ms % 1400) / 1400, e = 1 - (1 - t) ** 3;
     ring(c.x, c.y, 1.7 * r, C.accent, 0.95, Math.max(1.5, 0.22 * r));
-    if (!v.calm) ring(c.x, c.y, (1.7 + 1.6 * e) * r, C.accent, 0.7 * (1 - t), Math.max(1, 0.16 * r));
+    if (!v.calm && m.pulse !== false) ring(c.x, c.y, (1.7 + 1.6 * e) * r, C.accent, 0.7 * (1 - t), Math.max(1, 0.16 * r));
   }
   // The pockets, all inside the black of the hole. A call is asked: a still chalk ring in every pocket. The called (or a
   // lesson's marked) pocket: three red arcs close into a red ring, lit from behind, over SETTLE ms from m.at; at rest it
