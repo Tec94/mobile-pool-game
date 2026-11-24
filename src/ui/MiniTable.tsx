@@ -12,7 +12,7 @@ export interface Table { cue?: [number, number]; balls?: [number, number, number
 // packed = the balls touch (a rack): drawn bigger than true size, they would overlap into a blob, so they spread out
 // from their middle to keep a hairline between them.
 export function MiniTable({ width: w, cue, balls = [], packed, ring, rings, lit = [], zone, cloth = 0 }: Table & { width: number; cloth?: number }) {
-  const f = Math.max(4, w * 0.06), iw = w - 2 * f, s = iw / P.L, r = Math.max(2.5, Math.min(w * 0.022, Math.max(P.R * s, w * 0.016))), pr = r * 1.3;
+  const f = Math.max(4, w * 0.06), iw = w - 2 * f, s = iw / P.L, r = Math.max(2.5, Math.min(w * 0.022, packed ? Math.max(P.R * s, w * 0.016) : P.R * s)), pr = r * 1.3;
   if (packed && balls.length) balls = spread(balls, (r + 0.6) / (P.R * s));
   const disc = (x: number, y: number, d: number) => ({ position: 'absolute' as const, left: f + x * s - d / 2, top: f + y * s - d / 2, width: d, height: d, borderRadius: d / 2 });
   return (
@@ -41,7 +41,7 @@ export function MiniTable({ width: w, cue, balls = [], packed, ring, rings, lit 
 }
 
 // The balls moved out from their middle by k (k <= 1: as they are).
-export function spread(balls: [number, number, number][], k: number): [number, number, number][] {
+function spread(balls: [number, number, number][], k: number): [number, number, number][] {
   if (k <= 1) return balls;
   const mx = balls.reduce((a, b) => a + b[1], 0) / balls.length, my = balls.reduce((a, b) => a + b[2], 0) / balls.length;
   return balls.map(([n, x, y]) => [n, mx + (x - mx) * k, my + (y - my) * k]);
