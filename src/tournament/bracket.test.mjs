@@ -99,9 +99,12 @@ test('stakes rise each round from x1.25, in a field of 4 too; a run that is over
   assert.equal(breakerOf(newRun(opts({ size: 4, best: 3 }), 3), 0), 0);
 });
 
-test('medals and cups: bronze for 4, silver for 8 best of 1, gold for 8 longer; a cup opens by level or a silver below', () => {
-  assert.deepStrictEqual([opts({ size: 4 }), opts({ best: 1 }), opts({ best: 5 })].map(medalOf), [1, 2, 3]);
-  assert(cupOpen(0, [0, 0, 0, 0], 1)); assert(!cupOpen(1, [1, 0, 0, 0], 9)); assert(cupOpen(1, [2, 0, 0, 0], 1)); assert(cupOpen(1, [0, 0, 0, 0], 10));
+test('medals by finish: gold for the title, silver for the final, bronze for a semifinal of 8; none while playing; a cup opens by level or a gold below', () => {
+  const end = (size, won) => { let r = newRun(opts({ size }), 3); for (let i = 0; i < won; i++) r = recordMatch(r, true, [2, 0], none); return won < Math.log2(size) ? recordMatch(r, false, [0, 2], none) : r; };
+  assert.deepStrictEqual([0, 1, 2, 3].map(w => medalOf(end(8, w))), [0, 1, 2, 3]);
+  assert.deepStrictEqual([0, 1, 2].map(w => medalOf(end(4, w))), [0, 2, 3], 'a 4 has no semifinal to lose after a win');
+  assert.equal(medalOf(newRun(opts(), 3)), 0, 'no medal before the run ends');
+  assert(cupOpen(0, [0, 0, 0, 0], 1)); assert(!cupOpen(1, [1, 0, 0, 0], 9)); assert(!cupOpen(1, [2, 0, 0, 0], 9), 'a lost final does not open the next cup'); assert(cupOpen(1, [3, 0, 0, 0], 1)); assert(cupOpen(1, [0, 0, 0, 0], 10));
 });
 
 test('a saved run that cannot be played is no run', () => {
