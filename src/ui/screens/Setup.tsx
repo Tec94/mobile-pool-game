@@ -2,9 +2,9 @@
 // The opponent is the Rival, who adapts between matches, or a fixed AI tier; each mode keeps its own setup.
 import { type ReactNode, useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
-import { TIERS } from '../../ai/shot-ai';
+import { MASTERS, TIERS } from '../../ai/shot-ai';
 import { profile, rivalReset } from '../../progress';
-import { MASTERS, matchPay } from '../../progress/pay';
+import { matchPay } from '../../progress/pay';
 import { MOODS, shown } from '../../progress/rival';
 import { NAME_MAX, RACES, RIVAL, type Settings } from '../../settings/settings';
 import { C, CREAM, DARK, FONT, SEAL } from '../../theme';

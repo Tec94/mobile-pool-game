@@ -1,4 +1,5 @@
 // What a shot and a match pay (progression design). The vs-AI modes call these; pass and play pays a flat amount (profile.ts passPlay).
+import { MASTERS } from '../ai/shot-ai.ts';
 import type { CueId } from './cues.ts';
 import type { FeatId } from './profile.ts';
 
@@ -53,7 +54,7 @@ export const safetyPay = (s: Safety): Pay =>
 // way to farm. A loss pays for the share of own balls potted; a loss by an early 8, a concede
 // or a quit pays nothing. shortcut: no break-and-run x2 (held in the design).
 export interface Match { tier: number; won: boolean; fouls: number; ownPotted?: number; early?: boolean; tour?: number } // tour = a tournament match: its round's multiplier x the frames it takes to win (bracket.ts)
-export const MASTERS = 7, MASTERS_WIN = 60; // the tier, and its win's factor where Legend's is 6
+const MASTERS_WIN = 60; // a Masters win's factor where Legend's is 6
 export function matchPay(m: Match): Pay {
   const k = m.won ? (m.fouls ? 1 : 1.2) : m.early ? 0 : Math.min(7, m.ownPotted ?? 0) / 7;
   const [xp, coins] = m.won ? [60, 40] : [20, 10], f = m.tier < MASTERS ? m.tier : m.won ? MASTERS_WIN : 6, t = m.tour ?? 1;
