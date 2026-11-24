@@ -238,7 +238,8 @@ export function tricksTail(won: Run, srch: Search, cands: (Planned | Safety)[], 
       if (late()) break;
       const x = mkRun(c, true);
       score(x, RESCUE_SIMS); checkRun(x); runs.push(x);
-      if (x.v > won.v || (won.c.type !== 'safety' && x.p > won.p && x.v > 0)) won = x;
+      // a pot displaces the planner's safety only once trusted: one that dropped once, checked 2 of 6, did out of rollouts
+      if (won.c.type === 'safety' ? x.v > 0 && x.p >= SAFE_P : x.v > won.v || (x.p > won.p && x.v > 0)) won = x;
       if (trusted()) break;
     }
   }
