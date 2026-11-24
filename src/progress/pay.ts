@@ -74,7 +74,9 @@ export function matchPay(m: Match): Pay {
 // match, changed by potPay, saved when the match settles.
 // lucky = a rack the player won and did not run out: the AI's shot gave it (a foul on the 8, an early 8, three fouls)
 // or the 9 went down with balls left (on the break, a combo). The Masters' win pays x10 only when no rack was lucky.
-// Measured 2026-11-24, 300 racks each, rating 1 / 3 against the Masters: racks won 8-ball 1.0% / 3.0%, 9-ball 5.0% / 7.7%; run out 0% / 2.3%, 2.3% / 2.3%.
+// In 9-ball one pot pays x10 when the Masters clears to the 9 and misses it: accepted (Jack: "you get it to fumble, and off of that one fumble you run the whole table").
+// Measured 2026-11-24, 300 racks each, rating 1 / 3 against the Masters: racks won 8-ball 1.0% / 3.0%, 9-ball 5.0% / 7.7%;
+// run out 8-ball 0% / 2.3%; x10 in 9-ball 0 / 8 of 300, half of the 8 on 2 pots or fewer.
 export interface Ledger { shots: Pay; run: number; fouls: number; own: number; brk?: number; feats?: Partial<Record<FeatId, number>>; turn?: { ids: number[]; hot?: boolean; pair?: boolean }; pairs?: number; behind?: boolean; down?: boolean; held?: Pay; aura?: Aura; lucky?: boolean }
 export interface Aura { run: number; owed: boolean }
 export const newLedger = (): Ledger => ({ shots: { xp: 0, coins: 0 }, run: 0, fouls: 0, own: 0 });
