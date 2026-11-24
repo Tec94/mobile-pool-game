@@ -9,3 +9,16 @@
 /*.png
   ! Cache-Control
   Cache-Control: public, max-age=86400
+
+# The free match (scripts/demo-web.mjs): CanvasKit is WebAssembly, and React Native for the web writes its styles inline.
+/play/*
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'
+
+/play/_expo/*
+  ! Cache-Control
+  Cache-Control: public, max-age=31536000, immutable
+
+/play/*.wasm
+  ! Cache-Control
+  Cache-Control: public, max-age=86400
