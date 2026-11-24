@@ -124,10 +124,10 @@ function Bracket({ run, go, abandon, playTour, again }: Props & TourProps & { ru
         const paint = you ? CREAM[0] : foe ? MODE.tour[0] : '#EEF2EA14', ink = you ? C.ink : C.chalk;
         return (
           <Pressable key={s} onPress={you || next < 0 ? undefined : () => { feel(() => Haptics.selectionAsync()); setPick(i); AccessibilityInfo.announceForAccessibility(`${e.name}${e.style ? `, ${NICK[e.style]}: ${TELL[e.style]}` : ''}`); }}
-            accessibilityRole={you || next < 0 ? 'text' : 'button'} accessibilityState={{ selected: peek === i }}
+            accessibilityRole={you || next < 0 ? 'text' : 'button'} accessibilityState={you || next < 0 ? undefined : { selected: peek === i }}
             accessibilityLabel={`${e.name}${e.style ? `, ${NICK[e.style]}` : ''}${you ? '' : `, rating ${e.rating.toFixed(1)}`}${res ? `, ${walk ? (res.w === s ? 'won by forfeit' : 'forfeited') : res.score[s]}` : ''}${foe ? ', your next opponent' : ''}`}
-            accessibilityHint={you ? undefined : 'Shows how they play'}
-            style={({ pressed }) => [styles.slot, { height: row, backgroundColor: paint, opacity: lost ? (pressed ? 0.45 : 0.6) : pressed ? 0.8 : 1 }, next >= 0 && peek === i && styles.peek]}>
+            accessibilityHint={you || next < 0 ? undefined : 'Shows how they play'}
+            style={({ pressed }) => [styles.slot, { height: row, backgroundColor: paint, opacity: (lost ? 0.6 : 1) * (pressed && !you && next >= 0 ? 0.8 : 1) }, next >= 0 && peek === i && styles.peek]}>
             <View style={{ flex: 1, gap: 2 }}>
               <View style={styles.row}><Txt numberOfLines={1} style={[styles.slotName, { color: ink }]}>{e.name}</Txt>{e.style && <Glyph id={e.style} size={11} color={ink} />}</View>
               {!you && <Bars rating={e.rating} color={ink} w={8} />}
@@ -191,7 +191,7 @@ function Card({ run, next, peek, abandon, play, again }: { run: Run; next: numbe
           <View style={styles.row}><Txt numberOfLines={1} style={styles.foe}>{e.name}</Txt>{e.style && <Glyph id={e.style} size={20} color={C.chalk} />}</View>
           <Txt style={styles.nick}>{e.style ? NICK[e.style] : 'All-rounder'}</Txt>
           {e.style && <Txt numberOfLines={3} style={styles.tell}>{TELL[e.style]}</Txt>}
-          <View style={[styles.row, { gap: 8 }]}><Bars rating={e.rating} color={C.chalk} w={12} /><Txt numberOfLines={1} style={styles.tell}>{e.rating.toFixed(1)}</Txt></View>
+          <Bars rating={e.rating} color={C.chalk} w={12} />
         </View>
       </View>
       <View style={[styles.row, { gap: 8 }]}>
