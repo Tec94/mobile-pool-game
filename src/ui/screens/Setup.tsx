@@ -42,9 +42,10 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
   const game = quick ? set.aiGame : set.game, rival = set.tier === RIVAL, rating = shown(profile().rival[set.aiGame].rating);
   const opp = quick ? (rival ? `Rival ${rating}` : TIERS[set.tier].name) : names[1].trim() || 'Player 2', me = quick ? 'You' : names[0].trim() || 'Player 1';
   const start = () => { if (quick) return go('ai'); change({ names: names.map((n, i) => n.trim() || `Player ${i + 1}`) as [string, string] }); go('match'); };
-  const { charges, armed } = daily.chalk, { land, height, width } = useFrame(), tight = height < (land ? 380 : 700), il = tight && !land; // an SE-sized phone: labels beside the keys, so the table fits
+  const { charges, armed } = daily.chalk, { land, height, width, pad } = useFrame(), tight = height < (land ? 380 : 700), il = tight && !land; // an SE-sized phone: labels beside the keys, so the table fits
   const narrow = width < 430;
-  // What a Masters win pays, where it adds no height: beside the Opponent label on a phone, else in the panel's free space.
+  // What a Masters win pays, where nothing scrolls: beside the Opponent label on a phone, else at the panel's foot, the table
+  // giving up the height in landscape (strip, gutters, panel padding, head on two lines, the line and gaps: 179 pt, and the button).
   // Only a win that ran out every rack it took pays that; else it pays as a Legend win (the results card says why).
   const pays = quick && set.tier === TOP && <Txt numberOfLines={narrow ? 1 : 2} style={[styles.note, !narrow && { textAlign: 'center' }]}>Run-out win pays up to{narrow ? ' ' : '\n'}<Txt style={{ color: C.gold }}>{`${num(WIN.xp)} XP · ${num(WIN.coins)} coins`}</Txt></Txt>;
   return (
@@ -54,8 +55,8 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
           <BallArt n={1} size={26} label={quick ? undefined : me.slice(0, 2)} /><Txt numberOfLines={1} style={[styles.name, quick && { flexShrink: 0 }]}>{me}</Txt>
           <View style={{ flex: 1 }} />
           <Txt numberOfLines={2} style={[styles.name, { textAlign: 'right' }]}>{opp}</Txt><BallArt n={8} size={26} label={opp[0]} />
-        </>} picture={w => <MiniTable width={land ? w : Math.min(w, height >= 700 ? 280 : 150)} {...rackOf(game)} rings={game === 8 && set.callAll} lit={game === 8 && set.bank ? [0, 1] : undefined} cloth={set.cloth} />}
-          cta={{ label: 'Play', name: quick ? 'Play quick match' : 'Play pass and play', onPress: start }}>{!narrow && pays}</Panel>}>
+        </>} picture={w => <MiniTable width={!land ? Math.min(w, height >= 700 ? 280 : 150) : pays ? Math.min(w, (height - pad.top - Math.max(pad.bottom, 16) - 179 - (height >= 430 ? 64 : 58)) / 0.56) : w} {...rackOf(game)} rings={game === 8 && set.callAll} lit={game === 8 && set.bank ? [0, 1] : undefined} cloth={set.cloth} />}
+          cta={{ label: 'Play', name: quick ? 'Play quick match' : 'Play pass and play', onPress: start }} foot={!narrow && pays} />}>
         <View style={{ gap: tight ? 6 : land ? 10 : 14 }}>
           <View style={[styles.group, tight && { gap: 6 }]}>
             <Line label="Game" inline={il}><Keys label="Game" value={game} pick={g => change(quick ? { aiGame: g } : { game: g })} options={GAMES} /></Line>
