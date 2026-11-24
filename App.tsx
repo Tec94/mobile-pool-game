@@ -529,7 +529,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   // stage: 0 slides the cue ball in hand, 1 places it and lines up, 2 strikes.
   const play = (m: Move, stage = 0) => {
     const t = table.current;
-    if (moving.current || t.rec || t.rules.phase === 'over' || !bot()) return;
+    if (moving.current || t.rec || t.rules.phase === 'over' || !bot()) { aiCall.current = -1; return; } // no stale call ring if the turn went
     if (!stage && m.call >= 0) { aiCall.current = m.call; called.current = performance.now(); paint(false); wake.current(); } // the call shows from the AI's first move; its ring settles as the player's does
     if (!stage && m.at) { carry(m.at, () => play(m, 1)); return; }
     const top = t.rules.phase === 'break' ? STICK.breakSpeed : STICK.maxSpeed, hold = (x: number) => Math.max(-STICK.tipLimit, Math.min(STICK.tipLimit, x));
@@ -572,7 +572,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
   };
   // The AI lines up on the controls as a player would: the stick turns to its aim while the tip dot moves to its spin,
   // then the rail pulls to its power. lining = draw the stick though the controls are shut.
-  const lining = useRef(false), aiCall = useRef(-1); // aiCall = the AI's pocket, shown from its line-up; the rules get it at the strike
+  const lining = useRef(false), aiCall = useRef(-1); // aiCall = the AI's pocket, shown from its first move; the rules get it at the strike
   const lineUp = (m: Shot, top: number, hold: (x: number) => number, done: () => void) => {
     const a0 = shot.get().aim, turn = ((m.ang - a0) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI; // the short way round
     const x = hold(m.a) / STICK.tipLimit, y = hold(m.b) / STICK.tipLimit, elev = Math.round((m.elev ?? 0) * 180 / Math.PI), p = Math.min(1, m.speed / top);
