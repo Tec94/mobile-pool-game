@@ -2,4 +2,8 @@
 import { registerRootComponent } from 'expo';
 import { LoadSkiaWeb } from '@shopify/react-native-skia/lib/module/web';
 
-LoadSkiaWeb({ locateFile: (f: string) => '/play/' + f }).then(() => registerRootComponent(require('../App').default));
+LoadSkiaWeb({ locateFile: (f: string) => '/play/' + f }).then(() => registerRootComponent(require('../App').default), () => {
+  // No WebAssembly or WebGL here (an old phone, Lockdown Mode, a failed download): say so, in place of the loading mark.
+  const root = document.getElementById('root')!;
+  root.innerHTML = '<p class="fail">This browser cannot draw the table. <a href="/">Back to Runout</a></p>';
+});

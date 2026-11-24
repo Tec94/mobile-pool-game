@@ -7,4 +7,5 @@ export class File {
   textSync() { if (!files.has(this.name)) throw new Error('no file ' + this.name); return files.get(this.name); }
   writeSync(s) { files.set(this.name, s); }
   moveSync(to) { files.set(to.name, this.textSync()); files.delete(this.name); }
+  delete() { files.delete(this.name); }
 }
