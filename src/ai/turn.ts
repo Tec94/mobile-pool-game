@@ -3,7 +3,7 @@
 // turn (break, group, cue ball in hand, call, shot); choiceFor() answers a decision the rules hand it; potPay() pays
 // the human's pots in a match against the AI.
 import { type Ball, CUE, HOLES, P, type Shot } from '../physics/engine.ts';
-import { canCall, cushionAt, ENDS, jumped, legalSpot, massed, onEight, potKind, type Hand, type Rec, type State } from '../rules/rules.ts';
+import { canCall, cushionAt, ENDS, jumped, nose, legalSpot, massed, onEight, potKind, type Hand, type Rec, type State } from '../rules/rules.ts';
 import { aimSd, aiShot, gauss, now } from './aim.ts';
 import { styled, type StyleId } from './styles.ts';
 import { aiParams, chooseGroup, type Cand, EDGE, enumerate, makeProb, NINE, type Obj, type Pick, plan, rng, shotOdds, SIGMA_REF, SOLIDS, STRIPES, type Tier } from './shot-ai.ts';
@@ -33,28 +33,45 @@ function lane(B: Ball[], ax: number, ay: number, bx: number, by: number, skip: n
   const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1;
   return B.every((o, i) => skip.includes(i) || !o.on || (() => { const t = Math.max(0, Math.min(1, ((o.x - ax) * dx + (o.y - ay) * dy) / l2)); return (o.x - ax - dx * t) ** 2 + (o.y - ay - dy * t) ** 2 >= (2 * P.R) ** 2; })());
 }
+// Bank shots: where the centre of a ball at (bx, by) meets cushion c to bank into pocket h (HOLES index): the line to the
+// pocket's mirror image across the line a radius off the nose. null = that point is off cushion c, or c ends at pocket h
+// (rules.ts banked() does not count that).
+function railPoint(bx: number, by: number, h: number, c: number): [number, number] | null {
+  if (ENDS[c].includes(h)) return null;
+  const [x0, y0, x1, y1] = nose(c), e = Math.hypot(x1 - x0, y1 - y0), s = (P.L / 2 - x0) * (y0 - y1) + (P.W / 2 - y0) * (x1 - x0) > 0 ? 1 : -1;
+  const nx = s * (y0 - y1) / e, ny = s * (x1 - x0) / e, [hx, hy] = HOLES[h]; // n: the unit normal into the table
+  const db = (bx - x0) * nx + (by - y0) * ny - P.R, dh = (hx - x0) * nx + (hy - y0) * ny - P.R;
+  if (db <= 0 || dh <= 0) return null;
+  const t = db / (db + dh), x = bx + t * (hx - 2 * dh * nx - bx), y = by + t * (hy - 2 * dh * ny - by);
+  return cushionAt(x, y, 1.5 * P.R) === c ? [x, y] : null;
+}
+
 // Cue ball in hand: a spot straight behind a legal ball on a clear line to a pocket, the shorter the shot the better.
-// null = no such spot is legal (it stays where the rules put it). shortcut: straight-in lines only, scored by length,
-// not by the picker; good enough to give the picker an easy pot, add the picker's value if the AI places badly.
-export function placeCue(B: Ball[], ids: number[], hand: Hand, legal: number[]): [number, number] | null {
+// Bank shots (lit): the line is a bank into the pocket off a lit cushion (railPoint), as a straight pot would not count.
+// null = no such spot is legal (it stays where the rules put it). shortcut: straight-in lines and one-cushion mirror
+// banks only, scored by length, not by the picker; good enough to give the picker an easy pot, add the picker's value
+// if the AI places badly.
+export function placeCue(B: Ball[], ids: number[], hand: Hand, legal: number[], lit: number[] = []): [number, number] | null {
   let best = -Infinity, at: [number, number] | null = null;
   for (const id of legal) {
     const i = ids.indexOf(id), b = B[i];
     if (i < 0 || !b.on) continue;
     HOLES.forEach((h, k) => {
-      const dx = h[0] - b.x, dy = h[1] - b.y, l = Math.sqrt(dx * dx + dy * dy), ux = dx / l, uy = dy / l;
-      if (k >= 4 && Math.abs(uy) < 0.7) return; // a side pocket takes no ball from a shallow angle
-      if (!lane(B, b.x, b.y, h[0], h[1], [0, i])) return;
-      const gx = b.x - 2 * P.R * ux, gy = b.y - 2 * P.R * uy;
-      for (const d of [0.15, 0.35, 0.6]) {
-        const x = gx - d * ux, y = gy - d * uy, score = -(d + l);
-        if (score > best && legalSpot(B, x, y, hand) && lane(B, x, y, gx, gy, [0, i])) { best = score; at = [x, y]; }
+      for (const a of lit.length ? lit.map((c) => railPoint(b.x, b.y, k, c)) : [h]) { // where the ball is sent: the pocket, or the lit cushion
+        if (!a) continue;
+        const dx = a[0] - b.x, dy = a[1] - b.y, l1 = Math.sqrt(dx * dx + dy * dy), ux = dx / l1, uy = dy / l1, l2 = Math.hypot(h[0] - a[0], h[1] - a[1]), l = l1 + l2;
+        if (k >= 4 && Math.abs(l2 ? (h[1] - a[1]) / l2 : uy) < 0.7) continue; // a side pocket takes no ball from a shallow angle
+        if (!lane(B, b.x, b.y, a[0], a[1], [0, i]) || (l2 && !lane(B, a[0], a[1], h[0], h[1], [0, i]))) continue;
+        const gx = b.x - 2 * P.R * ux, gy = b.y - 2 * P.R * uy;
+        for (const d of [0.15, 0.35, 0.6]) {
+          const x = gx - d * ux, y = gy - d * uy, score = -(d + l);
+          if (score > best && legalSpot(B, x, y, hand) && lane(B, x, y, gx, gy, [0, i])) { best = score; at = [x, y]; }
+        }
       }
     });
   }
   return at;
 }
-
 // 9-ball ball in hand: a spot behind the lowest ball (lo, an id) lined up to drive the 9 into a pocket, a combo of at
 // most a 60 degree cut on the 9, the shorter the better. think() takes it when the picker values the table from there more.
 export function comboSpot(B: Ball[], ids: number[], hand: Hand, lo: number): [number, number] | null {
@@ -129,7 +146,7 @@ export function think(B: Ball[], ids: number[], s: State, level: number, seed: n
   // shortcut: 9-ball keeps NINE whole (the picker knows it by its length), so a lowest ball behind the line is still a foul.
   const ahead = (l: number[]) => { const k = s.hand === 'kitchen' ? l.filter(id => { const b = B[ids.indexOf(id)]; return b && b.on && b.x >= P.L / 4; }) : l; return k.length ? k : l; };
   if (s.hand) { // place first, then shoot from there
-    let at = placeCue(B, ids, s.hand, ahead(legalIds(s, g[0])));
+    let at = placeCue(B, ids, s.hand, ahead(legalIds(s, g[0])), s.lit);
     const combo = s.game === 9 && T.types.includes('combo') ? comboSpot(B, ids, s.hand, legalIds(s, g[0])[0]) : null;
     if (combo) { // the combo spot when the 9 is its best shot and wins the rack more often (by EDGE, as nineValue; Hustler by spot) than the
       // best shot from the straight-in spot (or where the cue ball lies). shortcut: two more plan() calls, about 7 ms (Node JIT).
