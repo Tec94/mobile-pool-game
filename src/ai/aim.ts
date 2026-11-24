@@ -135,7 +135,7 @@ const THINK = 2500; // ms: past this from the start of aiShot, refine runs no mo
 type Clock = { n: number; cap: number; end: number };
 // One shot aiShot refines: its candidate, its search (refine), its check (verify), value, chance, shot and best rollout.
 type Run = { c: Planned | Safety; more: ((n: number) => Roll) | null; verifyAt?: (s: Shot) => number; v: number; p: number; shot: Shot; r: Roll | null };
-type Search = { runs: Run[]; mkRun: (c: Planned | Safety, free?: boolean) => Run; score: (x: Run, n: number) => void; checkRun: (x: Run) => void; late: () => boolean; stopped: () => boolean };
+type Search = { runs: Run[]; mkRun: (c: Planned | Safety, free?: boolean) => Run; score: (x: Run, n: number) => void; checkRun: (x: Run) => void; late: () => boolean; stopped: () => boolean; clk: Clock };
 function over(k: Clock) { return k.n >= k.cap || now() >= k.end; }
 const FAIL = 1; // a pot's rollout score lost for each verify() rollout that does not pot it
 // A tier with tricks checks its pots (refine, aiShot check): the shot again with the aim 2 sd either way, the speed
@@ -220,12 +220,12 @@ const big = (c: Planned | Safety) => (c.rails ?? 1) >= 3 || !!c.elev; // a reel 
 const SHOW_MIN = 0.8; // a reel shot plays only checked on 5 of 6 (0.97 x 5/6)
 // A tier with tricks' search, in rollouts: against Legend (npm run bench:masters 200 9) it wins as often as with no cap;
 // with 60 it lost points. About 4 ms a rollout on Node JIT, 55 on the interpreter (the TIERS comment).
-export const ROLLOUTS = 90;
-const SURE = 0.97, SHOW_GAP = 0.05, SAFE_P = 0.5, RESCUE = 12, RESCUE_SIMS = 20; // a trick shot's chance when verify() pots all six; the most make chance show gives up
+export const ROLLOUTS = 90; // a safety may run 2 x SPARE past it (tricksTail)
+const SURE = 0.97, SHOW_GAP = 0.05, SAFE_P = 0.5, RESCUE = 12, RESCUE_SIMS = 20, SPARE = 10; // a trick shot's chance when verify() pots all six; the most make chance show gives up
 // The Chinese Masters' last word on a shot, after the search (aiShot): a rescue search when no pot is trusted, the
 // fancier pot for show, the reel shot, and the safety it falls back on. won = the best run so far; returns the one to play.
 export function tricksTail(won: Run, srch: Search, cands: (Planned | Safety)[], cue: Obj, balls: Obj[], group: number[], oppGroup: number[], tier: Tier, rnd: () => number, safetiesInRow: number, ok?: (c: Cand) => boolean): Run {
-  const { runs, mkRun, score, checkRun, late, stopped } = srch;
+  const { runs, mkRun, score, checkRun, late, stopped, clk } = srch;
   // A tier with tricks and no pot it trusts (SAFE_P) searches on before it plays safe: the next RESCUE pots of any kind, by
   // their seed chance, RESCUE_SIMS rollouts each, until the budget runs out. Most of the tables it played safe on had a pot the
   // geometric ranking put too low.
@@ -261,9 +261,25 @@ export function tricksTail(won: Run, srch: Search, cands: (Planned | Safety)[], 
   // A tier with tricks has measured its pots: when none pots on the engine, or the best only in under SAFE_P of verify()'s
   // rollouts, it plays a safety or an escape after all, unless it must shoot (safetiesInRow). Out of rollouts it plays
   // its best pot, as Legend would, if one potted on the engine; at the hard stop (a slow device) always its best pot.
+  // The fallback safety, and the search for a legal one below, each get SPARE rollouts past the budget: with it spent, one had one.
+  const spare = () => { clk.cap = Math.max(clk.cap, clk.n + SPARE); };
   if (!trusted() && won.c.type !== 'safety' && safetiesInRow < 2 && !stopped() && (!late() || won.v <= 0)) {
     const s = safety(cue, balls, group, oppGroup, tier, rnd, false) ?? escape(cue, balls, group);
-    if (s) { won = mkRun(s, true); score(won, RESCUE_SIMS); }
+    if (s) { spare(); won = mkRun(s, true); score(won, RESCUE_SIMS); }
+  }
+  // A safety or escape whose best rollout fouls (wrong ball first, no cushion, a scratch) gives way to the best safety at
+  // each other angle, least left to the opponent first, then the escape: the first that rolls out legal is played.
+  const fouls = (x: Run) => x.c.type === 'safety' && !(x.r?.legal && x.r.rail && !x.r.scratch);
+  if (fouls(won)) {
+    spare();
+    const alts = [...tier.safetyAngles.map((a) => safety(cue, balls, group, oppGroup, { ...tier, safetyAngles: [a] }, rnd, false)).sort((a, b) => (a?.oppBest ?? 9) - (b?.oppBest ?? 9)), escape(cue, balls, group)];
+    for (const s of alts) {
+      if (late() || stopped()) break;
+      if (!s || (s.ball === won.c.ball && Math.abs(s.aim - won.c.aim) < 1e-9)) continue;
+      const x = mkRun(s, true);
+      score(x, SPARE);
+      if (!fouls(x)) { won = x; break; }
+    }
   }
   return won;
 }
@@ -350,7 +366,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
     settle();
   }
   let won = best();
-  if (tier.tricks) won = tricksTail(won, { runs, mkRun, score, checkRun, late, stopped }, cands, cue, balls, group, oppGroup, tier, rnd, safetiesInRow, ok);
+  if (tier.tricks) won = tricksTail(won, { runs, mkRun, score, checkRun, late, stopped, clk }, cands, cue, balls, group, oppGroup, tier, rnd, safetiesInRow, ok);
   const aim = won.shot, played = won.c;
   const t2 = now(), g = () => gauss(rnd);
   const tip = (x: number) => Math.max(-CUE.tipLimit, Math.min(CUE.tipLimit, x + g() * tier.tipErr)); // tipErr is in ball radii, as a and b are

@@ -124,7 +124,7 @@ for (const [type, rails] of [['bank', 2], ['bank', 3], ['kick', 2], ['kick', 3]]
   const run = (c, p, next, score) => ({ c, v: p * (1 + next), p, shot: {}, r: { sure: 1, next, score, extra: 0 }, more: null });
   const swap = (bestP, reelP, reelNext = 0.9) => {
     const won = run({ type: 'direct', ball: 1 }, bestP, 0.9, 15), reel = run({ type: 'kick', rails: 3, ball: 1 }, reelP, reelNext, 10);
-    const srch = { runs: [won, reel], mkRun: () => { throw new Error('no'); }, score: () => {}, checkRun: () => {}, late: () => false, stopped: () => false };
+    const srch = { runs: [won, reel], mkRun: () => { throw new Error('no'); }, score: () => {}, checkRun: () => {}, late: () => false, stopped: () => false, clk: { n: 0, cap: Infinity, end: Infinity } };
     return tricksTail(won, srch, [], { x: 0, y: 0 }, [], SOLIDS, STRIPES, M, rng(1), 2) === reel;
   };
   assert(swap(0.97, 0.93) && !swap(0.97, 0.91), 'the gap');
