@@ -1,9 +1,9 @@
 // Run: npm test   (the AI seat in a match: where it puts the cue ball in hand, its call, its decisions, and whole racks
 // played AI against AI through the rules and the engine, with no screen)
 import assert from 'node:assert';
-import { breakSpot, HOLES, P, rack, step, strike } from '../physics/engine.ts';
+import { breakSpot, CUE, HOLES, P, rack, simulate, step, strike } from '../physics/engine.ts';
 import { choose, handCue, judge, legalSpot, moveCue, newGame, newRec, record, setCall, spotBall } from '../rules/rules.ts';
-import { breakShot, callFor, candsFor, choiceFor, comboSpot, groupsOf, holeOf, nextSafeties, onLit, placeCue, potPay, safetiesArg, softMove, think as clocked } from './turn.ts';
+import { breakShot, callFor, candsFor, choiceFor, comboSpot, groupsOf, holeOf, nextSafeties, onLit, placeCue, potPay, safetiesArg, softMove, think as clocked, trickBreak } from './turn.ts';
 import { aiShot } from './aim.ts';
 import { makeRates } from './bench.ts';
 import { cushionAt } from '../rules/rules.ts';
@@ -68,6 +68,20 @@ const play8 = (more = {}) => ({ ...newGame(8, 0, true), phase: 'play', turn: 1, 
   assert(Math.abs(s.ang - Math.atan2(o.y - B[0].y, o.x - B[0].x)) < 0.006 && s.speed > 10, 'hard, at the 1');
   const m = think(B.map(b => ({ ...b })), ids, newGame(8, 1), 1, 1, 0); eq([m.at, m.call, m.safety], [null, -1, false], 'the break: no placing, no call');
   ok('the AI breaks hard at the apex ball');
+}
+{ // trickBreak, the Chinese Masters' 8-ball break: no harder than a full break and into the 1 first. A tier without tricks,
+  // and the Masters in 9-ball, break as before.
+  const M = TIERS.find(t => t.tricks);
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const { B, ids } = racked(8), s = trickBreak(B, ids, M, rng(seed));
+    assert(s.speed <= CUE.breakSpeed, `seed ${seed}: speed ${s.speed} past the break speed`);
+    eq(ids[simulate(B, s).first], 1, `seed ${seed}: the 1 first`);
+    eq(think(B.map(b => ({ ...b })), ids, newGame(8, 1), TIERS.indexOf(M) + 1, seed, 0).shot, s, `seed ${seed}: the Masters' 8-ball break`);
+    for (const [game, level] of [...TIERS.flatMap((t, i) => (t.tricks ? [] : [[8, i + 1]])), [9, TIERS.indexOf(M) + 1]]) {
+      const t = racked(game); eq(think(t.B.map(b => ({ ...b })), t.ids, newGame(game, 1), level, seed, 0).shot, breakShot(t.B, t.ids, rng(seed)), `seed ${seed}: ${game}-ball at rating ${level} breaks as before`);
+    }
+  }
+  ok('the Chinese Masters breaks no harder than a full break, into the 1; the others as before');
 }
 { // Calls: a pot names the pocket of its path; on the 8 a safety still calls the pocket nearest the 8.
   const pot = { type: 'direct', paths: [[{ x: 0, y: 0 }], [{ x: 1000, y: 500 }, { x: 44, y: 44 }]] }, B = [mk(1, 0.5), mk(P.L - 0.1, P.W - 0.1)], ids = [0, 8];
