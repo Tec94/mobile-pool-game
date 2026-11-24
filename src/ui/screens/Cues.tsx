@@ -18,11 +18,11 @@ const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 // The cue rack: cream = owned, dark = not, each with its footer (in use, stats, or what gets it). The panel shows the
 // chosen cue: its trick, its stats as blocks against the top of 10 with the tuning keys on each owned stat, its mastery,
-// and the one button. Advanced swaps the trick text for the real numbers; upgrading never hides behind it.
+// and the one button. Advanced swaps the trick text for the real numbers and fine print; upgrading never hides behind it.
 // shortcut: pass and play stays on House Cue stats, so the pick only counts once a mode with own cues lands.
 export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
   const [p, setP] = useState(profile), [up, setUp] = useState(() => CUE_IDS.indexOf(p.cue)), [adv, setAdv] = useState(false);
-  const { land, side, width } = useFrame(), panel = usePanel(true), left = land ? width - 2 * side - panel - 16 : width - 2 * side;
+  const { land, side, width, height } = useFrame(), panel = usePanel(true), left = land ? width - 2 * side - panel - 16 : width - 2 * side;
   const n = Math.max(1, Math.floor((left - 4) / (86 + 8))), cw = Math.floor((left - 8 - 8 * (n - 1)) / n); // 4 pt each side for the chosen outline
   const put = (next: Profile) => { if (next !== p) { keep(next); setP(next); } };
   const foot = (id: CueId) => {
@@ -40,17 +40,17 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
     c.price !== undefined && p.coins < c.price && `${(c.price - p.coins).toLocaleString('en-US')} coins short`,
     f && `${featName(f)} ${featCount(p, f)}/${FEATS[f].count}`, c.level && `Reach level ${c.level}`, c.get && (id === 'surveyor' ? `${done.length}/${PENCIL_AT} lessons` : c.get),
   ].filter((x): x is string => !!x).slice(0, 2), fits = !!need[0] && need[0].length <= 20; // a longer need would not fit the button
-  const cta = owned ? { label: use ? 'In use' : 'Use', name: use ? `${c.name}, in use` : `Use ${c.name}`, off: use, onPress: () => put(select(p, id)) }
+  const cta = owned ? { label: use ? 'In use' : 'Use', name: use ? `${c.name}, in use` : `Use ${c.name}`, off: use, slim: use, onPress: () => put(select(p, id)) }
     : c.price !== undefined ? { label: `Buy ${c.price.toLocaleString('en-US')}`, name: `Buy ${c.name} for ${c.price} coins`, off: p.coins < c.price, quiet: true,
       onPress: () => { const next = buy(p, id); if (next !== p) feel(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)); put(next); } }
-    : { label: fits ? need[0] : 'Locked', name: `${c.name}, locked${need[0] ? `: ${need[0]}` : ''}`, off: true, onPress: () => {} };
+    : { label: fits ? need[0] : 'Locked', slim: true, name: `${c.name}, locked${need[0] ? `: ${need[0]}` : ''}`, off: true, onPress: () => {} };
   const rest = c.price === undefined && fits ? need.slice(1) : need; // what the button does not already say
   const family = FAMILIES.find(x => x[0] === c.family)![1], st = cueStats(p, id), m = masteryOf(p, id);
   const barW = Math.max(60, Math.min(170, panel - 24 - 44 - 23 - 16 - (owned && tunable(id) ? 114 : 0)));
   return (
     <Shell title="Cues" back={() => go('home')} extra={<Txt style={styles.count}>{`${p.owned.length} / ${CUE_IDS.length}`}</Txt>}>
       <Split wide at={Math.floor(up / n) * (H + 13)} panel={
-        <Panel head={<>
+        <Panel key={id} head={<>
           <Txt numberOfLines={1} style={styles.head}>{c.name}</Txt>
           <Txt numberOfLines={1} style={[TYPE.small, styles.family]}>{family}</Txt>
           <View style={{ flex: 1 }} />
@@ -59,7 +59,7 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
             <Txt style={[styles.advText, adv && { color: C.ink }]}>Advanced</Txt>
           </Pressable>
         </>} cta={cta}
-          picture={land ? undefined : pw => <CueArt id={id} w={Math.round(pw)} h={PIC} whole />}
+          picture={land || height < 700 ? undefined : pw => <CueArt id={id} w={Math.round(pw)} h={PIC} whole />}
           foot={<View style={{ gap: 7 }}>
             {rest.length > 0 && <Txt style={[TYPE.small, styles.bold, { color: C.gold }]}>{rest.join(' · ')}</Txt>}
             <View style={{ gap: 3 }}>
@@ -67,9 +67,9 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
             </View>
             {owned && <Mastery id={id} p={p} />}
           </View>}>
-          {adv ? <Advanced id={id} p={p} quip={c.quip} note={c.note} /> : (
+          {adv ? <Advanced id={id} p={p} quip={c.quip} note={[c.cost, c.note].filter(Boolean).join(' ')} /> : (
             <Txt style={TYPE.small} accessibilityLabel={`${c.trick ? `Trick: ${c.trick}. ` : ''}${c.does} ${c.cost}`}>
-              {!!c.trick && <Txt style={styles.bold}>{`${c.trick}. `}</Txt>}{c.does}<Txt style={{ opacity: 0.7 }}>{` ${c.cost}`}</Txt>
+              {!!c.trick && <Txt style={styles.bold}>{`${c.trick}. `}</Txt>}{c.does}
             </Txt>
           )}
         </Panel>}>
@@ -97,7 +97,7 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
 // A stat: its name, its blocks (tuning points in chalk), its value, and on an owned cue that tunes, − and + keys.
 // A point moves back for free; + places a point, for free while paid ones are spare, else for the next step's coins.
 function StatRow({ id, s, p, put, value, tuned, barW }: { id: CueId; s: Stat; p: Profile; put: (p: Profile) => void; value: number; tuned: number; barW: number }) {
-  const name = cap(s), tunes = p.owned.includes(id) && tunable(id), cost = upCost(p, id, s), cue = CUES[id].name;
+  const name = cap(s), tunes = p.owned.includes(id) && tunable(id), cost = upCost(p, id, s), cue = CUES[id].name, can = cost !== null && p.coins >= cost;
   return (
     <View style={styles.stat}>
       <View style={styles.statLine} accessible accessibilityLabel={`${name} ${value} of 10${tuned ? `, ${tuned} tuned` : ''}`}>
@@ -110,17 +110,17 @@ function StatRow({ id, s, p, put, value, tuned, barW }: { id: CueId; s: Stat; p:
           <Txt style={styles.keyText}>−</Txt>
         </Slab>
         {locked(id, s) ? <View style={[styles.key, styles.plus]} accessible accessibilityLabel={`${name} is locked on ${cue}`}><Glyph id="lock" color={C.chalk} /></View> // the price of the trick: no plus
-          : <Slab paint={cost !== null && p.coins >= cost ? CREAM : DARK} lip={3} radius={3} onPress={() => { feel(() => Haptics.selectionAsync()); put(tuneUp(p, id, s)); }} disabled={cost === null || p.coins < cost}
-            accessibilityLabel={`${name} up one on ${cue}${cost ? ` for ${cost} coins` : ', free'}`} hitSlop={{ top: 1, bottom: 1, left: 2, right: 2 }} face={[styles.key, styles.plus]} style={(cost === null || p.coins < cost) && { opacity: 0.35 }}>
-            <Txt style={[styles.keyText, cost !== null && p.coins >= cost && { color: C.ink }]}>+1</Txt>
-            {!!cost && <><View style={styles.coin} /><Txt style={[styles.keyText, styles.price, cost !== null && p.coins >= cost && { color: C.ink }]}>{cost.toLocaleString('en-US')}</Txt></>}
+          : <Slab paint={can ? CREAM : DARK} lip={3} radius={3} onPress={() => { feel(() => Haptics.selectionAsync()); put(tuneUp(p, id, s)); }} disabled={!can}
+            accessibilityLabel={`${name} up one on ${cue}${cost ? ` for ${cost} coins` : ', free'}`} hitSlop={{ top: 1, bottom: 1, left: 2, right: 2 }} face={[styles.key, styles.plus]} style={!can && { opacity: 0.35 }}>
+            <Txt style={[styles.keyText, can && { color: C.ink }]}>+1</Txt>
+            {!!cost && <><View style={styles.coin} /><Txt style={[styles.keyText, styles.price, can && { color: C.ink }]}>{cost.toLocaleString('en-US')}</Txt></>}
           </Slab>}
       </View>}
     </View>
   );
 }
 
-// The real numbers the stats make on the table, the cue's fine print and its line.
+// The real numbers the stats make on the table, the cue's fine print (what its trick costs, the exact rule) and its line.
 function Advanced({ id, p, quip, note }: { id: CueId; p: Profile; quip?: string; note?: string }) {
   const sp = specs(id, cueStats(p, id));
   const facts: [string, string, string][] = [[sp.shot.toFixed(2), 'm/s', 'Top shot'], [sp.brk.toFixed(1), 'm/s', 'Break'], [sp.tipMm.toFixed(1), 'mm', 'Tip reach'], [String(sp.guideCm), 'cm', 'Guide']];

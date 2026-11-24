@@ -88,11 +88,11 @@ export function BallArt({ n, size, label }: { n: number; size: number; label?: s
 }
 
 // value of 10 as blocks, gold filled: a cue stat against the absolute top.
-// tuned = how many of the value's blocks are tuning points: drawn in chalk after the cue's own gold.
+// tuned = how many of the value's blocks are tuning points: gold too (they are owned), ringed in chalk.
 export function Blocks({ value, max = 10, width = 200, tuned = 0 }: { value: number; max?: number; width?: number; tuned?: number }) {
   return (
     <View style={[styles.blocks, { width }]}>
-      {Array.from({ length: max }, (_, i) => <View key={i} style={[styles.block, i < value && { backgroundColor: i >= value - tuned ? C.chalk : C.gold }]} />)}
+      {Array.from({ length: max }, (_, i) => <View key={i} style={[styles.block, i < value && { backgroundColor: C.gold }, i < value && i >= value - tuned && styles.tunedBlock]} />)}
     </View>
   );
 }
@@ -120,6 +120,7 @@ const styles = StyleSheet.create({
   chipText: { fontFamily: FONT.bold, fontSize: 13, lineHeight: 16, color: C.chalk, fontVariant: ['tabular-nums'] },
   disc: { position: 'absolute', left: 0, top: 0 },
   blocks: { flexDirection: 'row', gap: 2 },
+  tunedBlock: { borderWidth: 1.5, borderColor: C.chalk },
   block: { flex: 1, height: 10, borderRadius: 1, backgroundColor: C.chalk + '1F' },
   track: { height: 9, borderRadius: 2, backgroundColor: C.chalk + '1F', overflow: 'hidden' },
   fill: { height: '100%', backgroundColor: C.gold },
