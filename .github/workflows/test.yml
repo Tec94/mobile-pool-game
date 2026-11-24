@@ -3,6 +3,7 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -12,3 +13,13 @@ jobs:
       - run: npm test
       - run: npm run frames -- "$RUNNER_TEMP/frames"  # the drawing code has no other check: this draws every picture once
       - run: npm run demo  # the web demo on runout.win/play still bundles
+  # The site is deployed from a Windows PC, and the demo build there takes paths of its own (a junction, taskkill, a shell).
+  demo-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run demo
