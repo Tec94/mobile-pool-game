@@ -782,7 +782,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
           {paid && <PayRow label={!vs ? 'Pass and play' : win === 0 ? 'Match win' : 'Match'} xp={paid.match.xp} coins={paid.match.coins} twice={!!paid.chalk} />}
           {paid && vs && <PayRow label="Shots" xp={paid.shots.xp} coins={paid.shots.coins} />}
           {!!paid?.note && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{paid.note}</Text>}
-          {!!paid?.luck && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{paid.luck}</Text>}
+          {!!paid?.why && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{paid.why}</Text>}
           {!!paid?.got && <Text maxFontSizeMultiplier={1.3} style={[styles.cardNote, styles.left]}>{`New cue: ${paid.got.join(', ')}`}</Text>}
           {paid && prize.current && <PayRow label="Prize" xp={prize.current.xp} coins={prize.current.coins} />}
           {paid && <PayTotal xp={paid.total.xp + (prize.current?.xp ?? 0)} coins={paid.total.coins + (prize.current?.coins ?? 0)} />}

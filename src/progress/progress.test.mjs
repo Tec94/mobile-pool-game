@@ -4,7 +4,7 @@ import { CUE, HOLES, P } from '../physics/engine.ts';
 import { afterSoft, auraLine, brakeAt, brakeLine, flukeLine, gold, maxLine, newBrake, hindsight, newOmen, newPast, omenLine, pastLine, mog, mogLead, mogLine, newSoft, noteSunk, notch, overdrive, ramOwes, ratchet, softCan, softHands, softLine, STEPS, trickFor, whatever } from './tricks.ts';
 import { ahead, judge, newGame, newRec } from '../rules/rules.ts';
 import { CUE_IDS, CUES, specLine, specs, stick } from './cues.ts';
-import { hustler, matchFeats, matchPay, newLedger, noteShot, NOT_RUN, rackOver, safetyPay, settle, shotPay } from './pay.ts';
+import { hustler, matchFeats, matchPay, newLedger, noteShot, NOT_RUN, RAN_OUT, rackOver, safetyPay, settle, shotPay } from './pay.ts';
 import { cueGain, cueStats, masteryLevel, masteryNote, masteryOf, maxStats, nextPick, readMastery, statsOf, tuneDown, tuneUp, upCost } from './mastery.ts';
 import { buy, feat, featCount, featName, FEATS, gain, levelNote, levelOf, matchEnd, NEW, opens, PACKS, passPlay, readProfile, runOwe, select, unlock, VENUES } from './profile.ts';
 const eq = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
@@ -267,7 +267,7 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   const luck = newLedger(); rackOver(luck, true, true); rackOver(luck, true, true, false);
   eq([ran.lucky, luck.lucky], [undefined, true], 'a rack won and not run out is lucky; a rack lost never is');
   eq([settle(ran, { tier: 7, won: true, early: false }).match, settle(luck, { tier: 7, won: true, early: false }).match], [matchPay({ tier: 7, won: true, fouls: 0 }), matchPay({ tier: 6, won: true, fouls: 0 })], 'the Masters: a win with every rack run out pays x10, one with a lucky rack as Legend');
-  eq([settle(ran, { tier: 7, won: true, early: false }).luck, settle(luck, { tier: 7, won: true, early: false }).luck, settle(luck, { tier: 6, won: true, early: false }).luck], [undefined, NOT_RUN, undefined], 'only the denied x10 says why');
+  eq([ran, luck, luck, mb, ran].map((l, i) => settle(l, { tier: i === 2 ? 6 : 7, won: i < 4, early: false, racks: i === 3 ? 1 : undefined }).why), [RAN_OUT, NOT_RUN, undefined, undefined, undefined], 'a Masters win says why it paid x10 or not; not below the Masters, on the break alone or lost');
   eq(settle(luck, { tier: 6, won: true, early: false }).match, matchPay({ tier: 6, won: true, fouls: 0 }), 'below the Masters luck changes nothing');
   ok('a win on the break alone pays no match pay');
 }
