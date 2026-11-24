@@ -6,7 +6,7 @@ import { type Ball, CUE, HOLES, P, type Shot } from '../physics/engine.ts';
 import { canCall, cushionAt, ENDS, jumped, legalSpot, massed, onEight, potKind, type Hand, type Rec, type State } from '../rules/rules.ts';
 import { aiShot } from './aim.ts';
 import { styled, type StyleId } from './styles.ts';
-import { aiParams, chooseGroup, type Cand, EDGE, enumerate, makeProb, NINE, type Obj, type Pick, plan, rng, shotOdds, SIGMA_REF, SOLIDS, STRIPES } from './shot-ai.ts';
+import { aiParams, chooseGroup, type Cand, EDGE, enumerate, makeProb, NINE, type Obj, type Pick, plan, rng, shotOdds, SIGMA_REF, SOLIDS, STRIPES, type Tier } from './shot-ai.ts';
 import { type Aura, hustler, type Pay, shotPay, type ShotType as PayType, type Vs } from '../progress/pay.ts';
 import type { FeatId } from '../progress/profile.ts';
 
@@ -83,6 +83,17 @@ export function breakShot(B: Ball[], ids: number[], rnd: () => number): Shot {
   return { ang: Math.atan2(o.y - c.y, o.x - c.x) + (rnd() - 0.5) * 0.01, speed: CUE.breakSpeed * (0.85 + 0.15 * rnd()), a: 0, b: 0 };
 }
 
+// The Chinese Masters' 8-ball break (a tier with tricks): full break speed into the 1 a ball radius off its centre, with
+// the tier's own strike noise. With that noise on 200 seeded racks, a ball down and no scratch: 113 (full on: 56;
+// breakShot 32 of 100). In 9-ball off centre puts more balls down but scratches four times as often (0.75 R: 123 with 28
+// scratches, full on: 109 with 6), so it breaks as the others. An aim searched per rack does not pay: its 0.025 degrees
+// of noise decide the spread (the best of 6 aims on 4 trials potted 35 of 80 fresh trials, a fixed aim 36).
+export function trickBreak(B: Ball[], ids: number[], tier: Tier, rnd: () => number): Shot {
+  const c = B[0], o = B[ids.indexOf(1)], g = () => Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd()); // Box-Muller
+  const ang = Math.atan2(o.y - c.y, o.x - c.x) + Math.asin(P.R / Math.hypot(o.x - c.x, o.y - c.y));
+  return { ang: ang + g() * tier.sigma * Math.PI / 180, speed: CUE.breakSpeed * Math.min(1, 1 + g() * tier.speedErr / 100), a: g() * tier.tipErr, b: g() * tier.tipErr };
+}
+
 // The pocket to call: the pocket of the pick when it is a pot. On the 8 a call is a must, so a safety or a foul shot
 // still calls the pocket nearest the 8 (a miss loses nothing).
 export function callFor(s: State, pick: Pick, B: Ball[], ids: number[]) {
@@ -110,7 +121,7 @@ export const onLit = (lit: number[], c: Cand) => {
 // style = a tournament opponent's style (src/ai/styles.ts); none = the plain tier.
 export function think(B: Ball[], ids: number[], s: State, level: number, seed: number, safeties: number, style?: StyleId): Move {
   const rnd = rng(seed), T = styled(aiParams(level, rnd), style, s.game === 9 ? s.balls.length : s.solids < 0 ? 8 : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === s.turn)).length + 1);
-  if (s.phase === 'break') return { shot: breakShot(B, ids, rnd), at: null, call: -1, safety: false };
+  if (s.phase === 'break') return { shot: T.tricks && s.game === 8 ? trickBreak(B, ids, T, rnd) : breakShot(B, ids, rnd), at: null, call: -1, safety: false };
   // open table: the group it would pick from where the cue ball lies now. By value: on the runtime its SOLIDS is a copy
   const g = groupsOf(s, s.turn) ?? (chooseGroup({ x: B[0].x * 1000, y: B[0].y * 1000 }, mm(B, ids), T)[0] === 1 ? [SOLIDS, STRIPES] : [STRIPES, SOLIDS]);
   // From the kitchen a ball behind the head string may not be hit first (rules.ts, crossed): leave those out, unless no other is left.
