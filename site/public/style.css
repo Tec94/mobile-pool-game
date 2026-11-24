@@ -160,14 +160,19 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
 .tray { display: flex; margin: 0 4px 0 0; } .steps .tray .ball { width: 26px; margin-right: -6px; }
 .tray .ball:not(.in) { background: none; box-shadow: inset 0 0 0 2px #EEF2EA59; } .tray .ball:not(.in) > i { opacity: .5; } /* a done step whose ball the film has still to pot: its place in the tray */
 .tray .ball.in { animation: drop .34s cubic-bezier(.2, 1.7, .4, 1); }
-.steps .plan { list-style: none; padding: 6px 12px 12px 56px; display: grid; gap: 4px; font: 500 clamp(15px, 1.6cqw, 18px)/1.35 var(--ui); max-width: 64ch; text-wrap: pretty; }
+.steps .plan { list-style: none; padding: 6px 12px 12px 56px; display: grid; gap: 4px; font: 500 clamp(15px, 2.2cqw, 22px)/1.35 var(--ui); max-width: 64ch; text-wrap: pretty; }
 .steps .ahead { margin-top: 12px; --t: var(--ink); color: var(--t); }
 .steps .ahead button, .steps .ahead button[aria-pressed=true] { background: none; box-shadow: none; color: var(--t); padding-top: 8px; }
-.steps .ahead:has(button[aria-pressed=true]) { outline: 3px solid var(--t); outline-offset: -3px; }
+.steps .ahead:has(button[aria-pressed=true]) { box-shadow: inset 6px 0 0 var(--t), 0 5px 0 var(--lip); } /* lit: an edge down the left; focus keeps the ring */
 .steps .ahead .ball { box-shadow: 0 0 0 2px #16191A40; }
 .steps .ahead button span { color: var(--t); }
 .steps .ahead button:focus-visible { outline-offset: -6px; }
-.steps .also b { display: block; padding: 14px 12px 0 56px; font-size: clamp(15px, 4.9cqw, 26px); letter-spacing: -.02em; }
+.steps .also > b { display: block; padding: 14px 12px 0 56px; }
+.steps .ahead b { font-size: clamp(19px, 4.9cqw, 26px); letter-spacing: -.02em; }
+.steps .also .plan { padding-top: 10px; padding-bottom: 0; } .steps .also .plan:last-child { padding-bottom: 14px; }
+.steps .also strong { font: 700 13px/1 var(--ui); letter-spacing: .06em; text-transform: uppercase; opacity: .85; }
+.steps .ahead { cursor: pointer; } .steps .also { cursor: auto; }
+.steps .c7 { --face: var(--dark); --lip: var(--dark-lip); --t: var(--chalk); }
 .c8 { --face: var(--cream); --lip: var(--cream-lip); } .c9 { --face: var(--gold); --lip: var(--gold-lip); }
 .steps .also { --face: #A8323F; --lip: #6E1C26; --t: var(--chalk); }
 .road .keys { position: static; translate: none; justify-content: flex-end; margin: 12px 0 0; min-height: 47px; }
@@ -177,7 +182,7 @@ input[type=range]::-moz-range-thumb { width: 22px; height: 26px; border: 0; bord
   .steps { margin: 12px 10px 0; }
   .road .keys { margin: 12px 10px 0 0; }
 }
-@media (max-width: 360px) { .steps button { gap: 8px; } .steps .ball { width: 30px; } .steps .tray .ball { width: 22px; } .steps .plan { padding-left: 46px; } }
+@media (max-width: 360px) { .steps button { gap: 8px; } .steps .ball { width: 30px; } .steps .tray .ball { width: 22px; } .steps .plan, .steps .also > b { padding-left: 46px; } }
 
 /* ---------- The close: one blue block, the form hanging off its lower edge ---------- */
 .road + .last { margin-top: clamp(28px, 5vw, 70px); }
