@@ -126,6 +126,7 @@ const GRID: [number, number][] = [[1, DRAW], [1, TIP], [1.6, DRAW], [1.6, 0], [0
 // A jump's speeds (times JUMP_SPEED) and elevations, the measured best first (38 and 45 degrees at 3.5 to 4.5 m/s, a jump
 // over a ball 200 to 600 mm away). Its tip stays at centre: side would curve it (a masse).
 const JUMP_SPEED = 4, D = Math.PI / 180;
+const TILT = 0.5 * D; // a jump's tilt error (sd): a hand cannot hold a raised cue to the aim's hundredth of a degree
 const JUMPS: [number, number, number][] = [[1.125, 0, 45 * D], [0.875, 0, 38 * D], [1.125, 0, 38 * D], [1, 0, 45 * D], [0.875, 0, 45 * D], [1, 0, 30 * D], [1.125, 0, 30 * D]];
 // ms clock; a worklet runtime may have no performance, so Date.now there
 export function now() { return typeof performance === 'undefined' ? Date.now() : performance.now(); } // a function declaration: the worklets plugin turns those into worklets, not a ternary of functions
@@ -145,7 +146,7 @@ const FAIL = 1; // a pot's rollout score lost for each verify() rollout that doe
 // scratch), or -1 when the budget (clk) ran out first.
 function verify(B: Ball[], ids: number[], group: number[], tier: Tier, s: Shot, sd: number, k: number, first: number, to: Pt | null, g: Pt, cr: number, or: number, clk: Clock) {
   const w = ids.indexOf(winBall(group)), f = 2 * tier.speedErr / 100;
-  const ts = [{ ...s, ang: s.ang + 2 * sd }, { ...s, ang: s.ang - 2 * sd }, { ...s, speed: Math.min(CUE.maxSpeed, s.speed * (1 + f)) }, { ...s, speed: s.speed * (1 - f) }, { ...s, a: 2 * tier.tipErr }, { ...s, a: -2 * tier.tipErr }, ...(s.elev ? [{ ...s, elev: s.elev + 2 * sd }, { ...s, elev: s.elev - 2 * sd }] : [])];
+  const ts = [{ ...s, ang: s.ang + 2 * sd }, { ...s, ang: s.ang - 2 * sd }, { ...s, speed: Math.min(CUE.maxSpeed, s.speed * (1 + f)) }, { ...s, speed: s.speed * (1 - f) }, { ...s, a: 2 * tier.tipErr }, { ...s, a: -2 * tier.tipErr }, ...(s.elev ? [{ ...s, elev: s.elev + 2 * TILT }, { ...s, elev: s.elev - 2 * TILT }] : [])];
   let n = 0;
   for (const t of ts) {
     if (over(clk)) return -1;
@@ -153,7 +154,7 @@ function verify(B: Ball[], ids: number[], group: number[], tier: Tier, s: Shot, 
     const r = rollout(B, t, k, first, to, g, cr, or, true);
     n += +(to ? r.pot && r.legal && (nine(group) || w <= 0 || w === k || r.S[w].on) : r.legal && r.rail && !r.scratch);
   }
-  return n * 6 / ts.length; // of six: a jump's eight (its tilt 2 sd either way too) scaled to six
+  return n * 6 / ts.length; // of six: a jump's eight (its tilt 2 TILT either way too) scaled to six
 }
 // The shot in hand on the engine, a few full-table simulations per call of the search it returns (more(n) runs n more and
 // returns the best so far): steer the aim until the right ball is hit first and ball k drops in the middle of the pocket
@@ -371,6 +372,6 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   const aim = won.shot, played = won.c;
   const t2 = now(), g = () => gauss(rnd);
   const tip = (x: number) => Math.max(-CUE.tipLimit, Math.min(CUE.tipLimit, x + g() * tier.tipErr)); // tipErr is in ball radii, as a and b are
-  const shot: Shot = { ang: aim.ang + g() * aimSd(tier, played.type), speed: Math.min(CUE.maxSpeed, Math.max(0.5, aim.speed * (1 + g() * tier.speedErr / 100))), a: tip(0), b: tip(aim.b), ...(aim.elev ? { elev: Math.min(CUE.maxElev, aim.elev + g() * aimSd(tier, played.type)) } : {}) }; // a jump's tilt held as steadily as its line
+  const shot: Shot = { ang: aim.ang + g() * aimSd(tier, played.type), speed: Math.min(CUE.maxSpeed, Math.max(0.5, aim.speed * (1 + g() * tier.speedErr / 100))), a: tip(0), b: tip(aim.b), ...(aim.elev ? { elev: Math.min(CUE.maxElev, aim.elev + g() * TILT) } : {}) };
   return { shot, aim, pick: played, ms: [t1 - t0, t2 - t1], rollouts: clk.n };
 }
