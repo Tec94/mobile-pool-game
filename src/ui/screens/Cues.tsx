@@ -40,7 +40,7 @@ export function Cues({ go, done }: Pick<Props, 'go'> & { done: string[] }) {
     f && `${featName(f)} ${featCount(p, f)}/${FEATS[f].count}`, c.level && `Reach level ${c.level}`, c.get && (id === 'surveyor' ? `${done.length}/${PENCIL_AT} lessons` : c.get),
   ].filter((x): x is string => !!x).slice(0, 2), fits = !!need[0] && need[0].length <= 20; // a longer need would not fit the button
   const cta = owned ? { label: use ? 'In use' : 'Use', name: use ? `${c.name}, in use` : `Use ${c.name}`, off: use, slim: use, onPress: () => put(select(p, id)) }
-    : c.price !== undefined ? { label: p.coins < c.price ? `${c.price.toLocaleString('en-US')} · ${(c.price - p.coins).toLocaleString('en-US')} short` : `Buy ${c.price.toLocaleString('en-US')}`, name: `Buy ${c.name} for ${c.price} coins`, off: p.coins < c.price, slim: p.coins < c.price, quiet: true,
+    : c.price !== undefined ? { label: p.coins < c.price ? `${c.price.toLocaleString('en-US')} · ${(c.price - p.coins).toLocaleString('en-US')} short` : `Buy ${c.price.toLocaleString('en-US')}`, name: p.coins < c.price ? `${c.name} costs ${c.price} coins, ${c.price - p.coins} more than you have` : `Buy ${c.name} for ${c.price} coins`, off: p.coins < c.price, slim: p.coins < c.price, quiet: true,
       onPress: () => { const next = buy(p, id); if (next !== p) feel(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)); put(next); } }
     : { label: fits ? need[0] : 'Locked', slim: true, name: `${c.name}, locked${need[0] ? `: ${need[0]}` : ''}`, off: true, onPress: () => {} };
   const rest = c.price === undefined && fits ? need.slice(1) : need; // what the button does not already say
@@ -110,7 +110,7 @@ function StatRow({ id, s, p, put, value, tuned, barW }: { id: CueId; s: Stat; p:
         </Slab>
         {locked(id, s) ? <View style={[styles.key, styles.plus]} accessible accessibilityLabel={`${name} is locked on ${cue}`}><Glyph id="lock" color={C.chalk} /></View> // the price of the trick: no plus
           : <Slab paint={can ? CREAM : DARK} lip={3} radius={3} onPress={() => { feel(() => Haptics.selectionAsync()); put(tuneUp(p, id, s)); }} disabled={!can}
-            accessibilityLabel={`${name} up one on ${cue}${cost ? ` for ${cost} coins` : ', free'}`} hitSlop={{ top: 1, bottom: 1, left: 2, right: 2 }} face={[styles.key, styles.plus]} style={!can && { opacity: 0.35 }}>
+            accessibilityLabel={`${name} up one on ${cue}${cost ? ` for ${cost} coins` : ', free'}`} hitSlop={{ top: 1, bottom: 1, left: 2, right: 2 }} face={[styles.key, styles.plus]} style={!can && { opacity: 0.6 }}>
             <Txt style={[styles.keyText, can && { color: C.ink }]}>+1</Txt>
             {!!cost && <><View style={styles.coin} /><Txt style={[styles.keyText, styles.price, can && { color: C.ink }]}>{cost.toLocaleString('en-US')}</Txt></>}
           </Slab>}
