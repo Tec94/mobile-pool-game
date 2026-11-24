@@ -1,31 +1,32 @@
 import { useRef, useState } from 'react';
-import { ScrollView, type ScrollViewInstance, StyleSheet, View } from 'react-native';
+import { type ScrollViewInstance, StyleSheet, View } from 'react-native';
 import { LESSONS } from '../../learn/lessons';
 import { C, CREAM, DARK, FONT, inkOn, MODE } from '../../theme';
 import type { LearnProps, Props } from '../Menus';
 import { MiniTable, SpinDot, tableOf } from '../MiniTable';
-import { Shell, Tile, useFrame } from '../shell';
+import { Scroll, Shell, Tile, useFrame } from '../shell';
 import { Txt } from '../slab';
 import { short } from './Home';
 
-const W = 170; // a lesson tile in landscape
 
 // Every lesson is open from the start: a tap starts it. Each tile draws its table, the pocket, the ring and where to hit
 // the cue ball. Purple = passed, cream = the next one, dark = not yet. Landscape: two rows that run off the right edge.
 export function Learn({ go, done, learn }: Pick<Props, 'go'> & LearnProps) {
   const { land, side, pad, width } = useFrame(), next = LESSONS.findIndex(l => !done.includes(l.id)), scroll = useRef<ScrollViewInstance>(null);
-  const [rowH, setRowH] = useState(150), tw = land ? W : (width - 2 * side - 8) / 2;
+  // Landscape: all seven columns across the screen when a tile can be 84 pt wide, else 150 pt tiles that scroll. Portrait: three across.
+  const fit = (width - 2 * side - 6 * 8) / 7, W = fit >= 84 ? fit : 150;
+  const [rowH, setRowH] = useState(150), tw = land ? W : (width - 2 * side - 16) / 3;
   const tile = (i: number) => {
     const l = LESSONS[i], passed = done.includes(l.id), paint = passed ? MODE.learn : i === next ? CREAM : DARK, ink = { color: inkOn(paint) };
     return (
       <Tile key={l.id} paint={paint} name={`Lesson ${i + 1}, ${l.title}, ${passed ? 'passed' : 'not passed'}`} onPress={() => learn(i)}
         style={land ? { width: W, height: rowH } : { width: tw }} face={[styles.tile, paint === DARK && styles.outline]}>
         <MiniTable width={tw - 16} {...tableOf(l)} />
-        <View style={styles.row}>
+        <View style={[styles.row, tw < 130 && { paddingRight: 18 }]}>
           <Txt style={[styles.num, ink, i !== next && { opacity: 0.7 }]}>{passed ? '✓' : i + 1}</Txt>
-          <Txt numberOfLines={2} style={[styles.name, ink]}>{short(l)}</Txt>
+          <Txt numberOfLines={2} style={[styles.name, tw < 130 && styles.nameSmall, ink]}>{short(l)}</Txt>
         </View>
-        <View style={styles.spin}><SpinDot tip={l.ref.tip} size={24} /></View>
+        <View style={styles.spin}><SpinDot tip={l.ref.tip} size={tw < 130 ? 18 : 24} /></View>
       </Tile>
     );
   };
@@ -37,16 +38,16 @@ export function Learn({ go, done, learn }: Pick<Props, 'go'> & LearnProps) {
   return (
     <Shell title="Learn" back={() => go('home')} extra={land && extra}>
       {land ? (
-        <ScrollView ref={scroll} horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1, marginTop: 12, marginBottom: Math.max(pad.bottom, 16) }}
+        <Scroll scrollRef={scroll} horizontal style={{ flex: 1, marginTop: 12, marginBottom: Math.max(pad.bottom, 16) }}
           contentContainerStyle={{ paddingHorizontal: side, gap: 8 }}
           onLayout={e => { setRowH(Math.min(160, (e.nativeEvent.layout.height - 13) / 2)); scroll.current?.scrollTo({ x: Math.max(0, (Math.floor(Math.max(0, next) / 2) - 1) * (W + 8)), animated: false }); }}>
           {cols.map((c, k) => <View key={k} style={{ gap: 13 }}>{c.map(tile)}</View>)}
-        </ScrollView>
+        </Scroll>
       ) : (
-        <ScrollView contentContainerStyle={{ paddingHorizontal: side, paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16), gap: 12 }}>
+        <Scroll style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: side, paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16), gap: 12 }}>
           <View style={styles.strip}>{extra}</View>
           <View style={styles.grid}>{LESSONS.map((_, i) => tile(i))}</View>
-        </ScrollView>
+        </Scroll>
       )}
     </Shell>
   );
@@ -58,6 +59,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 7, paddingRight: 26 },
   num: { fontFamily: FONT.display, fontSize: 22, lineHeight: 22 },
   name: { fontFamily: FONT.display, fontSize: 15, lineHeight: 17, paddingTop: 3, flexShrink: 1 },
+  nameSmall: { fontSize: 13, lineHeight: 15 },
   spin: { position: 'absolute', right: 9, bottom: 9 },
   pips: { flexDirection: 'row', gap: 3 },
   pip: { width: 8, height: 12, borderRadius: 1.5, backgroundColor: C.chalk + '22' },
