@@ -53,3 +53,18 @@ test('serves the App Clip association file as JSON without a redirect', async ()
   assert.match(r.headers.get('content-type'), /^application\/json/);
   assert.deepEqual((await r.json()).appclips.apps, ['T753GG3LAJ.com.tec94.pool.Clip']);
 });
+test('with the Turnstile secret set, only a token Cloudflare accepts is stored', async () => {
+  const real = globalThis.fetch, sent = [];
+  globalThis.fetch = async (url, init) => { sent.push(init.body.get('response')); return Response.json({ success: init.body.get('response') === 'good' }); };
+  try {
+    const env3 = { ...env, TURNSTILE_SECRET: 's' }, before = rows.length; tries = 0;
+    const go = body => join(new Request('https://x.test/api/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }), env3);
+    assert.equal((await go({ email: 't1@x.co' })).status, 403);
+    assert.equal((await go({ email: 't1@x.co', 'cf-turnstile-response': 'bad' })).status, 403);
+    assert.equal((await go({ email: 't1@x.co', 'cf-turnstile-response': 'good' })).status, 200);
+    assert.equal(rows.length, before + 1);
+    assert.deepEqual(sent, ['bad', 'good']); // no token, no call to Cloudflare
+    globalThis.fetch = async () => { throw new Error('down'); };
+    assert.equal((await go({ email: 't2@x.co', 'cf-turnstile-response': 'good' })).status, 403);
+  } finally { globalThis.fetch = real; }
+});
