@@ -389,7 +389,7 @@ function Game({ set, ai = -1, tour, onQuit, lesson: n = -1, fresh, onPass, onNex
     const t = table.current, hard = hustler(foe()), came = t.rules.turn === 1 && s.turn === 0; // came = the turn passes to the player
     if (vs && s.game === 8 && s.solids >= 0) { const down = (p: number) => 7 - s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === p)).length; if (down(1) - down(0) >= 3) won.current.behind = true; } // Nine Lives: the opponent 3 balls or more ahead
     if (s.phase === 'over' && s.winner !== -1) { score.current[s.winner]++;
-      if (vs) { rackOver(won.current, s.winner === 0, hard); if (game === 9 && race >= 3 && score.current[1] - score.current[0] >= 2) won.current.down = true; } // in 9-ball a comeback is 2 racks down in a race to 3 or 5
+      if (vs) { rackOver(won.current, s.winner === 0, hard, t.rules.turn === 0 && (s.game === 8 || !s.balls.length)); if (game === 9 && race >= 3 && score.current[1] - score.current[0] >= 2) won.current.down = true; } // in 9-ball a comeback is 2 racks down in a race to 3 or 5
       if (score.current[s.winner] === race) {
       const pp = vs ? null : passPlayPay(dayKey(new Date()), s.early ? 'an early 8' : s.foul ? 'a foul' : ''); // the 8 down early, or the last shot a foul: three in a row, the 8 down or off the table on one
       const r = vs ? settle(won.current, { tier: rival || tour ? tenth(level.current) : ai + 1, won: s.winner === 0, early: s.winner === 1 && s.early, tour: tour && tour.stakes * race, racks: score.current[0] }, chalk) // only an early 8 pays nothing

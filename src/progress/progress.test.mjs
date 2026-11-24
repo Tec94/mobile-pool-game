@@ -263,6 +263,11 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq([ms.match, ms.chalk, ms.total], [matchPay({ tier: 7, won: true, fouls: 0 }), ms.match, { xp: 8640, coins: 5760 }], 'Fresh Chalk doubles a win against the Masters too');
   const mb = newLedger(); noteShot(mb, { pay: { xp: 13, coins: 5 }, run: 1, own: 0 }, false, true);
   eq(settle(mb, { tier: 7, won: true, early: false, racks: 1 }, (won, p) => p).total, { xp: 13, coins: 5 }, 'and the Masters beaten on the break alone pay the shots only');
+  const ran = newLedger(); rackOver(ran, true, true); rackOver(ran, false, true, false);
+  const luck = newLedger(); rackOver(luck, true, true); rackOver(luck, true, true, false);
+  eq([ran.lucky, luck.lucky], [undefined, true], 'a rack won and not run out is lucky; a rack lost never is');
+  eq([settle(ran, { tier: 7, won: true, early: false }).match, settle(luck, { tier: 7, won: true, early: false }).match], [matchPay({ tier: 7, won: true, fouls: 0 }), matchPay({ tier: 6, won: true, fouls: 0 })], 'the Masters: a win with every rack run out pays x10, one with a lucky rack as Legend');
+  eq(settle(luck, { tier: 6, won: true, early: false }).match, matchPay({ tier: 6, won: true, fouls: 0 }), 'below the Masters luck changes nothing');
   ok('a win on the break alone pays no match pay');
 }
 

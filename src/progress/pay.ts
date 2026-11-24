@@ -50,14 +50,15 @@ export const safetyPay = (s: Safety): Pay =>
   s.legal && !s.potted && !s.push && !s.hand && s.hardLeave && !s.oppPotted && s.paidThisGame < 2 ? paid(2.5 * vs(s), s.tour) : { xp: 0, coins: 0 };
 
 // A match against an AI tier 1 to 7. A win against the Chinese Masters (7) pays 10 times a win against Legend (Jack
-// 2026-11-23: a ridiculous reward, it is that hard to beat); a loss to them pays as a loss to Legend, so losing is no
-// way to farm. A loss pays for the share of own balls potted; a loss by an early 8, a concede
-// or a quit pays nothing. shortcut: no break-and-run x2 (held in the design).
-export interface Match { tier: number; won: boolean; fouls: number; ownPotted?: number; early?: boolean; tour?: number } // tour = a tournament match: its round's multiplier x the frames it takes to win (bracket.ts)
+// 2026-11-23: a ridiculous reward, it is that hard to beat) when the player ran out every rack they won; a loss to them,
+// or a win with a rack they did not run out (lucky), pays as against Legend, so losing is no way to farm.
+// A loss pays for the share of own balls potted; a loss by an early 8, a concede or a quit pays nothing.
+// shortcut: no break-and-run x2 (held in the design).
+export interface Match { tier: number; won: boolean; fouls: number; ownPotted?: number; early?: boolean; tour?: number; lucky?: boolean } // tour = a tournament match: its round's multiplier x the frames it takes to win (bracket.ts)
 const MASTERS_WIN = 60; // a Masters win's factor where Legend's is 6
 export function matchPay(m: Match): Pay {
   const k = m.won ? (m.fouls ? 1 : 1.2) : m.early ? 0 : Math.min(7, m.ownPotted ?? 0) / 7;
-  const [xp, coins] = m.won ? [60, 40] : [20, 10], f = m.tier < MASTERS ? m.tier : m.won ? MASTERS_WIN : 6, t = m.tour ?? 1;
+  const [xp, coins] = m.won ? [60, 40] : [20, 10], f = m.tier < MASTERS ? m.tier : m.won && !m.lucky ? MASTERS_WIN : 6, t = m.tour ?? 1;
   return { xp: Math.round(xp * f * k * t), coins: Math.round(coins * f * k * t) }; // this order, or a cup's pay moves by 1
 }
 
@@ -71,7 +72,10 @@ export function matchPay(m: Match): Pay {
 // held = the Six Seven's pay this rack: paid when the rack ends, and not when the player's own shot loses it.
 // aura = the Aura's run of pots and whether the next pot is owed (pays nothing): from the profile at the start of the
 // match, changed by potPay, saved when the match settles.
-export interface Ledger { shots: Pay; run: number; fouls: number; own: number; brk?: number; feats?: Partial<Record<FeatId, number>>; turn?: { ids: number[]; hot?: boolean; pair?: boolean }; pairs?: number; behind?: boolean; down?: boolean; held?: Pay; aura?: Aura }
+// lucky = a rack the player won and did not run out: the AI's shot gave it (a foul on the 8, an early 8, three fouls)
+// or the 9 went down with balls left (on the break, a combo). The Masters' win pays x10 only when no rack was lucky.
+// Measured 2026-11-24, 300 racks each, rating 1 / 3 against the Masters: racks won 8-ball 1.0% / 3.0%, 9-ball 5.0% / 7.7%; run out 0% / 2.3%, 2.3% / 2.3%.
+export interface Ledger { shots: Pay; run: number; fouls: number; own: number; brk?: number; feats?: Partial<Record<FeatId, number>>; turn?: { ids: number[]; hot?: boolean; pair?: boolean }; pairs?: number; behind?: boolean; down?: boolean; held?: Pay; aura?: Aura; lucky?: boolean }
 export interface Aura { run: number; owed: boolean }
 export const newLedger = (): Ledger => ({ shots: { xp: 0, coins: 0 }, run: 0, fouls: 0, own: 0 });
 const count = (l: Ledger, id: FeatId, n = 1) => { if (n) (l.feats ??= {})[id] = (l.feats[id] ?? 0) + n; };
@@ -89,7 +93,9 @@ export function noteShot(l: Ledger, p: { pay: Pay; run: number; own: number; fea
   if (lost) { l.pairs = 0; delete l.held; }
 }
 // A rack is over. Counts its pairs, pays what the Six Seven held, and in 8-ball a comeback (Nine Lives): won after the opponent was 3 balls ahead.
-export function rackOver(l: Ledger, won: boolean, hard: boolean) {
+// ran = the player's own shot won it with none of their balls left (Ledger lucky).
+export function rackOver(l: Ledger, won: boolean, hard: boolean, ran = true) {
+  if (won && !ran) l.lucky = true;
   count(l, 'thirteen', l.pairs ?? 0);
   if (l.held) { l.shots.xp += l.held.xp; l.shots.coins += l.held.coins; delete l.held; }
   if (won && hard && l.behind) count(l, 'lives');
@@ -114,6 +120,6 @@ export interface Settled { match: Pay; shots: Pay; chalk: Pay | null; total: Pay
 export const BREAK_ONLY = 'Won on the break: no match pay.';
 export function settle(l: Ledger, m: { tier: number; won: boolean; early: boolean; tour?: number; racks?: number }, chalk?: (won: boolean, match: Pay) => Pay): Settled {
   const dry = m.won && !!m.racks && (l.brk ?? 0) >= m.racks;
-  const match = dry ? { xp: 0, coins: 0 } : matchPay({ ...m, fouls: l.fouls, ownPotted: l.own }), x = chalk && !dry ? chalk(m.won, match) : null, c = x && (x.xp || x.coins) ? x : null;
+  const match = dry ? { xp: 0, coins: 0 } : matchPay({ ...m, fouls: l.fouls, ownPotted: l.own, lucky: l.lucky }), x = chalk && !dry ? chalk(m.won, match) : null, c = x && (x.xp || x.coins) ? x : null;
   return { match, shots: { ...l.shots }, chalk: c, total: { xp: match.xp + l.shots.xp + (c?.xp ?? 0), coins: match.coins + l.shots.coins + (c?.coins ?? 0) }, ...(dry && { note: BREAK_ONLY }) };
 }
