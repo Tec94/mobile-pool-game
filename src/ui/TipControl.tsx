@@ -1,23 +1,36 @@
 // The spin button and the tip and cue angle sheet (screens spec: the ring around the spin ball, with the side picture).
 // Drawing and touch maths are in src/render/tip.ts; this file is the React Native shell around them.
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from 'react';
 import { BackHandler, PanResponder, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Canvas, Picture, Skia, SkCanvas } from '@shopify/react-native-skia';
-import Animated, { cubicBezier, FadeOut, useReducedMotion } from 'react-native-reanimated';
+import Animated, { cubicBezier, FadeOut, useReducedMotion, useSharedValue } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { drawSide, drawTip, drawTipBall, grab, LEVEL, MAX_ELEV, moveElev, moveSpin, padReach, ringAt, ringTurn, SIDE, spinLabel, tapSpin, Tip, zone, zoneLabel } from '../render/tip';
 import { C, DARK, FONT } from '../theme';
 
 // The tip lives outside React state: the game screen reads it when a shot is made and never re-renders for it. Only
 // the button and the sheet below listen.
-// shortcut: each touch move re-renders those two small components (one Skia picture each); move the pictures to
-// shared values if a slow phone shows the dot trailing the finger.
+// They draw their pictures through shared values, so a drag of the dot or the AI's line-up moves them with no React
+// render. They render when the elevation changes or the tip moves a fifth of the way, for the badge, the side picture,
+// the zone label and the screen reader's value.
 export interface TipStore { get: () => Tip; set: (t: Tip) => void; sub: (f: () => void) => () => void }
 export function tipStore(): TipStore {
   let v = LEVEL; const subs = new Set<() => void>();
   return { get: () => v, set: t => { v = t; subs.forEach(f => f()); }, sub: f => { subs.add(f); return () => { subs.delete(f); }; } };
 }
 const picture = (draw: (c: SkCanvas) => void) => { const rec = Skia.PictureRecorder(); draw(rec.beginRecording()); return rec.finishRecordingAsPicture(); };
+const EMPTY = picture(() => {});
+const coarse = (t: Tip) => `${t.elev} ${Math.round(t.x * 5)} ${Math.round(t.y * 5)}`; // what a render shows changes this much
+// A picture in a shared value, drawn again from the store when key(tip) changes.
+function useTipPicture(store: TipStore, key: (t: Tip) => string, draw: (c: SkCanvas, t: Tip) => void, deps: unknown[]) {
+  const pic = useSharedValue(EMPTY);
+  useEffect(() => {
+    let was = '';
+    const go = () => { const v = store.get(), k = key(v); if (k !== was) { was = k; pic.set(picture(c => draw(c, v))); } };
+    go(); return store.sub(go);
+  }, deps);
+  return pic;
+}
 const EASE_OUT = cubicBezier(0.23, 1, 0.32, 1); // a strong ease-out: a press and the sheet answer at once
 const tick = () => { Haptics.selectionAsync(); }, tap = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
 
@@ -25,8 +38,9 @@ const tick = () => { Haptics.selectionAsync(); }, tap = () => { Haptics.impactAs
 // gives the elevation when the cue is raised. A press shrinks the ball by 3 pt at once, the travel of a slab face, and
 // lets go in 120 ms (at once with reduced motion). land = the ball's top edge lines up with the table's (landscape).
 export function TipButton({ store, onPress, land }: { store: TipStore; onPress: () => void; land?: boolean }) {
-  const t = useSyncExternalStore(store.sub, store.get), B = 44, still = useReducedMotion(), [down, setDown] = useState(false);
-  const ball = useMemo(() => picture(c => drawTipBall(Skia, c, B / 2, B / 2, B / 2, t)), [t.x, t.y]);
+  useSyncExternalStore(store.sub, () => coarse(store.get()));
+  const t = store.get(), B = 44, still = useReducedMotion(), [down, setDown] = useState(false);
+  const ball = useTipPicture(store, v => `${v.x} ${v.y}`, (c, v) => drawTipBall(Skia, c, B / 2, B / 2, B / 2, v), []);
   return (
     <Pressable onPress={onPress} onPressIn={() => setDown(true)} onPressOut={() => setDown(false)} pressRetentionOffset={16} style={[styles.holder, land && styles.atTop]}
       accessibilityRole="button" accessibilityLabel="Set spin and cue elevation" accessibilityValue={{ text: `${spinLabel(t)}. ${t.elev} degrees` }}>
@@ -46,14 +60,14 @@ export function TipButton({ store, onPress, land }: { store: TipStore; onPress: 
 // low = how far below centre the tip may go, as a part of the limit (the Fallen Star's cue: a half).
 const TRIM = 183 / 214; // the ring's picture is empty right of the ball and under it (src/render/tip.ts): the box ends at the ball
 export function TipSheet({ store, land, keep, calm, felt, blend, low = 1, onDone }: { store: TipStore; land: boolean; keep: number; calm: boolean; felt: string; blend: boolean; low?: number; onDone: () => void }) {
-  const t = useSyncExternalStore(store.sub, store.get), { width } = useWindowDimensions(), D = land ? 150 : Math.min(180, Math.floor((width - keep - 156) / TRIM)); // portrait: 294 pt wide on a 375 pt phone, smaller where the room left of the rail is less (156 = paddings, gap and the side picture)
+  useSyncExternalStore(store.sub, () => coarse(store.get())); const [, render] = useReducer((n: number) => n + 1, 0), t = store.get(), { width } = useWindowDimensions(), D = land ? 150 : Math.min(180, Math.floor((width - keep - 156) / TRIM)); // portrait: 294 pt wide on a 375 pt phone, smaller where the room left of the rail is less (156 = paddings, gap and the side picture)
   const size = useRef(D), drag = useRef<{ on: 'ring' | 'pad'; from: Tip; x: number; y: number; t: number; moved: boolean; a: number; e: number } | null>(null);
   if (size.current !== D) drag.current = null; // the phone turned during a drag: the touch no longer maps to the ring
   size.current = D; // the pan responder is created once, so it reads the latest size
   const floor = useRef(low); floor.current = low;
   const close = useRef(onDone); close.current = onDone;
   useEffect(() => { const sub = BackHandler.addEventListener('hardwareBackPress', () => { close.current(); return true; }); return () => sub.remove(); }, []); // registered last, so it runs before the pause card's
-  const ring = useMemo(() => picture(c => drawTip(Skia, c, D, t, blend, low)), [D, t, blend, low]);
+  const ring = useTipPicture(store, v => `${v.x} ${v.y} ${v.elev}`, (c, v) => drawTip(Skia, c, D, v, blend, low), [D, blend, low]);
   const side = useMemo(() => picture(c => drawSide(Skia, c, t.elev, felt)), [t.elev, felt]);
   const put = ({ tip, bump }: { tip: Tip; bump: boolean }) => { store.set(tip); if (bump) tick(); };
 
@@ -88,8 +102,8 @@ export function TipSheet({ store, land, keep, calm, felt, blend, low = 1, onDone
 
   // VoiceOver and TalkBack: the control is one adjustable element. Swipe up and down change the elevation; the
   // actions menu moves the tip.
-  const nudge = (dx: number, dy: number) => store.set(moveSpin(t, t.x + dx, t.y + dy, low).tip);
-  const acts: Record<string, () => void> = { increment: () => store.set(moveElev(t, t.elev + 5).tip), decrement: () => store.set(moveElev(t, t.elev - 5).tip),
+  const nudge = (dx: number, dy: number) => { const v = store.get(); store.set(moveSpin(v, v.x + dx, v.y + dy, low).tip); };
+  const acts: Record<string, () => void> = { increment: () => store.set(moveElev(store.get(), store.get().elev + 5).tip), decrement: () => store.set(moveElev(store.get(), store.get().elev - 5).tip),
     'Tip higher': () => nudge(0, 0.2), 'Tip lower': () => nudge(0, -0.2), 'Tip left': () => nudge(-0.2, 0), 'Tip right': () => nudge(0.2, 0) };
 
   return <>
@@ -104,7 +118,7 @@ export function TipSheet({ store, land, keep, calm, felt, blend, low = 1, onDone
       <View onStartShouldSetResponder={() => true} onResponderTerminationRequest={() => false} onAccessibilityEscape={onDone} style={styles.sheet}>
         <View {...pan.panHandlers} style={{ width: D * TRIM, height: D * TRIM }} accessible accessibilityRole="adjustable" accessibilityLabel="Cue elevation and tip position" accessibilityLiveRegion="polite"
           accessibilityValue={{ min: 0, max: MAX_ELEV, now: t.elev, text: `${t.elev} degrees, ${zone(t.elev)}. ${spinLabel(t)}` }}
-          accessibilityActions={Object.keys(acts).map(name => ({ name, label: name }))} onAccessibilityAction={e => acts[e.nativeEvent.actionName]?.()}>
+          accessibilityActions={Object.keys(acts).map(name => ({ name, label: name }))} onAccessibilityAction={e => { acts[e.nativeEvent.actionName]?.(); render(); }}>
           <Canvas style={{ position: 'absolute', left: 0, top: 0, width: D, height: D }} pointerEvents="none"><Picture picture={ring} /></Canvas>
         </View>
         <View style={styles.side} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
