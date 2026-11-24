@@ -4,8 +4,9 @@
 // win %, its fumbles: the racks it had a visit in (after the break) and of those the ones where a visit of its ended
 // with its balls still up, split by the shot that ended it (a missed trick shot, a missed plain pot, a safety or escape,
 // a foul), the racks Legend won before the Masters had a shot (the ceiling of its win %), and the share of its pots by kind (turn.ts kindOf; double = two or more own balls on one shot, borrowed = a
-// carom or billiard whose shot touched an opponent's ball). LOG=1 prints every Masters shot.
-import { breakSpot, rack, step, strike } from '../src/physics/engine.ts';
+// carom or billiard whose shot touched an opponent's ball; hanging = a kick whose cue ball sets off away from the ball it
+// hits; frozen = a bank of a ball frozen on a cushion: the reels' types, counted on top of their kind). LOG=1 prints every Masters shot.
+import { breakSpot, P, rack, step, strike } from '../src/physics/engine.ts';
 import { choose, handCue, judge, moveCue, newGame, newRec, record, setCall, spotBall } from '../src/rules/rules.ts';
 import { choiceFor, nextSafeties, safetiesArg, think } from '../src/ai/turn.ts';
 import { MASTERS } from '../src/ai/shot-ai.ts';
@@ -27,7 +28,7 @@ function duel(me, seed) {
     if (seat === me && !brk) t.ms.push(performance.now() - t0);
     if (!brk) safe[seat] = nextSafeties(safe[seat], m.safety);
     if (m.at) moveCue(B, m.at[0], m.at[1], s.hand); if (m.call >= 0) s = setCall(s, m.call);
-    const r = newRec(), ev = []; let touched = false; strike(B[0], m.shot);
+    const r = newRec(), ev = [], B0 = B.map(x => ({ ...x })); let touched = false; strike(B[0], m.shot);
     for (let k = 0; k < 60000 && (ev.length = 0, step(B, ev)); k++) { record(r, ev, B, ids); for (const e of ev) if (e.t === 'bb') touched ||= [e.a, e.b].some(i => mine(s, 1 - seat, ids[i])); }
     const before = s; s = judge(s, r);
     if (seat !== me || brk) { for (const id of s.spot) spotBall(B, ids.indexOf(id)); if (s.hand) handCue(B, s.hand); continue; }
@@ -35,7 +36,10 @@ function duel(me, seed) {
     if (process.env.LOG) console.log(seed, me, m.kind, own, kept ? 'kept' : s.foul ? 'FOUL' : 'over', s.note);
     if (t.last !== shots - 1) t.visits++; // shots in a row are one visit
     t.last = shots;
-    if (kept && own && !m.safety) { t.kinds[m.kind] = (t.kinds[m.kind] ?? 0) + 1; if (own > 1) t.kinds.double = (t.kinds.double ?? 0) + 1; if (touched && game === 8 && /carom|billiard/.test(m.kind)) t.kinds.borrowed = (t.kinds.borrowed ?? 0) + 1; }
+    if (kept && own && !m.safety) { t.kinds[m.kind] = (t.kinds[m.kind] ?? 0) + 1; if (own > 1) t.kinds.double = (t.kinds.double ?? 0) + 1; if (touched && game === 8 && /carom|billiard/.test(m.kind)) t.kinds.borrowed = (t.kinds.borrowed ?? 0) + 1;
+      const f = B0[ids.indexOf(r.first)], c = B0[0], frozen = (b) => Math.min(b.x, b.y, P.L - b.x, P.W - b.y) < P.R + 0.002;
+      if (/^kick/.test(m.kind) && f && Math.cos(m.shot.ang) * (f.x - c.x) + Math.sin(m.shot.ang) * (f.y - c.y) < 0) t.kinds.hanging = (t.kinds.hanging ?? 0) + 1;
+      if (/^bank/.test(m.kind) && r.pots.some(p => frozen(B0[ids.indexOf(p.id)]))) t.kinds.frozen = (t.kinds.frozen ?? 0) + 1; }
     else if (s.phase !== 'over' || s.winner !== me) { // the table goes over with its balls up
       t.fumbled = 1;
       t[s.foul ? 'foul' : m.safety ? 'safety' : TRICK.test(m.kind) ? 'trick' : 'plain']++;
@@ -55,7 +59,7 @@ for (let i = 0; i < n; i++) for (const me of [0, 1]) {
   for (const [k, v] of Object.entries(t.kinds)) tot.kinds[k] = (tot.kinds[k] ?? 0) + v;
 }
 const pct = (x, d) => (d ? (100 * x / d).toFixed(1) : '-'), ci = (x, d) => `${pct(x, d)} ±${(196 * Math.sqrt((x / d) * (1 - x / d) / d)).toFixed(1)}`;
-const pots = Object.entries(tot.kinds).filter(([k]) => k !== 'double' && k !== 'borrowed').reduce((a, [, v]) => a + v, 0), q = tot.ms.sort((a, b) => a - b);
+const pots = Object.entries(tot.kinds).filter(([k]) => !['double', 'borrowed', 'hanging', 'frozen'].includes(k)).reduce((a, [, v]) => a + v, 0), q = tot.ms.sort((a, b) => a - b);
 console.log(`${game}-ball, Chinese Masters against Legend, ${n} seeds each played with the Masters in both seats (${2 * n} racks)`);
 console.log(`rack win % ${ci(tot.won, tot.done)} (${tot.won} of ${tot.done} finished)`);
 console.log(`racks Legend won before the Masters had a shot after the break: ${tot.cold}, so at most ${pct(2 * n - tot.cold, 2 * n)}% can be won`);
