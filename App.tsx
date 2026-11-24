@@ -56,7 +56,7 @@ import { Act, hudHeight, MatchHud, PayRow, PayTotal, Results } from './src/ui/Ma
 import { Menus, type Screen } from './src/ui/Menus';
 import { AimDial, PowerRail, RAIL_FONT, shotStore } from './src/ui/ShotControls';
 import { TipButton, TipSheet, tipStore } from './src/ui/TipControl';
-import { CLIP, fullGame } from './src/clip';
+import { CLIP, CLIP_TIER, fullGame } from './src/clip';
 
 const GRAB = 36; // px: a touch this near the cue ball in hand drags it. The ball is smaller than a fingertip, so the
 // ball keeps its distance from the finger and stays in view.
@@ -98,7 +98,7 @@ const MENU_LOCKS = [ScreenOrientation.OrientationLock.LANDSCAPE, ScreenOrientati
 // The screen on show and the settings. A match reads its setup when it starts.
 function Root() {
   // The App Clip plays one quick match against the Regular tier, calling only the 8, and has no menus.
-  const [set, setSet] = useState((): Settings => CLIP ? { ...loadSettings(), tier: 1, aiGame: 8, aiRace: 1, callAll: false } : loadSettings()), [screen, go] = useState<Screen | typeof PLAY[number]>(CLIP ? 'ai' : 'home');
+  const [set, setSet] = useState((): Settings => CLIP ? { ...loadSettings(), tier: CLIP_TIER, aiGame: 8, aiRace: 1, callAll: false } : loadSettings()), [screen, go] = useState<Screen | typeof PLAY[number]>(CLIP ? 'ai' : 'home');
   const [done, setDone] = useState(loadDone), [lesson, setLesson] = useState(0);
   const learn = (i: number) => { setLesson(i); go('lesson'); };
   const [stars, setStars] = useState(loadStars), [scen, setScen] = useState(0);
