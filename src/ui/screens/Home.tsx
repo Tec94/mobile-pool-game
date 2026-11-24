@@ -1,7 +1,7 @@
 // Home only picks a mode: quick match as the big cream slab with the one Play, every other mode a tile that opens its
 // screen in one tap and shows its state as a picture.
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { type LayoutChangeEvent, Pressable, StyleSheet, View } from 'react-native';
 import { TIERS } from '../../ai/shot-ai';
 import { addDays, dailyPick, streak, weekday } from '../../daily/daily';
 import { LESSONS } from '../../learn/lessons';
@@ -18,7 +18,7 @@ import { Trophy } from '../Glyph';
 import { DAYS, dateOf, THEMES } from '../days';
 import type { DailyProps, LearnProps, Props, ScenarioProps } from '../Menus';
 import { MiniTable, rackOf, SpinDot, tableOf } from '../MiniTable';
-import { Shell, Tile, useFrame } from '../shell';
+import { Scroll, Shell, Tile, useFrame } from '../shell';
 import { BallArt, Slab, Txt, TYPE } from '../slab';
 import { MiniBracket } from './Tournament';
 
@@ -26,7 +26,7 @@ type HomeProps = Props & LearnProps & ScenarioProps & Omit<DailyProps, 'day'> & 
 export const short = (l: { id: string; title: string }) => (l.id === 'bank' ? 'Banks' : l.title.split(/:| and /)[0]);
 
 export function Home({ set, go, done, stars, daily, today, run: tourRun }: HomeProps) {
-  const { land, side, pad, width, height } = useFrame(), [box, setBox] = useState({ w: width - 2 * side, h: 300 });
+  const { land, side, pad, width } = useFrame(), [box, setBox] = useState({ w: width - 2 * side, h: 300 });
   const me = profile(), wd = weekday(today), k = starCount(daily.stars[today]), run = streak(daily.stars, today).current;
   const nextLesson = LESSONS.findIndex(l => !done.includes(l.id)), total = totalStars(stars), all = 3 * SCENARIOS.length;
   // The next table to play: the first open one not yet cleared, else the first open one short of three stars.
@@ -35,14 +35,14 @@ export function Home({ set, go, done, stars, daily, today, run: tourRun }: HomeP
   const opp = set.tier === RIVAL ? `Rival ${shown(me.rival[set.aiGame].rating)}` : TIERS[set.tier].name;
   // Sizes: landscape from the body's measured box, portrait from the window.
   const heroW = land ? Math.min(300, Math.max(240, 0.37 * box.w)) : width - 2 * side, rest = box.w - heroW - 8, rowH = (box.h - 8) / 2;
-  const dailyW = land ? (rest - 16) / 3 : (width - 2 * side - 8) / 2, smallW = land ? (rest - 16) / 3 : (width - 2 * side - 8) / 2, tileH = land ? rowH - 5 : 150;
-  const heroTable = land ? Math.min(heroW - 24, (box.h - 186) * 2 / 1.12) : Math.min(heroW - 24, 420);
+  const dailyW = land ? (rest - 16) / 3 : (width - 2 * side - 8) / 2, smallW = land ? (rest - 16) / 3 : (width - 2 * side - 8) / 2, tileH = land ? rowH - 5 : Math.max(110, Math.min(150, (box.h - 24 - 240) / 3)); // portrait: three tile rows under a hero of at least 240
+  const heroTable = Math.min(heroW - 24, 420, ((land ? box.h : box.h - 3 * (tileH + 8)) - 210) * 2 / 1.12);
   const scenW = Math.min(smallW - 24, (tileH - 88) / 0.56); // a table is 0.56 of its width tall
 
   const hero = (
-    <Slab paint={CREAM} style={land ? { width: heroW } : { minHeight: 300 }} face={styles.hero}>
+    <Slab paint={CREAM} style={land ? { width: heroW } : { flex: 1 }} face={[styles.hero, !land && { flex: 1 }]}>
       <Txt accessibilityRole="header" style={styles.heroTitle}>Quick match</Txt>
-      {(!land || box.h >= 300) && heroTable > 60 && <View style={{ alignItems: 'center' }}><MiniTable width={heroTable} {...rackOf(set.aiGame)} cloth={set.cloth} /></View>}
+      {heroTable > 90 && <View style={{ alignItems: 'center' }}><MiniTable width={heroTable} {...rackOf(set.aiGame)} cloth={set.cloth} /></View>}
       <Pressable onPress={() => go('setup')} accessibilityRole="button" accessibilityLabel={`Change match setup, ${set.aiGame}-ball, race to ${set.aiRace}, ${opp}`} hitSlop={8} style={styles.change}>
         {[`${set.aiGame}-ball`, `Race to ${set.aiRace}`, opp].map(t => <View key={t} style={styles.tag}><Txt numberOfLines={1} style={styles.tagText}>{t}</Txt></View>)}
         <View style={{ flex: 1 }} />
@@ -61,7 +61,7 @@ export function Home({ set, go, done, stars, daily, today, run: tourRun }: HomeP
   const tourLine = live ? `${CUPS[live.opts.cup].name} · ${roundName(live, m)}` : `${CUPS[top].name} Cup`;
   const tiles = {
     tour: (
-      <Tile paint={MODE.tour} name={`Tournament, ${live ? `${tourLine} next` : `${tourLine}, ${['no medal', 'bronze', 'silver', 'gold'][me.trophies[top]]} won`}`} title="Tournament" onPress={() => go('tour')} style={{ flex: 1, minHeight: 120 }} face={{ gap: 4 }}>
+      <Tile paint={MODE.tour} name={`Tournament, ${live ? `${tourLine} next` : `${tourLine}, ${['no medal', 'bronze', 'silver', 'gold'][me.trophies[top]]} won`}`} title="Tournament" onPress={() => go('tour')} style={{ flex: 1, minHeight: land ? 120 : 110, height: land ? undefined : tileH }} face={{ gap: 4 }}>
         <Txt numberOfLines={1} style={[styles.line, { color: C.chalk }]}>{tourLine}</Txt>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: live ? 'flex-start' : 'center' }}>
           {live ? <MiniBracket run={live} w={Math.max(60, smallW - 24)} h={Math.max(40, Math.min(110, tileH - 70))} /> : <Trophy medal={me.trophies[top]} size={Math.max(36, Math.min(72, tileH - 74))} />}
@@ -69,7 +69,7 @@ export function Home({ set, go, done, stars, daily, today, run: tourRun }: HomeP
       </Tile>
     ),
     daily: (
-      <Tile paint={MODE.daily} name={`Daily Table, ${dateOf(today)}, ${THEMES[wd]}, ${k} of 3 stars${run ? `, run of ${run} days` : ''}`} title="Daily Table" onPress={() => go('calendar')} style={{ flex: 1, minHeight: 120 }}>
+      <Tile paint={MODE.daily} name={`Daily Table, ${dateOf(today)}, ${THEMES[wd]}, ${k} of 3 stars${run ? `, run of ${run} days` : ''}`} title="Daily Table" onPress={() => go('calendar')} style={{ flex: 1, minHeight: land ? 120 : 110, height: land ? undefined : tileH }}>
         <Txt style={styles.line}>{`${DAYS[wd].slice(0, 3)} ${+today.slice(8, 10)} · ${THEMES[wd]}`}</Txt>
         <View style={{ flex: 1 }} />
         <View style={styles.week}>
@@ -82,7 +82,7 @@ export function Home({ set, go, done, stars, daily, today, run: tourRun }: HomeP
       </Tile>
     ),
     scenarios: (
-      <Tile paint={MODE.scenarios} name={`Scenarios, ${total} of ${all} stars`} title="Scenarios" onPress={() => go('scenarios')} style={{ flex: 1, minHeight: 120 }} face={{ gap: 4 }}>
+      <Tile paint={MODE.scenarios} name={`Scenarios, ${total} of ${all} stars`} title="Scenarios" onPress={() => go('scenarios')} style={{ flex: 1, minHeight: land ? 120 : 110, height: land ? undefined : tileH }} face={{ gap: 4 }}>
         {ns !== undefined && scenW > 50 && <View style={{ marginTop: 2 }}><MiniTable width={scenW} {...tableOf(SCENARIOS[ns])} /></View>}
         <View style={{ flex: 1 }} />
         <Txt style={[styles.count, { color: C.chalk }]}>{total}<Txt style={styles.of}>{` / ${all} ★`}</Txt></Txt>
@@ -90,7 +90,7 @@ export function Home({ set, go, done, stars, daily, today, run: tourRun }: HomeP
       </Tile>
     ),
     learn: (
-      <Tile paint={MODE.learn} name={`Learn, ${done.length} of ${LESSONS.length} passed${nextLesson >= 0 ? `, next ${LESSONS[nextLesson].title}` : ''}`} title="Learn" onPress={() => go('learn')} style={{ flex: 1, minHeight: 120 }}>
+      <Tile paint={MODE.learn} name={`Learn, ${done.length} of ${LESSONS.length} passed${nextLesson >= 0 ? `, next ${LESSONS[nextLesson].title}` : ''}`} title="Learn" onPress={() => go('learn')} style={{ flex: 1, minHeight: land ? 120 : 110, height: land ? undefined : tileH }}>
         {nextLesson >= 0 && <Txt numberOfLines={1} style={[styles.line, { color: C.chalk }]}>{`Next: ${short(LESSONS[nextLesson])}`}</Txt>}
         {nextLesson >= 0 && <View style={styles.spin}><SpinDot tip={LESSONS[nextLesson].ref.tip} size={34} /></View>}
         <View style={{ flex: 1 }} />
@@ -98,7 +98,7 @@ export function Home({ set, go, done, stars, daily, today, run: tourRun }: HomeP
       </Tile>
     ),
     pass: (
-      <Tile paint={MODE.pass} name={`Pass and play, ${set.names[0]} against ${set.names[1]}`} title="Pass and play" onPress={() => go('pass')} style={{ flex: 1, minHeight: 120 }}>
+      <Tile paint={MODE.pass} name={`Pass and play, ${set.names[0]} against ${set.names[1]}`} title="Pass and play" onPress={() => go('pass')} style={{ flex: 1, minHeight: land ? 120 : 110, height: land ? undefined : tileH }}>
         <View style={{ flex: 1 }} />
         <View style={styles.vs}>
           <BallArt n={1} size={34} label={set.names[0].slice(0, 2)} /><Txt style={styles.vsText}>vs</Txt><BallArt n={2} size={34} label={set.names[1].slice(0, 2)} />
@@ -106,36 +106,34 @@ export function Home({ set, go, done, stars, daily, today, run: tourRun }: HomeP
       </Tile>
     ),
     cues: (
-      <Tile paint={MODE.cues} name={`Cues, ${CUES[me.cue].name} in use, ${me.owned.length} of ${CUE_IDS.length} cues`} title="Cues" onPress={() => go('cues')} style={{ flex: 1, minHeight: 120 }}>
+      <Tile paint={MODE.cues} name={`Cues, ${CUES[me.cue].name} in use, ${me.owned.length} of ${CUE_IDS.length} cues`} title="Cues" onPress={() => go('cues')} style={{ flex: 1, minHeight: land ? 120 : 110, height: land ? undefined : tileH }}>
         <View style={styles.cue}><CueArt id={me.cue} w={Math.round(smallW)} h={80} /></View>{/* first, so the name is drawn over the art */}
         <Txt numberOfLines={1} style={styles.line}>{CUES[me.cue].name}</Txt>
         <Txt style={[styles.line, styles.owned]}>{`${me.owned.length} / ${CUE_IDS.length}`}</Txt>
       </Tile>
     ),
   };
-  if (!land) return (
-    <Shell settings={() => go('settings')}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: side, paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16), gap: 8 }}>
-        {hero}
-        <View style={styles.pair}>{tiles.tour}{tiles.daily}</View>
-        <View style={styles.pair}>{tiles.scenarios}{tiles.learn}</View>
-        <View style={styles.pair}>{tiles.pass}{tiles.cues}</View>
-      </ScrollView>
-    </Shell>
-  );
-  const body = (
-    <View style={[styles.pair, { flex: 1, minHeight: 300 }]} onLayout={e => { const { width: w, height: h } = e.nativeEvent.layout; if (w !== box.w || h !== box.h) setBox({ w, h }); }}>
+  const measure = { onLayout: (e: LayoutChangeEvent) => { const { width: w, height: h } = e.nativeEvent.layout; if (w !== box.w || h !== box.h) setBox({ w, h }); } };
+  const body = land ? (
+    <View style={[styles.pair, { flex: 1, minHeight: 300 }]} {...measure}>
       {hero}
       <View style={{ flex: 1, gap: 8 }}>
         <View style={[styles.pair, { flex: 1 }]}>{tiles.tour}{tiles.daily}{tiles.scenarios}</View>
         <View style={[styles.pair, { flex: 1 }]}>{tiles.learn}{tiles.pass}{tiles.cues}</View>
       </View>
     </View>
+  ) : (
+    <View style={{ flex: 1, gap: 8, minHeight: 564 }} {...measure}>
+      {hero}
+      <View style={styles.pair}>{tiles.tour}{tiles.daily}</View>
+      <View style={styles.pair}>{tiles.scenarios}{tiles.learn}</View>
+      <View style={styles.pair}>{tiles.pass}{tiles.cues}</View>
+    </View>
   );
-  const padding = { paddingHorizontal: side, paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16) };
+  // Everything on one screen; a window too short for even the smallest layout scrolls, and says so.
   return (
     <Shell settings={() => go('settings')}>
-      {height < 360 ? <ScrollView contentContainerStyle={[padding, { flexGrow: 1 }]}>{body}</ScrollView> : <View style={[padding, { flex: 1 }]}>{body}</View>}
+      <Scroll style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: side, paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16) }}>{body}</Scroll>
     </Shell>
   );
 }
