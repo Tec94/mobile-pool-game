@@ -27,7 +27,7 @@ export interface Tier { name: string; sigma: number; types: ShotType[]; flair: n
   // bankAim = aim error on a bank or kick times this
   like?: Partial<Record<ShotType, number>>; safeAt?: number; spinLove?: number; hook?: number; bankAim?: number;
   // trick hooks, only on the Chinese Masters: tricks = most cushions of a bank or kick, and on: jumps, escapes, double pots and
-  // the engine check of every pot (aim.ts verify); show = how much more a checked trick shot is worth; think = ms deadline (aim.ts THINK)
+  // the engine check of every pot (aim.ts verify); show = how much more a checked trick shot is worth; think = ms deadline (aim.ts THINK; a tier with tricks: the hard stop past its ROLLOUTS)
   tricks?: number; show?: number; think?: number }
 interface Pocket extends Pt { ax: [number, number]; m: number; c: number; back: number }
 interface Rail { k: 'x' | 'y'; v: number }
@@ -360,7 +360,7 @@ export const TIERS: Tier[] = [
   { name: 'Pro',     sigma: 0.12, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.04, temp: 0.02, depth: 1, tries: 3, wPos: 0.9, posErr: 0.05, speedErr: 2.5, tipErr: 0.02, ctrl: 1, wLeave: 0.6, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 24, caromGap: 10000, rail: [0.14, 0.16], hard: 1, run: 0.84 },
   { name: 'Legend',  sigma: 0.05, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1,   posErr: 0.03, speedErr: 1, tipErr: 0.01, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 33, caromGap: 10000, rail: [0.07, 0.08], hard: 1, run: 0.94 },
   // The meme tier (Jack 2026-11-23): above Legend, near unbeatable. Off the rating scale: the Rival and the cups stop at Legend.
-  { name: 'Chinese Masters', sigma: 0.0125, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard', 'jump'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1, posErr: 0.02, speedErr: 0.25, tipErr: 0.002, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 45, caromGap: 10000, rail: [0.04, 0.05], hard: 1, run: 0.97, tricks: 4, show: 0.15, think: 3500 },
+  { name: 'Chinese Masters', sigma: 0.0125, types: ['direct', 'bank', 'combo', 'kick', 'carom', 'billiard', 'jump'], flair: 0.03, temp: 0.01, depth: 1, tries: 3, wPos: 1, posErr: 0.02, speedErr: 0.25, tipErr: 0.002, ctrl: 1, wLeave: 1, rack: true, safetyAngles: [-60, -40, -20, 0, 20, 40, 60], budget: 45, caromGap: 10000, rail: [0.04, 0.05], hard: 1, run: 0.97, tricks: 4, show: 0.15, think: 7000 },
 ];
 export const MASTERS = 7; // its rating: a whole tier past Legend, and no rating between the two plays any of it
 // The AI for a rating s on the tier scale (1 Rookie .. 6 Legend; the Rival plays 0.5 to 6.5; 7 = the Chinese Masters): numeric dials on the line
