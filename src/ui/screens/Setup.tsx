@@ -26,7 +26,7 @@ export function Line({ label, inline, note, children }: { label: string; inline?
   const { width, side, land } = useFrame(), narrow = width < NARROW && !inline, panel = usePanel();
   return (
     <View style={[styles.line, narrow && { flexDirection: 'column', alignItems: 'stretch', gap: 4 }]}>
-      {narrow && note ? <View style={styles.line}><Txt style={[styles.label, { flex: 1 }]}>{label}</Txt>{note}</View>
+      {narrow && note ? <View style={styles.line}><Txt numberOfLines={1} style={[styles.label, { width: 'auto', marginRight: 8 }]}>{label}</Txt>{note}</View>
         : <Txt style={[styles.label, !narrow && { marginBottom: 3 }]}>{label}</Txt>}
       <View style={!narrow && { width: width - 2 * side - LABEL - (land ? panel + 16 : 0) }}>{children}</View>
     </View>
@@ -47,7 +47,7 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
   // What a Masters win pays, where nothing scrolls: beside the Opponent label on a phone, else at the panel's foot, the table
   // giving up the height in landscape (strip, gutters, panel padding, head on two lines, the line and gaps: 179 pt at text size 1, and the button).
   // Only a win that ran out every rack it took pays that; else it pays as a Legend win (the results card says why).
-  const pays = quick && set.tier === TOP && <Txt numberOfLines={narrow ? 1 : 2} style={[styles.note, !narrow && { textAlign: 'center' }]}>Run-out win pays up to{narrow ? ' ' : '\n'}<Txt style={{ color: C.gold }}>{`${num(WIN.xp)} XP · ${num(WIN.coins)} coins`}</Txt></Txt>;
+  const pays = quick && set.tier === TOP && <Txt numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.note, { textAlign: narrow ? 'right' : 'center' }, narrow && { flex: 1 }]}>Run-out win pays up to{narrow ? ' ' : '\n'}<Txt style={{ color: C.gold }}>{`${num(WIN.xp)} XP · ${num(WIN.coins)} coins`}</Txt></Txt>;
   return (
     <Shell title={quick ? 'Quick match' : 'Pass and play'} back={() => go('home')}>
       <Split panel={
