@@ -65,11 +65,12 @@ export function Strip({ title, back, settings, extra }: { title?: string; back?:
 // The body of a screen with a panel: choices on the left (scrolling), the panel on the right. Portrait: the panel under them.
 // at = the offset to open scrolled to (Infinity = the end).
 export function Split({ children, panel, at, wide }: { children: ReactNode; panel: ReactNode; at?: number; wide?: boolean }) {
-  const { land, side, pad } = useFrame(), w = usePanel(wide), scroll = useRef<ScrollViewInstance>(null), dragged = useRef(false);
-  // again on each size or layout change (the More strip shrinks the box after the first try), until the player drags
+  const { land, side, pad } = useFrame(), w = usePanel(wide), scroll = useRef<ScrollViewInstance>(null), dragged = useRef(false), seen = useRef(land);
+  if (seen.current !== land) { seen.current = land; dragged.current = false; } // a turn of the phone lays the screen out anew
+  // again on each size or layout change (the More strip shrinks the box after the first try), until the player touches the screen
   const open = () => { if (!at || dragged.current) return; if (at === Infinity) scroll.current?.scrollToEnd({ animated: false }); else scroll.current?.scrollTo({ y: at, animated: false }); };
   return (
-    <View style={{ flex: 1, flexDirection: land ? 'row' : 'column', gap: 16, paddingHorizontal: side, paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16) }}>
+    <View onTouchStart={() => { dragged.current = true; }} style={{ flex: 1, flexDirection: land ? 'row' : 'column', gap: 16, paddingHorizontal: side, paddingTop: 12, paddingBottom: Math.max(pad.bottom, 16) }}>
       <Scroll scrollRef={scroll} style={{ flex: 1 }} keyboardShouldPersistTaps="handled"
         onContentSizeChange={open} onLayout={open} onScrollBeginDrag={() => { dragged.current = true; }}>{children}</Scroll>
       <View style={[styles.box, land ? { width: w } : { flexShrink: 1, maxHeight: '60%' }]}>{panel}</View>

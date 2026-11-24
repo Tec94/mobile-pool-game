@@ -11,7 +11,8 @@ import { short } from './Home';
 // Every lesson is open from the start: a tap starts it. Each tile draws its table, the pocket, the ring and where to hit
 // the cue ball. Purple = passed, cream = the next one, dark = not yet. Landscape: two rows that run off the right edge.
 export function Learn({ go, done, learn }: Pick<Props, 'go'> & LearnProps) {
-  const { land, side, pad, width } = useFrame(), next = LESSONS.findIndex(l => !done.includes(l.id)), scroll = useRef<ScrollViewInstance>(null), dragged = useRef(false); // scroll to the next lesson on each layout until the player drags
+  const { land, side, pad, width } = useFrame(), next = LESSONS.findIndex(l => !done.includes(l.id)), scroll = useRef<ScrollViewInstance>(null), dragged = useRef(false), seen = useRef(land); // scroll to the next lesson on each layout until the player drags
+  if (seen.current !== land) { seen.current = land; dragged.current = false; }
   // Landscape: every column across the screen when a tile can be 84 pt wide, else 150 pt tiles that scroll. Portrait: three across.
   const across = Math.ceil(LESSONS.length / 2), fit = (width - 2 * side - (across - 1) * 8) / across, W = fit >= 84 ? fit : 150;
   const [rowH, setRowH] = useState(150), tw = land ? W : (width - 2 * side - 16) / 3;
