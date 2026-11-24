@@ -125,8 +125,9 @@ const THINK = 2500; // ms: past this from the start of aiShot, refine runs no mo
 const FAIL = 1; // a pot's rollout score lost for each verify() rollout that does not pot it
 // A tier with tricks checks each new best pot (aim.ts refine): the shot again with the aim 2 sd either way, the speed
 // 2 speedErr either way and the side tip 2 tipErr either way (on 100 Masters tables, half the cushion shots it missed
-// were lost to side tip alone: a cushion takes the spin). Returns how many of the six still pot ball k legally with no
-// scratch and no 8 down early.
+// were lost to side tip alone: a cushion takes the spin; without the tip pair on straight-in shots, 82 of 140 tables
+// cleared in place of 90 at a phone's deadline). Returns how many of the six still pot ball k legally with no scratch
+// and no 8 down early.
 function verify(B: Ball[], ids: number[], group: number[], tier: Tier, s: Shot, sd: number, k: number, first: number, to: Pt, g: Pt, cr: number, or: number) {
   const w = ids.indexOf(winBall(group)), f = 2 * tier.speedErr / 100;
   let n = 0;
@@ -236,8 +237,9 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   if (runs[0].more) {
     const first = cands.length > 1 ? Math.min(6, Math.floor(sims / (cands.length + 1))) : sims; // shortcut: the 6 a try is a guess, retune with bench:visit
     // a sure next shot could not beat the best; a 9 is weighed on its own terms below, so it is always rolled out
-    // a tier with tricks past the deadline scores only the first (its first rollout runs whatever the clock says, so there is a shot)
-    for (const x of runs) if ((x === runs[0] || !tier.tricks || now() < end) && (x.c.type === 'safety' || (nine(group) && x.c.ball === 9) || 2 * x.c.p > Math.max(...runs.map((y) => y.v)))) { score(x, first); sims -= first; }
+    // a tier with tricks always scores its trick shots (their seed chance says little), but past the deadline only the
+    // first (its first rollout runs whatever the clock says, so there is a shot)
+    for (const x of runs) if ((x === runs[0] || !tier.tricks || now() < end) && (x.c.type === 'safety' || (nine(group) && x.c.ball === 9) || (tier.tricks && fancy(x.c)) || 2 * x.c.p > Math.max(...runs.map((y) => y.v)))) { score(x, first); sims -= first; }
     const top = runs.reduce((a, x) => (x.v > a.v ? x : a));
     if (sims > 0 && cands.length > 1) score(top, sims);
     // 9-ball: a 9 that went down early against the best route that potted, as plan() weighs them (nineValue), from the
@@ -264,8 +266,9 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
       if (won.c.type !== 'safety' && won.p >= SAFE_P) break;
     }
   }
-  // show: a checked trick shot or double pot worth at least 1 / (1 + show) of the best, whose chance is at most SHOW_GAP under it, is played in its place
-  const flair = (x: (typeof runs)[number]) => (fancy(x.c) || !!x.r?.extra) && x.v > 0;
+  // show: a checked trick shot, kiss shot (combo, carom, billiard) or double pot worth at least 1 / (1 + show) of the
+  // best, whose chance is at most SHOW_GAP under it, is played in its place
+  const flair = (x: (typeof runs)[number]) => (fancy(x.c) || x.c.type === 'combo' || x.c.type === 'carom' || x.c.type === 'billiard' || !!x.r?.extra) && x.v > 0;
   if (tier.show && !flair(won)) won = runs.filter((x) => flair(x) && x.v * (1 + tier.show!) >= won.v && x.p >= won.p - SHOW_GAP).reduce((a, x) => (x.v > a.v ? x : a), won);
   // A tier with tricks has measured its pots: when none pots on the engine, or the best only in under SAFE_P of verify()'s
   // rollouts, it plays a safety or an escape after all (decide() with no pot allowed), unless it must shoot (safetiesInRow).
