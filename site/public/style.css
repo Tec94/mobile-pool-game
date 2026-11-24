@@ -23,7 +23,7 @@ section { padding-top: clamp(72px, 12vw, 160px); position: relative; }
 .m2 { --face: var(--blue); --lip: var(--blue-lip); color: var(--ink); } .m3 { --face: var(--red); --lip: #A52B22; } .m4 { --face: #8448C8; --lip: #5A2B93; }
 .m5 { --face: #EC7428; --lip: #B04F12; color: var(--ink); } .m6 { --face: #3FBF7F; --lip: #2A8C5A; color: var(--ink); }
 button { font: inherit; cursor: pointer; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
-button.slab:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--lip); }
+button.slab:active, a.slab:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--lip); }
 button.slab[disabled] { opacity: .45; cursor: default; }
 .go { min-height: 58px; padding: 0 24px; width: 100%; } .go b { font-size: 24px; letter-spacing: -.02em; }
 .chip { font: 700 12px/1 var(--ui); letter-spacing: .04em; text-transform: uppercase; background: var(--dark); color: var(--chalk); box-shadow: 0 3px 0 var(--dark-lip); border-radius: 3px; padding: 7px 9px; margin-left: 4px; }
@@ -72,6 +72,13 @@ label i { font-style: normal; font-weight: 500; opacity: .6; }
 .hero .brand { position: absolute; left: 8vw; top: calc(50% - 21vw); color: var(--chalk); }
 .hero h1 { position: absolute; left: 7.5vw; top: calc(50% - 16vw); font-size: 15.5vw; color: #EEF2EAE6; }
 .hero .card { position: absolute; right: 8vw; top: calc(50% + 9.5vw); rotate: 2deg; box-shadow: 0 6px 0 var(--cream-lip), 10px 18px 0 #06120F66; }
+/* The free match (/play): level with the brand on a wide screen, under the form on a tall one. */
+.hero .play { position: absolute; z-index: 4; right: 8vw; top: calc(50% - 21vw - 11px); display: flex; align-items: center; justify-content: center; min-height: 58px; padding: 0 24px; text-decoration: none; }
+.hero .play b { font-size: 24px; letter-spacing: -.02em; }
+@media (max-aspect-ratio: 1/1), (max-width: 760px) { /* no room by the brand: a smaller slab on the top rail, clear of the headline and the rack */
+  .hero .play { top: 12px; right: 16px; min-height: 42px; padding: 0 14px; }
+  .hero .play b { font-size: 18px; }
+}
 @media (max-aspect-ratio: 1/1) { /* a tall screen shows a slice of the table, with the rack in it */
   .hero { --tw: calc(100svh * 1.8); height: 100svh; }
   .hero .rig canvas { left: calc(50% - var(--tw) * .685); }

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Runout: free 8-ball match</title>
+<meta name="description" content="Play one free 8-ball match of Runout against the AI, in your browser.">
+<meta name="theme-color" content="#101F1C">
+<link rel="icon" href="/icon.png">
+<link rel="canonical" href="https://runout.win/play/">
+<style id="expo-reset">
+  /* The table takes every touch: no page scroll, pinch zoom or pull to refresh under it. */
+  html, body { height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; background: #101F1C; }
+  #root { display: flex; height: 100%; flex: 1; }
+  /* Shown until the game draws (CanvasKit is a few MB): the 8 ball, breathing. React replaces it. */
+  .wait { margin: auto; width: 96px; height: 96px; border-radius: 22px; animation: breathe 1.6s ease-in-out infinite; }
+  @keyframes breathe { 50% { opacity: .45; } }
+  @media (prefers-reduced-motion: reduce) { .wait { animation: none; } }
+  .fail { margin: auto; padding: 24px; max-width: 320px; color: #EEF2EA; font: 600 17px/1.4 system-ui, sans-serif; text-align: center; } .fail a { color: #4B98EE; }
+</style>
+</head>
+<body>
+<noscript>The match runs on JavaScript. Turn it on to play.</noscript>
+<div id="root"><img class="wait" src="/icon.png" alt="Loading the table"></div>
+</body>
+</html>
