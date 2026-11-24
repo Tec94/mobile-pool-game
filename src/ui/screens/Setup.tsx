@@ -38,7 +38,7 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
   const game = quick ? set.aiGame : set.game, rival = set.tier === RIVAL, rating = shown(profile().rival[set.aiGame].rating);
   const opp = quick ? (rival ? `Rival ${rating}` : TIERS[set.tier].name) : names[1].trim() || 'Player 2', me = quick ? 'You' : names[0].trim() || 'Player 1';
   const start = () => { if (quick) return go('ai'); change({ names: names.map((n, i) => n.trim() || `Player ${i + 1}`) as [string, string] }); go('match'); };
-  const { charges, armed } = daily.chalk;
+  const { charges, armed } = daily.chalk, { land, height } = useFrame(), tight = height < (land ? 380 : 700); // an SE-sized phone
   return (
     <Shell title={quick ? 'Quick match' : 'Pass and play'} back={() => go('home')}>
       <Split panel={
@@ -46,14 +46,14 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
           <BallArt n={1} size={26} label={quick ? undefined : me.slice(0, 2)} /><Txt numberOfLines={1} style={styles.name}>{me}</Txt>
           <View style={{ flex: 1 }} />
           <Txt numberOfLines={1} style={styles.name}>{opp}</Txt><BallArt n={8} size={26} label={opp[0]} />
-        </>} picture={w => <MiniTable width={w} {...rackOf(game)} rings={game === 8 && set.callAll} lit={game === 8 && set.bank ? [0, 1] : undefined} cloth={set.cloth} />}
+        </>} picture={w => <MiniTable width={land ? w : Math.min(w, 280)} {...rackOf(game)} rings={game === 8 && set.callAll} lit={game === 8 && set.bank ? [0, 1] : undefined} cloth={set.cloth} />}
           cta={{ label: 'Play', name: quick ? 'Play quick match' : 'Play pass and play', onPress: start }} />}>
-        <View style={{ gap: 17 }}>
-          <View style={styles.group}>
+        <View style={{ gap: tight ? 6 : land ? 10 : 14 }}>
+          <View style={[styles.group, tight && { gap: 6 }]}>
             <Line label="Game"><Keys label="Game" value={game} pick={g => change(quick ? { aiGame: g } : { game: g })} options={GAMES} /></Line>
             <Line label="Race to"><Keys label="Race to" value={quick ? set.aiRace : set.race} pick={r => change(quick ? { aiRace: r } : { race: r })} options={RACE_KEYS} /></Line>
           </View>
-          {quick ? <View style={styles.group}>
+          {quick ? <View style={[styles.group, tight && { gap: 6 }]}>
             <Line label="Opponent">
               <View style={styles.opps} accessibilityRole="radiogroup" accessibilityLabel="Opponent">
                 {[RIVAL, ...TIERS.map((_, i) => i)].map(t => {
@@ -76,7 +76,7 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
                 <Txt style={styles.resetText}>{sure ? 'Sure?' : 'Reset'}</Txt>
               </Slab>
             </View></Line>}
-          </View> : <View style={styles.group}>
+          </View> : <View style={[styles.group, tight && { gap: 6 }]}>
             {names.map((n, i) => (
               <Line key={i} label={`Player ${i + 1}`}>
                 <TextInput value={n} onChangeText={t => setNames(i ? [names[0], t] : [t, names[1]])} maxLength={NAME_MAX} autoCorrect={false} autoCapitalize="words" autoComplete="off" returnKeyType="done" maxFontSizeMultiplier={1.3}
@@ -84,9 +84,9 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
               </Line>
             ))}
           </View>}
-          {game === 8 && <View style={styles.group}>
+          {game === 8 && <View style={[styles.group, tight && { gap: 6 }]}>
             <Line label="Call"><Keys label="Call" value={set.callAll} pick={callAll => change({ callAll })} options={[['Every shot', true], ['Only the 8-ball', false]]} /></Line>
-            <Line label="Bank shots"><Keys<Settings['bank']> label="Bank shots" value={set.bank} pick={bank => change({ bank })} options={[['Off', 0], ['8-ball only', 1], ['Every ball', 2]]} /></Line>
+            <Line label="Banks"><Keys<Settings['bank']> label="Bank shots" value={set.bank} pick={bank => change({ bank })} options={[['Off', 0], ['8-ball only', 1], ['Every ball', 2]]} /></Line>
           </View>}
           {quick && charges > 0 && <Line label="Chalk">
             <View style={styles.keys} accessibilityRole="radiogroup" accessibilityLabel="Fresh Chalk">
