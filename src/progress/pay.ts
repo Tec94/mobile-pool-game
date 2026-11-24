@@ -4,7 +4,7 @@ import type { FeatId } from './profile.ts';
 
 export interface Pay { xp: number; coins: number }
 export type ShotType = 'direct' | 'bank' | 'combo' | 'kick';
-// The opponent: an AI tier 1 Rookie to 6 Legend, or a boss and its rating. Neither = not an AI match, x1.
+// The opponent: an AI tier 1 Rookie to 6 Legend and 7, the Chinese Masters, or a boss and its rating. Neither = not an AI match, x1.
 export interface Vs { tier?: number; boss?: number; cue?: CueId; tour?: number } // tour = a tournament round's multiplier (src/tournament/bracket.ts stakes), after the x12 cap
 export interface Pot extends Vs {
   pRef: number | null;  // the average player's chance to make the shot; null = a fluke (no matching candidate)
@@ -21,10 +21,10 @@ export interface Pot extends Vs {
 // Band of a shot by pRef: its name and multiplier. Sharpshooter counts Tough and harder.
 export const band = (pRef: number): [string, number] =>
   pRef >= 0.8 ? ['Routine', 1] : pRef >= 0.55 ? ['Solid', 1.5] : pRef >= 0.3 ? ['Tough', 2.5] : pRef >= 0.12 ? ['Brutal', 4] : ['Outrageous', 6];
-const TYPE = { direct: 1, bank: 1.25, combo: 1.25, kick: 1.5 }, TIER = [0.8, 0.9, 1, 1.1, 1.2, 1.3];
-// A tier outside 1 to 6 is a bug in the caller, not a pay to guess at.
+const TYPE = { direct: 1, bank: 1.25, combo: 1.25, kick: 1.5 }, TIER = [0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.3]; // a pot against the Masters pays as against Legend: the win is what pays
+// A tier outside 1 to 7 is a bug in the caller, not a pay to guess at.
 function vs(v: Vs) {
-  if (v.tier !== undefined && !TIER[v.tier - 1]) throw new Error(`AI tier ${v.tier} is not 1 to 6`);
+  if (v.tier !== undefined && !TIER[v.tier - 1]) throw new Error(`AI tier ${v.tier} is not 1 to 7`);
   return (v.boss ? 0.7 + 0.1 * v.boss : v.tier ? TIER[v.tier - 1] : 1) * (v.cue === 'twig' ? 1.5 : 1);
 }
 // The opponent's rating, on the scale of the tiers. Tricks that change pay and some feats need Hustler (3) or harder.
@@ -48,13 +48,16 @@ export interface Safety extends Vs { legal: boolean; potted: boolean; push: bool
 export const safetyPay = (s: Safety): Pay =>
   s.legal && !s.potted && !s.push && !s.hand && s.hardLeave && !s.oppPotted && s.paidThisGame < 2 ? paid(2.5 * vs(s), s.tour) : { xp: 0, coins: 0 };
 
-// A match against an AI tier 1 to 6. A loss pays for the share of own balls potted; a loss by an early 8, a concede
+// A match against an AI tier 1 to 7. A win against the Chinese Masters (7) pays 10 times a win against Legend (Jack
+// 2026-11-23: a ridiculous reward, it is that hard to beat); a loss to them pays as a loss to Legend, so losing is no
+// way to farm. A loss pays for the share of own balls potted; a loss by an early 8, a concede
 // or a quit pays nothing. shortcut: no break-and-run x2 (held in the design).
 export interface Match { tier: number; won: boolean; fouls: number; ownPotted?: number; early?: boolean; tour?: number } // tour = a tournament match: its round's multiplier x the frames it takes to win (bracket.ts)
+export const MASTERS = 7, MASTERS_WIN = 60; // the tier, and its win's factor where Legend's is 6
 export function matchPay(m: Match): Pay {
   const k = m.won ? (m.fouls ? 1 : 1.2) : m.early ? 0 : Math.min(7, m.ownPotted ?? 0) / 7;
-  const [xp, coins] = m.won ? [60, 40] : [20, 10], t = m.tour ?? 1;
-  return { xp: Math.round(xp * m.tier * k * t), coins: Math.round(coins * m.tier * k * t) };
+  const [xp, coins] = m.won ? [60, 40] : [20, 10], t = (m.tour ?? 1) * (m.tier < MASTERS ? m.tier : m.won ? MASTERS_WIN : 6);
+  return { xp: Math.round(xp * k * t), coins: Math.round(coins * k * t) };
 }
 
 // A quick match's pay so far: what the human's shots earned, the run of pots this visit, and the fouls and own balls

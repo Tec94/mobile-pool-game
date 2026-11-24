@@ -46,7 +46,8 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq([pay(0.9, { type: 'combo' }).xp, pay(0.9, { type: 'kick' }).xp], [13, 15], 'combo x1.25, kick x1.5');
   eq([1, 2, 3, 4, 5, 6].map(tier => pay(0.9, { tier }).xp), [8, 9, 10, 11, 12, 13], 'tiers Rookie .8 to Legend 1.3');
   eq(pay(0.9, { boss: 5 }).xp, 12, 'a boss of rating 5: x1.2');
-  for (const tier of [0, 7, 1.5, -1]) assert.throws(() => pay(0.9, { tier }), /tier/, `tier ${tier} is a bug`);
+  eq(pay(0.9, { tier: 7 }).xp, 13, 'a pot against the Masters pays as against Legend');
+  for (const tier of [0, 8, 1.5, -1]) assert.throws(() => pay(0.9, { tier }), /tier/, `tier ${tier} is a bug`);
   eq([0, 3, 7, 9].map(run => pay(0.9, { run }).xp), [10, 13, 17, 17], 'run: +10% per pot in a row, at most +70%');
   eq(pay(0.9, { cue: 'twig' }).xp, 15, 'Twig: x1.5'); eq(pay(0.9, { cue: 'ram' }).xp, 10, 'other cues: x1');
   eq(pay(0.05, { type: 'kick', tier: 6, run: 7, cue: 'twig' }), { xp: 120, coins: 48 }, 'all multipliers together: at most x12');
@@ -70,6 +71,10 @@ ok('levels: 200 + 50 per level to leave it, cap 50');
   eq(matchPay({ tier: 2, won: false, ownPotted: 3, fouls: 2 }), { xp: 17, coins: 9 }, 'a loss pays for the share of own balls potted');
   eq(matchPay({ tier: 2, won: false, ownPotted: 9, fouls: 0 }).xp, 40, 'at most 7 own balls count');
   eq(matchPay({ tier: 6, won: false, ownPotted: 6, fouls: 0, early: true }), { xp: 0, coins: 0 }, 'early 8, concede or quit: nothing');
+  eq(matchPay({ tier: 7, won: true, fouls: 1 }), { xp: 3600, coins: 2400 }, 'a win against the Masters: 10 times Legend');
+  eq(matchPay({ tier: 7, won: true, fouls: 0 }), { xp: 4320, coins: 2880 }, 'and its no-foul bonus');
+  eq(matchPay({ tier: 7, won: false, ownPotted: 7, fouls: 0 }), matchPay({ tier: 6, won: false, ownPotted: 7, fouls: 0 }), 'a loss to the Masters pays as a loss to Legend');
+  eq(matchPay({ tier: 7, won: false, ownPotted: 7, fouls: 0, early: true }).xp, 0, 'and a concede nothing');
   ok('match pay vs AI');
 }
 
