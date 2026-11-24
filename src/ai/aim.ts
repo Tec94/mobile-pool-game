@@ -128,7 +128,7 @@ const GRID: [number, number][] = [[1, DRAW], [1, TIP], [1.6, DRAW], [1.6, 0], [0
 const JUMP_SPEED = 4, D = Math.PI / 180;
 const JUMPS: [number, number, number][] = [[1.125, 0, 45 * D], [0.875, 0, 38 * D], [1.125, 0, 38 * D], [1, 0, 45 * D], [0.875, 0, 45 * D], [1, 0, 30 * D], [1.125, 0, 30 * D]];
 // ms clock; a worklet runtime may have no performance, so Date.now there
-function now() { return typeof performance === 'undefined' ? Date.now() : performance.now(); } // a function declaration: the worklets plugin turns those into worklets, not a ternary of functions
+export function now() { return typeof performance === 'undefined' ? Date.now() : performance.now(); } // a function declaration: the worklets plugin turns those into worklets, not a ternary of functions
 const THINK = 2500; // ms: past this from the start of aiShot, refine runs no more rollouts and keeps the best so far (Tier.think: the tier's own)
 const FAIL = 1; // a pot's rollout score lost for each verify() rollout that does not pot it
 // A tier with tricks checks its pots (refine, aiShot check): the shot again with the aim 2 sd either way, the speed

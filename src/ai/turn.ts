@@ -4,7 +4,7 @@
 // the human's pots in a match against the AI.
 import { type Ball, CUE, HOLES, P, type Shot } from '../physics/engine.ts';
 import { canCall, cushionAt, ENDS, jumped, legalSpot, massed, onEight, potKind, type Hand, type Rec, type State } from '../rules/rules.ts';
-import { aiShot } from './aim.ts';
+import { aiShot, now } from './aim.ts';
 import { styled, type StyleId } from './styles.ts';
 import { aiParams, chooseGroup, type Cand, EDGE, enumerate, makeProb, NINE, type Obj, type Pick, plan, rng, shotOdds, SIGMA_REF, SOLIDS, STRIPES, type Tier } from './shot-ai.ts';
 import { type Aura, hustler, type Pay, shotPay, type ShotType as PayType, type Vs } from '../progress/pay.ts';
@@ -121,7 +121,7 @@ export const onLit = (lit: number[], c: Cand) => {
 // style = a tournament opponent's style (src/ai/styles.ts); none = the plain tier. deadline = ms in place of the tier's
 // think (tests pass Infinity: no clock, so the same search on any machine).
 export function think(B: Ball[], ids: number[], s: State, level: number, seed: number, safeties: number, style?: StyleId, deadline?: number): Move {
-  const rnd = rng(seed), T = styled({ ...aiParams(level, rnd), ...(deadline === undefined ? {} : { think: deadline }) }, style, s.game === 9 ? s.balls.length : s.solids < 0 ? 8 : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === s.turn)).length + 1);
+  const t0 = now(), rnd = rng(seed), T = styled({ ...aiParams(level, rnd), ...(deadline === undefined ? {} : { think: deadline }) }, style, s.game === 9 ? s.balls.length : s.solids < 0 ? 8 : s.balls.filter(id => id !== 8 && (id < 8) === (s.solids === s.turn)).length + 1);
   if (s.phase === 'break') return { shot: T.tricks && s.game === 8 ? trickBreak(B, ids, T, rnd) : breakShot(B, ids, rnd), at: null, call: -1, safety: false };
   // open table: the group it would pick from where the cue ball lies now. By value: on the runtime its SOLIDS is a copy
   const g = groupsOf(s, s.turn) ?? (chooseGroup({ x: B[0].x * 1000, y: B[0].y * 1000 }, mm(B, ids), T)[0] === 1 ? [SOLIDS, STRIPES] : [STRIPES, SOLIDS]);
@@ -140,7 +140,8 @@ export function think(B: Ball[], ids: number[], s: State, level: number, seed: n
     if (at) { B[0].x = at[0]; B[0].y = at[1]; }
   }
   const lit = s.lit, ok = lit.length ? (c: Cand) => onLit(lit, c) : undefined; // bank shots: no other pot counts
-  const { shot, pick } = aiShot(B, ids, s.game === 9 ? g[0] : ahead(g[0]), g[1], T, rnd, safeties, ok);
+  const T2 = T.think === undefined ? T : { ...T, think: T.think - (now() - t0) }; // the deadline counts the cue ball's placement too
+  const { shot, pick } = aiShot(B, ids, s.game === 9 ? g[0] : ahead(g[0]), g[1], T2, rnd, safeties, ok);
   return { shot, at: s.hand ? [B[0].x, B[0].y] : null, call: callFor(s, pick, B, ids), safety: pick.type === 'safety', kind: kindOf(pick) };
 }
 
