@@ -45,9 +45,9 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
     <Shell title={quick ? 'Quick match' : 'Pass and play'} back={() => go('home')}>
       <Split panel={
         <Panel head={<>
-          <BallArt n={1} size={26} label={quick ? undefined : me.slice(0, 2)} /><Txt numberOfLines={1} style={styles.name}>{me}</Txt>
+          <BallArt n={1} size={26} label={quick ? undefined : me.slice(0, 2)} /><Txt numberOfLines={1} style={[styles.name, quick && { flexShrink: 0 }]}>{me}</Txt>
           <View style={{ flex: 1 }} />
-          <Txt numberOfLines={1} style={styles.name}>{opp}</Txt><BallArt n={8} size={26} label={opp[0]} />
+          <Txt numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.name}>{opp}</Txt><BallArt n={8} size={26} label={opp[0]} />
         </>} picture={w => <MiniTable width={w} {...rackOf(game)} rings={game === 8 && set.callAll} lit={game === 8 && set.bank ? [0, 1] : undefined} cloth={set.cloth} />}
           cta={{ label: 'Play', name: quick ? 'Play quick match' : 'Play pass and play', onPress: start }} />}>
         <View style={{ gap: 17 }}>
