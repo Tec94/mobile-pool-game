@@ -1,6 +1,6 @@
 // Run: npm test   (the Chinese Masters' trick shots: multi-cushion banks and kicks, jumps, escapes, on the real engine)
 import assert from 'node:assert';
-import { simulate } from '../physics/engine.ts';
+import { HOLES, simulate, step, strike } from '../physics/engine.ts';
 import { aiShot } from './aim.ts';
 import { holeOf } from './turn.ts';
 import { decide, enumerate, fancy, MASTERS, norm, plan, POCKETS, R, randomLayout, rng, SOLIDS, STRIPES, sub, TIERS, W, H } from './shot-ai.ts';
@@ -37,23 +37,34 @@ const M = TIERS[MASTERS - 1];
   }
   ok('tiers 0 to 5 never plan a trick shot');
 }
-// The first `k` of the Masters' picks of a kind (ok = the pots it may try) on seeded tables, played noise-free on the engine.
+// The pocket ball j drops in when shot is played noise-free on B (-1 none), and whether the cue ball hit ball f first without a scratch.
+const play = (B, shot, j, f) => {
+  const S = B.map((b) => ({ ...b })), ev = []; let first = -1, scratch = false, hole = -1;
+  strike(S[0], shot);
+  for (let n = 0; n < 30000 && (ev.length = 0, step(S, ev)); n++) for (const e of ev) {
+    if (e.t === 'bb' && e.a === 0 && first < 0) first = e.b;
+    if ((e.t === 'pocket' || e.t === 'off') && e.a === 0) scratch = true;
+    if (e.t === 'pocket' && e.a === j) hole = HOLES.reduce((m, h, q) => ((h[0] - e.x) ** 2 + (h[1] - e.y) ** 2 < (HOLES[m][0] - e.x) ** 2 + (HOLES[m][1] - e.y) ** 2 ? q : m), 0);
+  }
+  return { hole, clean: first === f && !scratch };
+};
+// The first `k` of the Masters' picks of a kind (ok = the pots it may try; it may still play safe) on seeded tables.
 const picks = (ok, k, seed) => {
   const rnd = rng(seed), out = [];
-  for (let i = 0; i < 80 && out.length < k; i++) {
+  for (let i = 0; i < 120 && out.length < k; i++) {
     const L = randomLayout(rnd, 5), { B, ids } = table(L);
     if (!enumerate(L.cue, L.balls, [1, 2, 3, 4, 5], undefined, true, 4).some(ok)) continue;
-    const r = aiShot(B, ids, SOLIDS, STRIPES, { ...M, depth: 0 }, rng(i), 2, ok);
-    if (r.pick.type !== 'safety' && r.pick.type !== 'foul' && ok(r.pick)) out.push({ r, B, ids, sim: simulate(B, r.aim, undefined, 30000) });
+    const r = aiShot(B, ids, SOLIDS, STRIPES, { ...M, depth: 0 }, rng(i), 0, ok);
+    if (r.pick.type !== 'safety' && r.pick.type !== 'foul' && ok(r.pick)) out.push({ r, ...play(B, r.aim, ids.indexOf(r.pick.ball), ids.indexOf(r.pick.first)) });
   }
   return out;
 };
 for (const [type, rails] of [['bank', 2], ['bank', 3], ['kick', 2], ['kick', 3]]) {
   const p = picks((c) => c.type === type && c.rails === rails, 3, 20 + rails);
   assert(p.length, `a ${type} off ${rails} cushions is found`);
-  const made = p.filter(({ r, ids, sim }) => sim.potted.includes(ids.indexOf(r.pick.ball)) && !sim.scratch && ids[sim.first] === r.pick.first);
-  assert(made.length >= 1, `${type}${rails}: the engine pots ${made.length} of ${p.length}`);
-  ok(`the Masters finds a ${type} off ${rails} cushions and the engine pots it (${made.length} of ${p.length})`);
+  const made = p.filter(({ r, hole, clean }) => clean && hole === holeOf(r.pick));
+  assert.equal(made.length, p.length, `${type}${rails}: the engine pots ${made.length} of ${p.length} in the called pocket`);
+  ok(`the Masters finds a ${type} off ${rails} cushions it trusts and the engine pots each in the called pocket (${p.length})`);
 }
 { // Jump: the lane to a cut into the corner is blocked 300 mm out (it may kick it too: here it may only jump). It pots it in the called pocket.
   const B = [mk(0.9, 0.6), mk(0.628, 0.474), mk(0.3, 0.3)], ids = [0, 9, 1];
