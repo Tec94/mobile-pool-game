@@ -125,7 +125,10 @@ const deg = (r) => r * 180 / Math.PI;
   ok('higher tiers run more balls');
 }
 { // Safety quality (check.js): the best pot an average player is left with is worse after each tier's chosen safety.
-  for (const tier of S.TIERS.filter((t) => t.safetyAngles.length)) {
+  // safety() reads only safetyAngles from the tier: one row per distinct set (Pro, Legend and Masters share one). If it
+  // reads another tier field, add it to this key.
+  const seen = new Set();
+  for (const tier of S.TIERS.filter((t) => t.safetyAngles.length && !seen.has(String(t.safetyAngles)) && seen.add(String(t.safetyAngles)))) {
     const rnd = S.rng(9); let before = 0, after = 0;
     for (let i = 0; i < 60; i++) {
       const { cue, balls } = S.randomLayout(rnd, 4), s = S.safety(cue, balls, [1, 2, 3, 4], [9, 10, 11, 12], tier, rnd, false);
