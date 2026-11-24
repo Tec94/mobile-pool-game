@@ -71,8 +71,8 @@ export function Setup({ mode, set, change: save, go, daily, arm }: Props & Pick<
                   return (
                     <Slab key={t} paint={on ? (top ? [CREAM[0], SEAL[1]] : CREAM) : top ? SEAL : [C.keyOff, 'transparent']} lip={on ? 3 : 0} radius={3} onPress={() => change({ tier: t })} hitSlop={{ top: 4, bottom: 4 }}
                       accessibilityRole="radio" accessibilityLabel={t === RIVAL ? `Rival, rating ${rating}` : TIERS[t].name} accessibilityState={{ checked: on }} aria-checked={on}
-                      style={{ flexGrow: 1, marginBottom: on ? 0 : 3, marginLeft: top ? 4 : 0 }} face={styles.opp}>
-                      <Txt numberOfLines={top ? 2 : 1} style={[styles.oppName, ink, top && styles.two]}>{t === RIVAL ? 'Rival' : top ? TIERS[t].name.replace(' ', '\n') : TIERS[t].name}</Txt>
+                      style={{ flexGrow: 1, flexShrink: 1, minWidth: 0, marginBottom: on ? 0 : 3, marginLeft: top ? 4 : 0 }} face={styles.opp}>
+                      <Txt numberOfLines={top ? 2 : 1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.oppName, ink, top && styles.two]}>{t === RIVAL ? 'Rival' : top ? TIERS[t].name.replace(' ', '\n') : TIERS[t].name}</Txt>
                       {t === RIVAL ? <Txt style={[styles.rating, ink]}>{rating}</Txt>
                         : !top && <View style={styles.bars}>{TIERS.slice(0, TOP).map((_, k) => <View key={k} style={[styles.bar, { backgroundColor: ink.color, opacity: k <= t ? 1 : 0.22 }]} />)}</View>}
                     </Slab>
