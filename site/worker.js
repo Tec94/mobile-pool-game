@@ -17,15 +17,14 @@ export async function join(req, env) {
   const email = text(form.email, 255).toLowerCase();
   if (form.website) return reply(true, 200); // the hidden field only a bot fills: say yes, store nothing
   if (email.length > 254 || !EMAIL.test(email)) return reply(false, 400, 'email');
-  // Turnstile: the page sends a token only a real browser gets. Skipped while the secret is unset or TURNSTILE is "off" (wrangler.jsonc vars).
-  // A refused signup logs its email, so a real person caught by it can be added back from Workers Logs.
-  if (env.TURNSTILE !== 'off' && env.TURNSTILE_SECRET && !(await human(form['cf-turnstile-response'], req, env))) {
-    console.log(JSON.stringify({ refused: 'bot', email, name: text(form.name, 60) || null, ref: text(form.ref, 40) || null, country: req.cf?.country || null }));
-    return reply(false, 403, 'bot');
-  }
-  // A second signup with the same email changes nothing and gets the same answer, so the page never tells who is on the list.
-  await env.DB.prepare('INSERT INTO signups (email, name, ref, country, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(email) DO NOTHING')
-    .bind(email, text(form.name, 60) || null, text(form.ref, 40) || null, req.cf?.country || null, new Date().toISOString()).run();
+  // Turnstile: the page sends a token only a real browser gets. It never refuses anyone: a failed check is stored with human = 0,
+  // a passed one with 1, so a real person whose browser fails the check is still on the list. NULL = not checked
+  // (secret unset, or TURNSTILE "off" in wrangler.jsonc vars).
+  const check = env.TURNSTILE !== 'off' && env.TURNSTILE_SECRET ? +(await human(form['cf-turnstile-response'], req, env)) : null;
+  // A second signup with the same email changes nothing (but a passed check upgrades it) and gets the same answer,
+  // so the page never tells who is on the list.
+  await env.DB.prepare('INSERT INTO signups (email, name, ref, country, created_at, human) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(email) DO UPDATE SET human = 1 WHERE excluded.human = 1')
+    .bind(email, text(form.name, 60) || null, text(form.ref, 40) || null, req.cf?.country || null, new Date().toISOString(), check).run();
   return reply(true, 200);
 }
 

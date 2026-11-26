@@ -53,21 +53,24 @@ test('serves the App Clip association file as JSON without a redirect', async ()
   assert.match(r.headers.get('content-type'), /^application\/json/);
   assert.deepEqual((await r.json()).appclips.apps, ['T753GG3LAJ.com.tec94.pool.Clip']);
 });
-test('with the Turnstile secret set, only a token Cloudflare accepts is stored', async () => {
+test('the Turnstile check never refuses: it marks the row human 1 or 0', async () => {
   const real = globalThis.fetch, sent = [];
   globalThis.fetch = async (url, init) => { sent.push(init.body.get('response')); return Response.json({ success: init.body.get('response') === 'good' }); };
   try {
-    const env3 = { ...env, TURNSTILE_SECRET: 's' }, before = rows.length; tries = 0;
-    const go = body => join(new Request('https://x.test/api/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }), env3);
-    assert.equal((await go({ email: 't1@x.co' })).status, 403);
-    assert.equal((await go({ email: 't1@x.co', 'cf-turnstile-response': 'bad' })).status, 403);
-    assert.equal((await go({ email: 't1@x.co', 'cf-turnstile-response': 'good' })).status, 200);
-    assert.equal(rows.length, before + 1);
+    const env3 = { ...env, TURNSTILE_SECRET: 's' }; tries = 0;
+    const go = (body, e = env3) => join(new Request('https://x.test/api/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }), e);
+    const human = email => rows.find(r => r[0] === email)[5];
+    assert.equal((await go({ email: 't1@x.co' })).status, 200);
+    assert.equal(human('t1@x.co'), 0);
+    assert.equal((await go({ email: 't2@x.co', 'cf-turnstile-response': 'bad' })).status, 200);
+    assert.equal(human('t2@x.co'), 0);
+    assert.equal((await go({ email: 't3@x.co', 'cf-turnstile-response': 'good' })).status, 200);
+    assert.equal(human('t3@x.co'), 1);
     assert.deepEqual(sent, ['bad', 'good']); // no token, no call to Cloudflare
     globalThis.fetch = async () => { throw new Error('down'); };
-    assert.equal((await go({ email: 't2@x.co', 'cf-turnstile-response': 'good' })).status, 403);
-    const off = { ...env3, TURNSTILE: 'off' }, n = rows.length;
-    assert.equal((await join(new Request('https://x.test/api/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 't3@x.co' }) }), off)).status, 200);
-    assert.equal(rows.length, n + 1); // switched off: stored with no token
+    assert.equal((await go({ email: 't4@x.co', 'cf-turnstile-response': 'good' })).status, 200);
+    assert.equal(human('t4@x.co'), 0);
+    assert.equal((await go({ email: 't5@x.co' }, { ...env3, TURNSTILE: 'off' })).status, 200);
+    assert.equal(human('t5@x.co'), null); // switched off: not checked
   } finally { globalThis.fetch = real; }
 });
