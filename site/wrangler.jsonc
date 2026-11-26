@@ -11,5 +11,7 @@
   // Five signups a minute from one address (worker.js). namespace_id is any number not used by another limiter in the account.
   "ratelimits": [{ "name": "LIMIT", "namespace_id": "2601", "simple": { "limit": 5, "period": 60 } }],
   "build": { "command": "npm run build" },
+  // "off" skips the Turnstile check in worker.js. To turn it back on: delete this line and put the widget back in public/index.html.
+  "vars": { "TURNSTILE": "off" },
   "observability": { "logs": { "enabled": true, "invocation_logs": true } }
 }

@@ -66,5 +66,8 @@ test('with the Turnstile secret set, only a token Cloudflare accepts is stored',
     assert.deepEqual(sent, ['bad', 'good']); // no token, no call to Cloudflare
     globalThis.fetch = async () => { throw new Error('down'); };
     assert.equal((await go({ email: 't2@x.co', 'cf-turnstile-response': 'good' })).status, 403);
+    const off = { ...env3, TURNSTILE: 'off' }, n = rows.length;
+    assert.equal((await join(new Request('https://x.test/api/join', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 't3@x.co' }) }), off)).status, 200);
+    assert.equal(rows.length, n + 1); // switched off: stored with no token
   } finally { globalThis.fetch = real; }
 });
