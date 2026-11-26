@@ -6,7 +6,7 @@
     "build": "esbuild src/app.js --bundle --format=esm --minify --target=es2020 --outfile=public/app.js && node ../scripts/demo-web.mjs",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "export": "wrangler d1 execute runout-waitlist --remote --json --command \"SELECT email, name, ref, country, created_at FROM signups ORDER BY created_at\""
+    "export": "wrangler d1 execute runout-waitlist --remote --json --command \"SELECT email, name, ref, country, created_at, human FROM signups ORDER BY created_at\""
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
