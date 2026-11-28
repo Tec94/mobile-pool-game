@@ -179,7 +179,7 @@ function verify(B: Ball[], ids: number[], group: number[], tier: Tier, s: Shot, 
 // rollout really left the table (reply), not by the distance to the planned spot.
 function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number, first: number, pk: Pt | null, G: Pt, leave: Pt & { spin: number }, shot: Shot, clk: Clock, cr = 0, or = 0, verifyAt?: (s: Shot) => number, opp?: number[], lit: number[] = []) {
   const g = { x: G.x / 1000, y: G.y / 1000 }, to = pk && { x: pk.x / 1000, y: pk.y / 1000 };
-  let best: Roll | null = null, sims = 0, r0: Roll | null = null, i = 0, gi = 0, tuned = false; // tuned: past the aim, on speed and tip
+  let best: Roll | null = null, sims = 0, r0: Roll | null = null, i = 0, gi = 0, tuned = false, ill = NaN, leg = NaN; // tuned: past the aim, on speed and tip; ill, leg: the last aim that hit another ball first, the right one
   const slope = [0, 0]; // d err / d aim, before the right first hit and after it
   const done = (r: Omit<Roll, 'sure'>) => r.legal && (!pk || (r.pot && Math.abs(r.err) < 0.004));
   const run = (s: Shot): Roll => {
@@ -190,10 +190,19 @@ function refine(B: Ball[], ids: number[], group: number[], tier: Tier, k: number
     const off = Math.abs(r.err) * 5 + (pk ? 1 - Math.max(0, p) : opp ? reply(r.S, ids, opp) : Math.hypot(c.x * 1000 - leave.x, c.y * 1000 - leave.y) / 4000);
     const out = { ...r, shot: s, next: p, nextNine: np.nine, extra, sure: -1, score: 8 * +(r.pot && r.legal) + 4 * +!r.scratch + 2 * +r.legal + +r.rail - Math.min(0.99, off) + 0.5 * extra };
     if (verifyAt && out.score > (best?.score ?? -Infinity) && (done(out) || (tuned && out.legal && !!pk && out.pot))) { const n = verifyAt(s); if (n >= 0) { out.sure = n / 6; out.score -= FAIL * (6 - n); } }
+    if (r.legal) leg = s.ang; else ill = s.ang;
     if (!best || out.score > best.score) best = out;
     return out;
   };
-  const next = (r: Roll) => r.shot.ang - (slope[+r.legal] ? Math.max(-0.02, Math.min(0.02, r.err / slope[+r.legal])) : -0.001); // a secant step, or a nudge to measure the slope
+  // a secant step, or a nudge to measure the slope. Once both a blocked aim (another ball hit first) and a legal one are
+  // known, a blocked aim, or a legal one whose step reaches the blocked one, bisects between them: a pot past a blocker has
+  // a window narrower than the secant's step, which leaps over it from either side.
+  const next = (r: Roll) => {
+    const x = r.shot.ang - (slope[+r.legal] ? Math.max(-0.02, Math.min(0.02, r.err / slope[+r.legal])) : -0.001);
+    if (!r.legal) return isNaN(leg) ? x : (r.shot.ang + leg) / 2;
+    const d = ill - r.shot.ang;
+    return (x - r.shot.ang) * d > 0 && Math.abs(x - r.shot.ang) >= Math.abs(d) ? r.shot.ang + d / 2 : x;
+  };
   const grid: [number, number, number?][] = shot.elev ? JUMPS : pk ? GRID : SPEEDS.flatMap((m) => [shot.b, leave.spin * (HOUSE.tipLimit - 0.05)].map((b): [number, number] => [m, b])).slice(1);
   return (n: number): Roll => {
     sims += n;
@@ -330,7 +339,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
     const first = ids.indexOf(c.type === 'safety' ? c.ball : c.first), start: Shot = c.elev ? { ang: c.aim, speed, a: 0, b: 0, elev: c.elev } : { ang: correctAim(B[0], B[first], c, speed, 0, b) ?? c.aim, speed, a: 0, b };
     const cr = tier.tricks && (c.type === 'kick' || c.type === 'safety') ? c.rails ?? +(c.type === 'kick') : 0, or = tier.tricks && c.type === 'bank' ? c.rails ?? 1 : 0;
     const k = ids.indexOf(c.ball), pk = c.type === 'safety' ? null : POCKETS[c.pocket], sd = aimSd(tier, c.type);
-    const verifyAt = tier.tricks ? (s: Shot) => verify(B, ids, group, tier, s, sd, k, first, pk && { x: pk.x / 1000, y: pk.y / 1000 }, { x: c.G.x / 1000, y: c.G.y / 1000 }, cr, or, clk, lit) : undefined;
+    const verifyAt = tier.tricks || tier.check ? (s: Shot) => verify(B, ids, group, tier, s, sd, k, first, pk && { x: pk.x / 1000, y: pk.y / 1000 }, { x: c.G.x / 1000, y: c.G.y / 1000 }, cr, or, clk, lit) : undefined;
     return { c, more: sims < 2 && !free ? null : refine(B, ids, group, tier, k, first, pk, c.G, lv, start, clk, cr, or, verifyAt, tier.tricks && !pk ? oppGroup : undefined, lit), verifyAt, v: -Infinity, p: 0, shot: start, r: null as Roll | null };
   };
   const runs = lead.map((c) => mkRun(c)); // the trick shots' start below: their aim corrections would cost the pick's time
@@ -341,7 +350,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   const late = () => over(clk), stopped = () => now() >= clk.end; // stopped: the hard stop, not the count
   const value = (x: Run) => {
     const r = x.r!, c = x.c;
-    x.p = c.type === 'safety' ? 0 : !tier.tricks ? c.p : r.sure >= 0 ? SURE * r.sure : late() ? c.p : SURE;
+    x.p = c.type === 'safety' ? 0 : !x.verifyAt ? c.p : r.sure >= 0 ? SURE * r.sure : late() ? c.p : SURE;
     x.v = c.type !== 'safety' && r.pot && r.legal && !r.scratch ? x.p * (1 + r.next + r.extra) : r.score / 16 - 1;
   };
   const score = (x: Run, n: number) => { x.r = x.more!(n); x.shot = x.r.shot; value(x); };
@@ -354,7 +363,7 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
   const best = () => runs.reduce((a, x) => (x.v > a.v ? x : a));
   const settle = () => { for (let x = best(); x.verifyAt && x.r!.sure < 0 && x.v > 0 && !late(); x = best()) checkRun(x); }; // until the best is a checked pot
   if (runs[0].more) {
-    const first = cands.length > 1 ? Math.min(6, Math.floor(sims / (cands.length + 1))) : sims; // shortcut: the 6 a try is a guess, retune with bench:visit
+    const first = cands.length > 1 ? Math.min(8, Math.floor(sims / (cands.length + 1))) : sims; // shortcut: the 8 a try is a guess (6 missed a pot past a blocker at 59:5, reels v3), retune with bench:visit
     const head = runs[0], pickSure = () => head.r?.sure === 1 && head.r.next >= 0.95; // checked on all six, a near-sure next shot
     // a sure next shot could not beat the best; a 9 is weighed on its own terms below, so it is always rolled out; a tier
     // with tricks always scores its trick shots (their seed chance says little)
@@ -367,7 +376,14 @@ export function aiShot(B: Ball[], ids: number[], group: number[], oppGroup: numb
     const mostRails = cands.filter(fancy).sort((a, b) => (b.rails ?? 1) - (a.rails ?? 1))[0], firstReel = cands.find((c) => big(c) && c.type !== 'safety' && c.p >= 0.3), skip = (c: Planned | Safety) => !!tier.tricks && c !== pick && (late() || (pickSure() && c !== mostRails && c !== firstReel));
     for (const x of runs) if (!skip(x.c) && worth(x)) { score(x, first); sims -= first; if (x === head) checkRun(x); }
     if (tier.tricks) { settle(); for (const c of cands) if (!lead.includes(c) && !skip(c)) { const x = mkRun(c, true); runs.push(x); score(x, first); sims -= first; } }
-    const top = best();
+    // a checked tier (not the Masters) spends the rest on the pot with the most to gain: a high seed chance its few
+    // rollouts have not yet found a sure line for (a pot past a blocker) can beat the best checked one
+    const up = (x: Run) => { // an unchecked pot by its seed chance, not SURE
+      if (!x.r || !x.verifyAt || tier.tricks || x.c.type === 'safety' || x.r.sure >= 5 / 6) return x.v;
+      const seed = x.c.p * (1 + Math.max(0, x.r.next));
+      return x.r.sure < 0 ? seed : Math.max(x.v, seed);
+    };
+    const top = runs.reduce((a, x) => (up(x) > up(a) ? x : a));
     if (sims > 0 && cands.length > 1) score(top, sims);
     settle();
     if (tier.tricks && late()) for (const x of runs) if (x.r) value(x); // out of time: the unchecked pots at their seed chance
